@@ -21,11 +21,17 @@ Claude: size_parachute -> 36 in Rocketman DG-03 (Cd 0.85): 19.9 ft/s at the simu
 | Designs | `open_design` (.ork, bundled examples, new), `get_design` (tree, motors, **stability of every stage stack**), `describe_component`, `edit_components`, `add_component`, `remove_component`, `set_deployment`, `set_stage_separation`, `flight_configuration`, `save_design` |
 | Motors | `search_motors` (diameter, class, **cert level**, manufacturer), `rank_motors` (simulates candidates: target apogee / max apogee / smallest motor meeting rail-exit rules), `set_motor` (incl. air-start ignition), `import_motor_file` (.eng/.rse), `create_custom_motor` (**liquid / hybrid / static-fire curves, with tank CG shift**) |
 | Flight | `run_simulation` (apogee, Mach, rail exit, TWR, min/max stability, per-stage events, deployments, landing distance), `get_flight_data` (down-sampled series, e.g. stability-vs-time plots), `sweep` (launch conditions or any component property) |
-| Recovery chain | `recovery_analysis` (deployment airspeed/density/mass from the sim → opening load by Knacke Cx and finite-mass inflation → shear pins), `deployment_delay_sweep` (how late can the drogue fire?), `size_parachute` (+ real chutes from the parts database), `search_parachutes`, `opening_shock`, `shear_pins`, `ejection_charge` (black powder), `recovery_bay_fit`, `descent_energy` |
+| Recovery chain | `recovery_analysis` (deployment airspeed/density/mass from the sim → opening load by Knacke Cx and finite-mass inflation → shear pins), `deployment_delay_sweep` (how late can the drogue fire?), `size_parachute` (+ real chutes from the parts database), `search_parachutes`, `opening_shock`, `shear_pins`, `ejection_charge` (black powder), `recovery_bay_fit` (bay volume from the design: tube or nose-cone interior), `descent_energy` |
+| Goals & dispersion | `optimize` (goal-seek 1–3 properties: target apogee, max apogee, target stability, min mass — with stability / rail-exit / Mach / apogee constraints), `monte_carlo` (randomized wind and launch angle: landing ellipse per stage, apogee spread, worst stability and rail exit, worst deployment airspeed and opening load) |
+| Reports | `generate_report` (Markdown design review with rule checks, stability by stage, recovery chain, methods, plus the two stability-vs-time SVG plots DTEG R10.3.2 asks for and a CSV), `export_flight_data` (full-resolution CSV) |
 | Rules & standards | `check_requirements` (Launch Canada R4: launch angle, rail exit ≥ 100 ft/s, TWR by year and per stage, ≥ 1.5 cal ascent stability incl. 30 km/h wind, over-stability, air-start tilt & altitude inhibit, dual-event, drogue 50–150 ft/s, main ≤ 1500 ft & < 30 ft/s), `get_standards`, `update_standards`, `load_standards`, `set_units` |
 
 Also: MCP **prompts** (`recovery_review`, `design_review`, `motor_selection`) and **resources** (`openrocket://standards`,
 `openrocket://rules`, `openrocket://methods`).
+
+What-if tools (`rank_motors`, `sweep`, `optimize`, `monte_carlo`, `deployment_delay_sweep`) run each variant on a
+copy of the rocket, in parallel across CPU cores, and never modify the open design. Variants share the same wind
+turbulence so differences come from the change being studied; Monte Carlo results are repeatable for a given seed.
 
 Units are switchable (`metric`, `imperial`, `both`). Every input accepts units — `"20 ft/s"`, `"4.343 in"`, `"15 psi"`,
 `"75 ft-lbf"`; bare numbers are SI.

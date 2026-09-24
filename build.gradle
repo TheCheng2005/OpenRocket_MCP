@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'io.github.openrocketmcp'
-version = '0.1.0'
+version = '0.2.0'
 
 
 repositories {
@@ -38,6 +38,8 @@ test {
     useJUnitPlatform()
     jvmArgs '-Djava.awt.headless=true'
     systemProperty 'mcp.verbose', System.getProperty('mcp.verbose', 'false')
+    systemProperty 'bench', System.getProperty('bench', 'false')
+    if (System.getProperty('openrocketmcp.threads')) systemProperty 'openrocketmcp.threads', System.getProperty('openrocketmcp.threads')
     testLogging {
         events 'failed'
         exceptionFormat 'full'

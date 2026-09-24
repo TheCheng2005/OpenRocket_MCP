@@ -60,6 +60,16 @@ public final class Analysis {
 		return false;
 	}
 
+	/** Barrowman CP position (m from nose tip) at the given Mach number and zero angle of attack. */
+	public static double cp(FlightConfiguration config, double mach) {
+		FlightConditions conditions = new FlightConditions(config);
+		conditions.setMach(Math.max(0.01, mach));
+		conditions.setAOA(0);
+		conditions.setRollRate(0);
+		Coordinate cp = new BarrowmanCalculator().getWorstCP(config, conditions, new WarningSet());
+		return cp.weight > 1e-6 ? cp.x : Double.NaN;
+	}
+
 	public static Stability stability(FlightConfiguration config, double mach) {
 		WarningSet warnings = new WarningSet();
 		FlightConditions conditions = new FlightConditions(config);

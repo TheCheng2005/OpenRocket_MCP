@@ -60,19 +60,32 @@ Claude (Code / Desktop)  ──stdio JSON-RPC──▶  McpServer (tools, prompt
 - Launch Canada DTEG R4 requirement check, including the 30 km/h wind case and staged-flight rules.
 - Claude Code (`.mcp.json`, skill) and Claude Desktop setup; CI on Windows/macOS/Linux.
 
-### Phase 2 — next
+### Phase 2 — done (v0.2.0)
 
-- **Optimizer**: expose OpenRocket's built-in optimizer (`info.openrocket.core.optimization`) as a goal-seeking tool
-  (e.g. reach 1.8 cal by changing fin span with minimum apogee loss; hit a target apogee with ballast).
+- **Performance**: array-backed, cached flight-data access (OpenRocket's `DataBranch.get()` copies a whole column per
+  call, which made per-point lookups quadratic); what-if simulations run on rocket copies in a thread pool
+  (~3x faster on 4 cores) and never touch the open design.
+- **Repeatability**: OpenRocket seeds wind turbulence from `new Random()` when simulation options are created and
+  `setRandomSeed()` does not reach the wind model; variants are re-seeded explicitly (common random numbers for
+  comparisons, per-run seeds for Monte Carlo).
+- **optimize**: parallel goal-seeking over 1-3 component properties (bracketing grid in 1D, shrinking Latin
+  hypercube in 2-3D) with stability / rail-exit / Mach / apogee constraints; reports the current design, the best
+  point and alternatives; optional apply.
+- **monte_carlo**: landing ellipses per stage, apogee spread, worst ascent stability and rail exit with rule
+  violation counts, worst deployment airspeed and opening load per device.
+- **Reports**: `generate_report` (Markdown + stability-vs-time SVG plots for DTEG R10.3.2, with on-rail stability
+  filled in from Barrowman CP and simulated CG) and `export_flight_data` (CSV).
+- **Bay volume from the design**: interior volume of body tubes, nose cones and transitions.
+
+### Phase 3 — next
+
 - **Sections**: identify independently tethered sections from the design (separation points) for per-section landing
   energy, bay volumes and nose cone interior volume without manual input.
-- **Monte Carlo / dispersion**: wind, launch angle and motor variation → landing ellipse and worst-case loads.
+- **Monte Carlo, part 2**: mass, drag and thrust variation (currently launch conditions only).
 - **RASAero overrides**: import RASAero CP/CD tables as OpenRocket overrides (DTEG R10.3.1 for diameter changes).
-- **Reports**: generate a calculation report (inputs, equations, values, sources) in the team's test-report format,
-  plus the two stability-vs-time plots required by DTEG R10.3.2.
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.
 
-### Phase 3 — later
+### Phase 4 — later
 
 - Live control of the OpenRocket GUI via an OpenRocket plugin (instead of a fork).
 - One-click Claude Desktop install (`.mcpb` bundle with a bundled Java runtime).

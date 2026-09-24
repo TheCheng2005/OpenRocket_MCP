@@ -19,7 +19,6 @@ import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.simulation.FlightData;
 import info.openrocket.core.simulation.FlightDataType;
-import info.openrocket.core.simulation.FlightEvent;
 import io.github.openrocketmcp.calc.Atmosphere;
 import io.github.openrocketmcp.mcp.Args;
 import io.github.openrocketmcp.mcp.McpServer;
@@ -30,6 +29,7 @@ import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.Motors;
 import io.github.openrocketmcp.or.Sims;
+import io.github.openrocketmcp.or.Variants;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
@@ -271,38 +271,40 @@ public final class MotorTools {
 				sample.add(candidates.get((int) Math.round((double) i * (candidates.size() - 1) / (max - 1))));
 			}
 		}
-		MotorConfiguration original = mount.getMotorConfig(fc.getId()).clone();
+		MotorConfiguration original = mount.getMotorConfig(fc.getId());
 		double railMin = ctx.standards().rule("railDepartureVelocity.min", Dim.VELOCITY);
 		String objective = a.str("objective", a.has("targetApogee") ? "target_apogee" : "max_apogee");
 		double target = a.qty("targetApogee", Dim.DISTANCE, Double.NaN);
 		if (objective.equals("target_apogee") && Double.isNaN(target)) {
 			throw new ToolException("targetApogee is required for objective=target_apogee.");
 		}
-		List<Object[]> rows = new ArrayList<>();
-		try {
-			for (ThrustCurveMotor m : sample) {
-				MotorConfiguration mc = new MotorConfiguration(mount, fc.getId());
+		Simulation base = Sims.prepare(d, null, fc.getId().toString(), Sims.Overrides.none(), ctx.standards(), false);
+		String mountId = comp.getID().toString();
+		List<Simulation> variants = new ArrayList<>();
+		for (ThrustCurveMotor m : sample) {
+			variants.add(Variants.of(base, d.doc, r -> {
+				MotorMount mm = (MotorMount) Components.find(r, mountId);
+				MotorConfiguration mc = new MotorConfiguration(mm, fc.getId());
 				mc.setMotor(m);
 				mc.setEjectionDelay(original.getEjectionDelay());
 				mc.setIgnitionEvent(original.getIgnitionEvent());
 				mc.setIgnitionDelay(original.getIgnitionDelay());
-				mount.setMotorConfig(mc, fc.getId());
-				fc.update();
-				Simulation sim = Sims.prepare(d, null, fc.getId().toString(), Sims.Overrides.none(), ctx.standards(), false).copy();
-				FlightData data;
-				try {
-					data = Sims.run(sim);
-				} catch (ToolException e) {
-					continue;
-				}
-				double liftMass = sim.getSimulatedData().getBranch(0).getByIndex(FlightDataType.TYPE_MASS, 0);
-				double twr = m.getAverageThrustEstimate() * mc.getMotorCount() / (liftMass * Atmosphere.G0);
-				rows.add(new Object[] { m, data.getMaxAltitude(), data.getLaunchRodVelocity(), twr, data.getMaxMachNumber(),
-						data.getOptimumDelay(), sim.getSimulatedData().getBranch(0).getFirstEvent(FlightEvent.Type.APOGEE) != null });
+				mm.setMotorConfig(mc, fc.getId());
+				r.getFlightConfiguration(fc.getId()).update();
+			}, null));
+		}
+		List<Variants.Run> runs = Variants.runAll(variants);
+		List<Object[]> rows = new ArrayList<>();
+		for (int i = 0; i < runs.size(); i++) {
+			if (!runs.get(i).ok()) {
+				continue;
 			}
-		} finally {
-			mount.setMotorConfig(original, fc.getId());
-			fc.update();
+			ThrustCurveMotor m = sample.get(i);
+			FlightData data = runs.get(i).sim().getSimulatedData();
+			double liftMass = data.getBranch(0).getByIndex(FlightDataType.TYPE_MASS, 0);
+			double twr = m.getAverageThrustEstimate() * original.getMotorCount() / (liftMass * Atmosphere.G0);
+			rows.add(new Object[] { m, data.getMaxAltitude(), data.getLaunchRodVelocity(), twr, data.getMaxMachNumber(),
+					data.getOptimumDelay() });
 		}
 		switch (objective) {
 			case "target_apogee" -> rows.sort((x, y) -> Double.compare(Math.abs((double) x[1] - target), Math.abs((double) y[1] - target)));

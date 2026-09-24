@@ -395,6 +395,36 @@ public final class Components {
 		return t;
 	}
 
+	/**
+	 * Usable interior volume of a hollow airframe component: body tubes (inner cylinder over {@code length}, or the
+	 * whole tube when NaN), nose cones and transitions (integrated wall-offset profile plus the aft shoulder).
+	 */
+	public static double interiorVolume(RocketComponent c, double length) {
+		if (c instanceof info.openrocket.core.rocketcomponent.BodyTube bt) {
+			double r = bt.getInnerRadius();
+			return Math.PI * r * r * (Double.isNaN(length) ? bt.getLength() : length);
+		}
+		if (c instanceof info.openrocket.core.rocketcomponent.Transition t) {
+			if (t.isFilled()) {
+				return 0;
+			}
+			int n = 400;
+			double len = t.getLength(), th = t.getThickness(), v = 0;
+			for (int i = 0; i < n; i++) {
+				double x = (i + 0.5) * len / n;
+				double ri = Math.max(0, t.getRadius(x) - th);
+				v += Math.PI * ri * ri * len / n;
+			}
+			double sr = t.getAftShoulderRadius() - t.getAftShoulderThickness();
+			if (t.getAftShoulderLength() > 0 && sr > 0) {
+				v += Math.PI * sr * sr * t.getAftShoulderLength();
+			}
+			return v;
+		}
+		throw new ToolException("'" + c.getName() + "' is a " + c.getComponentName()
+				+ "; interior volume is available for body tubes, nose cones and transitions.");
+	}
+
 	/** Instantiates a component type by simple class name. */
 	public static RocketComponent create(String type) {
 		String match = null;

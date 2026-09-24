@@ -32,6 +32,7 @@ import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.OrRuntime;
 import io.github.openrocketmcp.or.Recovery;
 import io.github.openrocketmcp.or.Sims;
+import io.github.openrocketmcp.or.Variants;
 import io.github.openrocketmcp.standards.Standards;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
@@ -260,6 +261,8 @@ public final class RecoveryTools {
 						.array("items", "Items: {name, packedVolume} | {name, packedDiameter, packedLength} | {name, cordLength, "
 								+ "cordWidth?, cordThickness?} | {name, preset: \"<manufacturer> <part no>\"}.", Schema.type("object", null), true)
 						.str("bayTube", "Body tube component for the bay diameter.", false)
+						.str("bayComponent", "Body tube, nose cone or transition whose interior is the bay; its usable "
+								+ "volume is computed from the design (tube: inner diameter x availableLength or tube length).", false)
 						.qty("bayDiameter", "Bay inner diameter.", false)
 						.qty("availableLength", "Usable bay length.", false)
 						.qty("availableVolume", "Usable bay volume (e.g. nose cone interior).", false)
@@ -417,58 +420,62 @@ public final class RecoveryTools {
 		Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(), ctx.standards(), false);
 		FlightConfigurationId fcid = base.getFlightConfigurationId();
 		DeploymentConfiguration original = device.getDeploymentConfigurations().get(fcid);
-		boolean wasDefault = device.getDeploymentConfigurations().isDefault(fcid);
 		double strength = pinStrength(ctx, a);
 		int pinCount = a.integer("pinCount", 0);
 		double sf = ctx.standards().q("recovery.shearPinHoldSafetyFactor", Dim.DIMENSIONLESS, 2);
 		double capacity = pinCount > 0 && !Double.isNaN(strength) ? pinCount * strength : Double.NaN;
+		List<Double> delays = a.qtyList("delays", Dim.TIME);
+		delays.sort(null); // "latest delay within capacity" assumes increasing delays
+		String deviceId = device.getID().toString();
+		List<Simulation> variants = new ArrayList<>();
+		for (double delay : delays) {
+			variants.add(Variants.of(base, d.doc, r -> {
+				RecoveryDevice rd = (RecoveryDevice) Components.find(r, deviceId);
+				DeploymentConfiguration dc = original.copy(fcid);
+				dc.setDeployDelay(delay);
+				rd.getDeploymentConfigurations().set(fcid, dc);
+			}, null));
+		}
+		List<Variants.Run> runs = Variants.runAll(variants);
 		List<Map<String, Object>> rows = new ArrayList<>();
 		double latestOk = Double.NaN;
 		boolean stillOk = true;
-		try {
-			for (double delay : a.qtyList("delays", Dim.TIME)) {
-				DeploymentConfiguration dc = original.copy(fcid);
-				dc.setDeployDelay(delay);
-				device.getDeploymentConfigurations().set(fcid, dc);
-				Simulation sim = base.copy();
-				Sims.run(sim);
-				Sims.Deployment dep = null;
-				for (Sims.Deployment x : Sims.deployments(sim)) {
-					if (x.device().getID().equals(device.getID())) {
+		for (int i = 0; i < runs.size(); i++) {
+			Map<String, Object> row = new LinkedHashMap<>();
+			row.put("delay", Units.fmt(delays.get(i), Dim.TIME));
+			Sims.Deployment dep = null;
+			if (runs.get(i).ok()) {
+				for (Sims.Deployment x : Sims.deployments(runs.get(i).sim())) {
+					if (x.device().getID().toString().equals(deviceId)) {
 						dep = x;
 						break;
 					}
 				}
-				Map<String, Object> row = new LinkedHashMap<>();
-				row.put("delay", Units.fmt(delay, Dim.TIME));
-				if (dep == null) {
-					row.put("result", "did not deploy");
-					rows.add(row);
-					continue;
-				}
-				Recovery.Loads l = Recovery.loads(dep, 0, ctx.standards(), Double.NaN);
-				row.put("altitudeAGL", Units.fmt(dep.altitudeAgl(), Dim.DISTANCE));
-				row.put("airspeed", Units.fmt(dep.airspeed(), Dim.VELOCITY));
-				row.put("openingLoadInfiniteMass", Units.fmt(l.infiniteMass(), Dim.FORCE));
-				row.put("openingLoadFiniteMass", Units.fmt(l.finiteMass(), Dim.FORCE));
-				row.put("designLoad", Units.fmt(l.design(), Dim.FORCE));
-				if (!Double.isNaN(capacity)) {
-					boolean ok = l.design() * sf <= capacity;
-					row.put("pinsHold", ok ? "yes" : "NO");
-					if (ok && stillOk) {
-						latestOk = delay;
-					} else {
-						stillOk = false;
-					}
-				}
-				rows.add(row);
-			}
-		} finally {
-			if (wasDefault) {
-				device.getDeploymentConfigurations().reset(fcid);
 			} else {
-				device.getDeploymentConfigurations().set(fcid, original);
+				row.put("error", runs.get(i).error());
 			}
+			if (dep == null) {
+				row.putIfAbsent("result", "did not deploy");
+				stillOk = false;
+				rows.add(row);
+				continue;
+			}
+			Recovery.Loads l = Recovery.loads(dep, 0, ctx.standards(), Double.NaN);
+			row.put("altitudeAGL", Units.fmt(dep.altitudeAgl(), Dim.DISTANCE));
+			row.put("airspeed", Units.fmt(dep.airspeed(), Dim.VELOCITY));
+			row.put("openingLoadInfiniteMass", Units.fmt(l.infiniteMass(), Dim.FORCE));
+			row.put("openingLoadFiniteMass", Units.fmt(l.finiteMass(), Dim.FORCE));
+			row.put("designLoad", Units.fmt(l.design(), Dim.FORCE));
+			if (!Double.isNaN(capacity)) {
+				boolean ok = l.design() * sf <= capacity;
+				row.put("pinsHold", ok ? "yes" : "NO");
+				if (ok && stillOk) {
+					latestOk = delays.get(i);
+				} else {
+					stillOk = false;
+				}
+			}
+			rows.add(row);
 		}
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("device", device.getName());
@@ -594,11 +601,20 @@ public final class RecoveryTools {
 			diameter = innerDiameter(Components.find(d.doc.getRocket(), a.str("bayTube")));
 		}
 		double available = a.qtyOrNaN("availableVolume", Dim.VOLUME);
+		if (a.has("bayComponent")) {
+			Designs.Design d = ctx.designs.get(a.str("designId", null));
+			RocketComponent bay = Components.find(d.doc.getRocket(), a.str("bayComponent"));
+			available = Components.interiorVolume(bay, a.qtyOrNaN("availableLength", Dim.LENGTH));
+			out.put("bayComponent", bay.getName() + " (" + bay.getComponentName() + ")");
+			if (bay instanceof BodyTube bt && Double.isNaN(diameter)) {
+				diameter = bt.getInnerRadius() * 2;
+			}
+		}
 		if (!Double.isNaN(diameter)) {
 			out.put("bayDiameter", Units.fmt(diameter, Dim.LENGTH));
 			out.put("packedLengthNeeded", Units.fmt(Packing.lengthFor(total, diameter), Dim.LENGTH));
 			out.put("bayLengthNeeded", Units.fmt(Packing.lengthFor(required, diameter), Dim.LENGTH));
-			if (a.has("availableLength")) {
+			if (a.has("availableLength") && !a.has("bayComponent")) {
 				available = Packing.cylinderVolume(diameter, a.qty("availableLength", Dim.LENGTH));
 			}
 		}

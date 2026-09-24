@@ -218,4 +218,57 @@ class McpIntegrationTest {
 		assertTrue(after.contains("MCP - "), "new simulation is stored with the design");
 		assertTrue(after.contains("6 deg") || call("run_simulation", "{\"designId\":\"" + id + "\"}").contains("\"launchRodAngleFromVertical\": \"6 deg\""));
 	}
+
+	@Test
+	@Order(8)
+	void optimizeAndMonteCarlo() {
+		String open = call("open_design", "{\"example\":\"Dual parachute\"}");
+		String id = JsonParser.parseString(open).getAsJsonObject().get("designId").getAsString();
+		JsonObject design = JsonParser.parseString(call("get_design", "{\"designId\":\"" + id + "\"}")).getAsJsonObject();
+		String fin = firstIdOfType(design.getAsJsonArray("components"), "TrapezoidFinSet");
+		String before = call("describe_component", "{\"designId\":\"" + id + "\",\"component\":\"" + fin + "\"}");
+
+		// Static stability target: fast, no simulation.
+		JsonObject stab = JsonParser.parseString(call("optimize", "{\"designId\":\"" + id + "\",\"objective\":\"target_stability\","
+				+ "\"targetStability\":2.0,\"variables\":[{\"component\":\"" + fin + "\",\"property\":\"height\",\"min\":\"20 mm\",\"max\":\"120 mm\"}],"
+				+ "\"maxEvaluations\":24}")).getAsJsonObject();
+		double margin = Double.parseDouble(stab.getAsJsonObject("best").get("launchMargin").getAsString().replace(" cal", ""));
+		assertEquals(2.0, margin, 0.05, stab.toString());
+		assertEquals(before, call("describe_component", "{\"designId\":\"" + id + "\",\"component\":\"" + fin + "\"}"),
+				"optimize without apply must not change the design");
+
+		// Simulated: max apogee with a stability floor.
+		String maxAp = call("optimize", "{\"designId\":\"" + id + "\",\"objective\":\"max_apogee\",\"minStability\":1.5,\"minRailExit\":0,"
+				+ "\"variables\":[{\"component\":\"" + fin + "\",\"property\":\"height\",\"min\":\"20 mm\",\"max\":\"120 mm\"}],"
+				+ "\"maxEvaluations\":16,\"apply\":true}");
+		JsonObject mo = JsonParser.parseString(maxAp).getAsJsonObject();
+		assertTrue(mo.get("feasible").getAsBoolean(), maxAp);
+		double minStab = Double.parseDouble(mo.getAsJsonObject("best").get("minAscentStability").getAsString().replace(" cal", ""));
+		assertTrue(minStab >= 1.5, maxAp);
+		assertTrue(mo.has("applied"));
+
+		String mc1 = call("monte_carlo", "{\"designId\":\"" + id + "\",\"runs\":24,\"seed\":7}");
+		String mc2 = call("monte_carlo", "{\"designId\":\"" + id + "\",\"runs\":24,\"seed\":7}");
+		assertTrue(mc1.contains("ellipse2Sigma") && mc1.contains("maxDesignLoad"), mc1);
+		assertEquals(mc1.replaceAll("\"elapsed\": \"[^\"]*\"", ""), mc2.replaceAll("\"elapsed\": \"[^\"]*\"", ""),
+				"same seed must give the same result even though runs are parallel");
+	}
+
+	@Test
+	@Order(9)
+	void reportsExportAndBayVolume(@TempDir Path tmp) throws Exception {
+		String dir = tmp.resolve("review").toString().replace("\\", "/");
+		String rep = call("generate_report", "{\"designId\":\"d1\",\"outputDir\":\"" + dir + "\",\"pinType\":\"4-40 nylon\"}");
+		assertTrue(rep.contains("report.md"), rep);
+		String md = Files.readString(tmp.resolve("review/report.md"));
+		assertTrue(md.contains("## 1. Requirement checks") && md.contains("stability-ascent.svg") && md.contains("## 5. Recovery"), md);
+		String svg = Files.readString(tmp.resolve("review/stability-ascent.svg"));
+		assertTrue(svg.startsWith("<svg") && svg.contains("<path class=\"series\" d=\"M"), svg);
+		assertTrue(Files.readAllLines(tmp.resolve("review/flight-data.csv")).size() > 50);
+		String csv = tmp.resolve("booster.csv").toString().replace("\\", "/");
+		call("export_flight_data", "{\"designId\":\"d1\",\"path\":\"" + csv + "\",\"branch\":\"Booster\",\"variables\":[\"altitude\"]}");
+		assertTrue(Files.readString(tmp.resolve("booster.csv")).startsWith("\"Time"));
+		String fit = call("recovery_bay_fit", "{\"designId\":\"d1\",\"bayComponent\":\"Nose Cone\",\"items\":[{\"name\":\"chute\",\"packedVolume\":\"20 in3\"}]}");
+		assertTrue(fit.contains("availableVolume") && fit.contains("Nose Cone"), fit);
+	}
 }

@@ -22,6 +22,7 @@ import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sims;
+import io.github.openrocketmcp.or.Variants;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
@@ -128,68 +129,46 @@ public final class SimTools {
 		Designs.Design d = ctx.designs.get(a.str("designId", null));
 		String param = a.str("parameter");
 		RocketComponent comp = a.has("component") ? Components.find(d.doc.getRocket(), a.str("component")) : null;
-		List<Map<String, Object>> rows = new ArrayList<>();
 		com.google.gson.JsonArray values = a.array("values");
 		if (values.isEmpty()) {
 			throw new ToolException("values must not be empty.");
 		}
-		Object original = comp == null ? null : Components.getRaw(comp, param);
-		try {
-			for (JsonElement v : values) {
-				Map<String, Object> row = new LinkedHashMap<>();
-				Sims.Overrides o = Sims.Overrides.none();
-				if (comp != null) {
-					row.put(param, Components.set(comp, param, v));
-				} else {
-					com.google.gson.JsonObject one = a.raw().deepCopy();
-					one.add(param, v);
-					o = overrides(new Args(one));
-					row.put(param, v.isJsonPrimitive() ? v.getAsString() : v.toString());
-				}
-				Simulation sim = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), o, ctx.standards(), false);
-				sim = sim.copy();
-				FlightData data = Sims.run(sim);
-				FlightDataBranch b = data.getBranch(0);
-				row.put("apogee", Units.fmt(data.getMaxAltitude(), Dim.DISTANCE));
-				row.put("railExitVelocity", Units.fmt(data.getLaunchRodVelocity(), Dim.VELOCITY));
-				row.put("maxMach", Units.num(data.getMaxMachNumber()));
-				FlightEvent rail = b.getFirstEvent(FlightEvent.Type.LAUNCHROD);
-				FlightEvent apo = b.getFirstEvent(FlightEvent.Type.APOGEE);
-				if (rail != null && apo != null) {
-					double min = Double.NaN, max = Double.NaN;
-					List<Double> ts = b.get(FlightDataType.TYPE_TIME);
-					List<Double> st = b.get(FlightDataType.TYPE_STABILITY);
-					List<Double> vs = b.get(FlightDataType.TYPE_VELOCITY_TOTAL);
-					for (int i = 0; i < ts.size(); i++) {
-						double t = ts.get(i);
-						Double sv = st.get(i);
-						if (t < rail.getTime() || t > apo.getTime() || sv == null || Double.isNaN(sv) || vs.get(i) < 30.48) {
-							continue;
-						}
-						min = Double.isNaN(min) ? sv : Math.min(min, sv);
-						max = Double.isNaN(max) ? sv : Math.max(max, sv);
-					}
-					row.put("minStability", Units.num(min) + " cal");
-					row.put("maxStability", Units.num(max) + " cal");
-				}
-				List<String> landings = new ArrayList<>();
-				for (FlightDataBranch fb : data.getBranches()) {
-					FlightEvent gh = fb.getFirstEvent(FlightEvent.Type.GROUND_HIT);
-					if (gh != null) {
-						List<Double> xy = fb.get(FlightDataType.TYPE_POSITION_XY);
-						landings.add(fb.getName() + " " + Units.fmt(xy.get(xy.size() - 1), Dim.DISTANCE));
-					}
-				}
-				row.put("landingDistance", landings);
-				if (comp != null) {
-					row.put("launchMass", Units.fmt(b.getByIndex(FlightDataType.TYPE_MASS, 0), Dim.MASS));
-				}
-				rows.add(row);
-			}
-		} finally {
+		if (comp != null) {
+			Components.getRaw(comp, param); // validates the property name up front
+		}
+		Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
+				ctx.standards(), false);
+		String compId = comp == null ? null : comp.getID().toString();
+		List<Simulation> variants = new ArrayList<>();
+		List<String> labels = new ArrayList<>();
+		for (JsonElement v : values) {
 			if (comp != null) {
-				Components.setRaw(comp, param, original);
+				String[] label = new String[1];
+				variants.add(Variants.of(base, d.doc, r -> label[0] = Components.set(Components.find(r, compId), param, v), null));
+				labels.add(label[0]);
+			} else {
+				com.google.gson.JsonObject one = a.raw().deepCopy();
+				one.add(param, v);
+				variants.add(Variants.of(base, d.doc, null, overrides(new Args(one))));
+				labels.add(v.isJsonPrimitive() ? v.getAsString() : v.toString());
 			}
+		}
+		List<Variants.Run> runs = Variants.runAll(variants);
+		List<Map<String, Object>> rows = new ArrayList<>();
+		for (int i = 0; i < runs.size(); i++) {
+			Map<String, Object> row = new LinkedHashMap<>();
+			row.put(param, labels.get(i));
+			Variants.Run run = runs.get(i);
+			if (!run.ok()) {
+				row.put("error", run.error());
+			} else {
+				FlightData data = run.sim().getSimulatedData();
+				row.putAll(Sims.flightMetrics(data));
+				if (comp != null) {
+					row.put("launchMass", Units.fmt(data.getBranch(0).getByIndex(FlightDataType.TYPE_MASS, 0), Dim.MASS));
+				}
+			}
+			rows.add(row);
 		}
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("parameter", comp == null ? param : comp.getName() + "." + param);

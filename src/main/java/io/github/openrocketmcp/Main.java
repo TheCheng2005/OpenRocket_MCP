@@ -10,25 +10,28 @@ import io.github.openrocketmcp.mcp.Log;
 import io.github.openrocketmcp.mcp.McpServer;
 import io.github.openrocketmcp.or.OrRuntime;
 import io.github.openrocketmcp.standards.Standards;
+import io.github.openrocketmcp.tools.AnalysisTools;
 import io.github.openrocketmcp.tools.Context;
 import io.github.openrocketmcp.tools.DesignTools;
 import io.github.openrocketmcp.tools.MotorTools;
 import io.github.openrocketmcp.tools.RecoveryTools;
+import io.github.openrocketmcp.tools.ReportTools;
 import io.github.openrocketmcp.tools.SimTools;
 import io.github.openrocketmcp.tools.StandardsTools;
 
 /** Entry point: stdio MCP server for OpenRocket. */
 public final class Main {
-	public static final String VERSION = "0.1.0";
+	public static final String VERSION = "0.2.0";
 
 	static final String INSTRUCTIONS = """
 			OpenRocket MCP: design, simulate and check high-power / competition rockets with OpenRocket's physics.
 			Workflow: open_design -> get_design -> run_simulation / check_requirements -> change things -> re-check -> save_design.
-			- Let the tools do numeric work: use size_parachute, rank_motors, sweep, recovery_analysis, deployment_delay_sweep
-			  rather than estimating by hand. Deployment airspeed comes from the simulation and includes horizontal velocity and wind.
+			- Let the tools do numeric work: use size_parachute, rank_motors, sweep, optimize, monte_carlo, recovery_analysis,
+			  deployment_delay_sweep rather than estimating by hand. What-if tools never modify the design. Deployment airspeed comes from the simulation and includes horizontal velocity and wind.
 			- Inputs accept units ("20 ft/s", "4 in", "15 psi"); bare numbers are SI. Output uses the team's unit setting.
 			- Team standards (safety factors, pin ratings, launch site) and the competition rule set (default Launch Canada
 			  DTEG R4) drive checks; see get_standards. Ask the team to set launchSite.altitudeMsl.
+			- generate_report writes a design-review package (Markdown, stability plots, CSV).
 			- Edits are in memory until save_design. Propose design changes and confirm before saving over the team's file.
 			- Numbers are estimates (OpenRocket Barrowman aerodynamics, ideal-gas BP, Knacke opening loads). Say which values are
 			  simulated vs. calculated vs. rules of thumb. They do not replace ground tests, RSO review or mentors.""";
@@ -42,6 +45,8 @@ public final class Main {
 		MotorTools.register(server, ctx);
 		SimTools.register(server, ctx);
 		RecoveryTools.register(server, ctx);
+		AnalysisTools.register(server, ctx);
+		ReportTools.register(server, ctx);
 		StandardsTools.register(server, ctx);
 		Prompts.register(server, ctx);
 		return server;

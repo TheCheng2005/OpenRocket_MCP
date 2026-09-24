@@ -185,15 +185,7 @@ public final class Sims {
 	// ------------------------------------------------------------------------------------------- extraction
 
 	static double at(FlightDataBranch b, FlightDataType type, double time) {
-		List<Double> ts = b.get(FlightDataType.TYPE_TIME);
-		List<Double> vs = b.get(type);
-		if (ts == null || vs == null || ts.isEmpty()) {
-			return Double.NaN;
-		}
-		int i = b.getDataIndexOfTime(time);
-		i = Math.max(0, Math.min(i, vs.size() - 1));
-		Double v = vs.get(i);
-		return v == null ? Double.NaN : v;
+		return Branch.of(b).at(type, time);
 	}
 
 	/**
@@ -206,53 +198,45 @@ public final class Sims {
 
 	/** Airspeed from Mach number and speed of sound (includes wind), falling back to ground speed. */
 	static double airspeed(FlightDataBranch b, double time) {
-		double mach = at(b, FlightDataType.TYPE_MACH_NUMBER, time);
-		double a = at(b, FlightDataType.TYPE_SPEED_OF_SOUND, time);
-		double v = mach * a;
-		return Double.isNaN(v) ? at(b, FlightDataType.TYPE_VELOCITY_TOTAL, time) : v;
+		Branch br = Branch.of(b);
+		int i = br.index(time);
+		return i < 0 ? Double.NaN : br.airspeed(i);
 	}
 
-	record Window(double min, double minTime, double max, double maxTime) {
+	public record Window(double min, double minTime, double max, double maxTime) {
 	}
 
+	/** Min and max of a variable over [t0, t1], ignoring points where airspeed is below {@code minAirspeed}. */
 	static Window extremes(FlightDataBranch b, FlightDataType type, double t0, double t1, double minAirspeed) {
-		List<Double> ts = b.get(FlightDataType.TYPE_TIME);
-		List<Double> vs = b.get(type);
+		Branch br = Branch.of(b);
+		double[] vs = br.col(type);
 		double min = Double.NaN, max = Double.NaN, tmin = Double.NaN, tmax = Double.NaN;
-		if (ts == null || vs == null) {
-			return new Window(min, tmin, max, tmax);
-		}
-		for (int i = 0; i < ts.size() && i < vs.size(); i++) {
-			double t = ts.get(i);
-			Double v = vs.get(i);
-			if (t < t0 || t > t1 || v == null || Double.isNaN(v)) {
-				continue;
-			}
-			if (minAirspeed > 0 && airspeed(b, t) < minAirspeed) {
+		int from = Math.max(0, br.index(t0));
+		for (int i = from; i < br.size() && br.time[i] <= t1; i++) {
+			double v = vs[i];
+			if (br.time[i] < t0 || Double.isNaN(v) || (minAirspeed > 0 && !(br.airspeed(i) >= minAirspeed))) {
 				continue;
 			}
 			if (Double.isNaN(min) || v < min) {
 				min = v;
-				tmin = t;
+				tmin = br.time[i];
 			}
 			if (Double.isNaN(max) || v > max) {
 				max = v;
-				tmax = t;
+				tmax = br.time[i];
 			}
 		}
 		return new Window(min, tmin, max, tmax);
 	}
 
 	static double mean(FlightDataBranch b, FlightDataType type, double t0, double t1) {
-		List<Double> ts = b.get(FlightDataType.TYPE_TIME);
-		List<Double> vs = b.get(type);
+		Branch br = Branch.of(b);
+		double[] vs = br.col(type);
 		double sum = 0;
 		int n = 0;
-		for (int i = 0; ts != null && vs != null && i < ts.size() && i < vs.size(); i++) {
-			double t = ts.get(i);
-			Double v = vs.get(i);
-			if (t >= t0 && t <= t1 && v != null && !Double.isNaN(v)) {
-				sum += v;
+		for (int i = Math.max(0, br.index(t0)); i < br.size() && br.time[i] <= t1; i++) {
+			if (br.time[i] >= t0 && !Double.isNaN(vs[i])) {
+				sum += vs[i];
 				n++;
 			}
 		}
@@ -278,7 +262,7 @@ public final class Sims {
 			double apogee = eventTime(b, FlightEvent.Type.APOGEE);
 			double end = eventTime(b, FlightEvent.Type.GROUND_HIT);
 			if (Double.isNaN(end)) {
-				end = b.getLast(FlightDataType.TYPE_TIME);
+				end = Branch.of(b).last(FlightDataType.TYPE_TIME);
 			}
 			List<FlightEvent> deploys = new ArrayList<>();
 			for (FlightEvent e : b.getEvents()) {
@@ -366,6 +350,41 @@ public final class Sims {
 			out.add(m);
 		}
 		return out;
+	}
+
+	/**
+	 * Headline numbers for comparing runs (sweeps, optimization, Monte Carlo): stability is taken between rail exit
+	 * and apogee while airspeed exceeds 100 ft/s, where the static margin is meaningful.
+	 */
+	public static Map<String, Object> flightMetrics(FlightData data) {
+		FlightDataBranch b = data.getBranch(0);
+		Map<String, Object> row = new LinkedHashMap<>();
+		row.put("apogee", Units.fmt(data.getMaxAltitude(), Dim.DISTANCE));
+		row.put("railExitVelocity", Units.fmt(data.getLaunchRodVelocity(), Dim.VELOCITY));
+		row.put("maxMach", Units.num(data.getMaxMachNumber()));
+		Window w = ascentStability(b);
+		if (w != null) {
+			row.put("minStability", Units.num(w.min()) + " cal");
+			row.put("maxStability", Units.num(w.max()) + " cal");
+		}
+		List<String> landings = new ArrayList<>();
+		for (FlightDataBranch fb : data.getBranches()) {
+			if (fb.getFirstEvent(FlightEvent.Type.GROUND_HIT) != null) {
+				landings.add(fb.getName() + " " + Units.fmt(Branch.of(fb).last(FlightDataType.TYPE_POSITION_XY), Dim.DISTANCE));
+			}
+		}
+		row.put("landingDistance", landings);
+		return row;
+	}
+
+	/** Ascent stability window (rail exit to apogee, airspeed > 100 ft/s); null without those events. */
+	public static Window ascentStability(FlightDataBranch b) {
+		double rail = eventTime(b, FlightEvent.Type.LAUNCHROD);
+		double apogee = eventTime(b, FlightEvent.Type.APOGEE);
+		if (Double.isNaN(rail) || Double.isNaN(apogee)) {
+			return null;
+		}
+		return extremes(b, FlightDataType.TYPE_STABILITY, rail, apogee, 30.48);
 	}
 
 	/** Compact flight summary for the model: key numbers per branch (stage). */
@@ -557,10 +576,11 @@ public final class Sims {
 				types.add(t);
 			}
 		}
-		List<Double> ts = b.get(FlightDataType.TYPE_TIME);
+		Branch br = Branch.of(b);
+		double[] ts = br.time;
 		List<Integer> idx = new ArrayList<>();
-		for (int i = 0; i < ts.size(); i++) {
-			double t = ts.get(i);
+		for (int i = 0; i < ts.length; i++) {
+			double t = ts[i];
 			if ((Double.isNaN(t0) || t >= t0) && (Double.isNaN(t1) || t <= t1)) {
 				idx.add(i);
 			}
@@ -572,7 +592,7 @@ public final class Sims {
 		for (int c = 0; c < types.size(); c++) {
 			FlightDataType t = types.get(c);
 			Dim d = dimOf(t.getUnitGroup());
-			String unit = d == null ? t.getUnitGroup().getSIUnit().getUnit()
+			String unit = d == null ? t.getUnitGroup().getSIUnit().getUnit().replace("\u200b", "").trim()
 					: Units.system() == io.github.openrocketmcp.units.UnitSystem.IMPERIAL ? d.imperial : d.metric;
 			units[c] = d == null ? null : unit;
 			columns.add(t.getName() + (unit == null || unit.isBlank() ? "" : " [" + unit + "]"));
@@ -582,9 +602,9 @@ public final class Sims {
 			int i = idx.get((int) Math.round((double) k * (n - 1) / Math.max(1, points - 1)));
 			List<Object> row = new ArrayList<>();
 			for (int c = 0; c < types.size(); c++) {
-				List<Double> col = b.get(types.get(c));
-				Double v = col == null || i >= col.size() ? null : col.get(i);
-				if (v == null || Double.isNaN(v)) {
+				double[] col = br.col(types.get(c));
+				double v = i < col.length ? col[i] : Double.NaN;
+				if (Double.isNaN(v)) {
 					row.add(null);
 				} else {
 					double shown = units[c] == null ? v : Units.fromSi(v, units[c]);
