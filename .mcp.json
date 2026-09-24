@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "openrocket": {
+      "command": "./scripts/openrocket-mcp",
+      "args": []
+    }
+  }
+}

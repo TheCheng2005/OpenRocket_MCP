@@ -1,0 +1,29 @@
+{
+  "units": "both",
+  "ruleset": "launch-canada-r4",
+  "competitionYear": 2026,
+  "launchSite": {
+    "name": "Launch Canada",
+    "altitudeMsl": null,
+    "latitude": null,
+    "longitude": null,
+    "railLength": "18.5 ft",
+    "launchAngleFromVertical": "6 deg",
+    "designWindSpeed": "30 km/h"
+  },
+  "recovery": {
+    "openingForceCoefficient": 1.4,
+    "openingLoadMethod": "infinite_mass",
+    "canopyFillConstant": 4,
+    "inflationExponent": 1,
+    "shearPinHoldSafetyFactor": 2.0,
+    "ejectionForceSafetyFactor": 1.5,
+    "backupChargeFactor": 1.25,
+    "blackPowderBulkDensity": "1.0 g/cm3",
+    "packingFactor": 2.0,
+    "shockCord": { "width": "0.75 in", "thickness": "0.25 in" },
+    "shearPins": {
+      "4-40 nylon": { "strength": "140 N", "source": "UTAT-ROC-LIQ-REC-001: four 4-40 pins hold 560 N" }
+    }
+  }
+}

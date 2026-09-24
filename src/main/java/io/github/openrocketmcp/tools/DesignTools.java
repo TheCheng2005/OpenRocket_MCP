@@ -1,0 +1,344 @@
+package io.github.openrocketmcp.tools;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+
+import info.openrocket.core.document.Simulation;
+import info.openrocket.core.rocketcomponent.AxialStage;
+import info.openrocket.core.rocketcomponent.DeploymentConfiguration;
+import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import info.openrocket.core.rocketcomponent.FlightConfigurationId;
+import info.openrocket.core.rocketcomponent.RecoveryDevice;
+import info.openrocket.core.rocketcomponent.Rocket;
+import info.openrocket.core.rocketcomponent.RocketComponent;
+import info.openrocket.core.rocketcomponent.StageSeparationConfiguration;
+import io.github.openrocketmcp.mcp.Args;
+import io.github.openrocketmcp.mcp.McpServer;
+import io.github.openrocketmcp.mcp.Schema;
+import io.github.openrocketmcp.mcp.ToolDef;
+import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.or.Analysis;
+import io.github.openrocketmcp.or.Components;
+import io.github.openrocketmcp.or.Designs;
+import io.github.openrocketmcp.units.Dim;
+import io.github.openrocketmcp.units.Units;
+
+/** Opening, inspecting, editing and saving designs. */
+public final class DesignTools {
+	private DesignTools() {
+	}
+
+	static final String DESIGN_ID = "Design id from open_design (e.g. \"d1\"). Optional when only one design is open.";
+	static final String CONFIG = "Flight configuration id prefix, index or name. Default: the selected configuration.";
+
+	public static void register(McpServer s, Context ctx) {
+		s.tool(new ToolDef("open_design", "Open or create a rocket design",
+				"Open an OpenRocket .ork file, one of OpenRocket's bundled examples, or a new empty rocket. Returns a designId "
+						+ "used by every other tool. Edits stay in memory until save_design. Examples: "
+						+ String.join(", ", Designs.EXAMPLES) + ".",
+				Schema.object()
+						.str("path", "Path to an .ork file.", false)
+						.str("example", "Name of a bundled OpenRocket example (partial match).", false)
+						.str("newRocketName", "Create a new empty rocket with this name.", false)
+						.build(),
+				false, a -> {
+					Designs.Design d;
+					if (a.has("path")) {
+						d = ctx.designs.open(Path.of(a.str("path")));
+					} else if (a.has("example")) {
+						d = ctx.designs.openExample(a.str("example"));
+					} else if (a.has("newRocketName")) {
+						d = ctx.designs.create(a.str("newRocketName"));
+					} else {
+						throw new ToolException("Pass path, example or newRocketName.");
+					}
+					Map<String, Object> out = new LinkedHashMap<>();
+					out.put("designId", d.id);
+					out.put("name", d.name());
+					out.put("file", d.path == null ? null : d.path.toString());
+					out.put("next", "Call get_design to see components, stability and simulations.");
+					return out;
+				}));
+
+		s.tool(new ToolDef("list_designs", "List open designs", "List designs open in this session.",
+				Schema.object().build(), true, a -> {
+					List<Map<String, Object>> out = new ArrayList<>();
+					for (Designs.Design d : ctx.designs.all()) {
+						Map<String, Object> m = new LinkedHashMap<>();
+						m.put("designId", d.id);
+						m.put("name", d.name());
+						m.put("file", d.path == null ? null : d.path.toString());
+						m.put("origin", d.origin);
+						m.put("unsavedChanges", !d.doc.isSaved());
+						out.add(m);
+					}
+					return out;
+				}));
+
+		s.tool(new ToolDef("save_design", "Save a design",
+				"Write the design to an .ork file (OpenRocket's format, openable in the OpenRocket app). Without path, overwrites "
+						+ "the file it was opened from. Ask the user before overwriting their file.",
+				Schema.object().str("designId", DESIGN_ID, false).str("path", "Destination .ork path.", false).build(),
+				false, a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId", null));
+					Path p = ctx.designs.save(d, a.has("path") ? Path.of(a.str("path")) : null);
+					return Map.of("saved", p.toString());
+				}));
+
+		s.tool(new ToolDef("close_design", "Close a design", "Close a design without saving.",
+				Schema.object().str("designId", DESIGN_ID, true).build(), false, a -> {
+					ctx.designs.close(a.str("designId"));
+					return Map.of("closed", a.str("designId"));
+				}));
+
+		s.tool(new ToolDef("get_design", "Design overview with stability",
+				"Component tree (ids, dimensions, masses), flight configurations with motors, simulations, and static stability "
+						+ "(mass, CG, CP, margin in calibers) for the full vehicle and for each stack left after a stage separates "
+						+ "(e.g. the sustainer alone). Start here.",
+				Schema.object().str("designId", DESIGN_ID, false).str("configuration", CONFIG, false)
+						.num("mach", "Mach number for the CP calculation (default 0.3).", false).build(),
+				true, a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId", null));
+					Rocket rocket = d.doc.getRocket();
+					FlightConfiguration fc = Components.config(rocket, a.str("configuration", null));
+					Map<String, Object> out = new LinkedHashMap<>();
+					out.put("designId", d.id);
+					out.put("name", rocket.getName());
+					out.put("unsavedChanges", !d.doc.isSaved());
+					out.put("components", Components.tree(rocket));
+					List<Map<String, Object>> configs = new ArrayList<>();
+					for (FlightConfigurationId id : rocket.getIds()) {
+						FlightConfiguration c = rocket.getFlightConfiguration(id);
+						Map<String, Object> m = new LinkedHashMap<>();
+						m.put("id", id.toString().substring(0, 8));
+						m.put("name", c.getName());
+						m.put("selected", c == rocket.getSelectedConfiguration());
+						m.put("motors", Analysis.motors(c));
+						configs.add(m);
+					}
+					out.put("flightConfigurations", configs);
+					out.put("analyzedConfiguration", fc.getName());
+					out.put("stability", Analysis.stageStacks(fc, a.num("mach", 0.3)));
+					List<String> sims = new ArrayList<>();
+					List<Simulation> list = d.doc.getSimulations();
+					for (int i = 0; i < list.size(); i++) {
+						Simulation sim = list.get(i);
+						sims.add(i + ": " + sim.getName() + " [" + rocket.getFlightConfiguration(sim.getFlightConfigurationId()).getName()
+								+ ", " + sim.getStatus().name().toLowerCase() + "]");
+					}
+					out.put("simulations", sims);
+					if (Analysis.hasDiameterChange(fc)) {
+						out.put("note", "Airframe diameter changes: Launch Canada requires RASAero CP/CD overrides and >= 2 cal margin in that case.");
+					}
+					return out;
+				}));
+
+		s.tool(new ToolDef("describe_component", "List a component's editable properties",
+				"All editable properties of one component with current values (lengths in the display units). Use the property "
+						+ "names with edit_components.",
+				Schema.object().str("designId", DESIGN_ID, false).str("component", "Component id or unique name.", true).build(),
+				true, a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId", null));
+					RocketComponent c = Components.find(d.doc.getRocket(), a.str("component"));
+					Map<String, Object> out = new LinkedHashMap<>();
+					out.put("id", Components.shortId(c));
+					out.put("name", c.getName());
+					out.put("type", c.getClass().getSimpleName());
+					out.put("properties", Components.describe(c));
+					if (c instanceof RecoveryDevice rd) {
+						DeploymentConfiguration dc = rd.getDeploymentConfigurations().get(d.doc.getRocket().getSelectedConfiguration().getId());
+						out.put("deployment", dc.getDeployEvent().name() + ", altitude " + Units.fmt(dc.getDeployAltitude(), Dim.DISTANCE)
+								+ ", delay " + Units.fmt(dc.getDeployDelay(), Dim.TIME) + " (change with set_deployment)");
+					}
+					return out;
+				}));
+
+		JsonObject change = Schema.object()
+				.str("component", "Component id or unique name.", true)
+				.obj("properties", "Property -> value, e.g. {\"length\": \"24 in\", \"thickness\": \"2 mm\", \"finCount\": 4, "
+						+ "\"cd\": 0.8, \"diameter\": \"60 in\", \"massOverridden\": true, \"overrideMass\": \"1.2 kg\", \"name\": \"Main\"}. "
+						+ "Numbers are SI; strings may carry units. \"outerDiameter\"/\"diameter\" are accepted for radius properties.", true)
+				.build();
+		s.tool(new ToolDef("edit_components", "Change component properties",
+				"Apply property changes to one or more components (in memory; save_design writes them). Returns each change and "
+						+ "the new stability. Use describe_component for property names. Confirm with the user before large redesigns.",
+				Schema.object().str("designId", DESIGN_ID, false)
+						.array("changes", "List of {component, properties}.", change, true).build(),
+				false, a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId", null));
+					Rocket rocket = d.doc.getRocket();
+					List<String> done = new ArrayList<>();
+					for (Args ch : a.objList("changes")) {
+						RocketComponent c = Components.find(rocket, ch.str("component"));
+						JsonObject props = ch.obj("properties").raw();
+						for (Map.Entry<String, JsonElement> e : props.entrySet()) {
+							done.add(Components.set(c, e.getKey(), e.getValue()));
+						}
+					}
+					d.doc.setSaved(false);
+					Map<String, Object> out = new LinkedHashMap<>();
+					out.put("applied", done);
+					out.put("stability", Analysis.stageStacks(rocket.getSelectedConfiguration(), 0.3));
+					return out;
+				}));
+
+		s.tool(new ToolDef("add_component", "Add a component",
+				"Add a component under a parent (stage, body tube, inner tube...). Types: " + Components.CREATABLE
+						+ ". Set dimensions via properties (same format as edit_components). New stages go under the rocket.",
+				Schema.object().str("designId", DESIGN_ID, false)
+						.str("parent", "Parent component id or name (use the rocket name to add a stage).", true)
+						.str("type", "Component type, e.g. Parachute, ShockCord, MassComponent, TrapezoidFinSet.", true)
+						.str("name", "Name for the new component.", false)
+						.obj("properties", "Initial property values.", false)
+						.integer("index", "Position among the parent's children (default: last).", false).build(),
+				false, a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId", null));
+					Rocket rocket = d.doc.getRocket();
+					RocketComponent parent = a.str("parent").equalsIgnoreCase(rocket.getName())
+							? rocket : Components.find(rocket, a.str("parent"));
+					RocketComponent c = Components.create(a.str("type"));
+					if (!parent.isCompatible(c)) {
+						throw new ToolException("A " + c.getComponentName() + " cannot be placed in " + parent.getName()
+								+ " (" + parent.getComponentName() + ").");
+					}
+					if (a.has("name")) {
+						c.setName(a.str("name"));
+					}
+					if (a.has("index")) {
+						parent.addChild(c, Math.min(a.integer("index", 0), parent.getChildCount()));
+					} else {
+						parent.addChild(c);
+					}
+					List<String> done = new ArrayList<>();
+					for (Map.Entry<String, JsonElement> e : a.obj("properties").raw().entrySet()) {
+						done.add(Components.set(c, e.getKey(), e.getValue()));
+					}
+					d.doc.setSaved(false);
+					Map<String, Object> out = new LinkedHashMap<>();
+					out.put("id", Components.shortId(c));
+					out.put("name", c.getName());
+					out.put("applied", done);
+					return out;
+				}));
+
+		s.tool(new ToolDef("remove_component", "Remove a component", "Remove a component and its children from the design.",
+				Schema.object().str("designId", DESIGN_ID, false).str("component", "Component id or unique name.", true).build(),
+				false, a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId", null));
+					RocketComponent c = Components.find(d.doc.getRocket(), a.str("component"));
+					if (c.getParent() == null) {
+						throw new ToolException("Cannot remove the rocket itself.");
+					}
+					c.getParent().removeChild(c);
+					d.doc.setSaved(false);
+					return Map.of("removed", c.getName());
+				}));
+
+		s.tool(new ToolDef("set_deployment", "Set when a recovery device deploys",
+				"Set the deployment event of a parachute/streamer for a flight configuration: apogee (with delay), altitude (main at "
+						+ "e.g. \"1000 ft\" AGL on descent), ejection (motor ejection charge), lower_stage_separation, launch, never.",
+				Schema.object().str("designId", DESIGN_ID, false)
+						.str("component", "Recovery device id or name.", true)
+						.enumStr("event", "Deployment event.", true, "apogee", "altitude", "ejection", "lower_stage_separation", "launch", "never")
+						.qty("altitude", "Deployment altitude above ground for event=altitude.", false)
+						.qty("delay", "Delay after the event, e.g. \"1 s\".", false)
+						.str("configuration", CONFIG + " Use \"all\" for every configuration.", false).build(),
+				false, a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId", null));
+					Rocket rocket = d.doc.getRocket();
+					RecoveryDevice rd = Components.find(rocket, a.str("component"), RecoveryDevice.class, "recovery device");
+					DeploymentConfiguration.DeployEvent ev = DeploymentConfiguration.DeployEvent.valueOf(a.str("event").toUpperCase());
+					List<FlightConfigurationId> ids = "all".equalsIgnoreCase(a.str("configuration", ""))
+							? rocket.getIds() : List.of(Components.config(rocket, a.str("configuration", null)).getId());
+					for (FlightConfigurationId id : ids) {
+						DeploymentConfiguration dc = rd.getDeploymentConfigurations().get(id).copy(id);
+						dc.setDeployEvent(ev);
+						if (a.has("altitude")) {
+							dc.setDeployAltitude(a.qty("altitude", Dim.DISTANCE));
+						}
+						if (a.has("delay")) {
+							dc.setDeployDelay(a.qty("delay", Dim.TIME));
+						}
+						rd.getDeploymentConfigurations().set(id, dc);
+					}
+					d.doc.setSaved(false);
+					DeploymentConfiguration now = rd.getDeploymentConfigurations().get(ids.get(0));
+					return Map.of("device", rd.getName(), "deployment", now.getDeployEvent().name() + ", altitude "
+							+ Units.fmt(now.getDeployAltitude(), Dim.DISTANCE) + ", delay " + Units.fmt(now.getDeployDelay(), Dim.TIME),
+							"configurations", ids.size());
+				}));
+
+		s.tool(new ToolDef("set_stage_separation", "Set when a stage separates",
+				"Set the separation event of a (lower) stage: upper_ignition, ignition, burnout, ejection, apogee, launch, "
+						+ "altitude_ascending/altitude_descending, never; plus an optional delay.",
+				Schema.object().str("designId", DESIGN_ID, false)
+						.str("stage", "Stage id or name.", true)
+						.enumStr("event", "Separation event.", true, "upper_ignition", "ignition", "burnout", "ejection", "apogee",
+								"launch", "altitude_ascending", "altitude_descending", "never")
+						.qty("delay", "Delay after the event.", false)
+						.qty("altitude", "Altitude for altitude events.", false)
+						.str("configuration", CONFIG + " Use \"all\" for every configuration.", false).build(),
+				false, a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId", null));
+					Rocket rocket = d.doc.getRocket();
+					AxialStage stage = Components.find(rocket, a.str("stage"), AxialStage.class, "stage");
+					StageSeparationConfiguration.SeparationEvent ev = StageSeparationConfiguration.SeparationEvent.valueOf(a.str("event").toUpperCase());
+					List<FlightConfigurationId> ids = "all".equalsIgnoreCase(a.str("configuration", ""))
+							? rocket.getIds() : List.of(Components.config(rocket, a.str("configuration", null)).getId());
+					for (FlightConfigurationId id : ids) {
+						StageSeparationConfiguration sc = stage.getSeparationConfigurations().get(id).copy(id);
+						sc.setSeparationEvent(ev);
+						if (a.has("delay")) {
+							sc.setSeparationDelay(a.qty("delay", Dim.TIME));
+						}
+						if (a.has("altitude")) {
+							sc.setSeparationAltitude(a.qty("altitude", Dim.DISTANCE));
+						}
+						stage.getSeparationConfigurations().set(id, sc);
+					}
+					d.doc.setSaved(false);
+					return Map.of("stage", stage.getName(), "event", ev.name(), "configurations", ids.size());
+				}));
+
+		s.tool(new ToolDef("flight_configuration", "Create, select or rename flight configurations",
+				"Flight configurations hold motor choices and deployment settings. action=create makes a new (empty) one, "
+						+ "select makes one the default for other tools, rename renames it.",
+				Schema.object().str("designId", DESIGN_ID, false)
+						.enumStr("action", "What to do.", true, "create", "select", "rename")
+						.str("configuration", "Existing configuration (for select/rename).", false)
+						.str("name", "Name (for create/rename).", false).build(),
+				false, a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId", null));
+					Rocket rocket = d.doc.getRocket();
+					FlightConfiguration fc;
+					switch (a.str("action")) {
+						case "create" -> {
+							FlightConfigurationId id = new FlightConfigurationId();
+							fc = rocket.createFlightConfiguration(id);
+							if (a.has("name")) {
+								fc.setName(a.str("name"));
+							}
+							rocket.setSelectedConfiguration(id);
+						}
+						case "select" -> {
+							fc = Components.config(rocket, a.str("configuration"));
+							rocket.setSelectedConfiguration(fc.getId());
+						}
+						case "rename" -> {
+							fc = Components.config(rocket, a.str("configuration", null));
+							fc.setName(a.str("name"));
+						}
+						default -> throw new ToolException("Unknown action.");
+					}
+					d.doc.setSaved(false);
+					return Map.of("id", fc.getId().toString().substring(0, 8), "name", fc.getName(), "selected",
+							rocket.getSelectedConfiguration() == fc);
+				}));
+	}
+}
