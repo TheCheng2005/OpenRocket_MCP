@@ -27,6 +27,7 @@ Claude: size_parachute -> 36 in Rocketman DG-03 (Cd 0.85): 19.9 ft/s at the simu
 | Aerodynamics & wind | `aero_analysis` (OpenRocket's aero model queried directly: CD split into friction / pressure / base, CP, CNα and static margin vs Mach, **drag per component**, OpenRocket's geometry warnings), `wind_profile` (**winds aloft**: OpenRocket's multi-level wind model from forecast / sounding levels or a power-law shear profile; every tool then flies it) |
 | External data | `import_aero_table` (**RASAero II** aero export or any Mach/CD/CP CSV: drag replaces OpenRocket's in every simulation, power-on/off; CP used for a stability check against the simulated CG, as Launch Canada asks for diameter changes), `compare_flight` (**altimeter log vs simulation**: apogee, time to apogee, drogue and main descent rates, overlay plot, and the drag factor that reproduces your flight) |
 | Parts & drawings | `search_parts` / `apply_preset` (OpenRocket's manufacturer parts database for body tubes, nose cones, couplers, rings, bulkheads, rail buttons, launch lugs, chutes), `draw_rocket` (side-profile SVG from OpenRocket's geometry with CG and CP; also in the report) |
+| Design studies | `compare_shapes` (**nose cone and fin shape trade study**: every nose profile, optionally at several lengths, and every fin edge profile flown in OpenRocket; apogee, CD at the design Mach, stability, mass, and guidance), `recovery_sections` (**tethered sections from the design**: landing mass, velocity and kinetic energy per section, energy if the main fails, bay fill and a black powder estimate), `structural_loads` (**axial and bending loads at every joint** for boost and max q with a gust, inertial relief, wall stress and margin) |
 | Structures | `fin_flutter` (flutter speed of every fin set along the simulated flight — NACA TN 4197 with the corrected constant — worst margin, and the thickness or shear modulus that fixes it); also part of `check_requirements` |
 | Reports | `generate_report` (Markdown design review with rule checks, stability by stage, a wind-sensitivity flight-card table, recovery chain, methods, plus the two stability-vs-time SVG plots DTEG R10.3.2 asks for and a CSV), `export_flight_data` (full-resolution CSV) |
 | LC 2027 advanced | `pressure_vessel` (proof ≥ 1.5·MEOP, burst ≥ 2·MEOP·weld knockdown, COPV ≥ 4·MEOP, Barlow estimate), `advanced_probation` (probation level from GLPP volume, static-fire Isp requirement, AASI) |
@@ -112,6 +113,9 @@ See `openrocket://methods` for equations and sources. In short:
 - **Fin flutter**: NACA TN 4197 screening estimate with K = 2.674 (the widely copied 1.337 form overestimates flutter
   speed by √2, corrected in Apogee Peak of Flight #615), evaluated at every point of the flight. Solid plate fins only;
   composites need an effective shear modulus, and a stiffness test or FEA before relying on it.
+- **Shape studies** rank options with OpenRocket's empirical drag model; differences under ~2% are within its
+  uncertainty. **Sections** assume bays open at their forward end (name the joints otherwise). **Loads** are rigid-body
+  quasi-static with inertial relief; they size couplers and fasteners but do not replace buckling checks or tests.
 - **Imported aero tables** apply until the first stage separation (a RASAero table describes one stack); the flight-log
   drag fit assumes the motor, mass and launch conditions of the simulation match the day.
 - **Winds aloft**: with a multi-level profile, tools that set "the" wind (sweeps, the 30 km/h design-wind check, Monte

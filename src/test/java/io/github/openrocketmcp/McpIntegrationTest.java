@@ -364,4 +364,22 @@ class McpIntegrationTest {
 		assertEquals(1.0, Double.parseDouble(fit.split(" ")[0]), 0.03, cmp.toString());
 		assertTrue(Files.exists(tmp.resolve("overlay.svg")));
 	}
+
+	@Test
+	@Order(13)
+	void designStudies() {
+		String open = call("open_design", "{\"example\":\"Two stage high power\"}");
+		String id = JsonParser.parseString(open).getAsJsonObject().get("designId").getAsString();
+		JsonObject shapes = JsonParser.parseString(call("compare_shapes", "{\"designId\":\"" + id + "\"}")).getAsJsonObject();
+		assertTrue(shapes.getAsJsonArray("options").size() >= 11 && shapes.has("guidance"), shapes.toString());
+		assertTrue(shapes.get("bestMeetingStability").getAsString().startsWith("none"), "two-stage example misses the floor");
+		JsonObject sec = JsonParser.parseString(call("recovery_sections", "{\"designId\":\"" + id + "\"}")).getAsJsonObject();
+		assertEquals(5, sec.getAsJsonArray("sections").size(), sec.toString());
+		JsonObject named = JsonParser.parseString(call("recovery_sections", "{\"designId\":\"" + id
+				+ "\",\"joints\":[\"Sustainer Forward Airframe\"]}")).getAsJsonObject();
+		assertEquals(3, named.getAsJsonArray("sections").size(), "one named sustainer joint + the booster");
+		JsonObject loads = JsonParser.parseString(call("structural_loads", "{\"designId\":\"" + id + "\",\"allowableStress\":\"100 MPa\"}"))
+				.getAsJsonObject();
+		assertTrue(loads.getAsJsonArray("joints").size() >= 5 && loads.has("highestWallStress"), loads.toString());
+	}
 }

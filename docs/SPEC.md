@@ -159,10 +159,23 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   apogee / drogue and main descent-rate comparison, overlay SVG, and the airframe drag factor that reproduces the
   measured apogee (parallel sims over 0.5-2x). Validated closed-loop: a flight flown with 1.3x drag is recovered as 1.3.
 
+### Design studies (v0.8.0)
+
+- `compare_shapes`: nine nose profiles (conical, tangent ogive, elliptical, 1/2 and 3/4 power, parabolic, 1/2 parabola,
+  Von Karman, LV-Haack), optional nose lengths, and fin edge profiles flown in parallel on copies; CD at one design Mach
+  for all; best feasible option and best nose + best fins combined; explicit "none" when nothing meets the stability
+  floor.
+- `recovery_sections`: sections split at the forward end of every bay (or named joints); masses from OpenRocket's own
+  per-component mass analysis (weighed-section overrides scaled) plus burnt-out motor cases - they add up to the
+  simulated landing mass of each stage; landing energy vs `recovery.maxLandingEnergy`, drogue-only contingency, bay fill
+  from packed dimensions, black powder estimate.
+- `structural_loads`: N(x) = m_fwd/m (T - D) + D_fwd over boost and coast; bending at max q with a gust and at the
+  largest simulated q·sin(AoA), with inertial relief (rigid body); per stack phase (full vehicle, then each stack after
+  separation); thin-wall stress, required allowable with `structures.loadSafetyFactor`, optional margin. Verified by
+  equilibrium: the bending moment vanishes past the tail and the axial force there equals thrust.
+
 ### Phase 3 — next
 
-- **Sections**: identify independently tethered sections from the design (separation points) for per-section landing
-  energy, bay volumes and nose cone interior volume without manual input.
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.
 
 ### Phase 4 — later

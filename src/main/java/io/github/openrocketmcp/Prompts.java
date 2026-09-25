@@ -67,6 +67,11 @@ final class Prompts {
 			OpenRocket Barrowman model at zero angle of attack, Reynolds number from sea-level ISA at each Mach; CD = friction +
 			pressure + base. Margin = (CP - CG) / max body diameter.
 
+			## Structural loads
+			Axial (compression +): N(x) = m_fwd / m (T - D) + D_fwd. Bending: M(x) = sum_fwd N_i (x - x_i) - sum_fwd m_j a_j (x - x_j)
+			with N_i = q A CNa_i alpha at each component CP, a_j = a_n + thetaDD (x_cg - x_j) (rigid-body inertial relief).
+			Thin-wall stress sigma = N / (2 pi r t) + M / (pi r^2 t). Gust case: alpha = atan(v_gust / V) at max q.
+
 			## Monte Carlo
 			Randomized: wind speed/direction, launch angle/direction, turbulence seed; optionally structure mass (each
 			component scaled, motors excluded), airframe drag (simulation listener scaling CD), motor thrust (listener scaling
@@ -105,7 +110,8 @@ final class Prompts {
 						- check_requirements (includes the maximum-wind case). Explain every FAIL/WARN and propose fixes.
 						- get_flight_data for stability vs time: one series up to rail departure and one for the full ascent (DTEG R10.3.2).
 						- For staged vehicles: sustainer stability after separation, tilt and altitude at ignition, inhibit altitude.
-						- recovery_analysis for every stage.
+						- recovery_analysis for every stage; recovery_sections for landing energy per section and bay fill.
+						- structural_loads for the joints (couplers, fasteners).
 						- fin_flutter for every fin set (margin along the flight); ballast if the stability floor is not met.
 						- monte_carlo with vehicle uncertainty (massSd, dragSd, thrustSd, chuteCdSd) for the landing area and drivers.
 						Summarize as a table of requirement, value, status and reference, then the action list.

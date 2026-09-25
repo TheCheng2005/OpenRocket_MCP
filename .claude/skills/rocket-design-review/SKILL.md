@@ -28,6 +28,8 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
    - Launch-day winds -> `wind_profile` (forecast levels, or power_law from the ground wind) then `monte_carlo`.
    - Real parts -> `search_parts` + `apply_preset` (tubes, nose cones, couplers, rail buttons, chutes).
    - Show the vehicle -> `draw_rocket`.
+   - Nose cone / fin shape -> `compare_shapes` (fix stability first if it reports none meets the floor).
+   - Sections and landing energy -> `recovery_sections`; joints and couplers -> `structural_loads`.
    - RASAero data (required for diameter changes) -> `import_aero_table`, then `check_requirements`.
    - After a flight -> `compare_flight` with the altimeter CSV and the day's conditions; use the drag factor for the
      next prediction.
