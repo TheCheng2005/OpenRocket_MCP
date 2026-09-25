@@ -19,6 +19,7 @@ plain-language overview.
 | Design studies | `compare_shapes` (**nose cone and fin shape trade study**: every nose profile, optionally at several lengths, and every fin edge profile flown in OpenRocket; apogee, CD at the design Mach, stability, mass, and guidance), `recovery_sections` (**tethered sections from the design**: landing mass, velocity and kinetic energy per section, energy if the main fails, bay fill and a black powder estimate), `structural_loads` (**axial and bending loads at every joint** for boost and max q with a gust, inertial relief, wall stress and margin) |
 | Launch day | `weather_forecast` (**site forecast by GPS coordinates** from Open-Meteo: ground wind, gusts, temperature, pressure and winds at pressure levels up to the jet stream; applied to the simulation as a wind profile with site altitude, temperature and pressure; pasted-JSON fallback; `wind_profile` for winds entered by hand), `flight_card` (one-page launch-day card: vehicle, CG/CP, motors with optimum and closest available ejection delay, predictions, recovery settings, sections and landing energy, drift per ground wind, rule check, sign-off) |
 | Heating & roll | `aero_heating` (stagnation / recovery temperature at the nose tip, fin leading edges and body along the flight vs each material's service temperature, Sutton-Graves nose-tip heat flux and load), `roll_analysis` (fin cant / misalignment sweep: roll rate, roll at burnout, pitch-frequency crossing, alignment tolerance) |
+| Reviews & files | `compare_designs` (**design diff** against another open design, another .ork or an earlier **git revision** of the same file: length, mass, CG, CP, stability, motors, apogee, velocity, Mach, rail exit, flight stability, descent rates, landing, every rule check whose status changed, and component edits matched by OpenRocket's persistent ids; both flown in the same conditions; optional Markdown summary; warns when an edit is hidden by a mass override), `list_files` (designs, motor files, tables and reports in the workspace) |
 | Structures | `fin_flutter` (flutter speed of every fin set along the simulated flight — NACA TN 4197 with the corrected constant — worst margin, and the thickness or shear modulus that fixes it); also part of `check_requirements` |
 | Reports | `generate_report` (Markdown design review with rule checks, stability by stage, a wind-sensitivity flight-card table, recovery chain, methods, plus the two stability-vs-time SVG plots DTEG R10.3.2 asks for and a CSV), `export_flight_data` (full-resolution CSV) |
 | LC 2027 advanced | `pressure_vessel` (proof ≥ 1.5·MEOP, burst ≥ 2·MEOP·weld knockdown, COPV ≥ 4·MEOP, Barlow estimate), `advanced_probation` (probation level from GLPP volume, static-fire Isp requirement, AASI) |
@@ -98,19 +99,51 @@ python3 scripts/benchmark.py    # scenario benchmark: realistic team requests, p
 `scripts/benchmark.py` drives a fresh server over stdio through realistic requests (design a 10k ft rocket from
 scratch and make it pass Launch Canada; size recovery and check loads; two-stage checks; a custom liquid engine;
 dispersion and a design-review report; fin flutter, ballast and vehicle-uncertainty dispersion; aero analysis, winds
-aloft, RASAero import and flight-log calibration; shape study, recovery sections and structural loads) and checks each answer
-against engineering expectations (74 checks). It runs in CI.
+aloft, RASAero import and flight-log calibration; shape study, recovery sections and structural loads; launch-day weather and flight card; a design
+review diff) and checks each answer against engineering expectations. It runs in CI.
 
 The server speaks MCP over stdio (JSON-RPC 2.0, newline-delimited); stdout is reserved for the protocol, logs go to
 stderr. See [`SPEC.md`](SPEC.md) for the design and roadmap.
+
+## Team server (HTTP)
+
+`openrocket-mcp --http` serves MCP over HTTP (Streamable HTTP transport, JSON responses, batches accepted, no
+server-initiated stream so `GET /mcp` is 405) for claude.ai custom connectors, Claude Desktop and Claude Code.
+
+| Option | Default | |
+|---|---|---|
+| `--port` | 8765 (`$PORT`) | |
+| `--host` | 127.0.0.1 | `0.0.0.0` to accept other machines |
+| `--workspace` | current folder | shared folder; every tool path is resolved inside it and cannot leave it (`..`, absolute paths and symbolic links out are refused) |
+| `--token` | `$OPENROCKET_MCP_TOKEN`, else generated once into `WORKSPACE/.openrocket-mcp-token` | at least 16 characters; required unless `--no-auth` on a loopback address |
+| `--public-url` | `http://HOST:PORT` | the address people use, for the links the server prints and `list_files` returns |
+| `--allow-origin` | none | extra browser origins; others are refused (DNS-rebinding protection); requests without `Origin` (server-to-server) are allowed |
+
+Endpoints: `POST /mcp` with `Authorization: Bearer TOKEN`, or `POST /mcp/TOKEN` for clients that only take a URL;
+`GET /files/TOKEN/` lists the workspace with download links and a drag-and-drop upload (`PUT /files/TOKEN/path`,
+200 MB limit, dot-files hidden and refused); `GET /health`. Tool calls on the same design run one at a time; calls on
+different designs run in parallel. Paths in results are shown relative to the workspace. Open designs, units and
+standards are shared by everyone connected. `Dockerfile` builds a container that serves `/workspace` (git included,
+so `compare_designs` can read earlier revisions of a checked-out repository).
+
+## Claude Desktop extension
+
+`./gradlew mcpb` builds `build/distributions/openrocket-mcp-VERSION-PLATFORM-ARCH.mcpb`: the manifest (generated from
+the registered tools by `io.github.openrocketmcp.Manifest`), the server and OpenRocket jars, and a `jlink` Java runtime
+for the build machine's platform (~80 MB). Claude Desktop asks for the rocket folder (`OPENROCKET_MCP_WORKSPACE`:
+relative paths, reports and `openrocket-mcp.json` live there) and optionally a standards file. CI builds and
+smoke-tests it (`scripts/test_mcpb.py` unpacks it and starts it exactly as the manifest says) on Linux, Windows and
+macOS arm64 / x64, and attaches the bundles to GitHub releases for `v*` tags.
 
 ## Claude integration
 
 - MCP prompts: `recovery_review`, `design_review`, `motor_selection`; resources: `openrocket://standards`,
   `openrocket://rules`, `openrocket://methods`.
 - Claude Code skill: `.claude/skills/rocket-design-review` (the review workflow).
-- Team standards file location: `openrocket-mcp.json` in the directory the server runs from, or the path in the
-  `OPENROCKET_MCP_STANDARDS` environment variable (e.g. in `claude_desktop_config.json` under `env`).
+- Team standards file location: `openrocket-mcp.json` in the workspace (the directory the server runs from, or
+  `OPENROCKET_MCP_WORKSPACE` / `--workspace`), or the path in the `OPENROCKET_MCP_STANDARDS` environment variable.
+- Imported aero tables are kept next to the design as `NAME.aero.json` (SI, readable, diffable) when it is saved, and
+  loaded again with it.
 
 ## Prior art
 

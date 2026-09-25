@@ -56,7 +56,9 @@ public final class Designs {
 		OpenRocketDocument doc = new GeneralRocketLoader(p.toFile()).load();
 		doc.setFile(p.toFile());
 		doc.setSaved(true);
-		return register(doc, p, "file");
+		Design d = register(doc, p, "file");
+		loadAeroTable(d);
+		return d;
 	}
 
 	public synchronized Design openExample(String name) throws Exception {
@@ -100,6 +102,24 @@ public final class Designs {
 		}
 		designs.put(id, d);
 		return d;
+	}
+
+	/** An imported RASAero / aero table lives next to the design (rocket.aero.json) and comes back on open. */
+	static void loadAeroTable(Design d) throws IOException {
+		Path f = AeroTable.sidecar(d.path);
+		if (Files.exists(f)) {
+			AeroTable.set(d.doc.getRocket(), AeroTable.fromJson(Files.readString(f)));
+		}
+	}
+
+	static void saveAeroTable(Design d) throws IOException {
+		Path f = AeroTable.sidecar(d.path);
+		AeroTable.Table t = AeroTable.of(d.doc.getRocket());
+		if (t != null) {
+			Files.writeString(f, AeroTable.toJson(t));
+		} else {
+			Files.deleteIfExists(f); // the table was cleared since the design was opened
+		}
 	}
 
 	/** Resolves a design id; when omitted and exactly one design is open, returns that one. */
@@ -148,6 +168,7 @@ public final class Designs {
 		d.doc.setFile(p.toFile());
 		d.doc.setSaved(true);
 		d.path = p;
+		saveAeroTable(d);
 		return p;
 	}
 }

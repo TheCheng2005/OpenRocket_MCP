@@ -47,8 +47,10 @@ Claude: A 36 in chute lands the 2.84 lb section at 19.9 ft/s. The drogue opens a
 **Competition and reviews**
 - A full check against the Launch Canada rules, with the rule numbers and a checklist of what to verify by hand.
 - A design-review package: report, stability plots and flight data, ready for your review board.
+- "What changed since our last review?" — compare two versions of the design (another file, or an earlier commit)
+  side by side: mass, stability, apogee, rule checks and every part that was added, removed or edited.
 - Pressure vessel margins and probation level for liquid and hybrid programmes.
-- Use RASAero data where Launch Canada asks for it.
+- Use RASAero data where Launch Canada asks for it. It is saved with your design.
 
 **Launch day**
 - "What will the winds be at our site on Saturday at 10 am?" — give the launch site's GPS coordinates and Claude pulls
@@ -60,7 +62,26 @@ Claude: A 36 in chute lands the 2.84 lb section at 19.9 ft/s. The drogue opens a
 
 ## Getting started
 
-You need **Java 17 or newer** ([Temurin](https://adoptium.net)) on Windows, macOS or Linux.
+**Claude Desktop (easiest).** Download the extension for your computer from the
+[Releases page](https://github.com/TheCheng2005/OpenRocket_MCP/releases) — `win32` for Windows, `darwin-arm64` for
+Apple-silicon Macs, `darwin-x64` for Intel Macs, `linux` for Linux — and double-click it. Claude Desktop asks for your
+rocket folder (where your `.ork` files live) and you are done. Nothing else to install: Java and OpenRocket come
+inside it.
+
+**The whole team, from claude.ai.** One person runs the team server on a computer or cloud machine everyone can reach:
+
+```sh
+docker build -t openrocket-mcp . && docker run -p 8765:8765 -v "$PWD/rockets:/workspace" openrocket-mcp
+# or, with Java 17+:  ./gradlew installDist && build/install/openrocket-mcp/bin/openrocket-mcp --http --host 0.0.0.0
+```
+
+It prints a private link. Put it in claude.ai under Settings → Connectors → Add custom connector, and everyone on the
+team can use it. The server also prints a files page where people drop their `.ork` files and download reports.
+claude.ai needs an `https://` address: host it somewhere with a certificate, or put a tunnel such as
+`cloudflared tunnel --url http://localhost:8765` in front of it. Keep the link private — anyone with it can use the
+server.
+
+**Claude Code, or building it yourself.** You need **Java 17 or newer** ([Temurin](https://adoptium.net)).
 
 ```sh
 git clone https://github.com/thecheng2005/openrocket_mcp.git
@@ -68,25 +89,17 @@ cd openrocket_mcp
 ./gradlew installDist        # Windows: gradlew.bat installDist
 ```
 
-**Claude Code:** run `claude` inside the folder and it is ready. To use it from any folder:
+Run `claude` inside the folder and it is ready. To use it from any folder:
 
 ```sh
 claude mcp add openrocket -- /path/to/openrocket_mcp/scripts/openrocket-mcp
 # Windows:
 claude mcp add openrocket -- C:\path\to\openrocket_mcp\scripts\openrocket-mcp.cmd
+# Or connect to your team server:
+claude mcp add --transport http openrocket https://your-server/mcp/YOUR-TOKEN
 ```
 
-**Claude Desktop:** Settings → Developer → Edit Config, and add:
-
-```json
-{
-  "mcpServers": {
-    "openrocket": { "command": "/path/to/openrocket_mcp/scripts/openrocket-mcp" }
-  }
-}
-```
-
-(On Windows use `C:\\path\\to\\openrocket_mcp\\scripts\\openrocket-mcp.cmd`.)
+`./gradlew mcpb` builds the Claude Desktop extension for your own computer.
 
 Then just ask — for example: *"Open the two-stage example and check it against Launch Canada rules."*
 
@@ -101,6 +114,7 @@ materials. You can also just tell Claude ("our pins are 2-56 nylon, 35 lbf each"
 - Every number is an engineering estimate from OpenRocket and standard calculations. Claude says where each number
   comes from. It does **not** replace ground tests, flight tests, your mentors or the range safety officer.
 - Nothing is saved to your design file until you ask Claude to save it.
+- On a team server, everyone connected shares the open designs, so say which one you mean if several are open.
 - Details on every tool, the methods behind them and their limits: [docs/REFERENCE.md](docs/REFERENCE.md).
 
 ## License

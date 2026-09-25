@@ -86,7 +86,8 @@ public final class AeroTools {
 				"Import an aerodynamic table (RASAero II 'export aero data' CSV, or any CSV with Mach, CD [, CP]) for a design. The "
 						+ "drag replaces OpenRocket's in every simulation (power-on / power-off), the CP is used for a stability check "
 						+ "against the simulated CG (Launch Canada asks for RASAero CP/CD when the airframe diameter changes). Shows the "
-						+ "table next to OpenRocket's own CD / CP and the effect on apogee and minimum stability. mode clear / show.",
+						+ "table next to OpenRocket's own CD / CP and the effect on apogee and minimum stability. mode clear / show. "
+						+ "save_design keeps the table next to the .ork (rocket.aero.json) and open_design loads it again.",
 				SimTools.simSelect(Schema.object())
 						.enumStr("mode", "import (default) | show | clear", false, "import", "show", "clear")
 						.str("path", "CSV file path.", false).str("csv", "CSV text (instead of path).", false)
@@ -106,10 +107,10 @@ public final class AeroTools {
 						.str("plotPath", "Write a simulated-vs-measured altitude SVG here.", false).build(),
 				true, a -> {
 					Designs.Design d = ctx.designs.get(a.str("designId", null));
-					FlightLog.Log log = FlightLog.parse(readText(a, "path", "csv"), a.str("altitudeUnit", null));
+					FlightLog.Log log = FlightLog.parse(readText(ctx, a, "path", "csv"), a.str("altitudeUnit", null));
 					Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), SimTools.overrides(a),
 							ctx.standards(), false);
-					return FlightLog.compare(base, d.doc, log, a.str("plotPath", null), d.name() + ": simulated vs measured");
+					return FlightLog.compare(base, d.doc, log, a.has("plotPath") ? ctx.path(a.str("plotPath")).toString() : null, d.name() + ": simulated vs measured");
 				}));
 
 		s.tool(new ToolDef("wind_profile", "Winds aloft (multi-level wind)",
@@ -185,7 +186,7 @@ public final class AeroTools {
 				true, a -> {
 					Designs.Design d = ctx.designs.get(a.str("designId", null));
 					FlightConfiguration fc = Components.config(d.doc.getRocket(), a.str("configuration", null));
-					Path p = Path.of(a.str("path", "rocket.svg")).toAbsolutePath();
+					Path p = ctx.path(a.str("path", "rocket.svg")).toAbsolutePath();
 					if (p.getParent() != null) {
 						Files.createDirectories(p.getParent());
 					}
@@ -197,9 +198,9 @@ public final class AeroTools {
 				}));
 	}
 
-	static String readText(Args a, String pathKey, String textKey) throws java.io.IOException {
+	static String readText(Context ctx, Args a, String pathKey, String textKey) throws java.io.IOException {
 		if (a.has(pathKey)) {
-			return Files.readString(Path.of(a.str(pathKey)));
+			return Files.readString(ctx.path(a.str(pathKey)));
 		}
 		if (a.has(textKey)) {
 			return a.str(textKey);
@@ -222,9 +223,9 @@ public final class AeroTools {
 				return Map.of("table", "none imported");
 			}
 		} else {
-			String text = readText(a, "path", "csv");
+			String text = readText(ctx, a, "path", "csv");
 			double cpUnit = Units.toSi("1 " + a.str("cpUnit", "in"), Dim.LENGTH);
-			t = AeroTable.parse(text, a.has("path") ? Path.of(a.str("path")).getFileName().toString() : a.str("source", "imported table"),
+			t = AeroTable.parse(text, a.has("path") ? ctx.path(a.str("path")).getFileName().toString() : a.str("source", "imported table"),
 					cpUnit, a.bool("useDrag", true));
 			AeroTable.set(rocket, t);
 		}

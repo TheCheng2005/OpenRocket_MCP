@@ -50,7 +50,7 @@ public final class DesignTools {
 				false, a -> {
 					Designs.Design d;
 					if (a.has("path")) {
-						d = ctx.designs.open(Path.of(a.str("path")));
+						d = ctx.designs.open(ctx.path(a.str("path")));
 					} else if (a.has("example")) {
 						d = ctx.designs.openExample(a.str("example"));
 					} else if (a.has("newRocketName")) {
@@ -87,7 +87,7 @@ public final class DesignTools {
 				Schema.object().str("designId", DESIGN_ID, false).str("path", "Destination .ork path.", false).build(),
 				false, a -> {
 					Designs.Design d = ctx.designs.get(a.str("designId", null));
-					Path p = ctx.designs.save(d, a.has("path") ? Path.of(a.str("path")) : null);
+					Path p = ctx.designs.save(d, a.has("path") ? ctx.path(a.str("path")) : null);
 					return Map.of("saved", p.toString());
 				}));
 

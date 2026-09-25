@@ -45,7 +45,7 @@ public final class StandardsTools {
 					Map<String, Object> out = new LinkedHashMap<>();
 					out.put("updated", patch.keySet());
 					if (a.has("saveTo")) {
-						Path p = Path.of(a.str("saveTo")).toAbsolutePath().normalize();
+						Path p = ctx.path(a.str("saveTo")).toAbsolutePath().normalize();
 						next.save(p);
 						out.put("saved", p.toString());
 					}
@@ -55,7 +55,7 @@ public final class StandardsTools {
 		s.tool(new ToolDef("load_standards", "Load a team standards file",
 				"Load a team standards JSON file (see openrocket-mcp.example.json in the repository).",
 				Schema.object().str("path", "Path to the JSON file.", true).build(), false, a -> {
-					ctx.setStandards(Standards.load(Path.of(a.str("path"))));
+					ctx.setStandards(Standards.load(ctx.path(a.str("path"))));
 					return Map.of("loaded", ctx.standards().source().toString(), "ruleSet", ctx.standards().rulesName());
 				}));
 

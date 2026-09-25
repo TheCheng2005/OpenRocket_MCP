@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'io.github.openrocketmcp'
-version = '0.9.0'
+version = '0.10.0'
 
 
 repositories {
@@ -43,5 +43,54 @@ test {
     testLogging {
         events 'failed'
         exceptionFormat 'full'
+    }
+}
+
+// ------------------------------------------------------------------------------------------------------------------
+// One-click Claude Desktop extension (.mcpb): the server, OpenRocket and a trimmed Java runtime for this platform.
+//   ./gradlew mcpb   ->   build/distributions/openrocket-mcp-<version>-<platform>-<arch>.mcpb
+def hostOs = org.gradle.internal.os.OperatingSystem.current()
+def mcpbPlatform = hostOs.isWindows() ? 'win32' : hostOs.isMacOsX() ? 'darwin' : 'linux'
+def mcpbArch = System.getProperty('os.arch').replace('amd64', 'x64').replace('x86_64', 'x64').replace('aarch64', 'arm64')
+def mcpbDir = layout.buildDirectory.dir('mcpb')
+// Modules OpenRocket and the server use (jdeps --print-module-deps), plus TLS, XML, logging and zip support.
+def runtimeModules = 'java.base,java.compiler,java.desktop,java.net.http,java.prefs,java.scripting,java.sql,' +
+        'jdk.httpserver,jdk.unsupported,java.logging,java.xml,java.naming,java.management,jdk.crypto.ec,jdk.charsets,jdk.zipfs'
+
+tasks.register('mcpbManifest', JavaExec) {
+    dependsOn 'classes'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'io.github.openrocketmcp.Manifest'
+    jvmArgs '-Djava.awt.headless=true'
+    def out = mcpbDir.map { it.file('manifest.json') }
+    args mcpbPlatform, out.get().asFile.path
+    outputs.file(out)
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('mcpbRuntime', Exec) {
+    def out = mcpbDir.map { it.dir('runtime') }
+    def jlink = new File(System.getProperty('java.home'), 'bin/jlink' + (hostOs.isWindows() ? '.exe' : ''))
+    inputs.property('modules', runtimeModules)
+    outputs.dir(out)
+    doFirst { delete out }
+    commandLine jlink.path, '--add-modules', runtimeModules, '--strip-debug', '--no-man-pages', '--no-header-files',
+            '--compress=2', '--output', out.get().asFile.path
+}
+
+tasks.register('mcpb', Zip) {
+    group = 'distribution'
+    description = 'Builds the Claude Desktop extension (.mcpb) for this platform.'
+    dependsOn 'installDist', 'mcpbManifest', 'mcpbRuntime'
+    archiveFileName = "openrocket-mcp-${project.version}-${mcpbPlatform}-${mcpbArch}.mcpb"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    from(mcpbDir.map { it.file('manifest.json') })
+    from('LICENSE')
+    from('src/main/resources/openrocketmcp/icon.png')
+    into('lib') { from layout.buildDirectory.dir('install/openrocket-mcp/lib') }
+    into('runtime') {
+        from mcpbDir.map { it.dir('runtime') }
+        // Keep the launcher executable after Claude Desktop unpacks the extension.
+        filesMatching(['bin/**', 'lib/jspawnhelper', 'lib/jexec']) { mode = 0755 }
     }
 }

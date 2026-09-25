@@ -50,11 +50,16 @@ public final class Standards {
 	 * built-in defaults only.
 	 */
 	public static Standards discover() {
+		return discover(Path.of(""));
+	}
+
+	/** As {@link #discover()}, looking for openrocket-mcp.json in {@code dir}. */
+	public static Standards discover(Path dir) {
 		String env = System.getenv("OPENROCKET_MCP_STANDARDS");
 		if (env != null && !env.isBlank()) {
 			return load(Path.of(env));
 		}
-		Path local = Path.of(FILE_NAME);
+		Path local = dir.resolve(FILE_NAME);
 		if (Files.exists(local)) {
 			return load(local);
 		}
@@ -84,6 +89,13 @@ public final class Standards {
 		return s;
 	}
 
+	/** On a team server, rule-set files must be inside this directory (null = no restriction). */
+	private static volatile Path sandbox;
+
+	public static void sandbox(Path root) {
+		sandbox = root == null ? null : root.toAbsolutePath().normalize();
+	}
+
 	private static JsonObject loadRules(String ruleset, Path standardsFile) {
 		if (ruleset == null || ruleset.isBlank() || ruleset.equals("none")) {
 			return new JsonObject();
@@ -91,6 +103,10 @@ public final class Standards {
 		if (ruleset.endsWith(".json")) {
 			Path p = standardsFile != null && standardsFile.getParent() != null
 					? standardsFile.getParent().resolve(ruleset) : Path.of(ruleset);
+			p = p.toAbsolutePath().normalize();
+			if (sandbox != null && !p.startsWith(sandbox)) {
+				throw new ToolException("Rule set files must be inside the team workspace.");
+			}
 			try {
 				return JsonParser.parseString(Files.readString(p)).getAsJsonObject();
 			} catch (IOException e) {

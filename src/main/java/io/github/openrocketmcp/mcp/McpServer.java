@@ -27,6 +27,15 @@ public final class McpServer {
 
 	private static final List<String> SUPPORTED_VERSIONS = List.of("2025-06-18", "2025-03-26", "2024-11-05");
 
+	/**
+	 * Serializes conflicting tool calls when several clients share the server (HTTP team mode): returns a lock to hold
+	 * while the tool runs, or null.
+	 */
+	@FunctionalInterface
+	public interface Guard {
+		java.util.concurrent.locks.Lock lockFor(ToolDef tool, Args args);
+	}
+
 	public record Resource(String uri, String name, String description, String mimeType, Supplier<String> reader) {
 	}
 
@@ -46,11 +55,22 @@ public final class McpServer {
 	private final String name;
 	private final String version;
 	private final String instructions;
+	private volatile Guard guard;
+	private volatile java.util.function.UnaryOperator<String> outputFilter = java.util.function.UnaryOperator.identity();
 
 	public McpServer(String name, String version, String instructions) {
 		this.name = name;
 		this.version = version;
 		this.instructions = instructions;
+	}
+
+	public void guard(Guard g) {
+		this.guard = g;
+	}
+
+	/** Rewrites every tool result's text (the team server shows workspace-relative paths). */
+	public void outputFilter(java.util.function.UnaryOperator<String> f) {
+		this.outputFilter = f;
 	}
 
 	public void tool(ToolDef tool) {
@@ -139,7 +159,7 @@ public final class McpServer {
 
 	private JsonObject initialize(JsonObject params) {
 		String requested = params.has("protocolVersion") ? params.get("protocolVersion").getAsString() : null;
-		String version = SUPPORTED_VERSIONS.contains(requested) ? requested : SUPPORTED_VERSIONS.get(0);
+		String version = requested != null && SUPPORTED_VERSIONS.contains(requested) ? requested : SUPPORTED_VERSIONS.get(0);
 		JsonObject result = new JsonObject();
 		result.addProperty("protocolVersion", version);
 		JsonObject caps = new JsonObject();
@@ -195,16 +215,31 @@ public final class McpServer {
 		JsonObject arguments = params.has("arguments") && params.get("arguments").isJsonObject()
 				? params.getAsJsonObject("arguments")
 				: new JsonObject();
+		Args args = new Args(arguments);
+		Guard g = guard;
+		java.util.concurrent.locks.Lock lock = null;
 		try {
-			Object value = tool.handler().call(new Args(arguments));
-			// Compact JSON: indentation roughly doubles the size of every result the model has to read.
-			return textResult(value instanceof String s ? s : compact.toJson(value), false);
+			lock = g == null ? null : g.lockFor(tool, args);
 		} catch (ToolException e) {
 			return textResult("Error: " + e.getMessage(), true);
+		}
+		if (lock != null) {
+			lock.lock();
+		}
+		try {
+			Object value = tool.handler().call(args);
+			// Compact JSON: indentation roughly doubles the size of every result the model has to read.
+			return textResult(outputFilter.apply(value instanceof String s ? s : compact.toJson(value)), false);
+		} catch (ToolException e) {
+			return textResult(outputFilter.apply("Error: " + e.getMessage()), true);
 		} catch (Exception e) {
 			Log.error("Tool " + toolName + " failed", e);
 			String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getClass().getSimpleName() + ": " + e.getMessage();
-			return textResult("Error: " + msg, true);
+			return textResult(outputFilter.apply("Error: " + msg), true);
+		} finally {
+			if (lock != null) {
+				lock.unlock();
+			}
 		}
 	}
 

@@ -1,5 +1,6 @@
 package io.github.openrocketmcp.or;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -35,6 +36,28 @@ class AeroTableTest {
 		assertEquals(0.85, t.cd(3.0, false), 1e-12, "clamped above the table");
 		assertEquals(40.2 * 0.0254, t.cpAt(0.5), 1e-12, "CP in inches from the nose tip");
 		assertTrue(t.hasCp());
+	}
+
+	@Test
+	void tableIsKeptWithTheDesign(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+		Designs designs = new Designs();
+		Designs.Design d = designs.openExample("A simple model rocket");
+		AeroTable.Table t = AeroTable.parse(RASAERO, "rasaero.csv", 0.0254, true);
+		AeroTable.set(d.doc.getRocket(), t);
+		java.nio.file.Path ork = designs.save(d, dir.resolve("rocket.ork"));
+		java.nio.file.Path side = dir.resolve("rocket.aero.json");
+		assertTrue(java.nio.file.Files.exists(side));
+		AeroTable.clear(d.doc.getRocket());
+		Designs.Design again = designs.open(ork);
+		AeroTable.Table back = AeroTable.of(again.doc.getRocket());
+		assertTrue(back != null && back.source().equals("rasaero.csv") && back.useDrag());
+		assertArrayEquals(t.mach(), back.mach());
+		assertArrayEquals(t.cdOn(), back.cdOn());
+		assertArrayEquals(t.cp(), back.cp());
+		// Clearing the table and saving removes the file, so it does not come back.
+		AeroTable.clear(again.doc.getRocket());
+		designs.save(again, ork);
+		assertFalse(java.nio.file.Files.exists(side));
 	}
 
 	@Test
