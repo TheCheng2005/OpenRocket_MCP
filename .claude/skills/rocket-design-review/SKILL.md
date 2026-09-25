@@ -42,6 +42,8 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
 7. Liquid / hybrid programs: `pressure_vessel` for every tank/COPV/chamber, `advanced_probation` for the GLPP level and
    Isp/AASI; `create_custom_motor` from static-fire data. Walk through the `manualChecks` list from check_requirements.
 8. For design reviews, `generate_report` writes report.md, the DTEG R10.3.2 stability plots and a CSV.
+   If the team has an earlier version (a file, or a git commit / tag from the last review), `compare_designs` lists what
+   changed since then: mass, stability, apogee, rule checks and every edited part.
 
 Write results like the team's test reports: inputs, equations, values, results. Label each number as simulated
 (OpenRocket), calculated (tool formula) or assumed (standards). Remind the user that ground tests and RSO review are

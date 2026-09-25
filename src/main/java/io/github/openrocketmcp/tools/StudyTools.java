@@ -103,6 +103,48 @@ public final class StudyTools {
 	}
 
 	static void registerMore(McpServer s, Context ctx) {
+		s.tool(new ToolDef("compare_designs", "Design diff between two revisions",
+				"Compare the design under review with a baseline - another open design, another .ork file, or an earlier git "
+						+ "revision of the same file (e.g. \"HEAD~1\", a tag like \"PDR\", a branch). Both are flown in the same "
+						+ "conditions. Returns the change in length, mass, CG, CP, static stability, motors, apogee, velocity, Mach, "
+						+ "rail exit velocity, flight stability, descent rates, landing distance, every rule check whose status "
+						+ "changed, and the component edits (added / removed / changed properties). Optionally writes a Markdown "
+						+ "change summary for the design review. Does not edit either design.",
+				SimTools.simSelect(Schema.object())
+						.str("baselineDesignId", "An open design to compare against.", false)
+						.str("baselinePath", "An .ork file to compare against (e.g. the version submitted at the last review).", false)
+						.str("revision", "A git revision of the design's own file to compare against: commit, tag, branch, HEAD~1.", false)
+						.bool("sameConditions", "Fly the baseline in the current design's simulation conditions (default true).", false)
+						.str("path", "Also write the comparison as Markdown here, e.g. \"reviews/changes-since-pdr.md\".", false)
+						.build(),
+				true, a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId", null));
+					int given = (a.has("baselineDesignId") ? 1 : 0) + (a.has("baselinePath") ? 1 : 0) + (a.has("revision") ? 1 : 0);
+					if (given != 1) {
+						throw new ToolException("Give exactly one baseline: baselineDesignId, baselinePath or revision.");
+					}
+					Designs.Design base;
+					String label;
+					if (a.has("baselineDesignId")) {
+						base = ctx.designs.get(a.str("baselineDesignId"));
+						label = base.id;
+					} else if (a.has("baselinePath")) {
+						java.nio.file.Path p = ctx.path(a.str("baselinePath"));
+						base = io.github.openrocketmcp.or.Diff.load(p, "file");
+						label = p.getFileName().toString();
+					} else {
+						base = io.github.openrocketmcp.or.Diff.loadRevision(d, a.str("revision"));
+						label = a.str("revision");
+					}
+					String current = d.path != null ? d.path.getFileName().toString() : d.id;
+					if (current.equals(label)) {
+						current = "current";
+					}
+					return io.github.openrocketmcp.or.Diff.compare(base, d, label, current, a.str("simulation", null),
+							a.str("configuration", null), a.bool("sameConditions", true), ctx.standards(),
+							a.has("path") ? ctx.path(a.str("path")) : null);
+				}));
+
 		s.tool(new ToolDef("aero_heating", "Aerodynamic heating screen",
 				"Stagnation temperature at the nose tip and fin leading edges and recovery temperature on the body along the "
 						+ "simulated flight, compared with each part's material limit (structures.maxServiceTemperature, e.g. epoxy "

@@ -162,7 +162,7 @@ public final class MotorTools {
 				"Load RASP (.eng), RockSim (.rse) or zipped motor files into this session's motor database, e.g. thrust curves "
 						+ "from thrustcurve.org or your static-fire data. Imported motors can then be used with set_motor.",
 				Schema.object().str("path", "Path to the motor file.", true).build(), false, a -> {
-					List<ThrustCurveMotor> motors = Motors.importFile(Path.of(a.str("path")));
+					List<ThrustCurveMotor> motors = Motors.importFile(ctx.path(a.str("path")));
 					List<Map<String, Object>> out = new ArrayList<>();
 					for (ThrustCurveMotor m : motors) {
 						out.add(Motors.describe(m));
@@ -204,7 +204,7 @@ public final class MotorTools {
 						}
 					}
 					String designation = a.str("designation");
-					Path file = Path.of(a.str("saveTo", "motors/" + designation.replaceAll("[^A-Za-z0-9._-]", "_") + ".rse"));
+					Path file = ctx.path(a.str("saveTo", "motors/" + designation.replaceAll("[^A-Za-z0-9._-]", "_") + ".rse"));
 					ThrustCurveMotor m = Motors.createCustom(new Motors.CustomMotor(a.str("manufacturer"), designation,
 							a.str("type", "liquid"), a.qty("diameter", Dim.LENGTH), a.qty("length", Dim.LENGTH),
 							a.qty("totalMass", Dim.MASS), a.qty("propellantMass", Dim.MASS), curve[0], curve[1],

@@ -114,6 +114,8 @@ final class Prompts {
 						- structural_loads for the joints (couplers, fasteners).
 						- fin_flutter for every fin set (margin along the flight); ballast if the stability floor is not met.
 						- monte_carlo with vehicle uncertainty (massSd, dragSd, thrustSd, chuteCdSd) for the landing area and drivers.
+						- If there is an earlier version (another .ork, or a git tag / commit from the last review), compare_designs
+						  for what changed since then.
 						Summarize as a table of requirement, value, status and reference, then the action list.
 						""".formatted(args.get("design"))));
 

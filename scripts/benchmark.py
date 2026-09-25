@@ -435,6 +435,29 @@ def scenario_launch_day(s, d, tmp):
     s.call("wind_profile", {"designId": d, "mode": "average"})
 
 
+def scenario_design_review(s, d, tmp):
+    """'What changed since our last design review?'"""
+    sc = "design review: diff against the last revision"
+    v1 = os.path.join(tmp, "review", "v1.ork")
+    s.call("save_design", {"designId": d, "path": v1})
+    s.call("edit_components", {"designId": d, "changes": [{"component": "Fins", "properties": {"height": "7 in"}}]})
+    t0 = time.time()
+    md = os.path.join(tmp, "review", "changes.md")
+    diff = s.call("compare_designs", {"designId": d, "baselinePath": v1, "path": md})
+    fins = [c for c in diff["componentChanges"] if c.get("change") == "edited" and c["component"].startswith("Fins")]
+    check(sc, "fin edit found with old -> new value", fins and any("height" in e for e in fins[0]["edits"]), json.dumps(fins)[:300])
+    stab = next(r for r in diff["vehicle"] if r["quantity"] == "static stability at launch")
+    h = next(e for e in fins[0]["edits"] if e.startswith("height")) if fins else "height 0 -> 0"
+    old_h, new_h = (num(x.strip().split(" (")[0].replace("height", "")) for x in h.split("->"))
+    check(sc, "stability moves with fin span (taller fins, more stable)",
+          (new_h > old_h) == stab["change"].startswith("+") and new_h != old_h, h + " / " + json.dumps(stab))
+    check(sc, "rule-check changes and a summary are reported", "ruleCheckChanges" in diff and diff["summary"])
+    check(sc, "Markdown change summary written for the review", os.path.exists(md) and "## Component changes" in open(md).read())
+    check(sc, "diff < 10 s", time.time() - t0 < 10, f"{time.time() - t0:.1f} s")
+    files = s.call("list_files", {"folder": os.path.join(tmp, "review")})
+    check(sc, "list_files finds the saved revision", any(f["path"].endswith("v1.ork") for f in files["files"]), json.dumps(files)[:300])
+
+
 def main():
     if not os.path.exists(BIN):
         sys.exit(f"Build first: ./gradlew installDist ({BIN} missing)")
@@ -452,7 +475,8 @@ def main():
                      ("OpenRocket depth", lambda: scenario_openrocket_depth(s, scratch["d"], tmp)),
                      ("Post-flight", lambda: scenario_post_flight(s, scratch["d"], tmp)),
                      ("Design studies", lambda: scenario_studies(s, scratch["d"])),
-                     ("Launch day", lambda: scenario_launch_day(s, scratch["d"], tmp))]:
+                     ("Launch day", lambda: scenario_launch_day(s, scratch["d"], tmp)),
+                     ("Design review", lambda: scenario_design_review(s, scratch["d"], tmp))]:
         print(f"\n== {name}")
         try:
             fn()

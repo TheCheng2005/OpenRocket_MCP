@@ -69,6 +69,58 @@ public final class AeroTable {
 		return TABLES.get(r.getID().toString());
 	}
 
+	// ------------------------------------------------------------------------------------ kept with the design
+
+	static final String FORMAT = "openrocket-mcp aero table 1";
+
+	/** The file an imported table is kept in next to a design: rocket.ork -> rocket.aero.json. */
+	public static java.nio.file.Path sidecar(java.nio.file.Path ork) {
+		String n = ork.getFileName().toString();
+		String stem = n.toLowerCase(Locale.ROOT).endsWith(".ork") ? n.substring(0, n.length() - 4) : n;
+		return ork.resolveSibling(stem + ".aero.json");
+	}
+
+	/** SI JSON (Mach, CD power off / on, CP in m from the nose tip or null), readable and diffable. */
+	public static String toJson(Table t) {
+		com.google.gson.JsonObject o = new com.google.gson.JsonObject();
+		o.addProperty("format", FORMAT);
+		o.addProperty("source", t.source());
+		o.addProperty("useDrag", t.useDrag());
+		com.google.gson.JsonArray rows = new com.google.gson.JsonArray();
+		for (int i = 0; i < t.mach().length; i++) {
+			com.google.gson.JsonObject r = new com.google.gson.JsonObject();
+			r.addProperty("mach", t.mach()[i]);
+			r.addProperty("cdPowerOff", t.cdOff()[i]);
+			r.addProperty("cdPowerOn", t.cdOn()[i]);
+			if (Double.isNaN(t.cp()[i])) {
+				r.add("cpFromNoseTip_m", com.google.gson.JsonNull.INSTANCE);
+			} else {
+				r.addProperty("cpFromNoseTip_m", t.cp()[i]);
+			}
+			rows.add(r);
+		}
+		o.add("rows", rows);
+		return new com.google.gson.GsonBuilder().setPrettyPrinting().serializeNulls().create().toJson(o);
+	}
+
+	public static Table fromJson(String json) {
+		com.google.gson.JsonObject o = com.google.gson.JsonParser.parseString(json).getAsJsonObject();
+		if (!o.has("format") || !FORMAT.equals(o.get("format").getAsString())) {
+			throw new ToolException("Not an aero table saved by openrocket-mcp.");
+		}
+		com.google.gson.JsonArray rows = o.getAsJsonArray("rows");
+		int n = rows.size();
+		double[] mach = new double[n], off = new double[n], on = new double[n], cp = new double[n];
+		for (int i = 0; i < n; i++) {
+			com.google.gson.JsonObject r = rows.get(i).getAsJsonObject();
+			mach[i] = r.get("mach").getAsDouble();
+			off[i] = r.get("cdPowerOff").getAsDouble();
+			on[i] = r.get("cdPowerOn").getAsDouble();
+			cp[i] = r.has("cpFromNoseTip_m") && !r.get("cpFromNoseTip_m").isJsonNull() ? r.get("cpFromNoseTip_m").getAsDouble() : Double.NaN;
+		}
+		return new Table(mach, off, on, cp, o.get("source").getAsString(), o.get("useDrag").getAsBoolean());
+	}
+
 	/** Runs {@code sim} with OpenRocket's own drag even if the design has a table (for comparisons). */
 	public static Simulation without(Simulation sim) {
 		WITHOUT.add(sim);

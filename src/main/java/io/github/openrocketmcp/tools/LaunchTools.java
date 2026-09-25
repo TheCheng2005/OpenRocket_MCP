@@ -124,7 +124,7 @@ public final class LaunchTools {
 					String site = (coords ? Units.num(o.getLaunchLatitude()) + ", " + Units.num(o.getLaunchLongitude()) + ", "
 							: "coordinates not set (weather_forecast or launchSite in the team standards), ")
 							+ Units.fmt(o.getLaunchAltitude(), Dim.DISTANCE) + " MSL";
-					return FlightCard.write(d, sim, ctx.standards(), Path.of(a.str("path", "flight-card.md")), site);
+					return FlightCard.write(d, sim, ctx.standards(), ctx.path(a.str("path", "flight-card.md")), site);
 				}));
 	}
 }

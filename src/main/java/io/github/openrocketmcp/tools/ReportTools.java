@@ -44,7 +44,7 @@ public final class ReportTools {
 					}
 					String pinName = a.has("pinType") && !a.has("pinStrength") ? a.str("pinType") : null;
 					List<Path> files = Reports.write(d, sim, wind, ctx.standards(), RecoveryTools.pinStrength(ctx, a), pinName,
-							a.str("title", null), Path.of(a.str("outputDir")).toAbsolutePath().normalize());
+							a.str("title", null), ctx.path(a.str("outputDir")).toAbsolutePath().normalize());
 					List<String> names = new ArrayList<>();
 					files.forEach(p -> names.add(p.toString()));
 					Map<String, Object> out = new LinkedHashMap<>();
@@ -66,7 +66,7 @@ public final class ReportTools {
 					List<String> vars = a.has("variables") ? a.strList("variables")
 							: List.of("altitude", "velocitytotal", "velocityz", "accelerationtotal", "machnumber", "stability",
 									"cglocation", "cplocation", "thrustforce", "dragforce", "mass", "aoa", "airdensity");
-					Path p = Reports.csv(sim, a.str("branch", null), vars, Path.of(a.str("path")));
+					Path p = Reports.csv(sim, a.str("branch", null), vars, ctx.path(a.str("path")));
 					return Map.of("written", p.toString());
 				}));
 	}

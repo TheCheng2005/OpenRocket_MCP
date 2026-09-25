@@ -186,6 +186,19 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   `structures.maxServiceTemperature`.
 - `roll_analysis`: cant sweep on copies; roll rate vs pitch natural frequency sqrt(C1 / I) / 2 pi (roll resonance).
 
+### Design diff and team access (v0.10.0)
+
+- `compare_designs`: baseline = open design, .ork file or git revision (`git show REV:./file`, revision names
+  validated, no option injection). Both flown in the reviewed design's conditions (options copied, multi-level wind
+  profile copied with its altitude reference). Components matched by persistent id, else type + name; property
+  changes from the same reflection `describe_component` uses. Rule checks compared by item.
+- Team server: `HttpTransport` (JDK `HttpServer`), token by header or URL path (constant-time compare), Origin check,
+  per-design `ReentrantLock` guard in `McpServer`, `Context.path` sandbox (normalised prefix + real-path check for
+  symbolic links), rule-set files limited to the workspace, workspace-relative output filter, files page.
+- `.mcpb` extension with a `jlink` runtime; manifest generated from the tool registry and validated with the `mcpb`
+  CLI; extension smoke test in CI on four platforms.
+- RASAero / aero tables saved beside the design (`NAME.aero.json`) and restored on open.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.
@@ -193,8 +206,7 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
 ### Phase 4 — later
 
 - Live control of the OpenRocket GUI via an OpenRocket plugin (instead of a fork).
-- One-click Claude Desktop install (`.mcpb` bundle with a bundled Java runtime).
-- Remote (HTTP) transport for claude.ai.
+- OAuth for the team server (today: a shared token).
 
 ## Validation
 
