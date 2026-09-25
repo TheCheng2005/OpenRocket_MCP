@@ -65,7 +65,9 @@ public final class AnalysisTools {
 				false, a -> optimize(ctx, a)));
 
 		s.tool(new ToolDef("monte_carlo", "Dispersion analysis (landing ellipse, worst cases)",
-				"Run many simulations with randomized wind speed and direction, launch angle and direction, and turbulence. "
+				"Run many simulations with randomized wind speed and direction, launch angle and direction, and turbulence, "
+						+ "optionally also structure mass, airframe drag, motor thrust and parachute Cd (massSd, dragSd, thrustSd, "
+						+ "chuteCdSd), and report which inputs drive the spread (correlations). "
 						+ "Returns apogee spread, landing ellipse and distances per stage, worst ascent stability and rail exit "
 						+ "(with how many runs break the rules), and the worst deployment airspeed and opening load per recovery "
 						+ "device. Runs in parallel; 100 runs typically take a few seconds.",
@@ -81,7 +83,11 @@ public final class AnalysisTools {
 						.qty("launchAngleSd", "Launch angle standard deviation (default 1 deg).", false)
 						.qty("launchDirectionSd", "Rail direction standard deviation (default 5 deg).", false)
 						.num("turbulence", "Wind turbulence intensity 0-1.", false)
-						.integer("seed", "Random seed for repeatable results (default 1).", false).build(),
+						.integer("seed", "Random seed for repeatable results (default 1).", false)
+						.num("massSd", "Structure mass uncertainty, fractional 1 sd (e.g. 0.05 = 5%; motors excluded).", false)
+						.num("dragSd", "Airframe drag coefficient uncertainty, fractional 1 sd (e.g. 0.1).", false)
+						.num("thrustSd", "Motor thrust / total impulse uncertainty, fractional 1 sd (e.g. 0.03).", false)
+						.num("chuteCdSd", "Parachute Cd uncertainty, fractional 1 sd, per chute (e.g. 0.1).", false).build(),
 				true, a -> {
 					Designs.Design d = ctx.designs.get(a.str("designId", null));
 					Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null),
@@ -91,7 +97,8 @@ public final class AnalysisTools {
 							a.qty("windSpeedSd", Dim.VELOCITY, 2.0), a.qtyOrNaN("windDirection", Dim.ANGLE),
 							a.qty("windDirectionSd", Dim.ANGLE, Math.toRadians(30)), a.qtyOrNaN("launchAngle", Dim.ANGLE),
 							a.qty("launchAngleSd", Dim.ANGLE, Math.toRadians(1)), a.qty("launchDirectionSd", Dim.ANGLE, Math.toRadians(5)),
-							a.num("turbulence", Double.NaN), a.integer("seed", 1));
+							a.num("turbulence", Double.NaN), a.integer("seed", 1), frac(a.num("massSd", 0)), frac(a.num("dragSd", 0)),
+							frac(a.num("thrustSd", 0)), frac(a.num("chuteCdSd", 0)));
 					long t0 = System.nanoTime();
 					Map<String, Object> out = MonteCarlo.run(base, d.doc, st, ctx.standards());
 					out.put("elapsed", Units.num((System.nanoTime() - t0) / 1e9) + " s");
@@ -99,12 +106,24 @@ public final class AnalysisTools {
 				}));
 	}
 
+	private static double frac(double v) {
+		if (v < 0 || v > 0.5) {
+			throw new ToolException("Fractional standard deviations must be between 0 and 0.5 (e.g. 0.05 for 5%).");
+		}
+		return v;
+	}
+
 	private static Object optimize(Context ctx, Args a) {
 		Designs.Design d = ctx.designs.get(a.str("designId", null));
 		List<Optimizer.Variable> vars = new ArrayList<>();
+		java.util.Set<String> hidden = new java.util.LinkedHashSet<>();
 		for (Args v : a.objList("variables")) {
 			RocketComponent c = Components.find(d.doc.getRocket(), v.str("component"));
 			String prop = v.str("property");
+			String hw = Components.overrideWarning(c);
+			if (hw != null) {
+				hidden.add(hw);
+			}
 			Object raw = Components.getRaw(c, prop);
 			if (!(raw instanceof Double)) {
 				throw new ToolException(c.getName() + "." + prop + " is not a continuous (number) property.");
@@ -124,12 +143,8 @@ public final class AnalysisTools {
 		if (a.bool("meetRules", false)) {
 			// Stability floor from the rule set: max(minimum calibers, % of body length x L:D); ceiling: over-stability.
 			var std = ctx.standards();
-			var fcNow = d.doc.getRocket().getSelectedConfiguration();
-			double cal = std.rule(io.github.openrocketmcp.or.Analysis.hasDiameterChange(fcNow)
-					? "stability.minCalibersWithDiameterChange" : "stability.minCalibers", Dim.DIMENSIONLESS);
-			double pct = std.rule("staticMarginPercentLength.min", Dim.DIMENSIONLESS);
-			double ld = io.github.openrocketmcp.or.Dynamics.lengthToDiameter(fcNow);
-			double floor = Math.max(Double.isNaN(cal) ? 0 : cal, Double.isNaN(pct) ? 0 : pct / 100 * ld);
+			double[] fl = io.github.openrocketmcp.or.Requirements.stabilityFloor(std, d.doc.getRocket().getSelectedConfiguration());
+			double floor = fl[0];
 			if (Double.isNaN(minStab) && floor > 0) {
 				minStab = floor;
 			}
@@ -137,8 +152,8 @@ public final class AnalysisTools {
 			if (Double.isNaN(maxStab) && !Double.isNaN(over)) {
 				maxStab = over;
 			}
-			ruleBasis = "minStability " + Units.num(minStab) + " cal = max(" + Units.num(cal) + " cal, " + Units.num(pct)
-					+ "% of body length at L:D " + Units.num(ld) + "); maxStability " + Units.num(maxStab) + " cal (over-stable)";
+			ruleBasis = "minStability " + io.github.openrocketmcp.or.Requirements.floorText(fl) + "; maxStability "
+					+ Units.num(maxStab) + " cal (over-stable)";
 		}
 		Optimizer.Constraints c = new Optimizer.Constraints(minStab, maxStab,
 				a.qty("minRailExit", Dim.VELOCITY, obj == Optimizer.Objective.TARGET_STABILITY && Double.isNaN(minStab) ? Double.NaN : railRule),
@@ -197,6 +212,9 @@ public final class AnalysisTools {
 		}
 		out.put("alternatives", runners);
 		out.put("evaluations", r.evaluated().size());
+		if (!hidden.isEmpty()) {
+			out.put("warnings", hidden);
+		}
 		out.put("elapsed", Units.num((System.nanoTime() - t0) / 1e9) + " s");
 		if (!r.feasible()) {
 			out.put("note", "No evaluated point met every constraint; 'best' is the least-violating one ("

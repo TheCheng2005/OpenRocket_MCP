@@ -19,17 +19,32 @@ public final class Svg {
 
 	private static final int W = 720, H = 360, L = 64, R = 24, T = 48, B = 52;
 
+	/** One named data series. */
+	public record Series(String name, double[] x, double[] y) {
+	}
+
+	private static final String[] SERIES_CLASSES = { "series", "series2" };
+
 	public static String line(String title, String xLabel, String yLabel, double[] x, double[] y, double refY,
 			String refLabel, List<Marker> markers) {
+		return lines(title, xLabel, yLabel, List.of(new Series(null, x, y)), refY, refLabel, markers);
+	}
+
+	/** Up to two series on shared axes (e.g. simulated vs measured), with a legend when named. */
+	public static String lines(String title, String xLabel, String yLabel, List<Series> series, double refY,
+			String refLabel, List<Marker> markers) {
 		double xmin = Double.MAX_VALUE, xmax = -Double.MAX_VALUE, ymin = Double.MAX_VALUE, ymax = -Double.MAX_VALUE;
-		for (int i = 0; i < x.length; i++) {
-			if (Double.isNaN(y[i]) || Double.isInfinite(y[i])) {
-				continue;
+		for (Series ser : series) {
+			double[] x = ser.x(), y = ser.y();
+			for (int i = 0; i < x.length; i++) {
+				if (Double.isNaN(y[i]) || Double.isInfinite(y[i])) {
+					continue;
+				}
+				xmin = Math.min(xmin, x[i]);
+				xmax = Math.max(xmax, x[i]);
+				ymin = Math.min(ymin, y[i]);
+				ymax = Math.max(ymax, y[i]);
 			}
-			xmin = Math.min(xmin, x[i]);
-			xmax = Math.max(xmax, x[i]);
-			ymin = Math.min(ymin, y[i]);
-			ymax = Math.max(ymax, y[i]);
 		}
 		if (xmin > xmax) {
 			xmin = 0;
@@ -55,9 +70,10 @@ public final class Svg {
 				.append(".bg{fill:#fcfcfb}.grid{stroke:#e4e3de;stroke-width:1}.axis{stroke:#b8b7ae;stroke-width:1}")
 				.append(".t1{fill:#1a1a19;font:600 15px system-ui,sans-serif}.t2{fill:#5f5e57;font:12px system-ui,sans-serif}")
 				.append(".series{fill:none;stroke:#2a78d6;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}")
+				.append(".series2{fill:none;stroke:#d9480f;stroke-width:2;stroke-dasharray:5 3}")
 				.append(".ref{stroke:#5f5e57;stroke-width:1.5;stroke-dasharray:6 4}.mark{stroke:#b8b7ae;stroke-width:1}\n")
 				.append("@media (prefers-color-scheme: dark){.bg{fill:#1a1a19}.grid{stroke:#34332f}.axis{stroke:#5f5e57}")
-				.append(".t1{fill:#ffffff}.t2{fill:#c3c2b7}.series{stroke:#3987e5}.ref{stroke:#c3c2b7}.mark{stroke:#5f5e57}}\n")
+				.append(".t1{fill:#ffffff}.t2{fill:#c3c2b7}.series{stroke:#3987e5}.series2{stroke:#f08c4f}.ref{stroke:#c3c2b7}.mark{stroke:#5f5e57}}\n")
 				.append("</style>\n");
 		s.append(String.format(Locale.ROOT, "<rect class=\"bg\" width=\"%d\" height=\"%d\"/>%n", W, H));
 		s.append(String.format(Locale.ROOT, "<text class=\"t1\" x=\"%d\" y=\"26\">%s</text>%n", L, esc(title)));
@@ -83,17 +99,27 @@ public final class Svg {
 			s.append(String.format(Locale.ROOT, "<line class=\"ref\" x1=\"%d\" x2=\"%d\" y1=\"%.1f\" y2=\"%.1f\"/>%n", L, W - R, py, py));
 			s.append(String.format(Locale.ROOT, "<text class=\"t2\" x=\"%d\" y=\"%.1f\" text-anchor=\"end\">%s</text>%n", W - R, py - 6, esc(refLabel)));
 		}
-		StringBuilder path = new StringBuilder();
-		boolean pen = false;
-		for (int i = 0; i < x.length; i++) {
-			if (Double.isNaN(y[i]) || Double.isInfinite(y[i]) || x[i] < x0 || x[i] > x1) {
-				pen = false;
-				continue;
+		for (int k = 0; k < series.size() && k < SERIES_CLASSES.length; k++) {
+			double[] x = series.get(k).x(), y = series.get(k).y();
+			StringBuilder path = new StringBuilder();
+			boolean pen = false;
+			for (int i = 0; i < x.length; i++) {
+				if (Double.isNaN(y[i]) || Double.isInfinite(y[i]) || x[i] < x0 || x[i] > x1) {
+					pen = false;
+					continue;
+				}
+				path.append(pen ? " L" : " M").append(String.format(Locale.ROOT, "%.1f %.1f", sx.applyAsDouble(x[i]), sy.applyAsDouble(y[i])));
+				pen = true;
 			}
-			path.append(pen ? " L" : " M").append(String.format(Locale.ROOT, "%.1f %.1f", sx.applyAsDouble(x[i]), sy.applyAsDouble(y[i])));
-			pen = true;
+			s.append("<path class=\"").append(SERIES_CLASSES[k]).append("\" d=\"").append(path.toString().trim()).append("\"/>\n");
+			if (series.get(k).name() != null) {
+				int ly = T - 14 + 0 * k;
+				int lx = W - R - 220 + 110 * k;
+				s.append(String.format(Locale.ROOT, "<line class=\"%s\" x1=\"%d\" x2=\"%d\" y1=\"%d\" y2=\"%d\"/>"
+						+ "<text class=\"t2\" x=\"%d\" y=\"%d\">%s</text>%n", SERIES_CLASSES[k], lx, lx + 18, ly, ly, lx + 24, ly + 4,
+						esc(series.get(k).name())));
+			}
 		}
-		s.append("<path class=\"series\" d=\"").append(path.toString().trim()).append("\"/>\n");
 		s.append("</svg>\n");
 		return s.toString();
 	}

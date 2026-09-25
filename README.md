@@ -23,15 +23,19 @@ Claude: size_parachute -> 36 in Rocketman DG-03 (Cd 0.85): 19.9 ft/s at the simu
 | Motors | `search_motors` (diameter, class, **cert level**, manufacturer), `rank_motors` (simulates candidates: target apogee / max apogee / smallest motor meeting rail-exit rules), `set_motor` (incl. air-start ignition), `import_motor_file` (.eng/.rse), `create_custom_motor` (**liquid / hybrid / static-fire curves, with tank CG shift**) |
 | Flight | `run_simulation` (apogee, Mach, rail exit, TWR, min/max stability, per-stage events, deployments, landing distance), `get_flight_data` (down-sampled series, e.g. stability-vs-time plots), `sweep` (launch conditions or any component property) |
 | Recovery chain | `recovery_analysis` (deployment airspeed/density/mass from the sim → opening load by Knacke Cx and finite-mass inflation → shear pins), `deployment_delay_sweep` (how late can the drogue fire?), `size_parachute` (+ real chutes from the parts database), `search_parachutes`, `opening_shock`, `shear_pins`, `ejection_charge` (black powder), `recovery_bay_fit` (bay volume from the design: tube or nose-cone interior), `descent_energy` |
-| Goals & dispersion | `optimize` (goal-seek 1–3 properties: target apogee, max apogee, target stability, min mass — with stability / rail-exit / Mach / apogee constraints), `monte_carlo` (randomized wind and launch angle: landing ellipse per stage, apogee spread, worst stability and rail exit, worst deployment airspeed and opening load) |
-| Reports | `generate_report` (Markdown design review with rule checks, stability by stage, recovery chain, methods, plus the two stability-vs-time SVG plots DTEG R10.3.2 asks for and a CSV), `export_flight_data` (full-resolution CSV) |
+| Goals & dispersion | `optimize` (goal-seek 1–3 properties: target apogee, max apogee, target stability, min mass — with stability / rail-exit / Mach / apogee constraints), `ballast` (how much nose weight for a stability target, refined by simulation), `monte_carlo` (randomized wind and launch angle, plus optional **structure mass, drag, thrust and parachute Cd uncertainty**: landing ellipse per stage, apogee spread, worst stability and rail exit, worst deployment airspeed and opening load, and **which inputs drive the spread**) |
+| Aerodynamics & wind | `aero_analysis` (OpenRocket's aero model queried directly: CD split into friction / pressure / base, CP, CNα and static margin vs Mach, **drag per component**, OpenRocket's geometry warnings), `wind_profile` (**winds aloft**: OpenRocket's multi-level wind model from forecast / sounding levels or a power-law shear profile; every tool then flies it) |
+| External data | `import_aero_table` (**RASAero II** aero export or any Mach/CD/CP CSV: drag replaces OpenRocket's in every simulation, power-on/off; CP used for a stability check against the simulated CG, as Launch Canada asks for diameter changes), `compare_flight` (**altimeter log vs simulation**: apogee, time to apogee, drogue and main descent rates, overlay plot, and the drag factor that reproduces your flight) |
+| Parts & drawings | `search_parts` / `apply_preset` (OpenRocket's manufacturer parts database for body tubes, nose cones, couplers, rings, bulkheads, rail buttons, launch lugs, chutes), `draw_rocket` (side-profile SVG from OpenRocket's geometry with CG and CP; also in the report) |
+| Structures | `fin_flutter` (flutter speed of every fin set along the simulated flight — NACA TN 4197 with the corrected constant — worst margin, and the thickness or shear modulus that fixes it); also part of `check_requirements` |
+| Reports | `generate_report` (Markdown design review with rule checks, stability by stage, a wind-sensitivity flight-card table, recovery chain, methods, plus the two stability-vs-time SVG plots DTEG R10.3.2 asks for and a CSV), `export_flight_data` (full-resolution CSV) |
 | LC 2027 advanced | `pressure_vessel` (proof ≥ 1.5·MEOP, burst ≥ 2·MEOP·weld knockdown, COPV ≥ 4·MEOP, Barlow estimate), `advanced_probation` (probation level from GLPP volume, static-fire Isp requirement, AASI) |
 | Rules & standards | `check_requirements` (LC 2027 edicts: L:D ≤ 45/25, damping ratio 0.03–0.5 / 0.05–0.3, static margin ≥ 10% of body length to 2× burn time, no metal rail buttons, SRAD Isp ≥ 100 s, dress-rehearsal pop tests, plus a manual checklist; and R4: launch angle, rail exit ≥ 100 ft/s, TWR by year and per stage, ≥ 1.5 cal ascent stability incl. 30 km/h wind, over-stability, air-start tilt & altitude inhibit, dual-event, drogue 50–150 ft/s, main ≤ 1500 ft & < 30 ft/s), `get_standards`, `update_standards`, `load_standards`, `set_units` |
 
 Also: MCP **prompts** (`recovery_review`, `design_review`, `motor_selection`) and **resources** (`openrocket://standards`,
 `openrocket://rules`, `openrocket://methods`).
 
-What-if tools (`rank_motors`, `sweep`, `optimize`, `monte_carlo`, `deployment_delay_sweep`) run each variant on a
+What-if tools (`rank_motors`, `sweep`, `optimize`, `ballast`, `monte_carlo`, `deployment_delay_sweep`) run each variant on a
 copy of the rocket, in parallel across CPU cores, and never modify the open design. Variants share the same wind
 turbulence so differences come from the change being studied; Monte Carlo results are repeatable for a given seed.
 
@@ -86,6 +90,8 @@ runs from, or point `OPENROCKET_MCP_STANDARDS` at it) and commit it, so everyone
 - `units`, `ruleset` (`launch-canada-r4`, `none`, or a path to your own rules JSON), `competitionYear`
 - `launchSite`: altitude above sea level (**set this** — deployment air density depends on it), lat/lon, rail length,
   launch angle, design wind
+- `structures`: required flutter margin and fin-material shear moduli (typical G10, carbon, aluminum, plywood values
+  built in; put your laminate's measured value here)
 - `recovery`: Cx, opening-load method (`infinite_mass` / `finite_mass` / `max`), canopy fill constant, safety factors
   for shear pins and ejection force, backup-charge factor, packing factor and measured packing factors, shock cord
   cross-section, **shear pin ratings** (e.g. `"4-40 nylon": {"strength": "140 N"}`)
@@ -103,6 +109,18 @@ See `openrocket://methods` for equations and sources. In short:
 - **Opening load**: Knacke (NWC TP 6575) infinite-mass `Cx·q·CdA`, plus a finite-mass inflation integration with fill time
   `n·D0/v`; Knacke's mass ratio indicates which applies. The design load is never below steady-descent drag.
 - **Black powder**: ideal-gas method, R = 266 in·lbf/(lbm·°R), T = 3307 °R (≈ 0.006·D²·L g at 15 psi).
+- **Fin flutter**: NACA TN 4197 screening estimate with K = 2.674 (the widely copied 1.337 form overestimates flutter
+  speed by √2, corrected in Apogee Peak of Flight #615), evaluated at every point of the flight. Solid plate fins only;
+  composites need an effective shear modulus, and a stiffness test or FEA before relying on it.
+- **Imported aero tables** apply until the first stage separation (a RASAero table describes one stack); the flight-log
+  drag fit assumes the motor, mass and launch conditions of the simulation match the day.
+- **Winds aloft**: with a multi-level profile, tools that set "the" wind (sweeps, the 30 km/h design-wind check, Monte
+  Carlo) scale and rotate the whole profile from its lowest level, keeping its shape.
+- **OpenRocket quirks handled**: OpenRocket 24.12's wind getters silently switch a simulation back to the single-wind
+  model, and its first mass calculations after loading a design disagree by ~1 mm of CG; both are worked around (and
+  covered by tests) so profiles persist and static margins are stable.
+- **Mass overrides**: if a section's mass is overridden for its subcomponents (a weighed section), OpenRocket ignores
+  mass added inside it. The tools warn about this, and `ballast` adds its mass to the override.
 - **Cd reference area**: OpenRocket uses the nominal canopy area. Vendor Cd values quoted on projected area (e.g. 2.2)
   must be paired with projected area.
 
@@ -112,14 +130,16 @@ RSO.
 ## Development
 
 ```sh
-./gradlew test                  # unit tests (calculators checked against the team's worked examples) + end-to-end MCP tests
+./gradlew test                  # ~170 tests: calculators vs the team's worked examples and hand calculations, property
+                                # tests (scaling laws, inverses), protocol, standards, SVG, OpenRocket-backed checks, end-to-end MCP
 ./gradlew installDist           # build/install/openrocket-mcp/bin/openrocket-mcp[.bat]
 python3 scripts/benchmark.py    # scenario benchmark: realistic team requests, pass/fail + timings + output size
 ```
 
 `scripts/benchmark.py` drives a fresh server over stdio through realistic requests (design a 10k ft rocket from
 scratch and make it pass Launch Canada; size recovery and check loads; two-stage checks; a custom liquid engine;
-dispersion and a design-review report) and checks each answer against engineering expectations. It runs in CI.
+dispersion and a design-review report; fin flutter, ballast and vehicle-uncertainty dispersion) and checks each answer
+against engineering expectations (51 checks). It runs in CI.
 
 The server speaks MCP over stdio (JSON-RPC 2.0, newline-delimited); stdout is reserved for the protocol, logs go to
 stderr. See [`docs/SPEC.md`](docs/SPEC.md) for the design and roadmap.

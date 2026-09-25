@@ -113,12 +113,56 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   SRAD test sequence and operations.
 - `pressure_vessel` and `advanced_probation` tools (GLPP probation levels, AASI).
 
+### Structures, ballast, vehicle dispersion (v0.5.0)
+
+- `fin_flutter`: NACA TN 4197 flutter speed per fin set at every point of the simulated flight (local pressure and speed
+  of sound), with the corrected constant (Peak of Flight #615); booster fins until separation; thickness / shear
+  modulus to reach the team margin. Fin-material shear moduli and the required margin are team standards
+  (`structures.*`). Also a check_requirements item (team standard, not a rule).
+- `ballast`: nose weight for a minimum simulated ascent stability (default: the rule-set floor), analytic first guess
+  corrected by the gap between static and simulated margin, then secant iterations on simulations; reports the apogee
+  and rail-exit cost.
+- `monte_carlo` part 2: structure mass (per-component scaling, motors excluded), airframe drag and motor thrust
+  (simulation listeners), per-parachute Cd; `drivers` = correlation of each randomized input with apogee, minimum
+  stability and landing distance.
+- Weighed-mass overrides: warnings from edit_components, add_component, sweep and optimize when a section's
+  subcomponent mass/CG override hides the change; ballast raises the override.
+- Report: wind-sensitivity table (0 to the rule-set maximum wind) for the flight card.
+- Tests: 31 -> ~170 (protocol, standards merging, SVG well-formedness, physics property tests, requirements verdicts,
+  Monte Carlo determinism and listeners, flutter and ballast against hand calculations). Bugs found by the new tests:
+  saved standards dropped null keys; ballast returned 0 kg when only the simulated minimum was short; team material
+  keys lost to overlapping default keys.
+
+### Deeper OpenRocket (v0.6.0)
+
+- `aero_analysis`: BarrowmanCalculator queried directly — total CD split into friction / pressure / base, CP, CNalpha,
+  launch and burnout margins vs Mach, per-component drag at one Mach, OpenRocket's geometry warnings. Also a table in
+  the report.
+- `wind_profile`: OpenRocket's multi-level wind model (levels from a forecast or sounding, or a power-law shear profile);
+  per-level turbulence seeded for repeatability; wind overrides scale / rotate the profile.
+- `search_parts` / `apply_preset`: the full parts database (all ComponentPreset types), filters on diameter, maker,
+  text and material; presets load dimensions, material and mass.
+- `draw_rocket`: side profile from OpenRocket geometry (body radius profiles, fin outlines, pods) with CG / CP; in the
+  report as rocket.svg.
+- OpenRocket 24.12 quirks found and handled: `SimulationOptions.getWindSpeedAverage()` (and the direction, turbulence
+  and deviation getters) select the average wind model, so merely reading the wind discarded a profile; the launch CG
+  from `MassCalculator` changes over the first calls after loading (lazy position resolution) — designs are settled on
+  open and before analyses / simulations.
+
+### External data (v0.7.0)
+
+- `import_aero_table`: RASAero II aero export (lowest-alpha rows, CD power-off / power-on, CP in inches) or plain
+  Mach / CD [/ CP] CSV. A simulation listener replaces OpenRocket's axial CD (power state from thrust) until the first
+  separation; the CP gives a stability item in check_requirements. Validated by importing a table generated from
+  OpenRocket's own CD (apogee within 3%).
+- `compare_flight`: altimeter CSV (header or explicit units, pad altitude removed, launch alignment), apogee / time to
+  apogee / drogue and main descent-rate comparison, overlay SVG, and the airframe drag factor that reproduces the
+  measured apogee (parallel sims over 0.5-2x). Validated closed-loop: a flight flown with 1.3x drag is recovered as 1.3.
+
 ### Phase 3 — next
 
 - **Sections**: identify independently tethered sections from the design (separation points) for per-section landing
   energy, bay volumes and nose cone interior volume without manual input.
-- **Monte Carlo, part 2**: mass, drag and thrust variation (currently launch conditions only).
-- **RASAero overrides**: import RASAero CP/CD tables as OpenRocket overrides (DTEG R10.3.1 for diameter changes).
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.
 
 ### Phase 4 — later
@@ -132,5 +176,7 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
 - Calculators are unit-tested against published ISA values and against the worked numbers in the team's recovery
   documents (terminal velocities, opening forces, bay lengths, cord volumes, pin counts) and the 0.006·D²·L BP rule.
 - End-to-end tests drive every tool through JSON-RPC on OpenRocket's two-stage example.
+- Fin flutter is checked against the NACA TN 4197 form in psi units and its scaling laws (t^1.5, sqrt(G), 1/sqrt(P));
+  ballast against OpenRocket's own static margin after inserting the computed mass.
 - Not yet validated against flight data — compare against altimeter logs after each flight and record calibration
   (e.g. measured packing factors, canopy fill constants) in the team standards.

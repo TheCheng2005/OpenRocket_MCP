@@ -45,6 +45,32 @@ final class Prompts {
 			## Bay volume
 			Packed volume = vendor packing volume + cord width x thickness x length, times a packing factor. Record measured
 			packing factors from test fits in the team standards.
+
+			## Fin flutter (screen)
+			NACA TN 4197 (Martin 1958): Vf = a sqrt(G / (K AR^3 (lambda+1) P / (2 (AR+2) (t/c)^3))), K = 39.3/14.696 = 2.674
+			with G and P in the same units; AR = span^2 / area, lambda = tip/root, t/c = thickness / root chord. Apogee Peak of
+			Flight #291/#411 printed K = 1.337, which overestimates Vf by sqrt 2 (corrected in #615). Evaluated at every point of
+			the simulated flight with the local pressure and speed of sound. Solid isotropic plate only; composite layups need an
+			effective G. Required margin (flutter speed / airspeed) is a team standard (structures.flutterMinMargin).
+
+			## Ballast
+			Static first guess: m = M (x_cg - x_t) / (x_t - x_b), x_t = x_cp - target * d, shifted by the difference between
+			the static margin and the simulated minimum; then secant iterations on the simulated minimum ascent stability.
+			A section whose mass (and CG) is overridden for its subcomponents gets the ballast added to the override.
+
+			## Winds aloft
+			OpenRocket multi-level wind model: speed, direction and turbulence (sd) per altitude, interpolated between levels.
+			Power-law profile: v(h) = v_ground (h / 10 m)^alpha above 10 m (alpha ~ 1/7 open terrain). Overriding the wind
+			speed / direction on a profile scales / rotates every level from the lowest one.
+
+			## Aerodynamics
+			OpenRocket Barrowman model at zero angle of attack, Reynolds number from sea-level ISA at each Mach; CD = friction +
+			pressure + base. Margin = (CP - CG) / max body diameter.
+
+			## Monte Carlo
+			Randomized: wind speed/direction, launch angle/direction, turbulence seed; optionally structure mass (each
+			component scaled, motors excluded), airframe drag (simulation listener scaling CD), motor thrust (listener scaling
+			thrust, same burn time) and each parachute's Cd. Drivers = Pearson correlation of each input with the outputs.
 			""";
 
 	static void register(McpServer s, Context ctx) {
@@ -80,6 +106,8 @@ final class Prompts {
 						- get_flight_data for stability vs time: one series up to rail departure and one for the full ascent (DTEG R10.3.2).
 						- For staged vehicles: sustainer stability after separation, tilt and altitude at ignition, inhibit altitude.
 						- recovery_analysis for every stage.
+						- fin_flutter for every fin set (margin along the flight); ballast if the stability floor is not met.
+						- monte_carlo with vehicle uncertainty (massSd, dragSd, thrustSd, chuteCdSd) for the landing area and drivers.
 						Summarize as a table of requirement, value, status and reference, then the action list.
 						""".formatted(args.get("design"))));
 

@@ -95,6 +95,9 @@ public final class Designs {
 	private Design register(OpenRocketDocument doc, Path path, String origin) {
 		String id = "d" + (++counter);
 		Design d = new Design(id, doc, path, origin);
+		for (info.openrocket.core.rocketcomponent.FlightConfiguration fc : doc.getRocket().getFlightConfigurations()) {
+			Analysis.settle(fc);
+		}
 		designs.put(id, d);
 		return d;
 	}

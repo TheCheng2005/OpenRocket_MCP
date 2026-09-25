@@ -60,6 +60,23 @@ public final class Components {
 		return c.getID().toString().substring(0, 8);
 	}
 
+	/**
+	 * Warning when an ancestor overrides the mass (or CG) of its subcomponents, so mass or position changes to {@code c}
+	 * do not reach the simulation; null otherwise. Teams often set such overrides after weighing a section.
+	 */
+	public static String overrideWarning(RocketComponent c) {
+		for (RocketComponent p = c.getParent(); p != null; p = p.getParent()) {
+			boolean m = p.isMassOverridden() && p.isSubcomponentsOverriddenMass();
+			boolean g = p.isCGOverridden() && p.isSubcomponentsOverriddenCG();
+			if (m || g) {
+				return "'" + p.getName() + "' overrides the " + (m && g ? "mass and CG" : m ? "mass" : "CG")
+						+ " of its subcomponents, so " + (m ? "mass" : "CG") + " changes to '" + c.getName()
+						+ "' do not affect the simulation. Update that override (e.g. to the re-weighed value) or turn it off.";
+			}
+		}
+		return null;
+	}
+
 	public static RocketComponent find(Rocket rocket, String ref) {
 		if (ref == null || ref.isBlank()) {
 			throw new ToolException("A component reference (id or name) is required.");

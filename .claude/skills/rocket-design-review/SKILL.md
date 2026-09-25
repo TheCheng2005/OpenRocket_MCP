@@ -15,10 +15,22 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
    - Descent rate -> `size_parachute` (with `device` to use the simulated descent mass), then `edit_components`.
    - Motor -> `rank_motors` (objective target_apogee / max_apogee / min_impulse_meeting_rules), then `set_motor`.
      Custom engines (liquid/hybrid/static-fire data) -> `create_custom_motor` or `import_motor_file`.
-   - Stability (CP/CG) -> `optimize` a fin dimension or ballast `componentMass` with `meetRules: true` (LC 2027: at
-     least max(1.5 cal, 10% of body length), also in 30 km/h wind), check the result, then apply. Use `sweep` to show the trade-off table.
+   - Stability (CP/CG) -> `ballast` for "how much nose weight" (simulated minimum ascent stability, default target =
+     rule floor), or `optimize` a fin dimension with `meetRules: true` (LC 2027: at least max(1.5 cal, 10% of body
+     length), also in 30 km/h wind), check the result, then apply. Use `sweep` to show the trade-off table. If a warning
+     says a section's mass is overridden (weighed), mass edits under it are hidden until the override is updated.
+   - Fins -> `fin_flutter` (margin along the flight; thickness or shear modulus fix). Required for fast / transonic
+     vehicles; set the fin material's shear modulus in `structures.shearModulus` for composite layups.
    - Target apogee -> `optimize` with objective target_apogee (ballast, or motor choice via `rank_motors`).
-   - Wind / landing area -> `monte_carlo` for the landing ellipse and worst-case deployment loads.
+   - Wind / landing area -> `monte_carlo` for the landing ellipse and worst-case deployment loads; add massSd, dragSd,
+     thrustSd, chuteCdSd (e.g. 0.05) for vehicle uncertainty and read `drivers` to see what dominates the spread.
+   - Drag / apogee shortfall -> `aero_analysis` (drag breakdown per component, CD vs Mach) before changing shapes.
+   - Launch-day winds -> `wind_profile` (forecast levels, or power_law from the ground wind) then `monte_carlo`.
+   - Real parts -> `search_parts` + `apply_preset` (tubes, nose cones, couplers, rail buttons, chutes).
+   - Show the vehicle -> `draw_rocket`.
+   - RASAero data (required for diameter changes) -> `import_aero_table`, then `check_requirements`.
+   - After a flight -> `compare_flight` with the altimeter CSV and the day's conditions; use the drag factor for the
+     next prediction.
 5. Recovery chain -> `recovery_analysis` (pinType from standards), `deployment_delay_sweep` for late drogue deployment,
    `ejection_charge` (pins to break), `recovery_bay_fit`, `descent_energy` per tethered section.
 6. Re-run `check_requirements`. Only `save_design` after the user agrees; prefer saving to a new file.

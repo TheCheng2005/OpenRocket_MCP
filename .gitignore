@@ -7,3 +7,4 @@ out/
 .vscode/
 .DS_Store
 # custom motors written by create_custom_motor default to ./motors; commit the ones you want to share
+__pycache__/

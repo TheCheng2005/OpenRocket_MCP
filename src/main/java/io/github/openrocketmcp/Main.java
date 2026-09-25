@@ -11,6 +11,7 @@ import io.github.openrocketmcp.mcp.McpServer;
 import io.github.openrocketmcp.or.OrRuntime;
 import io.github.openrocketmcp.standards.Standards;
 import io.github.openrocketmcp.tools.AdvancedTools;
+import io.github.openrocketmcp.tools.AeroTools;
 import io.github.openrocketmcp.tools.AnalysisTools;
 import io.github.openrocketmcp.tools.Context;
 import io.github.openrocketmcp.tools.DesignTools;
@@ -19,16 +20,19 @@ import io.github.openrocketmcp.tools.RecoveryTools;
 import io.github.openrocketmcp.tools.ReportTools;
 import io.github.openrocketmcp.tools.SimTools;
 import io.github.openrocketmcp.tools.StandardsTools;
+import io.github.openrocketmcp.tools.StructureTools;
 
 /** Entry point: stdio MCP server for OpenRocket. */
 public final class Main {
-	public static final String VERSION = "0.4.0";
+	public static final String VERSION = "0.7.0";
 
 	static final String INSTRUCTIONS = """
 			OpenRocket MCP: design, simulate and check high-power / competition rockets with OpenRocket's physics.
 			Workflow: open_design -> get_design -> run_simulation / check_requirements -> change things -> re-check -> save_design.
-			- Let the tools do numeric work: use size_parachute, rank_motors, sweep, optimize, monte_carlo, recovery_analysis,
-			  deployment_delay_sweep rather than estimating by hand. What-if tools never modify the design. Deployment airspeed comes from the simulation and includes horizontal velocity and wind.
+			- Let the tools do numeric work: use size_parachute, rank_motors, sweep, optimize, ballast, fin_flutter, monte_carlo,
+			  recovery_analysis, deployment_delay_sweep, aero_analysis rather than estimating by hand.
+			- Use OpenRocket's data: search_parts / apply_preset for real catalog parts, wind_profile for winds aloft,
+			  draw_rocket to show the design. What-if tools never modify the design. Deployment airspeed comes from the simulation and includes horizontal velocity and wind.
 			- Inputs accept units ("20 ft/s", "4 in", "15 psi"); bare numbers are SI. Output uses the team's unit setting.
 			- Team standards (safety factors, pin ratings, launch site) and the competition rule set (default Launch Canada
 			  2027: DTEG R4 + 2027 edicts) drive checks; see get_standards. Ask the team to set launchSite.altitudeMsl.
@@ -48,6 +52,8 @@ public final class Main {
 		RecoveryTools.register(server, ctx);
 		AnalysisTools.register(server, ctx);
 		ReportTools.register(server, ctx);
+		StructureTools.register(server, ctx);
+		AeroTools.register(server, ctx);
 		AdvancedTools.register(server, ctx);
 		StandardsTools.register(server, ctx);
 		Prompts.register(server, ctx);

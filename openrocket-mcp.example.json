@@ -22,9 +22,28 @@
     "backupChargeFactor": 1.25,
     "blackPowderBulkDensity": "1.0 g/cm3",
     "packingFactor": 2.0,
-    "shockCord": { "width": "0.75 in", "thickness": "0.25 in" },
+    "shockCord": {
+      "width": "0.75 in",
+      "thickness": "0.25 in"
+    },
     "shearPins": {
-      "4-40 nylon": { "strength": "140 N", "source": "UTAT-ROC-LIQ-REC-001: four 4-40 pins hold 560 N" }
+      "4-40 nylon": {
+        "strength": "140 N",
+        "source": "UTAT-ROC-LIQ-REC-001: four 4-40 pins hold 560 N"
+      }
+    }
+  },
+  "structures": {
+    "flutterMinMargin": 1.5,
+    "shearModulus": {
+      "fiberglass|g10|fr4": {
+        "value": "2.9 GPa",
+        "source": "typical G10; replace with your laminate data"
+      },
+      "carbon": {
+        "value": "4.5 GPa",
+        "source": "0/90 woven; quasi-isotropic ~15-17 GPa"
+      }
     }
   }
 }

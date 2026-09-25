@@ -54,6 +54,8 @@ public final class Sims {
 		}
 	}
 
+	static final int NEW_SIMULATION_SEED = 20270801;
+
 	public static Simulation find(Designs.Design d, String ref) {
 		List<Simulation> sims = d.doc.getSimulations();
 		if (ref == null || ref.isBlank()) {
@@ -115,6 +117,8 @@ public final class Sims {
 				base.setFlightConfigurationId(fc.getId());
 				base.setName("MCP - " + fc.getName());
 				std.applyLaunchDefaults(base.getOptions());
+				// OpenRocket seeds new simulations randomly; a fixed seed makes repeated tool calls agree.
+				base.getOptions().setRandomSeed(NEW_SIMULATION_SEED);
 				if (!persistNew) {
 					return o == null ? base : applied(base, o);
 				}
@@ -135,14 +139,10 @@ public final class Sims {
 	}
 
 	static void apply(SimulationOptions opt, Overrides o) {
-		if (!Double.isNaN(o.windSpeed())) {
-			opt.setWindSpeedAverage(o.windSpeed());
-		}
-		if (!Double.isNaN(o.windDirection())) {
-			opt.setWindDirection(o.windDirection());
-		}
+		// With a multi-level profile, the override scales / rotates the profile from its lowest level.
+		Winds.setGround(opt, o.windSpeed(), o.windDirection());
 		if (!Double.isNaN(o.windTurbulence())) {
-			opt.setWindTurbulenceIntensity(o.windTurbulence());
+			Winds.setTurbulence(opt, o.windTurbulence());
 		}
 		if (!Double.isNaN(o.rodLength())) {
 			opt.setLaunchRodLength(o.rodLength());
@@ -175,12 +175,18 @@ public final class Sims {
 		}
 	}
 
-	public static FlightData run(Simulation sim) {
+	public static FlightData run(Simulation sim, info.openrocket.core.simulation.listeners.SimulationListener... listeners) {
 		// Turbulence always follows the simulation's random seed, so every tool (run, check, optimize, sweep) sees the
 		// same gusts for the same simulation. See Variants.seed.
 		Variants.seed(sim.getOptions(), sim.getOptions().getRandomSeed());
+		Analysis.settle(sim.getRocket().getFlightConfiguration(sim.getFlightConfigurationId()));
+		var table = AeroTable.listenerFor(sim);
+		if (table != null) {
+			listeners = java.util.Arrays.copyOf(listeners, listeners.length + 1);
+			listeners[listeners.length - 1] = table;
+		}
 		try {
-			sim.simulate();
+			sim.simulate(listeners);
 		} catch (Exception e) {
 			throw new ToolException("Simulation '" + sim.getName() + "' failed: " + e.getMessage(), e);
 		}
@@ -407,7 +413,11 @@ public final class Sims {
 		Map<String, Object> cond = new LinkedHashMap<>();
 		cond.put("launchRodLength", Units.fmt(opt.getLaunchRodLength(), Dim.LENGTH));
 		cond.put("launchRodAngleFromVertical", Units.fmt(opt.getLaunchRodAngle(), Dim.ANGLE));
-		cond.put("windSpeedAverage", Units.fmt(opt.getWindSpeedAverage(), Dim.VELOCITY));
+		if (Winds.isMultiLevel(opt)) {
+			cond.put("wind", "multi-level profile, " + Units.fmt(Winds.speed(opt), Dim.VELOCITY) + " at the ground (wind_profile show)");
+		} else {
+			cond.put("windSpeedAverage", Units.fmt(Winds.speed(opt), Dim.VELOCITY));
+		}
 		cond.put("launchSiteAltitude", Units.fmt(opt.getLaunchAltitude(), Dim.DISTANCE));
 		out.put("conditions", cond);
 

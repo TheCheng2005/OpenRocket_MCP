@@ -61,6 +61,22 @@ public final class Analysis {
 	}
 
 	/** Barrowman CP position (m from nose tip) at the given Mach number and zero angle of attack. */
+	/**
+	 * Repeats OpenRocket's launch mass calculation until the CG stops moving. Right after a design is loaded or edited,
+	 * OpenRocket resolves some component positions lazily and the first two or three mass calculations disagree (by ~1
+	 * mm of CG, ~0.1 cal, on the bundled examples); every static analysis and simulation starts from the settled state.
+	 */
+	public static void settle(FlightConfiguration config) {
+		double prev = Double.NaN;
+		for (int i = 0; i < 8; i++) {
+			double x = MassCalculator.calculateLaunch(config).getCM().x;
+			if (Math.abs(x - prev) < 1e-12 || Double.isNaN(x)) {
+				return;
+			}
+			prev = x;
+		}
+	}
+
 	public static double cp(FlightConfiguration config, double mach) {
 		FlightConditions conditions = new FlightConditions(config);
 		conditions.setMach(Math.max(0.01, mach));
@@ -71,6 +87,7 @@ public final class Analysis {
 	}
 
 	public static Stability stability(FlightConfiguration config, double mach) {
+		settle(config);
 		WarningSet warnings = new WarningSet();
 		FlightConditions conditions = new FlightConditions(config);
 		conditions.setMach(mach);

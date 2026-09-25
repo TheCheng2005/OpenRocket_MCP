@@ -149,6 +149,19 @@ def scenario_from_scratch(s):
     check(sc, "rule-derived stability floor includes the 2027 %-body-length edict",
           "body length" in opt["constraints"].get("fromRules", ""), opt["constraints"].get("fromRules", ""))
     check(sc, "optimizer evaluates the design-wind case", "evaluatedAt" in opt["constraints"])
+    # Mach > 1 on 1/8 in fins: the flutter screen should object, and its suggested thickness should fix it.
+    fl = s.call("fin_flutter", {"designId": d})["finSets"][0]
+    check(sc, "flutter screen flags thin fins at Mach > 1", fl["status"] != "PASS", fl["status"])
+    if "toReachRequiredMargin" in fl:
+        need_in = num(fl["toReachRequiredMargin"]["thickness"].split("(")[1]) if "(" in fl["toReachRequiredMargin"]["thickness"] \
+            else num(fl["toReachRequiredMargin"]["thickness"]) / 25.4
+        sheet = next(t for t in [0.125, 0.1875, 0.25, 0.3125, 0.375, 0.5, 0.625, 0.75] if t >= need_in)  # stock G10 sheet
+        s.call("edit_components", {"designId": d, "changes": [{"component": "Fins", "properties": {"thickness": f"{sheet} in"}}]})
+        fl = s.call("fin_flutter", {"designId": d})["finSets"][0]
+        check(sc, f"suggested fin thickness ({sheet} in stock) passes the flutter screen", fl["status"] == "PASS",
+              fl["minMargin"])
+        s.call("optimize", {"designId": d, "objective": "max_apogee", "meetRules": True, "variables": fins,
+                            "maxEvaluations": 32, "apply": True})
     req = s.call("check_requirements", {"designId": d})
     fails = [c for c in req["checks"] if c["status"] == "FAIL"]
     check(sc, "final design has no rule failures", not fails, json.dumps(fails)[:600])
@@ -251,18 +264,138 @@ def scenario_dispersion_report(s, tmp):
               ["report.md", "stability-ascent.svg", "stability-to-rail-exit.svg", "flight-data.csv"]))
 
 
+def scenario_structures(s, d):
+    """'Will our 1/8 in G10 fins flutter? How much nose weight for +0.5 cal? What drives our dispersion?'"""
+    sc = "structures + vehicle dispersion"
+    fl = s.call("fin_flutter", {"designId": d})
+    fin = fl["finSets"][0]
+    margin = num(fin["minMargin"])
+    check(sc, "flutter margin reported with the worst point", margin > 0 and "altitude" in fin["worstPoint"], json.dumps(fin)[:300])
+    check(sc, "shear modulus from the fin material (G10/fiberglass)", "fiberglass" in fin["shearModulus"], fin["shearModulus"])
+    t_mm = float(fin["geometry"].split("thickness ")[1].split(" mm")[0])
+    thin = s.call("fin_flutter", {"designId": d, "thickness": f"{t_mm / 2} mm"})["finSets"][0]
+    ratio = num(thin["minMargin"]) / margin
+    check(sc, "half the thickness -> ~0.35x margin (Vf ~ t^1.5)", 0.3 < ratio < 0.4, f"{ratio:.3f}")
+    check(sc, "a failing fin gets a thickness / modulus fix", thin["status"] == "PASS" or "toReachRequiredMargin" in thin,
+          thin["status"])
+    req = s.call("check_requirements", {"designId": d, "includeWindCase": False})
+    items = [c for c in req["checks"] if c["item"].startswith("Fin flutter margin")]
+    check(sc, "check_requirements includes the flutter margin", len(items) == 1 and fin["minMargin"].split()[0] in items[0]["value"],
+          json.dumps(items)[:300])
+
+    now = json.dumps(s.call("run_simulation", {"designId": d}))
+    cur = float(now.split('"minStabilityDuringAscent": "')[1].split()[0])
+    target = round(cur + 0.5, 2)
+    t0 = time.time()
+    bal = s.call("ballast", {"designId": d, "targetStability": target})
+    dt = time.time() - t0
+    got = num(bal["effect"]["minAscentStability"].split("->")[1])
+    check(sc, "ballast solve reaches the simulated target (+-0.05 cal)", abs(got - target) <= 0.05, f"{got} vs {target}")
+    check(sc, "ballast reports the apogee cost", "->" in bal["effect"]["apogee"])
+    check(sc, "ballast solve < 15 s", dt < 15, f"{dt:.1f} s")
+
+    t0 = time.time()
+    mc = s.call("monte_carlo", {"designId": d, "runs": 60, "thrustSd": 0.03, "massSd": 0.03, "dragSd": 0.1,
+                                "chuteCdSd": 0.1})
+    dt = time.time() - t0
+    drv = mc.get("drivers", {}).get("apogee", {})
+    check(sc, "vehicle-uncertainty Monte Carlo reports drivers", {"motorThrust", "airframeDrag", "structureMass"} <= set(drv),
+          json.dumps(drv))
+    check(sc, "drag lowers and thrust raises apogee", float(drv.get("airframeDrag", 0)) < 0 < float(drv.get("motorThrust", 0)),
+          json.dumps(drv))
+    check(sc, "60-run vehicle Monte Carlo < 20 s", dt < 20, f"{dt:.1f} s")
+
+
+def scenario_openrocket_depth(s, d, tmp):
+    """'Where does our drag come from? What do winds aloft do to our landing zone? Draw it for the review.'"""
+    sc = "aero, winds aloft, parts, drawing"
+    a = s.call("aero_analysis", {"designId": d, "maxMach": 1.5})
+    rows = a["vsMach"]
+    check(sc, "CD / CP / margin table vs Mach", len(rows) >= 8 and all("marginLaunch" in r for r in rows))
+    cds = {float(r["mach"]): float(r["cd"]) for r in rows}
+    check(sc, "transonic drag rise visible (CD at M1.0 > M0.5)", cds[1.0] > cds[0.5], json.dumps(cds))
+    top = a["dragBreakdown"][0]
+    check(sc, "per-component drag breakdown names the biggest contributor", float(top["share"].rstrip("%")) > 10, json.dumps(top))
+
+    uniform = s.call("run_simulation", {"designId": d, "windSpeed": "20 km/h", "windDirection": "270 deg"})
+    s.call("wind_profile", {"designId": d, "mode": "power_law", "groundSpeed": "20 km/h", "direction": "270 deg",
+                            "exponent": 0.2, "top": "4000 m"})
+    sheared = s.call("run_simulation", {"designId": d})
+    far = lambda r: max(num(b["landingDistanceFromPad"]) for b in r["branches"] if "landingDistanceFromPad" in b)
+    du, ds = far(uniform), far(sheared)
+    check(sc, "winds aloft (shear profile) drift the vehicle farther than a uniform ground wind",
+          du is not None and ds > du * 1.2, f"{du} vs {ds}")
+    mc = s.call("monte_carlo", {"designId": d, "runs": 30})
+    check(sc, "Monte Carlo runs on the wind profile", "landing" in mc and mc["failedRuns"] == 0)
+    s.call("wind_profile", {"designId": d, "mode": "average"})
+
+    parts = s.call("search_parts", {"type": "body_tube", "minOuterDiameter": "4.0 in", "maxOuterDiameter": "4.05 in",
+                                    "text": "fiberglass"})
+    check(sc, "parts database search by diameter and material", parts["matches"] > 0, json.dumps(parts)[:200])
+    out = os.path.join(tmp, "draw.svg")
+    s.call("draw_rocket", {"designId": d, "path": out})
+    svg = open(out).read()
+    check(sc, "rocket drawing with fins, CG and CP", svg.count("<polygon") >= 5 and "CG " in svg and "CP " in svg)
+
+
+def scenario_post_flight(s, d, tmp):
+    """'Here is RASAero data for our airframe, and here is the altimeter log from our test flight: calibrate the model.'"""
+    sc = "RASAero data + flight-log calibration"
+    aero = s.call("aero_analysis", {"designId": d, "machs": [0.05, 0.3, 0.6, 0.9, 1.0, 1.2, 1.5, 2.0]})
+    lines = ["Mach,Alpha,CD Power-Off,CD Power-On,CP"]
+    for r in aero["vsMach"]:
+        cp_in = float(r["cp"].split("(")[1].split()[0]) if "(" in r["cp"] else num(r["cp"]) / 25.4
+        lines.append(f'{r["mach"]},0,{1.1 * float(r["cd"]):.4f},{1.0 * float(r["cd"]):.4f},{cp_in:.2f}')
+        lines.append(f'{r["mach"]},4,{1.3 * float(r["cd"]):.4f},{1.2 * float(r["cd"]):.4f},{cp_in + 1:.2f}')
+    path = os.path.join(tmp, "rasaero.csv")
+    open(path, "w").write("\n".join(lines) + "\n")
+    imp = s.call("import_aero_table", {"designId": d, "path": path})
+    eff = imp["effect"]
+    check(sc, "RASAero export parsed (alpha 0 rows, power-on/off, CP in inches)", "with CP" in imp["table"], imp["table"])
+    check(sc, "imported drag changes the simulated apogee", eff["apogeeImportedDrag"] != eff["apogeeOpenRocketDrag"], json.dumps(eff))
+    req = s.call("check_requirements", {"designId": d, "includeWindCase": False})
+    items = [c for c in req["checks"] if c["item"].startswith("Ascent stability with imported CP")]
+    check(sc, "stability checked with the RASAero CP (DTEG R10.3.1)", len(items) == 1, json.dumps(items)[:300])
+    s.call("import_aero_table", {"designId": d, "mode": "clear"})
+
+    # A 'measured' flight 8% lower than the model, as an altimeter CSV in feet with a pad offset.
+    fd = s.call("get_flight_data", {"designId": d, "variables": ["altitude"], "maxPoints": 500})
+    header = fd["columns"] if "columns" in fd else None
+    rows = fd["rows"]
+    log = ["Time (s),Altitude (ft)"]
+    for r in rows:
+        t, alt = float(r[0]), float(r[1])
+        log.append(f"{t + 3:.3f},{812 + 0.92 * alt / 0.3048:.1f}")
+    log = ["Time (s),Altitude (ft)"] + [f"{t / 10:.1f},812" for t in range(0, 30)] + log[1:]
+    lp = os.path.join(tmp, "altimeter.csv")
+    open(lp, "w").write("\n".join(log) + "\n")
+    t0 = time.time()
+    cmp = s.call("compare_flight", {"designId": d, "path": lp, "plotPath": os.path.join(tmp, "overlay.svg")})
+    dt = time.time() - t0
+    fit = cmp["calibration"]["dragFactor"]
+    check(sc, "flight-log comparison finds the model 8% high on apogee", "-8" in cmp["comparison"][0]["difference"] or
+          "-7.9" in cmp["comparison"][0]["difference"], cmp["comparison"][0]["difference"])
+    check(sc, "drag calibration factor > 1 for an under-performing flight", fit[0].isdigit() and float(fit.split()[0]) > 1.05, fit)
+    check(sc, "overlay plot written", os.path.exists(os.path.join(tmp, "overlay.svg")))
+    check(sc, "calibration < 15 s", dt < 15, f"{dt:.1f} s")
+
+
 def main():
     if not os.path.exists(BIN):
         sys.exit(f"Build first: ./gradlew installDist ({BIN} missing)")
     tmp = tempfile.mkdtemp()
     t0 = time.time()
     s = Server()
-    for name, fn in [("From-scratch 10k ft design", lambda: scenario_from_scratch(s)),
+    scratch = {}
+    for name, fn in [("From-scratch 10k ft design", lambda: scratch.setdefault("d", scenario_from_scratch(s))),
                      ("Recovery chain", lambda: scenario_recovery(s)),
                      ("Two-stage", lambda: scenario_two_stage(s)),
                      ("Custom liquid engine", lambda: scenario_custom_engine(s, tmp)),
                      ("Liquid program (2027 edicts)", lambda: scenario_liquid_program(s)),
-                     ("Dispersion + report", lambda: scenario_dispersion_report(s, tmp))]:
+                     ("Dispersion + report", lambda: scenario_dispersion_report(s, tmp)),
+                     ("Structures + vehicle dispersion", lambda: scenario_structures(s, scratch["d"])),
+                     ("OpenRocket depth", lambda: scenario_openrocket_depth(s, scratch["d"], tmp)),
+                     ("Post-flight", lambda: scenario_post_flight(s, scratch["d"], tmp))]:
         print(f"\n== {name}")
         try:
             fn()

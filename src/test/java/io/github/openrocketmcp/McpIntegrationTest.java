@@ -256,6 +256,8 @@ class McpIntegrationTest {
 		assertTrue(rep.contains("report.md"), rep);
 		String md = Files.readString(tmp.resolve("review/report.md"));
 		assertTrue(md.contains("## 1. Requirement checks") && md.contains("stability-ascent.svg") && md.contains("## 5. Recovery"), md);
+		assertTrue(md.contains("Wind sensitivity") && md.contains("Fin flutter") && md.contains("Aerodynamics vs Mach"), md);
+		assertTrue(Files.readString(tmp.resolve("review/rocket.svg")).contains("<polygon"), "rocket drawing in the report");
 		String svg = Files.readString(tmp.resolve("review/stability-ascent.svg"));
 		assertTrue(svg.startsWith("<svg") && svg.contains("<path class=\"series\" d=\"M"), svg);
 		assertTrue(Files.readAllLines(tmp.resolve("review/flight-data.csv")).size() > 50);
@@ -264,5 +266,102 @@ class McpIntegrationTest {
 		assertTrue(Files.readString(tmp.resolve("booster.csv")).startsWith("\"Time"));
 		String fit = call("recovery_bay_fit", "{\"designId\":\"d1\",\"bayComponent\":\"Nose Cone\",\"items\":[{\"name\":\"chute\",\"packedVolume\":\"20 in3\"}]}");
 		assertTrue(fit.contains("availableVolume") && fit.contains("Nose Cone"), fit);
+	}
+
+	@Test
+	@Order(10)
+	void structuresAndVehicleDispersion() {
+		String open = call("open_design", "{\"example\":\"Dual parachute\"}");
+		String id = JsonParser.parseString(open).getAsJsonObject().get("designId").getAsString();
+
+		JsonObject fl = JsonParser.parseString(call("fin_flutter", "{\"designId\":\"" + id + "\"}")).getAsJsonObject();
+		JsonObject set = fl.getAsJsonArray("finSets").get(0).getAsJsonObject();
+		assertTrue(set.has("minMargin") && set.has("worstPoint") && set.get("shearModulus").getAsString().contains("GPa"), set.toString());
+		// A thin, soft what-if fin must fail and come with a fix
+		JsonObject thin = JsonParser.parseString(call("fin_flutter", "{\"designId\":\"" + id + "\",\"thickness\":\"0.3 mm\","
+				+ "\"shearModulus\":\"0.1 GPa\"}")).getAsJsonObject().getAsJsonArray("finSets").get(0).getAsJsonObject();
+		assertTrue(thin.get("status").getAsString().startsWith("FAIL") || thin.get("status").getAsString().startsWith("WARN"), thin.toString());
+		assertTrue(thin.has("toReachRequiredMargin"), thin.toString());
+
+		JsonObject bal = JsonParser.parseString(call("ballast", "{\"designId\":\"" + id + "\",\"targetStability\":4.5}")).getAsJsonObject();
+		assertTrue(bal.has("ballastMass") && bal.getAsJsonObject("effect").has("apogee"), bal.toString());
+		assertTrue(bal.get("note").getAsString().contains("overrides the mass"), "weighed-mass override explained: " + bal);
+		String unreachable = callExpectError("ballast", "{\"designId\":\"" + id + "\",\"targetStability\":40}");
+		assertTrue(unreachable.contains("not ahead of the CG"), unreachable);
+
+		// Editing a component under a weighed-mass override warns that the change is hidden
+		String added = call("add_component", "{\"designId\":\"" + id + "\",\"parent\":\"Nose cone\",\"type\":\"MassComponent\","
+				+ "\"name\":\"Nose weight\",\"properties\":{\"componentMass\":\"50 g\"}}");
+		assertTrue(added.contains("do not affect the simulation"), added);
+		call("remove_component", "{\"designId\":\"" + id + "\",\"component\":\"Nose weight\"}");
+
+		JsonObject mc = JsonParser.parseString(call("monte_carlo", "{\"designId\":\"" + id + "\",\"runs\":20,\"seed\":3,"
+				+ "\"windSpeedSd\":0,\"launchAngleSd\":0,\"launchDirectionSd\":0,\"thrustSd\":0.05,\"massSd\":0.05,\"dragSd\":0.05}")).getAsJsonObject();
+		JsonObject drivers = mc.getAsJsonObject("drivers").getAsJsonObject("apogee");
+		assertTrue(drivers.has("motorThrust") && drivers.has("structureMass") && drivers.has("airframeDrag"), drivers.toString());
+		assertTrue(Double.parseDouble(drivers.get("motorThrust").getAsString()) > 0, "more thrust, more apogee");
+		assertTrue(Double.parseDouble(drivers.get("airframeDrag").getAsString()) < 0, "more drag, less apogee");
+		String bad = callExpectError("monte_carlo", "{\"designId\":\"" + id + "\",\"runs\":4,\"massSd\":5}");
+		assertTrue(bad.contains("between 0 and 0.5"), bad);
+	}
+
+	@Test
+	@Order(11)
+	void openRocketDepth(@TempDir Path tmp) throws Exception {
+		String open = call("open_design", "{\"example\":\"Two stage high power\"}");
+		String id = JsonParser.parseString(open).getAsJsonObject().get("designId").getAsString();
+
+		JsonObject aero = JsonParser.parseString(call("aero_analysis", "{\"designId\":\"" + id + "\",\"maxMach\":1.1}")).getAsJsonObject();
+		assertTrue(aero.getAsJsonArray("vsMach").size() >= 5 && aero.getAsJsonArray("dragBreakdown").size() >= 5, aero.toString());
+
+		String before = call("run_simulation", "{\"designId\":\"" + id + "\",\"windSpeed\":\"5 m/s\"}");
+		JsonObject prof = JsonParser.parseString(call("wind_profile", "{\"designId\":\"" + id + "\",\"mode\":\"levels\",\"levels\":["
+				+ "{\"altitude\":0,\"speed\":\"5 m/s\",\"direction\":\"270 deg\"},{\"altitude\":\"300 m\",\"speed\":\"20 m/s\",\"direction\":\"270 deg\"}]}"))
+				.getAsJsonObject();
+		assertTrue(prof.toString().contains("multi-level"), prof.toString());
+		String after = call("run_simulation", "{\"designId\":\"" + id + "\"}");
+		assertTrue(after.contains("multi-level profile"), after);
+		assertTrue(!before.equals(after));
+		assertTrue(call("wind_profile", "{\"designId\":\"" + id + "\",\"mode\":\"show\"}").contains("multi-level"),
+				"the profile survives a run");
+		call("wind_profile", "{\"designId\":\"" + id + "\",\"mode\":\"average\"}");
+
+		JsonObject parts = JsonParser.parseString(call("search_parts", "{\"type\":\"nose cone\",\"minOuterDiameter\":\"60 mm\","
+				+ "\"maxOuterDiameter\":\"70 mm\",\"limit\":3}")).getAsJsonObject();
+		String preset = parts.getAsJsonArray("parts").get(0).getAsJsonObject().get("preset").getAsString();
+		String applied = call("apply_preset", "{\"designId\":\"" + id + "\",\"component\":\"Nose cone\",\"preset\":\"" + preset + "\"}");
+		assertTrue(applied.contains(preset) && applied.contains("stability"), applied);
+		String wrong = callExpectError("apply_preset", "{\"designId\":\"" + id + "\",\"component\":\"Nose cone\",\"preset\":\"nope 0000\"}");
+		assertTrue(wrong.contains("search_parts"), wrong);
+
+		String svg = tmp.resolve("r.svg").toString().replace("\\", "/");
+		call("draw_rocket", "{\"designId\":\"" + id + "\",\"path\":\"" + svg + "\"}");
+		assertTrue(Files.readString(tmp.resolve("r.svg")).contains("CP "));
+	}
+
+	@Test
+	@Order(12)
+	void aeroTablesAndFlightLogs(@TempDir Path tmp) throws Exception {
+		String open = call("open_design", "{\"example\":\"Dual parachute\"}");
+		String id = JsonParser.parseString(open).getAsJsonObject().get("designId").getAsString();
+		String csv = "Mach,Alpha,CD Power-Off,CD Power-On,CP\\n0.01,0,0.60,0.55,44\\n0.5,0,0.62,0.57,44.5\\n1.0,0,0.95,0.9,46\\n2.0,0,0.7,0.65,47";
+		JsonObject imp = JsonParser.parseString(call("import_aero_table", "{\"designId\":\"" + id + "\",\"csv\":\"" + csv
+				+ "\",\"source\":\"RASAero test\"}")).getAsJsonObject();
+		assertTrue(imp.getAsJsonObject("effect").has("apogeeImportedDrag") && imp.getAsJsonArray("vsOpenRocket").size() >= 3, imp.toString());
+		String check = call("check_requirements", "{\"designId\":\"" + id + "\",\"includeWindCase\":false}");
+		assertTrue(check.contains("Ascent stability with imported CP (RASAero test)"), check);
+		assertTrue(call("import_aero_table", "{\"designId\":\"" + id + "\",\"mode\":\"show\"}").contains("with CP"));
+		call("import_aero_table", "{\"designId\":\"" + id + "\",\"mode\":\"clear\"}");
+		assertTrue(!call("check_requirements", "{\"designId\":\"" + id + "\",\"includeWindCase\":false}").contains("imported CP"));
+
+		// Our own full-resolution export read back as an altimeter log: the model matches itself.
+		String log = tmp.resolve("flight.csv").toString().replace("\\", "/");
+		call("export_flight_data", "{\"designId\":\"" + id + "\",\"path\":\"" + log + "\",\"variables\":[\"altitude\"]}");
+		String plot = tmp.resolve("overlay.svg").toString().replace("\\", "/");
+		JsonObject cmp = JsonParser.parseString(call("compare_flight", "{\"designId\":\"" + id + "\",\"path\":\"" + log
+				+ "\",\"plotPath\":\"" + plot + "\"}")).getAsJsonObject();
+		String fit = cmp.getAsJsonObject("calibration").get("dragFactor").getAsString();
+		assertEquals(1.0, Double.parseDouble(fit.split(" ")[0]), 0.03, cmp.toString());
+		assertTrue(Files.exists(tmp.resolve("overlay.svg")));
 	}
 }
