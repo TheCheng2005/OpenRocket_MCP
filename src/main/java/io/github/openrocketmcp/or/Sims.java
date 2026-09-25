@@ -175,12 +175,12 @@ public final class Sims {
 		}
 	}
 
-	public static FlightData run(Simulation sim) {
+	public static FlightData run(Simulation sim, info.openrocket.core.simulation.listeners.SimulationListener... listeners) {
 		// Turbulence always follows the simulation's random seed, so every tool (run, check, optimize, sweep) sees the
 		// same gusts for the same simulation. See Variants.seed.
 		Variants.seed(sim.getOptions(), sim.getOptions().getRandomSeed());
 		try {
-			sim.simulate();
+			sim.simulate(listeners);
 		} catch (Exception e) {
 			throw new ToolException("Simulation '" + sim.getName() + "' failed: " + e.getMessage(), e);
 		}

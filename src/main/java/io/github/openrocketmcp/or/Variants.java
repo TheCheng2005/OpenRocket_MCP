@@ -2,7 +2,10 @@ package io.github.openrocketmcp.or;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -14,6 +17,7 @@ import info.openrocket.core.document.Simulation;
 import info.openrocket.core.models.wind.PinkNoiseWindModel;
 import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.simulation.SimulationOptions;
+import info.openrocket.core.simulation.listeners.SimulationListener;
 import io.github.openrocketmcp.mcp.ToolException;
 
 /**
@@ -29,7 +33,16 @@ public final class Variants {
 		return t;
 	});
 
+	/** Simulation listeners to attach when a variant runs (e.g. Monte Carlo drag / thrust scaling). */
+	private static final Map<Simulation, SimulationListener[]> LISTENERS = Collections.synchronizedMap(new IdentityHashMap<>());
+
 	private Variants() {
+	}
+
+	/** Attaches listeners used when {@code sim} is run through {@link #runAll}. */
+	public static Simulation listen(Simulation sim, SimulationListener... listeners) {
+		LISTENERS.put(sim, listeners);
+		return sim;
 	}
 
 	/**
@@ -85,7 +98,8 @@ public final class Variants {
 		for (Simulation s : sims) {
 			futures.add(POOL.submit(() -> {
 				try {
-					Sims.run(s);
+					SimulationListener[] l = LISTENERS.remove(s);
+					Sims.run(s, l == null ? new SimulationListener[0] : l);
 					return new Run(s, null);
 				} catch (ToolException e) {
 					return new Run(s, e.getMessage());

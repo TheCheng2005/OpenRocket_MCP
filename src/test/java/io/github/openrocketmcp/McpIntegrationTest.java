@@ -256,6 +256,7 @@ class McpIntegrationTest {
 		assertTrue(rep.contains("report.md"), rep);
 		String md = Files.readString(tmp.resolve("review/report.md"));
 		assertTrue(md.contains("## 1. Requirement checks") && md.contains("stability-ascent.svg") && md.contains("## 5. Recovery"), md);
+		assertTrue(md.contains("Wind sensitivity") && md.contains("Fin flutter"), md);
 		String svg = Files.readString(tmp.resolve("review/stability-ascent.svg"));
 		assertTrue(svg.startsWith("<svg") && svg.contains("<path class=\"series\" d=\"M"), svg);
 		assertTrue(Files.readAllLines(tmp.resolve("review/flight-data.csv")).size() > 50);
@@ -264,5 +265,42 @@ class McpIntegrationTest {
 		assertTrue(Files.readString(tmp.resolve("booster.csv")).startsWith("\"Time"));
 		String fit = call("recovery_bay_fit", "{\"designId\":\"d1\",\"bayComponent\":\"Nose Cone\",\"items\":[{\"name\":\"chute\",\"packedVolume\":\"20 in3\"}]}");
 		assertTrue(fit.contains("availableVolume") && fit.contains("Nose Cone"), fit);
+	}
+
+	@Test
+	@Order(10)
+	void structuresAndVehicleDispersion() {
+		String open = call("open_design", "{\"example\":\"Dual parachute\"}");
+		String id = JsonParser.parseString(open).getAsJsonObject().get("designId").getAsString();
+
+		JsonObject fl = JsonParser.parseString(call("fin_flutter", "{\"designId\":\"" + id + "\"}")).getAsJsonObject();
+		JsonObject set = fl.getAsJsonArray("finSets").get(0).getAsJsonObject();
+		assertTrue(set.has("minMargin") && set.has("worstPoint") && set.get("shearModulus").getAsString().contains("GPa"), set.toString());
+		// A thin, soft what-if fin must fail and come with a fix
+		JsonObject thin = JsonParser.parseString(call("fin_flutter", "{\"designId\":\"" + id + "\",\"thickness\":\"0.3 mm\","
+				+ "\"shearModulus\":\"0.1 GPa\"}")).getAsJsonObject().getAsJsonArray("finSets").get(0).getAsJsonObject();
+		assertTrue(thin.get("status").getAsString().startsWith("FAIL") || thin.get("status").getAsString().startsWith("WARN"), thin.toString());
+		assertTrue(thin.has("toReachRequiredMargin"), thin.toString());
+
+		JsonObject bal = JsonParser.parseString(call("ballast", "{\"designId\":\"" + id + "\",\"targetStability\":4.5}")).getAsJsonObject();
+		assertTrue(bal.has("ballastMass") && bal.getAsJsonObject("effect").has("apogee"), bal.toString());
+		assertTrue(bal.get("note").getAsString().contains("overrides the mass"), "weighed-mass override explained: " + bal);
+		String unreachable = callExpectError("ballast", "{\"designId\":\"" + id + "\",\"targetStability\":40}");
+		assertTrue(unreachable.contains("not ahead of the CG"), unreachable);
+
+		// Editing a component under a weighed-mass override warns that the change is hidden
+		String added = call("add_component", "{\"designId\":\"" + id + "\",\"parent\":\"Nose cone\",\"type\":\"MassComponent\","
+				+ "\"name\":\"Nose weight\",\"properties\":{\"componentMass\":\"50 g\"}}");
+		assertTrue(added.contains("do not affect the simulation"), added);
+		call("remove_component", "{\"designId\":\"" + id + "\",\"component\":\"Nose weight\"}");
+
+		JsonObject mc = JsonParser.parseString(call("monte_carlo", "{\"designId\":\"" + id + "\",\"runs\":20,\"seed\":3,"
+				+ "\"windSpeedSd\":0,\"launchAngleSd\":0,\"launchDirectionSd\":0,\"thrustSd\":0.05,\"massSd\":0.05,\"dragSd\":0.05}")).getAsJsonObject();
+		JsonObject drivers = mc.getAsJsonObject("drivers").getAsJsonObject("apogee");
+		assertTrue(drivers.has("motorThrust") && drivers.has("structureMass") && drivers.has("airframeDrag"), drivers.toString());
+		assertTrue(Double.parseDouble(drivers.get("motorThrust").getAsString()) > 0, "more thrust, more apogee");
+		assertTrue(Double.parseDouble(drivers.get("airframeDrag").getAsString()) < 0, "more drag, less apogee");
+		String bad = callExpectError("monte_carlo", "{\"designId\":\"" + id + "\",\"runs\":4,\"massSd\":5}");
+		assertTrue(bad.contains("between 0 and 0.5"), bad);
 	}
 }

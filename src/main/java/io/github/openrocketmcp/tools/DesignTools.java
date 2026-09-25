@@ -174,16 +174,24 @@ public final class DesignTools {
 					Designs.Design d = ctx.designs.get(a.str("designId", null));
 					Rocket rocket = d.doc.getRocket();
 					List<String> done = new ArrayList<>();
+					java.util.Set<String> warnings = new java.util.LinkedHashSet<>();
 					for (Args ch : a.objList("changes")) {
 						RocketComponent c = Components.find(rocket, ch.str("component"));
 						JsonObject props = ch.obj("properties").raw();
 						for (Map.Entry<String, JsonElement> e : props.entrySet()) {
 							done.add(Components.set(c, e.getKey(), e.getValue()));
 						}
+						String w = Components.overrideWarning(c);
+						if (w != null) {
+							warnings.add(w);
+						}
 					}
 					d.doc.setSaved(false);
 					Map<String, Object> out = new LinkedHashMap<>();
 					out.put("applied", done);
+					if (!warnings.isEmpty()) {
+						out.put("warnings", warnings);
+					}
 					out.put("stability", Analysis.stageStacks(rocket.getSelectedConfiguration(), 0.3));
 					return out;
 				}));
@@ -230,6 +238,10 @@ public final class DesignTools {
 					out.put("id", Components.shortId(c));
 					out.put("name", c.getName());
 					out.put("applied", done);
+					String w = Components.overrideWarning(c);
+					if (w != null) {
+						out.put("warning", w);
+					}
 					return out;
 				}));
 

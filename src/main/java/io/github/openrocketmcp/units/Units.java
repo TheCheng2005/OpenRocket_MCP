@@ -66,6 +66,9 @@ public final class Units {
 		def(Dim.PRESSURE, 1, "Pa");
 		def(Dim.PRESSURE, 1000, "kPa");
 		def(Dim.PRESSURE, 1e6, "MPa");
+		def(Dim.PRESSURE, 1e9, "GPa");
+		def(Dim.PRESSURE, 6894757.293168, "ksi");
+		def(Dim.PRESSURE, 6894757293.168, "Msi");
 		def(Dim.PRESSURE, 1e5, "bar");
 		def(Dim.PRESSURE, 100, "mbar", "hPa");
 		def(Dim.PRESSURE, 6894.757293168, "psi");
@@ -235,6 +238,12 @@ public final class Units {
 		}
 		if (dim == Dim.MASS && Math.abs(si) < 0.45359237 && si != 0) {
 			iu = "oz";
+		}
+		if (dim == Dim.PRESSURE && Math.abs(si) >= 1e8) { // material properties: GPa / ksi
+			mu = Math.abs(si) >= 1e9 ? "GPa" : "MPa";
+			iu = "ksi";
+		} else if (dim == Dim.PRESSURE && Math.abs(si) >= 1e7) {
+			mu = "MPa";
 		}
 		String metric = num(fromSi(si, mu)) + " " + mu;
 		String imperial = num(fromSi(si, iu)) + " " + iu;

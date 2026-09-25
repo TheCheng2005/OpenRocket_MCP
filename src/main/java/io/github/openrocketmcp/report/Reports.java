@@ -152,6 +152,38 @@ public final class Reports {
 		return out;
 	}
 
+	/** Apogee, rail exit, minimum stability and landing distance per stage at 0 / 10 / 20 / 30 km/h (to the rule maximum). */
+	static List<Map<String, Object>> windTable(Designs.Design d, Simulation sim, Standards std) {
+		double max = std.rule("maxGroundWind.value", io.github.openrocketmcp.units.Dim.VELOCITY);
+		if (Double.isNaN(max)) {
+			max = 30 / 3.6;
+		}
+		List<Double> winds = new ArrayList<>();
+		for (int i = 0; i <= 3; i++) {
+			winds.add(max * i / 3);
+		}
+		List<Simulation> sims = new ArrayList<>();
+		for (double w : winds) {
+			Simulation v = io.github.openrocketmcp.or.Variants.of(sim, d.doc, null, null);
+			v.getOptions().setWindSpeedAverage(w);
+			sims.add(v);
+		}
+		List<io.github.openrocketmcp.or.Variants.Run> runs = io.github.openrocketmcp.or.Variants.runAll(sims);
+		List<Map<String, Object>> rows = new ArrayList<>();
+		for (int i = 0; i < runs.size(); i++) {
+			Map<String, Object> r = new LinkedHashMap<>();
+			r.put("wind", Units.fmt(winds.get(i), io.github.openrocketmcp.units.Dim.VELOCITY));
+			var run = runs.get(i);
+			if (!run.ok()) {
+				r.put("result", "failed: " + run.error());
+			} else {
+				r.putAll(Sims.flightMetrics(run.sim().getSimulatedData()));
+			}
+			rows.add(r);
+		}
+		return rows;
+	}
+
 	/**
 	 * Writes report.md, the two stability plots (SVG) and flight-data.csv into {@code dir}. Returns written files.
 	 */
@@ -235,6 +267,7 @@ public final class Reports {
 			branches.add(r);
 		}
 		md.append("### Stages\n\n").append(table(branches)).append('\n');
+		md.append("### Wind sensitivity (flight card)\n\n").append(table(windTable(d, sim, std))).append('\n');
 
 		md.append("## 4. Stability vs time (DTEG R10.3.2)\n\n");
 		for (Path p : files) {
@@ -273,6 +306,11 @@ public final class Reports {
 		md.append("- Shear pins: n = ceil(F SF / F_pin), SF = ")
 				.append(Units.num(std.q("recovery.shearPinHoldSafetyFactor", io.github.openrocketmcp.units.Dim.DIMENSIONLESS, 2)))
 				.append(pinName == null ? "" : ", pin: " + pinName).append(".\n");
+		md.append("- Fin flutter: NACA TN 4197 screen with K = ")
+				.append(Units.num(std.q("structures.flutterConstant", io.github.openrocketmcp.units.Dim.DIMENSIONLESS, 2.674)))
+				.append(" (Peak of Flight #615 correction), shear modulus from structures.shearModulus; required margin ")
+				.append(Units.num(std.q("structures.flutterMinMargin", io.github.openrocketmcp.units.Dim.DIMENSIONLESS, 1.5)))
+				.append(" (team standard).\n");
 		md.append("- Values labelled simulated come from OpenRocket; loads and pins are calculated; Cx, n, j and safety factors ");
 		md.append("are team assumptions. Estimates do not replace ground tests, RSO review or mentors.\n");
 		Path report = dir.resolve("report.md");

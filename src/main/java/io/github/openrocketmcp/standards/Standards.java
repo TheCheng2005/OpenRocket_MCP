@@ -6,6 +6,9 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import com.google.gson.Gson;
@@ -26,7 +29,7 @@ import io.github.openrocketmcp.units.Units;
  */
 public final class Standards {
 	public static final String FILE_NAME = "openrocket-mcp.json";
-	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().serializeNulls().disableHtmlEscaping().create();
 
 	private final JsonObject data;
 	private final JsonObject rules;
@@ -96,7 +99,7 @@ public final class Standards {
 		}
 		JsonObject r = resource("/openrocketmcp/rules/" + ruleset + ".json");
 		if (r == null) {
-			throw new ToolException("Unknown rule set '" + ruleset + "'. Built in: launch-canada-r4, or a path to a .json file.");
+			throw new ToolException("Unknown rule set '" + ruleset + "'. Built in: launch-canada-2027, launch-canada-r4, none, or a path to a .json file.");
 		}
 		return r;
 	}
@@ -232,6 +235,31 @@ public final class Standards {
 			}
 		}
 		return Double.NaN;
+	}
+
+	/**
+	 * Shear modulus (Pa) for a material name from structures.shearModulus, whose keys are '|'-separated
+	 * case-insensitive name fragments (e.g. "fiberglass|g10"). Returns {modulus, key} or null.
+	 */
+	public Object[] shearModulus(String material) {
+		JsonElement table = path(data, "structures.shearModulus");
+		if (table == null || !table.isJsonObject() || material == null) {
+			return null;
+		}
+		String m = material.toLowerCase(java.util.Locale.ROOT);
+		// Team entries are merged after the defaults: search from the end so a team's own key wins over a default one.
+		List<Map.Entry<String, JsonElement>> entries = new ArrayList<>(table.getAsJsonObject().entrySet());
+		Collections.reverse(entries);
+		for (Map.Entry<String, JsonElement> e : entries) {
+			for (String frag : e.getKey().toLowerCase(java.util.Locale.ROOT).split("\\|")) {
+				if (!frag.isBlank() && m.contains(frag.trim())) {
+					JsonElement v = e.getValue().isJsonObject() ? e.getValue().getAsJsonObject().get("value") : e.getValue();
+					double g = v.getAsJsonPrimitive().isNumber() ? v.getAsDouble() : Units.toSi(v.getAsString(), Dim.PRESSURE);
+					return new Object[] { g, e.getKey() };
+				}
+			}
+		}
+		return null;
 	}
 
 	public java.util.Set<String> pinNames() {

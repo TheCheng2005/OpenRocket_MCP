@@ -149,6 +149,19 @@ def scenario_from_scratch(s):
     check(sc, "rule-derived stability floor includes the 2027 %-body-length edict",
           "body length" in opt["constraints"].get("fromRules", ""), opt["constraints"].get("fromRules", ""))
     check(sc, "optimizer evaluates the design-wind case", "evaluatedAt" in opt["constraints"])
+    # Mach > 1 on 1/8 in fins: the flutter screen should object, and its suggested thickness should fix it.
+    fl = s.call("fin_flutter", {"designId": d})["finSets"][0]
+    check(sc, "flutter screen flags thin fins at Mach > 1", fl["status"] != "PASS", fl["status"])
+    if "toReachRequiredMargin" in fl:
+        need_in = num(fl["toReachRequiredMargin"]["thickness"].split("(")[1]) if "(" in fl["toReachRequiredMargin"]["thickness"] \
+            else num(fl["toReachRequiredMargin"]["thickness"]) / 25.4
+        sheet = next(t for t in [0.125, 0.1875, 0.25, 0.3125, 0.375, 0.5, 0.625, 0.75] if t >= need_in)  # stock G10 sheet
+        s.call("edit_components", {"designId": d, "changes": [{"component": "Fins", "properties": {"thickness": f"{sheet} in"}}]})
+        fl = s.call("fin_flutter", {"designId": d})["finSets"][0]
+        check(sc, f"suggested fin thickness ({sheet} in stock) passes the flutter screen", fl["status"] == "PASS",
+              fl["minMargin"])
+        s.call("optimize", {"designId": d, "objective": "max_apogee", "meetRules": True, "variables": fins,
+                            "maxEvaluations": 32, "apply": True})
     req = s.call("check_requirements", {"designId": d})
     fails = [c for c in req["checks"] if c["status"] == "FAIL"]
     check(sc, "final design has no rule failures", not fails, json.dumps(fails)[:600])
@@ -251,18 +264,62 @@ def scenario_dispersion_report(s, tmp):
               ["report.md", "stability-ascent.svg", "stability-to-rail-exit.svg", "flight-data.csv"]))
 
 
+def scenario_structures(s, d):
+    """'Will our 1/8 in G10 fins flutter? How much nose weight for +0.5 cal? What drives our dispersion?'"""
+    sc = "structures + vehicle dispersion"
+    fl = s.call("fin_flutter", {"designId": d})
+    fin = fl["finSets"][0]
+    margin = num(fin["minMargin"])
+    check(sc, "flutter margin reported with the worst point", margin > 0 and "altitude" in fin["worstPoint"], json.dumps(fin)[:300])
+    check(sc, "shear modulus from the fin material (G10/fiberglass)", "fiberglass" in fin["shearModulus"], fin["shearModulus"])
+    t_mm = float(fin["geometry"].split("thickness ")[1].split(" mm")[0])
+    thin = s.call("fin_flutter", {"designId": d, "thickness": f"{t_mm / 2} mm"})["finSets"][0]
+    ratio = num(thin["minMargin"]) / margin
+    check(sc, "half the thickness -> ~0.35x margin (Vf ~ t^1.5)", 0.3 < ratio < 0.4, f"{ratio:.3f}")
+    check(sc, "a failing fin gets a thickness / modulus fix", thin["status"] == "PASS" or "toReachRequiredMargin" in thin,
+          thin["status"])
+    req = s.call("check_requirements", {"designId": d, "includeWindCase": False})
+    items = [c for c in req["checks"] if c["item"].startswith("Fin flutter margin")]
+    check(sc, "check_requirements includes the flutter margin", len(items) == 1 and fin["minMargin"].split()[0] in items[0]["value"],
+          json.dumps(items)[:300])
+
+    now = json.dumps(s.call("run_simulation", {"designId": d}))
+    cur = float(now.split('"minStabilityDuringAscent": "')[1].split()[0])
+    target = round(cur + 0.5, 2)
+    t0 = time.time()
+    bal = s.call("ballast", {"designId": d, "targetStability": target})
+    dt = time.time() - t0
+    got = num(bal["effect"]["minAscentStability"].split("->")[1])
+    check(sc, "ballast solve reaches the simulated target (+-0.05 cal)", abs(got - target) <= 0.05, f"{got} vs {target}")
+    check(sc, "ballast reports the apogee cost", "->" in bal["effect"]["apogee"])
+    check(sc, "ballast solve < 15 s", dt < 15, f"{dt:.1f} s")
+
+    t0 = time.time()
+    mc = s.call("monte_carlo", {"designId": d, "runs": 60, "thrustSd": 0.03, "massSd": 0.03, "dragSd": 0.1,
+                                "chuteCdSd": 0.1})
+    dt = time.time() - t0
+    drv = mc.get("drivers", {}).get("apogee", {})
+    check(sc, "vehicle-uncertainty Monte Carlo reports drivers", {"motorThrust", "airframeDrag", "structureMass"} <= set(drv),
+          json.dumps(drv))
+    check(sc, "drag lowers and thrust raises apogee", float(drv.get("airframeDrag", 0)) < 0 < float(drv.get("motorThrust", 0)),
+          json.dumps(drv))
+    check(sc, "60-run vehicle Monte Carlo < 20 s", dt < 20, f"{dt:.1f} s")
+
+
 def main():
     if not os.path.exists(BIN):
         sys.exit(f"Build first: ./gradlew installDist ({BIN} missing)")
     tmp = tempfile.mkdtemp()
     t0 = time.time()
     s = Server()
-    for name, fn in [("From-scratch 10k ft design", lambda: scenario_from_scratch(s)),
+    scratch = {}
+    for name, fn in [("From-scratch 10k ft design", lambda: scratch.setdefault("d", scenario_from_scratch(s))),
                      ("Recovery chain", lambda: scenario_recovery(s)),
                      ("Two-stage", lambda: scenario_two_stage(s)),
                      ("Custom liquid engine", lambda: scenario_custom_engine(s, tmp)),
                      ("Liquid program (2027 edicts)", lambda: scenario_liquid_program(s)),
-                     ("Dispersion + report", lambda: scenario_dispersion_report(s, tmp))]:
+                     ("Dispersion + report", lambda: scenario_dispersion_report(s, tmp)),
+                     ("Structures + vehicle dispersion", lambda: scenario_structures(s, scratch["d"]))]:
         print(f"\n== {name}")
         try:
             fn()

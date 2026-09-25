@@ -176,6 +176,10 @@ public final class SimTools {
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("parameter", comp == null ? param : comp.getName() + "." + param);
 		out.put("results", rows);
+		String hw = comp == null ? null : Components.overrideWarning(comp);
+		if (hw != null) {
+			out.put("warning", hw);
+		}
 		return out;
 	}
 }

@@ -113,11 +113,30 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   SRAD test sequence and operations.
 - `pressure_vessel` and `advanced_probation` tools (GLPP probation levels, AASI).
 
+### Structures, ballast, vehicle dispersion (v0.5.0)
+
+- `fin_flutter`: NACA TN 4197 flutter speed per fin set at every point of the simulated flight (local pressure and speed
+  of sound), with the corrected constant (Peak of Flight #615); booster fins until separation; thickness / shear
+  modulus to reach the team margin. Fin-material shear moduli and the required margin are team standards
+  (`structures.*`). Also a check_requirements item (team standard, not a rule).
+- `ballast`: nose weight for a minimum simulated ascent stability (default: the rule-set floor), analytic first guess
+  corrected by the gap between static and simulated margin, then secant iterations on simulations; reports the apogee
+  and rail-exit cost.
+- `monte_carlo` part 2: structure mass (per-component scaling, motors excluded), airframe drag and motor thrust
+  (simulation listeners), per-parachute Cd; `drivers` = correlation of each randomized input with apogee, minimum
+  stability and landing distance.
+- Weighed-mass overrides: warnings from edit_components, add_component, sweep and optimize when a section's
+  subcomponent mass/CG override hides the change; ballast raises the override.
+- Report: wind-sensitivity table (0 to the rule-set maximum wind) for the flight card.
+- Tests: 31 -> ~170 (protocol, standards merging, SVG well-formedness, physics property tests, requirements verdicts,
+  Monte Carlo determinism and listeners, flutter and ballast against hand calculations). Bugs found by the new tests:
+  saved standards dropped null keys; ballast returned 0 kg when only the simulated minimum was short; team material
+  keys lost to overlapping default keys.
+
 ### Phase 3 — next
 
 - **Sections**: identify independently tethered sections from the design (separation points) for per-section landing
   energy, bay volumes and nose cone interior volume without manual input.
-- **Monte Carlo, part 2**: mass, drag and thrust variation (currently launch conditions only).
 - **RASAero overrides**: import RASAero CP/CD tables as OpenRocket overrides (DTEG R10.3.1 for diameter changes).
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.
 
@@ -132,5 +151,7 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
 - Calculators are unit-tested against published ISA values and against the worked numbers in the team's recovery
   documents (terminal velocities, opening forces, bay lengths, cord volumes, pin counts) and the 0.006·D²·L BP rule.
 - End-to-end tests drive every tool through JSON-RPC on OpenRocket's two-stage example.
+- Fin flutter is checked against the NACA TN 4197 form in psi units and its scaling laws (t^1.5, sqrt(G), 1/sqrt(P));
+  ballast against OpenRocket's own static margin after inserting the computed mass.
 - Not yet validated against flight data — compare against altimeter logs after each flight and record calibration
   (e.g. measured packing factors, canopy fill constants) in the team standards.

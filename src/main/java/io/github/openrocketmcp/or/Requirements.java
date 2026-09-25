@@ -72,6 +72,24 @@ public final class Requirements {
 		}
 	}
 
+	/**
+	 * Stability floor from the rule set: {floor, minimum calibers, % of body length, L:D}; floor = max(minimum calibers,
+	 * % x L:D). Values are NaN (floor 0) when the rule set does not define them.
+	 */
+	public static double[] stabilityFloor(Standards std, FlightConfiguration fc) {
+		double cal = std.rule(Analysis.hasDiameterChange(fc) ? "stability.minCalibersWithDiameterChange" : "stability.minCalibers",
+				Dim.DIMENSIONLESS);
+		double pct = std.rule("staticMarginPercentLength.min", Dim.DIMENSIONLESS);
+		double ld = Dynamics.lengthToDiameter(fc);
+		double floor = Math.max(Double.isNaN(cal) ? 0 : cal, Double.isNaN(pct) ? 0 : pct / 100 * ld);
+		return new double[] { floor, cal, pct, ld };
+	}
+
+	public static String floorText(double[] f) {
+		return Units.num(f[0]) + " cal = max(" + Units.num(f[1]) + " cal, " + Units.num(f[2]) + "% of body length at L:D "
+				+ Units.num(f[3]) + ")";
+	}
+
 	static double eventTime(FlightDataBranch b, FlightEvent.Type t) {
 		return Sims.eventTime(b, t);
 	}
@@ -192,10 +210,11 @@ public final class Requirements {
 		double mach = data.getMaxMachNumber();
 		if (mach > 0.9) {
 			r.add(mach > 1 ? Status.WARN : Status.INFO, "Maximum Mach number",
-					"transonic/supersonic: verify with RASAero, check fin flutter margin and fin/nose materials",
+					"transonic/supersonic: verify with RASAero; check fin/nose materials and heating (flutter is checked below)",
 					Units.num(mach), null);
 		}
 
+		flutter(r, sim, std);
 		edicts(r, sim, fc, std);
 
 		// Recovery, per branch
@@ -349,6 +368,30 @@ public final class Requirements {
 	}
 
 	/** A recovery device opening before apogee (e.g. OpenRocket's default "motor ejection charge" with a short delay). */
+	/** Fin flutter margin along the flight (team standard, not a competition rule). */
+	static void flutter(Report r, Simulation sim, Standards std) {
+		double need = std.q("structures.flutterMinMargin", Dim.DIMENSIONLESS, 1.5);
+		List<Structures.FlutterResult> res;
+		try {
+			res = Structures.flutter(sim, std, null, Double.NaN);
+		} catch (io.github.openrocketmcp.mcp.ToolException e) {
+			r.add(Status.INFO, "Fin flutter", "flutter speed >= " + Units.num(need) + " x airspeed (team standard)",
+					"not evaluated: " + e.getMessage(), null);
+			return;
+		}
+		for (Structures.FlutterResult f : res) {
+			if (Double.isNaN(f.minMargin())) {
+				continue;
+			}
+			Status s = f.minMargin() < 1 ? Status.FAIL : f.minMargin() < need ? Status.WARN : Status.PASS;
+			r.add(s, "Fin flutter margin (" + f.fin().getName() + ", " + f.fin().getMaterial().getName() + ")",
+					"flutter speed >= " + Units.num(need) + " x airspeed along the flight (team standard; NACA TN 4197 screen, "
+							+ "see fin_flutter)",
+					Units.num(f.minMargin()) + " at " + Units.fmt(f.altitude(), Dim.DISTANCE) + ", " + Units.fmt(f.airspeed(), Dim.VELOCITY),
+					"structures.flutterMinMargin");
+		}
+	}
+
 	static void earlyDeployments(Report r, Simulation sim) {
 		for (String late : lateFirstDeployments(sim)) {
 			r.add(Status.FAIL, late, "the initial deployment event shall occur at or near apogee", "", "R4.2.1");
