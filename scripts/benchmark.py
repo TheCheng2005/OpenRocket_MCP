@@ -306,6 +306,38 @@ def scenario_structures(s, d):
     check(sc, "60-run vehicle Monte Carlo < 20 s", dt < 20, f"{dt:.1f} s")
 
 
+def scenario_openrocket_depth(s, d, tmp):
+    """'Where does our drag come from? What do winds aloft do to our landing zone? Draw it for the review.'"""
+    sc = "aero, winds aloft, parts, drawing"
+    a = s.call("aero_analysis", {"designId": d, "maxMach": 1.5})
+    rows = a["vsMach"]
+    check(sc, "CD / CP / margin table vs Mach", len(rows) >= 8 and all("marginLaunch" in r for r in rows))
+    cds = {float(r["mach"]): float(r["cd"]) for r in rows}
+    check(sc, "transonic drag rise visible (CD at M1.0 > M0.5)", cds[1.0] > cds[0.5], json.dumps(cds))
+    top = a["dragBreakdown"][0]
+    check(sc, "per-component drag breakdown names the biggest contributor", float(top["share"].rstrip("%")) > 10, json.dumps(top))
+
+    uniform = s.call("run_simulation", {"designId": d, "windSpeed": "20 km/h", "windDirection": "270 deg"})
+    s.call("wind_profile", {"designId": d, "mode": "power_law", "groundSpeed": "20 km/h", "direction": "270 deg",
+                            "exponent": 0.2, "top": "4000 m"})
+    sheared = s.call("run_simulation", {"designId": d})
+    far = lambda r: max(num(b["landingDistanceFromPad"]) for b in r["branches"] if "landingDistanceFromPad" in b)
+    du, ds = far(uniform), far(sheared)
+    check(sc, "winds aloft (shear profile) drift the vehicle farther than a uniform ground wind",
+          du is not None and ds > du * 1.2, f"{du} vs {ds}")
+    mc = s.call("monte_carlo", {"designId": d, "runs": 30})
+    check(sc, "Monte Carlo runs on the wind profile", "landing" in mc and mc["failedRuns"] == 0)
+    s.call("wind_profile", {"designId": d, "mode": "average"})
+
+    parts = s.call("search_parts", {"type": "body_tube", "minOuterDiameter": "4.0 in", "maxOuterDiameter": "4.05 in",
+                                    "text": "fiberglass"})
+    check(sc, "parts database search by diameter and material", parts["matches"] > 0, json.dumps(parts)[:200])
+    out = os.path.join(tmp, "draw.svg")
+    s.call("draw_rocket", {"designId": d, "path": out})
+    svg = open(out).read()
+    check(sc, "rocket drawing with fins, CG and CP", svg.count("<polygon") >= 5 and "CG " in svg and "CP " in svg)
+
+
 def main():
     if not os.path.exists(BIN):
         sys.exit(f"Build first: ./gradlew installDist ({BIN} missing)")
@@ -319,7 +351,8 @@ def main():
                      ("Custom liquid engine", lambda: scenario_custom_engine(s, tmp)),
                      ("Liquid program (2027 edicts)", lambda: scenario_liquid_program(s)),
                      ("Dispersion + report", lambda: scenario_dispersion_report(s, tmp)),
-                     ("Structures + vehicle dispersion", lambda: scenario_structures(s, scratch["d"]))]:
+                     ("Structures + vehicle dispersion", lambda: scenario_structures(s, scratch["d"])),
+                     ("OpenRocket depth", lambda: scenario_openrocket_depth(s, scratch["d"], tmp))]:
         print(f"\n== {name}")
         try:
             fn()

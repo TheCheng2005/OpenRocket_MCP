@@ -125,7 +125,7 @@ public final class MonteCarlo {
 
 	public static Map<String, Object> run(Simulation base, OpenRocketDocument doc, Settings s, Standards std) {
 		SimulationOptions bo = base.getOptions();
-		double windMean = Double.isNaN(s.windSpeed()) ? bo.getWindSpeedAverage() : s.windSpeed();
+		double windMean = Double.isNaN(s.windSpeed()) ? Winds.speed(bo) : s.windSpeed();
 		double angleMean = Double.isNaN(s.launchAngle()) ? bo.getLaunchRodAngle() : s.launchAngle();
 		Random rnd = new Random(s.seed());
 		List<Simulation> sims = new ArrayList<>();
@@ -156,12 +156,11 @@ public final class MonteCarlo {
 			inputs.add(new double[] { wind, Math.min(angle, Math.toRadians(60)), fm, fd, ft,
 					chuteF.isEmpty() ? 1 : chuteF.stream().mapToDouble(Double::doubleValue).average().orElse(1) });
 			SimulationOptions o = v.getOptions();
-			o.setWindSpeedAverage(wind);
-			o.setWindDirection(((dir % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
+			Winds.setGround(o, wind, Winds.norm(dir));
 			o.setLaunchRodAngle(Math.min(angle, Math.toRadians(60)));
 			o.setLaunchRodDirection(((rodDir % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
 			if (!Double.isNaN(s.turbulence())) {
-				o.setWindTurbulenceIntensity(s.turbulence());
+				Winds.setTurbulence(o, s.turbulence());
 			}
 			Variants.seed(o, seed);
 			// Landing spread is insensitive to the ascent step size (0.1 s changes apogee and landing by ~0.1 m on the

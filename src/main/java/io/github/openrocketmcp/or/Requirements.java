@@ -175,7 +175,7 @@ public final class Requirements {
 		// Stability
 		stability(r, sim, std, "Ascent stability", fc);
 		if (windCase != null) {
-			stability(r, windCase, std, "Ascent stability in " + Units.fmt(windCase.getOptions().getWindSpeedAverage(), Dim.VELOCITY) + " wind", fc);
+			stability(r, windCase, std, "Ascent stability in " + Units.fmt(Winds.speed(windCase.getOptions()), Dim.VELOCITY) + " wind", fc);
 			double railW = windCase.getSimulatedData().getLaunchRodVelocity();
 			r.add(Status.INFO, "Rail departure velocity in design wind", "same as above", Units.fmt(railW, Dim.VELOCITY), std.ruleRef("maxGroundWind"));
 		}

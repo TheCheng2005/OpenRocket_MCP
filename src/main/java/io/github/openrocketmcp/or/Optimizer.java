@@ -279,7 +279,7 @@ public final class Optimizer {
 			sims.add(s);
 			if (wind) {
 				Simulation w = Variants.of(base, doc, edit, null);
-				w.getOptions().setWindSpeedAverage(windCase);
+				Winds.setGround(w.getOptions(), windCase, Double.NaN);
 				sims.add(w);
 			}
 		}

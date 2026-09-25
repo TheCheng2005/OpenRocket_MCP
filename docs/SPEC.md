@@ -133,6 +133,22 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   saved standards dropped null keys; ballast returned 0 kg when only the simulated minimum was short; team material
   keys lost to overlapping default keys.
 
+### Deeper OpenRocket (v0.6.0)
+
+- `aero_analysis`: BarrowmanCalculator queried directly — total CD split into friction / pressure / base, CP, CNalpha,
+  launch and burnout margins vs Mach, per-component drag at one Mach, OpenRocket's geometry warnings. Also a table in
+  the report.
+- `wind_profile`: OpenRocket's multi-level wind model (levels from a forecast or sounding, or a power-law shear profile);
+  per-level turbulence seeded for repeatability; wind overrides scale / rotate the profile.
+- `search_parts` / `apply_preset`: the full parts database (all ComponentPreset types), filters on diameter, maker,
+  text and material; presets load dimensions, material and mass.
+- `draw_rocket`: side profile from OpenRocket geometry (body radius profiles, fin outlines, pods) with CG / CP; in the
+  report as rocket.svg.
+- OpenRocket 24.12 quirks found and handled: `SimulationOptions.getWindSpeedAverage()` (and the direction, turbulence
+  and deviation getters) select the average wind model, so merely reading the wind discarded a profile; the launch CG
+  from `MassCalculator` changes over the first calls after loading (lazy position resolution) — designs are settled on
+  open and before analyses / simulations.
+
 ### Phase 3 — next
 
 - **Sections**: identify independently tethered sections from the design (separation points) for per-section landing

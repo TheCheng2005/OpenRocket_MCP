@@ -24,6 +24,10 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
    - Target apogee -> `optimize` with objective target_apogee (ballast, or motor choice via `rank_motors`).
    - Wind / landing area -> `monte_carlo` for the landing ellipse and worst-case deployment loads; add massSd, dragSd,
      thrustSd, chuteCdSd (e.g. 0.05) for vehicle uncertainty and read `drivers` to see what dominates the spread.
+   - Drag / apogee shortfall -> `aero_analysis` (drag breakdown per component, CD vs Mach) before changing shapes.
+   - Launch-day winds -> `wind_profile` (forecast levels, or power_law from the ground wind) then `monte_carlo`.
+   - Real parts -> `search_parts` + `apply_preset` (tubes, nose cones, couplers, rail buttons, chutes).
+   - Show the vehicle -> `draw_rocket`.
 5. Recovery chain -> `recovery_analysis` (pinType from standards), `deployment_delay_sweep` for late drogue deployment,
    `ejection_charge` (pins to break), `recovery_bay_fit`, `descent_energy` per tethered section.
 6. Re-run `check_requirements`. Only `save_design` after the user agrees; prefer saving to a new file.

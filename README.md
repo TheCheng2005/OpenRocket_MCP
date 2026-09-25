@@ -24,6 +24,8 @@ Claude: size_parachute -> 36 in Rocketman DG-03 (Cd 0.85): 19.9 ft/s at the simu
 | Flight | `run_simulation` (apogee, Mach, rail exit, TWR, min/max stability, per-stage events, deployments, landing distance), `get_flight_data` (down-sampled series, e.g. stability-vs-time plots), `sweep` (launch conditions or any component property) |
 | Recovery chain | `recovery_analysis` (deployment airspeed/density/mass from the sim → opening load by Knacke Cx and finite-mass inflation → shear pins), `deployment_delay_sweep` (how late can the drogue fire?), `size_parachute` (+ real chutes from the parts database), `search_parachutes`, `opening_shock`, `shear_pins`, `ejection_charge` (black powder), `recovery_bay_fit` (bay volume from the design: tube or nose-cone interior), `descent_energy` |
 | Goals & dispersion | `optimize` (goal-seek 1–3 properties: target apogee, max apogee, target stability, min mass — with stability / rail-exit / Mach / apogee constraints), `ballast` (how much nose weight for a stability target, refined by simulation), `monte_carlo` (randomized wind and launch angle, plus optional **structure mass, drag, thrust and parachute Cd uncertainty**: landing ellipse per stage, apogee spread, worst stability and rail exit, worst deployment airspeed and opening load, and **which inputs drive the spread**) |
+| Aerodynamics & wind | `aero_analysis` (OpenRocket's aero model queried directly: CD split into friction / pressure / base, CP, CNα and static margin vs Mach, **drag per component**, OpenRocket's geometry warnings), `wind_profile` (**winds aloft**: OpenRocket's multi-level wind model from forecast / sounding levels or a power-law shear profile; every tool then flies it) |
+| Parts & drawings | `search_parts` / `apply_preset` (OpenRocket's manufacturer parts database for body tubes, nose cones, couplers, rings, bulkheads, rail buttons, launch lugs, chutes), `draw_rocket` (side-profile SVG from OpenRocket's geometry with CG and CP; also in the report) |
 | Structures | `fin_flutter` (flutter speed of every fin set along the simulated flight — NACA TN 4197 with the corrected constant — worst margin, and the thickness or shear modulus that fixes it); also part of `check_requirements` |
 | Reports | `generate_report` (Markdown design review with rule checks, stability by stage, a wind-sensitivity flight-card table, recovery chain, methods, plus the two stability-vs-time SVG plots DTEG R10.3.2 asks for and a CSV), `export_flight_data` (full-resolution CSV) |
 | LC 2027 advanced | `pressure_vessel` (proof ≥ 1.5·MEOP, burst ≥ 2·MEOP·weld knockdown, COPV ≥ 4·MEOP, Barlow estimate), `advanced_probation` (probation level from GLPP volume, static-fire Isp requirement, AASI) |
@@ -109,6 +111,11 @@ See `openrocket://methods` for equations and sources. In short:
 - **Fin flutter**: NACA TN 4197 screening estimate with K = 2.674 (the widely copied 1.337 form overestimates flutter
   speed by √2, corrected in Apogee Peak of Flight #615), evaluated at every point of the flight. Solid plate fins only;
   composites need an effective shear modulus, and a stiffness test or FEA before relying on it.
+- **Winds aloft**: with a multi-level profile, tools that set "the" wind (sweeps, the 30 km/h design-wind check, Monte
+  Carlo) scale and rotate the whole profile from its lowest level, keeping its shape.
+- **OpenRocket quirks handled**: OpenRocket 24.12's wind getters silently switch a simulation back to the single-wind
+  model, and its first mass calculations after loading a design disagree by ~1 mm of CG; both are worked around (and
+  covered by tests) so profiles persist and static margins are stable.
 - **Mass overrides**: if a section's mass is overridden for its subcomponents (a weighed section), OpenRocket ignores
   mass added inside it. The tools warn about this, and `ballast` adds its mass to the override.
 - **Cd reference area**: OpenRocket uses the nominal canopy area. Vendor Cd values quoted on projected area (e.g. 2.2)

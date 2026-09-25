@@ -72,6 +72,7 @@ public final class Variants {
 	 * {@code seed}, keeping its parameters.
 	 */
 	public static void seed(SimulationOptions options, int seed) {
+		var type = options.getWindModelType(); // wind-model change events select the average model
 		options.setRandomSeed(seed);
 		try {
 			Field f = SimulationOptions.class.getDeclaredField("averageWindModel");
@@ -83,6 +84,8 @@ public final class Variants {
 		} catch (ReflectiveOperationException | RuntimeException e) {
 			// Different OpenRocket internals: results stay valid, only turbulence is not repeatable.
 		}
+		Winds.seedLevels(options, seed);
+		options.setWindModelType(type);
 	}
 
 	/** Result of one run: the simulation, or the error that stopped it. */

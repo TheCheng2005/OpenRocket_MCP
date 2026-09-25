@@ -121,7 +121,7 @@ public final class SimTools {
 					double maxWind = ctx.standards().rule("maxGroundWind.value", Dim.VELOCITY);
 					if (a.bool("includeWindCase", true) && !Double.isNaN(maxWind)) {
 						wind = sim.copy();
-						wind.getOptions().setWindSpeedAverage(maxWind);
+						io.github.openrocketmcp.or.Winds.setGround(wind.getOptions(), maxWind, Double.NaN);
 						Sims.run(wind);
 					}
 					return Requirements.check(sim, wind, ctx.standards()).render(ctx.standards().rulesName());

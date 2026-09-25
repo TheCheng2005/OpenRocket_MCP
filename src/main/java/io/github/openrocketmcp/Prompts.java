@@ -58,6 +58,15 @@ final class Prompts {
 			the static margin and the simulated minimum; then secant iterations on the simulated minimum ascent stability.
 			A section whose mass (and CG) is overridden for its subcomponents gets the ballast added to the override.
 
+			## Winds aloft
+			OpenRocket multi-level wind model: speed, direction and turbulence (sd) per altitude, interpolated between levels.
+			Power-law profile: v(h) = v_ground (h / 10 m)^alpha above 10 m (alpha ~ 1/7 open terrain). Overriding the wind
+			speed / direction on a profile scales / rotates every level from the lowest one.
+
+			## Aerodynamics
+			OpenRocket Barrowman model at zero angle of attack, Reynolds number from sea-level ISA at each Mach; CD = friction +
+			pressure + base. Margin = (CP - CG) / max body diameter.
+
 			## Monte Carlo
 			Randomized: wind speed/direction, launch angle/direction, turbulence seed; optionally structure mass (each
 			component scaled, motors excluded), airframe drag (simulation listener scaling CD), motor thrust (listener scaling

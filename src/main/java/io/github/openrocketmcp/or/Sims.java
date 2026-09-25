@@ -135,14 +135,10 @@ public final class Sims {
 	}
 
 	static void apply(SimulationOptions opt, Overrides o) {
-		if (!Double.isNaN(o.windSpeed())) {
-			opt.setWindSpeedAverage(o.windSpeed());
-		}
-		if (!Double.isNaN(o.windDirection())) {
-			opt.setWindDirection(o.windDirection());
-		}
+		// With a multi-level profile, the override scales / rotates the profile from its lowest level.
+		Winds.setGround(opt, o.windSpeed(), o.windDirection());
 		if (!Double.isNaN(o.windTurbulence())) {
-			opt.setWindTurbulenceIntensity(o.windTurbulence());
+			Winds.setTurbulence(opt, o.windTurbulence());
 		}
 		if (!Double.isNaN(o.rodLength())) {
 			opt.setLaunchRodLength(o.rodLength());
@@ -179,6 +175,7 @@ public final class Sims {
 		// Turbulence always follows the simulation's random seed, so every tool (run, check, optimize, sweep) sees the
 		// same gusts for the same simulation. See Variants.seed.
 		Variants.seed(sim.getOptions(), sim.getOptions().getRandomSeed());
+		Analysis.settle(sim.getRocket().getFlightConfiguration(sim.getFlightConfigurationId()));
 		try {
 			sim.simulate(listeners);
 		} catch (Exception e) {
@@ -407,7 +404,11 @@ public final class Sims {
 		Map<String, Object> cond = new LinkedHashMap<>();
 		cond.put("launchRodLength", Units.fmt(opt.getLaunchRodLength(), Dim.LENGTH));
 		cond.put("launchRodAngleFromVertical", Units.fmt(opt.getLaunchRodAngle(), Dim.ANGLE));
-		cond.put("windSpeedAverage", Units.fmt(opt.getWindSpeedAverage(), Dim.VELOCITY));
+		if (Winds.isMultiLevel(opt)) {
+			cond.put("wind", "multi-level profile, " + Units.fmt(Winds.speed(opt), Dim.VELOCITY) + " at the ground (wind_profile show)");
+		} else {
+			cond.put("windSpeedAverage", Units.fmt(Winds.speed(opt), Dim.VELOCITY));
+		}
 		cond.put("launchSiteAltitude", Units.fmt(opt.getLaunchAltitude(), Dim.DISTANCE));
 		out.put("conditions", cond);
 

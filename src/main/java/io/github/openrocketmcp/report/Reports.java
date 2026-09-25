@@ -165,7 +165,7 @@ public final class Reports {
 		List<Simulation> sims = new ArrayList<>();
 		for (double w : winds) {
 			Simulation v = io.github.openrocketmcp.or.Variants.of(sim, d.doc, null, null);
-			v.getOptions().setWindSpeedAverage(w);
+			io.github.openrocketmcp.or.Winds.setGround(v.getOptions(), w, Double.NaN);
 			sims.add(v);
 		}
 		List<io.github.openrocketmcp.or.Variants.Run> runs = io.github.openrocketmcp.or.Variants.runAll(sims);
@@ -233,7 +233,10 @@ public final class Reports {
 		md.append("## 1. Requirement checks\n\n").append(checks.get("summary")).append("\n\n");
 		md.append(table((List<Map<String, Object>>) checks.get("checks"))).append('\n');
 
-		md.append("## 2. Vehicle\n\n### Stability by stage stack (static, Mach 0.3)\n\n");
+		Path drawing = dir.resolve("rocket.svg");
+		Files.writeString(drawing, Drawing.svg(fc, d.name() + " (" + fc.getName() + ")"));
+		files.add(drawing);
+		md.append("## 2. Vehicle\n\n![rocket.svg](rocket.svg)\n\n### Stability by stage stack (static, Mach 0.3)\n\n");
 		md.append(table(Analysis.stageStacks(fc, 0.3))).append('\n');
 		List<Map<String, Object>> motors = Analysis.motors(fc);
 		if (!motors.isEmpty()) {
@@ -254,7 +257,16 @@ public final class Reports {
 			md.append("### Motors\n\n").append(table(rows)).append('\n');
 		}
 
+		double topMach = Math.max(0.5, data.getMaxMachNumber() * 1.1);
+		List<Map<String, Object>> aero = new ArrayList<>();
+		for (double m : new double[] { 0.1, 0.3, 0.5, 0.7, 0.9, 1.0, 1.1, 1.3, 1.6, 2.0, 2.5, 3.0 }) {
+			if (m <= topMach) {
+				aero.add(io.github.openrocketmcp.or.Aero.render(io.github.openrocketmcp.or.Aero.sweep(fc, new double[] { m }).get(0)));
+			}
+		}
+		md.append("### Aerodynamics vs Mach (OpenRocket, zero AoA)\n\n").append(table(aero)).append('\n');
 		md.append("## 3. Flight simulation\n\n### Conditions\n\n").append(kv((Map<String, Object>) summary.get("conditions")));
+		md.append("\n### Wind model\n\n").append(kv(io.github.openrocketmcp.or.Winds.describe(sim.getOptions())));
 		md.append("\n### Results\n\n").append(kv((Map<String, Object>) summary.get("flight"))).append('\n');
 		List<Map<String, Object>> ign = (List<Map<String, Object>>) summary.get("ignitions");
 		if (ign.size() > 1) {
