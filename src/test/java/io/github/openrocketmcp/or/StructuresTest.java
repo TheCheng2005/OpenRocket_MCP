@@ -158,6 +158,18 @@ class StructuresTest {
 		}
 	}
 
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.CsvSource({ "Two stage high power,1.9", "Two stage high power,2.2", "Two stage high power,2.6",
+			"Dual parachute,4.5", "Dual parachute,5.2" })
+	void ballastSolveConvergesForManyTargets(String example, double target) throws Exception {
+		Designs.Design d = new Designs().openExample(example);
+		Simulation base = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults(), false);
+		NoseCone nose = first(d, NoseCone.class);
+		Structures.Ballast b = Structures.ballast(base, d.doc, nose, 0.6 * nose.getLength(), target);
+		assertTrue(b.minStability() >= target - 0.03, b.toString());
+		assertTrue(b.minStability() <= target + 0.15, "not grossly over-ballasted: " + b);
+	}
+
 	@Test
 	void ballastWhenOnlyTheSimulatedMinimumIsShort() throws Exception {
 		// Two-stage example: static margin at launch already meets 2 cal, the simulated minimum (1.7 cal) does not.

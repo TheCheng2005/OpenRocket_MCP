@@ -270,27 +270,61 @@ public final class Structures {
 			sBest = s0;
 			simBest = r0.sim();
 		} else {
-			// Secant iterations on the simulated minimum stability (nearly linear in ballast mass).
+			// Root-find on the simulated minimum stability. It rises with ballast mass but is not smooth (a minimum over
+			// sampled times, with turbulence), so bracket the target and use false position with a bisection fallback;
+			// outside a bracket, secant steps (expanding when they stall).
+			double lo = 0, sLo = s0, hi = Double.NaN, sHi = Double.NaN;
+			if (s1 >= target) {
+				hi = guess;
+				sHi = s1;
+			} else {
+				lo = guess;
+				sLo = s1;
+			}
 			double ma = 0, sa = s0, mb = guess, sb = s1;
-			for (int it = 0; it < 3 && Math.abs(sb - target) > 0.02; it++) {
-				if (Math.abs(sb - sa) < 1e-6) {
-					break;
+			for (int it = 0; it < 7 && Math.abs(sb - target) > 0.02; it++) {
+				double mn;
+				if (!Double.isNaN(hi)) {
+					mn = lo + (target - sLo) * (hi - lo) / (sHi - sLo);
+					double w = hi - lo;
+					if (!(mn > lo + 0.1 * w && mn < hi - 0.1 * w)) {
+						mn = 0.5 * (lo + hi); // false position stalling at an end: bisect
+					}
+					if (w < 1e-3) {
+						break; // bracket narrower than a gram
+					}
+				} else {
+					mn = sb > sa + 1e-6 ? mb + (target - sb) * (mb - ma) / (sb - sa) : 2 * mb + 0.02;
+					mn = Math.max(mn, 1.2 * mb + 0.005); // below target: must add mass
+					mn = Math.min(mn, 4 * mb + 0.05); // guard against runaway steps
 				}
-				double mn = Math.max(0, mb + (target - sb) * (mb - ma) / (sb - sa));
-				mn = Math.min(mn, Math.max(4 * mb, 4 * m0 + 0.05)); // guard against runaway steps
 				double mm = mn;
 				Variants.Run rn = Variants.runAll(List.of(Variants.of(base, doc, r -> addBallast(find(r, pid), local, mm), null))).get(0);
 				sims++;
 				if (!rn.ok()) {
 					break;
 				}
+				double sn = minStab(rn.sim());
+				if (sn >= target) {
+					if (Double.isNaN(hi) || mn < hi) {
+						hi = mn;
+						sHi = sn;
+					}
+				} else if (mn > lo) {
+					lo = mn;
+					sLo = sn;
+				}
 				ma = mb;
 				sa = sb;
 				mb = mn;
-				sb = minStab(rn.sim());
-				mBest = mb;
-				sBest = sb;
-				simBest = rn.sim();
+				sb = sn;
+				// Keep the lightest mass that meets the target (within tolerance); otherwise the closest.
+				boolean meets = sn >= target - 0.02, bestMeets = sBest >= target - 0.02;
+				if ((meets && (!bestMeets || mn < mBest)) || (!meets && !bestMeets && Math.abs(sn - target) < Math.abs(sBest - target))) {
+					mBest = mn;
+					sBest = sn;
+					simBest = rn.sim();
+				}
 			}
 			if (sBest < target - 0.02) {
 				note = "Could not reach " + Units.num(target) + " cal within the iteration budget; best "
