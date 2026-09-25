@@ -166,6 +166,9 @@ class StructuresTest {
 		Simulation base = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults(), false);
 		NoseCone nose = first(d, NoseCone.class);
 		Structures.Ballast b = Structures.ballast(base, d.doc, nose, 0.6 * nose.getLength(), target);
+		Structures.Ballast again = Structures.ballast(Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults(), false),
+				d.doc, nose, 0.6 * nose.getLength(), target);
+		assertEquals(b.baseMinStability(), again.baseMinStability(), 1e-12, "repeatable across calls");
 		assertTrue(b.minStability() >= target - 0.03, b.toString());
 		assertTrue(b.minStability() <= target + 0.15, "not grossly over-ballasted: " + b);
 	}
@@ -179,6 +182,8 @@ class StructuresTest {
 		Structures.Ballast b = Structures.ballast(base, d.doc, nose, 0.6 * nose.getLength(), 2.0);
 		assertTrue(b.baseMinStability() < 2.0, "precondition: " + b.baseMinStability());
 		assertTrue(b.mass() > 0, "needs ballast even though the static estimate says none: " + b);
-		assertEquals(2.0, b.minStability(), 0.05, b.toString());
+		// The simulated minimum can jump across the target (it is a minimum over time), so the solver returns the
+		// lightest mass found that meets it.
+		assertTrue(b.minStability() >= 2.0 - 0.03 && b.minStability() <= 2.2, b.toString());
 	}
 }

@@ -54,6 +54,8 @@ public final class Sims {
 		}
 	}
 
+	static final int NEW_SIMULATION_SEED = 20270801;
+
 	public static Simulation find(Designs.Design d, String ref) {
 		List<Simulation> sims = d.doc.getSimulations();
 		if (ref == null || ref.isBlank()) {
@@ -115,6 +117,8 @@ public final class Sims {
 				base.setFlightConfigurationId(fc.getId());
 				base.setName("MCP - " + fc.getName());
 				std.applyLaunchDefaults(base.getOptions());
+				// OpenRocket seeds new simulations randomly; a fixed seed makes repeated tool calls agree.
+				base.getOptions().setRandomSeed(NEW_SIMULATION_SEED);
 				if (!persistNew) {
 					return o == null ? base : applied(base, o);
 				}
