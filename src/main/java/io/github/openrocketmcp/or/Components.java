@@ -14,6 +14,9 @@ import java.util.TreeMap;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonPrimitive;
 
+import info.openrocket.core.database.Database;
+import info.openrocket.core.database.Databases;
+import info.openrocket.core.material.Material;
 import info.openrocket.core.rocketcomponent.AxialStage;
 import info.openrocket.core.rocketcomponent.BodyTube;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
@@ -46,7 +49,9 @@ public final class Components {
 			"ComponentName", "PresetComponent", "Appearance", "InsideAppearance", "Color", "LineStyle", "Comment",
 			"MotorConfigurationSet", "DeploymentConfigurations", "SeparationConfigurations", "Instances",
 			"ClusterConfiguration", "ChildPosition", "FinPoints", "AxialMethod", "RadiusMethod", "AngleMethod",
-			"Material", "LineMaterial", "SubcomponentsOverridden", "DisplayOrder_Side", "DisplayOrder_Back");
+			"SubcomponentsOverridden", "DisplayOrder_Side", "DisplayOrder_Back", "Visible", "InstanceCount",
+			"CDOverridden", "CGOverridden", "OverrideCD", "OverrideCGX", "SubcomponentsOverriddenCD",
+			"SubcomponentsOverriddenCG", "SubcomponentsOverriddenMass", "TabOffsetMethod", "PositionValue");
 
 	private Components() {
 	}
@@ -120,54 +125,53 @@ public final class Components {
 		throw new ToolException("No flight configuration '" + ref + "'. Available: " + names);
 	}
 
-	/** Compact tree of the rocket for the model. */
-	public static List<Map<String, Object>> tree(RocketComponent root) {
-		List<Map<String, Object>> out = new ArrayList<>();
+	/**
+	 * Compact tree of the rocket for the model: one indented line per component,
+	 * "Name [id] Type: key dimensions, mass".
+	 */
+	public static List<String> tree(RocketComponent root) {
+		List<String> out = new ArrayList<>();
 		for (RocketComponent c : root.getChildren()) {
-			out.add(node(c));
+			line(c, 0, out);
 		}
 		return out;
 	}
 
-	private static Map<String, Object> node(RocketComponent c) {
-		Map<String, Object> m = new LinkedHashMap<>();
-		m.put("id", shortId(c));
-		m.put("name", c.getName());
-		m.put("type", c.getClass().getSimpleName());
-		if (c instanceof AxialStage s) {
-			m.put("stageNumber", s.getStageNumber());
-		}
-		if (!(c instanceof AxialStage)) {
-			m.put("length", Units.fmt(c.getLength(), Dim.LENGTH));
-			try {
-				m.put("top", Units.fmt(c.toAbsolute(info.openrocket.core.util.Coordinate.NUL)[0].x, Dim.LENGTH) + " from nose tip");
-			} catch (RuntimeException e) {
-				m.put("position", Units.fmt(c.getAxialOffset(), Dim.LENGTH));
-			}
-		}
-		if (c instanceof BodyTube bt) {
-			m.put("outerDiameter", Units.fmt(bt.getOuterRadius() * 2, Dim.LENGTH));
-			m.put("innerDiameter", Units.fmt(bt.getInnerRadius() * 2, Dim.LENGTH));
-		} else if (c instanceof SymmetricComponent sc) {
-			m.put("foreDiameter", Units.fmt(sc.getForeRadius() * 2, Dim.LENGTH));
-			m.put("aftDiameter", Units.fmt(sc.getAftRadius() * 2, Dim.LENGTH));
-		}
-		if (c instanceof RecoveryDevice rd) {
-			m.put("cd", Units.num(rd.getCD()));
-			m.put("area", Units.fmt(rd.getArea(), Dim.AREA));
-		}
-		if (c instanceof MotorMount mm && mm.isMotorMount()) {
-			m.put("motorMount", true);
-		}
-		if (c instanceof AxialStage) {
-			m.put("stageMass", Units.fmt(c.getSectionMass(), Dim.MASS) + " (without motors)");
+	private static void line(RocketComponent c, int depth, List<String> out) {
+		StringBuilder s = new StringBuilder("  ".repeat(depth));
+		s.append(c.getName()).append(" [").append(shortId(c)).append("] ").append(c.getClass().getSimpleName());
+		List<String> f = new ArrayList<>();
+		if (c instanceof AxialStage st) {
+			f.add("stage " + st.getStageNumber());
+			f.add("mass " + Units.fmt(c.getSectionMass(), Dim.MASS) + " without motors");
 		} else {
-			m.put("mass", Units.fmt(c.getMass(), Dim.MASS) + (c.isMassOverridden() ? " (overridden)" : ""));
+			try {
+				f.add("top " + Units.fmt(c.toAbsolute(info.openrocket.core.util.Coordinate.NUL)[0].x, Dim.LENGTH));
+			} catch (RuntimeException e) {
+				// position not resolvable; skip
+			}
+			if (c.getLength() > 0) {
+				f.add("L " + Units.fmt(c.getLength(), Dim.LENGTH));
+			}
+			if (c instanceof BodyTube bt) {
+				f.add("OD " + Units.fmt(bt.getOuterRadius() * 2, Dim.LENGTH));
+				f.add("ID " + Units.fmt(bt.getInnerRadius() * 2, Dim.LENGTH));
+			} else if (c instanceof SymmetricComponent sc) {
+				f.add("D " + Units.fmt(sc.getForeRadius() * 2, Dim.LENGTH) + " -> " + Units.fmt(sc.getAftRadius() * 2, Dim.LENGTH));
+			}
+			if (c instanceof RecoveryDevice rd) {
+				f.add("Cd " + Units.num(rd.getCD()) + ", area " + Units.fmt(rd.getArea(), Dim.AREA));
+			}
+			if (c instanceof MotorMount mm && mm.isMotorMount()) {
+				f.add("motor mount");
+			}
+			f.add("mass " + Units.fmt(c.getMass(), Dim.MASS) + (c.isMassOverridden() ? " (overridden)" : ""));
 		}
-		if (!c.getChildren().isEmpty()) {
-			m.put("children", tree(c));
+		s.append(": ").append(String.join(", ", f));
+		out.add(s.toString());
+		for (RocketComponent child : c.getChildren()) {
+			line(child, depth + 1, out);
 		}
-		return m;
 	}
 
 	// ---------------------------------------------------------------- reflection-based property access
@@ -178,8 +182,9 @@ public final class Components {
 		if (p.contains("mass")) {
 			return Dim.MASS;
 		}
-		if (p.contains("angle") || p.contains("sweep") || p.equals("cantangle") || p.contains("rotation")
-				|| p.contains("direction")) {
+		// Only explicit angle properties are angles: "sweepAngle", "cantAngle", "baseRotation", "angleOffset".
+		// (TrapezoidFinSet "sweep" is the sweep LENGTH.)
+		if (p.contains("angle") || p.contains("rotation") || p.contains("direction")) {
 			return Dim.ANGLE;
 		}
 		if (p.equals("cd") || p.contains("coefficient") || p.contains("shapeparameter") || p.contains("count")
@@ -198,7 +203,7 @@ public final class Components {
 		if (p.contains("radius") || p.contains("diameter") || p.contains("length") || p.contains("thickness")
 				|| p.contains("height") || p.contains("span") || p.contains("chord") || p.contains("offset")
 				|| p.contains("width") || p.contains("position") || p.contains("overhang") || p.contains("shift")
-				|| p.contains("separation") || p.contains("cgx") || p.contains("depth")) {
+				|| p.contains("separation") || p.contains("cgx") || p.contains("depth") || p.equals("sweep")) {
 			return Dim.LENGTH;
 		}
 		return Dim.DIMENSIONLESS;
@@ -206,7 +211,7 @@ public final class Components {
 
 	private static boolean simpleType(Class<?> t) {
 		return t == double.class || t == int.class || t == boolean.class || t == String.class || t.isEnum()
-				|| t == Double.class || t == Integer.class || t == Boolean.class;
+				|| t == Double.class || t == Integer.class || t == Boolean.class || t == Material.class;
 	}
 
 	/** Editable properties (getter + matching single-argument setter) with current values. */
@@ -250,6 +255,10 @@ public final class Components {
 			}
 			return Units.fmt((Double) v, d);
 		}
+		if (v instanceof Material mat) {
+			return mat.getName() + " (" + Units.fmt(mat.getDensity(), densityDim(mat)) + "; set by name, e.g. "
+					+ materialExamples(mat.getType()) + ")";
+		}
 		if (type.isEnum()) {
 			Object[] constants = type.getEnumConstants();
 			List<String> names = new ArrayList<>();
@@ -281,8 +290,16 @@ public final class Components {
 	 * Sets one property by name (case-insensitive, e.g. "length", "outerRadius", "cd", "finCount").
 	 * Returns a description of the change.
 	 */
+	private static final Map<String, String> ALIASES = Map.of(
+			"sweeplength", "sweep", "span", "height", "finspan", "height", "semispan", "height",
+			"mass", "componentMass", "cd", "cd", "noseshape", "shapeType", "shape", "shapeType");
+
 	public static String set(RocketComponent c, String property, JsonElement value) {
 		String prop = property.trim();
+		String alias = ALIASES.get(prop.toLowerCase(Locale.ROOT));
+		if (alias != null && !hasSetter(c, prop)) {
+			prop = alias;
+		}
 		Method target = null;
 		for (Method m : c.getClass().getMethods()) {
 			if (m.getName().equalsIgnoreCase("set" + prop) && m.getParameterCount() == 1
@@ -320,6 +337,10 @@ public final class Components {
 			} else if (type == boolean.class || type == Boolean.class) {
 				arg = value.isJsonPrimitive() && ((JsonPrimitive) value).isBoolean()
 						? value.getAsBoolean() : Boolean.parseBoolean(value.getAsString());
+			} else if (type == Material.class) {
+				Object current = getRaw(c, canonical);
+				Material.Type mt = current instanceof Material m ? m.getType() : Material.Type.BULK;
+				arg = material(mt, value.getAsString());
 			} else if (type.isEnum()) {
 				arg = enumValue(type, value.getAsString());
 			} else {
@@ -334,8 +355,52 @@ public final class Components {
 		} catch (ReflectiveOperationException e) {
 			throw new ToolException("Could not set " + canonical + ": " + e.getMessage());
 		}
-		Object shown = arg instanceof Double dv ? render(canonical, double.class, dv) : arg;
+		Object shown = arg instanceof Double dv ? render(canonical, double.class, dv)
+				: arg instanceof Material m ? m.getName() : arg;
 		return c.getName() + "." + lowerFirst(canonical) + " = " + shown;
+	}
+
+	private static Database<Material> materials(Material.Type t) {
+		return switch (t) {
+			case SURFACE -> Databases.SURFACE_MATERIAL;
+			case LINE -> Databases.LINE_MATERIAL;
+			default -> Databases.BULK_MATERIAL;
+		};
+	}
+
+	private static Dim densityDim(Material m) {
+		return m.getType() == Material.Type.BULK ? Dim.DENSITY : Dim.DIMENSIONLESS;
+	}
+
+	private static String materialExamples(Material.Type t) {
+		return switch (t) {
+			case BULK -> "Fiberglass, Carbon fiber, Blue tube, Aluminum, Plywood (birch), PLA - 100% infill";
+			case SURFACE -> "Ripstop nylon";
+			default -> "Tubular nylon";
+		};
+	}
+
+	/** Material by (case-insensitive, partial) name from OpenRocket's material database. */
+	static Material material(Material.Type t, String name) {
+		String n = name.trim().toLowerCase(Locale.ROOT);
+		Material partial = null;
+		for (Material m : materials(t)) {
+			String mn = m.getName().toLowerCase(Locale.ROOT);
+			if (mn.equals(n)) {
+				return m;
+			}
+			if (partial == null && mn.contains(n)) {
+				partial = m;
+			}
+		}
+		if (partial != null) {
+			return partial;
+		}
+		List<String> names = new ArrayList<>();
+		for (Material m : materials(t)) {
+			names.add(m.getName());
+		}
+		throw new IllegalArgumentException("unknown " + t.name().toLowerCase(Locale.ROOT) + " material '" + name + "'. Known: " + names);
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -350,6 +415,15 @@ public final class Components {
 			names.add(((Enum<?>) o).name());
 		}
 		throw new IllegalArgumentException("'" + name + "' is not one of " + names);
+	}
+
+	private static boolean hasSetter(RocketComponent c, String prop) {
+		for (Method m : c.getClass().getMethods()) {
+			if (m.getName().equalsIgnoreCase("set" + prop) && m.getParameterCount() == 1) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Raw (SI) value of a property, for exact restore after temporary edits. */

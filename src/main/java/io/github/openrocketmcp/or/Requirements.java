@@ -176,7 +176,16 @@ public final class Requirements {
 			}
 		}
 
+		// Supersonic flight: OpenRocket's aerodynamics are less accurate transonic/supersonic and fin flutter is not modeled.
+		double mach = data.getMaxMachNumber();
+		if (mach > 0.9) {
+			r.add(mach > 1 ? Status.WARN : Status.INFO, "Maximum Mach number",
+					"transonic/supersonic: verify with RASAero, check fin flutter margin and fin/nose materials",
+					Units.num(mach), null);
+		}
+
 		// Recovery, per branch
+		earlyDeployments(r, sim);
 		recovery(r, sim, std);
 		return r;
 	}
@@ -196,10 +205,15 @@ public final class Requirements {
 		}
 		// Ignore the last seconds before apogee, where airspeed is too low for a meaningful static margin.
 		Sims.Window w = Sims.extremes(b, FlightDataType.TYPE_STABILITY, rail, apogee, 30.48);
+		double aoa = Sims.at(b, FlightDataType.TYPE_AOA, w.minTime());
+		String why = aoa > Math.toRadians(3)
+				? "; angle of attack " + Units.fmt(aoa, Dim.ANGLE) + " there (wind / rail exit): OpenRocket's CP moves forward at high angle of attack. Zero-AoA margin: "
+						+ Units.num(zeroAoaMargin(sim, b, w.minTime())) + " cal"
+				: "";
 		r.add(w.min() >= min ? Status.PASS : Status.FAIL, label + " (minimum, rail exit to apogee while airspeed > 100 ft/s)",
 				">= " + Units.num(min) + " cal" + (diameterChange ? " (diameter change: use RASAero CP/CD overrides)" : ""),
 				Units.num(w.min()) + " cal at t=" + Units.num(w.minTime()) + " s, Mach "
-						+ Units.num(Sims.at(b, FlightDataType.TYPE_MACH_NUMBER, w.minTime())),
+						+ Units.num(Sims.at(b, FlightDataType.TYPE_MACH_NUMBER, w.minTime())) + why,
 				std.ruleRef("stability"));
 		double concern = std.rule("stability.overStableConcern", Dim.DIMENSIONLESS);
 		double over = std.rule("stability.overStable", Dim.DIMENSIONLESS);
@@ -208,6 +222,38 @@ public final class Requirements {
 			r.add(s, label + " (maximum, over-stability)", "should stay below ~" + Units.num(concern) + " cal; >= "
 					+ Units.num(over) + " cal is over-stable", Units.num(w.max()) + " cal", std.ruleRef("stability"));
 		}
+	}
+
+	/** A recovery device opening before apogee (e.g. OpenRocket's default "motor ejection charge" with a short delay). */
+	static void earlyDeployments(Report r, Simulation sim) {
+		for (String late : lateFirstDeployments(sim)) {
+			r.add(Status.FAIL, late, "the initial deployment event shall occur at or near apogee", "", "R4.2.1");
+		}
+		for (Sims.Deployment d : Sims.deployments(sim)) {
+			if (!Double.isNaN(d.timeAfterApogee()) && d.timeAfterApogee() < -0.5) {
+				r.add(Status.FAIL, d.branch() + ": " + d.device().getName() + " deploys before apogee",
+						"recovery devices must not open during ascent (check the deployment event: new parachutes in "
+								+ "OpenRocket default to the motor ejection charge; use set_deployment)",
+						Units.num(-d.timeAfterApogee()) + " s before apogee at " + Units.fmt(d.airspeed(), io.github.openrocketmcp.units.Dim.VELOCITY),
+						"R4.2.1");
+			}
+		}
+	}
+
+	/** First deployment of each branch more than 3 s after apogee: the vehicle is falling fast when it opens. */
+	public static List<String> lateFirstDeployments(Simulation sim) {
+		List<String> out = new ArrayList<>();
+		java.util.Set<String> seen = new java.util.HashSet<>();
+		for (Sims.Deployment d : Sims.deployments(sim)) {
+			if (!seen.add(d.branch())) {
+				continue;
+			}
+			if (!Double.isNaN(d.timeAfterApogee()) && d.timeAfterApogee() > 3) {
+				out.add(d.branch() + ": first deployment (" + d.device().getName() + ") " + Units.num(d.timeAfterApogee())
+						+ " s after apogee at " + Units.fmt(d.airspeed(), Dim.VELOCITY));
+			}
+		}
+		return out;
 	}
 
 	private static void recovery(Report r, Simulation sim, Standards std) {
@@ -266,6 +312,14 @@ public final class Requirements {
 				}
 			}
 		}
+	}
+
+	/** Static margin at zero angle of attack at time t: (Barrowman CP at that Mach - simulated CG) / reference diameter. */
+	static double zeroAoaMargin(Simulation sim, FlightDataBranch b, double t) {
+		FlightConfiguration fc = sim.getRocket().getFlightConfiguration(sim.getFlightConfigurationId());
+		double cp = Analysis.cp(fc, Sims.at(b, FlightDataType.TYPE_MACH_NUMBER, t));
+		double cg = Sims.at(b, FlightDataType.TYPE_CG_LOCATION, t);
+		return (cp - cg) / Analysis.maxDiameter(fc);
 	}
 
 	/** [time, average thrust-to-weight] for each ignition in the main branch. */

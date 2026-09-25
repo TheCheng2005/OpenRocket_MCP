@@ -17,6 +17,7 @@
     "canopyFillConstant": 4,
     "inflationExponent": 1,
     "shearPinHoldSafetyFactor": 2.0,
+    "harnessSafetyFactor": 2.0,
     "ejectionForceSafetyFactor": 1.5,
     "backupChargeFactor": 1.25,
     "blackPowderBulkDensity": "1.0 g/cm3",

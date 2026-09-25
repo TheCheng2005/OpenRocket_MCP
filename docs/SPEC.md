@@ -77,6 +77,27 @@ Claude (Code / Desktop)  ──stdio JSON-RPC──▶  McpServer (tools, prompt
   filled in from Barrowman CP and simulated CG) and `export_flight_data` (CSV).
 - **Bay volume from the design**: interior volume of body tubes, nose cones and transitions.
 
+### Phase 2.5 — dogfooding fixes (v0.3.0)
+
+Found by building a 10k ft Launch Canada rocket from scratch through the tools, then encoded in
+`scripts/benchmark.py` (30 checks, run in CI):
+
+- Safety: recovery devices deploying before apogee (OpenRocket's default "motor ejection charge" event) or more than
+  3 s after it are flagged in check_requirements, rank_motors and recovery_analysis; supersonic flight warns about fin
+  flutter and aerodynamic accuracy.
+- rank_motors: works on a new design, filters motors that do not fit the mount length, removes duplicates, reports
+  ascent stability with each motor's mass, ranks rule-compliant motors first, and samples twice (spread, then around
+  the target impulse).
+- optimize: constraints checked at the rule set's maximum wind as well; infeasible results name the binding limits;
+  a repair line-search crosses thin feasible bands.
+- Consistent turbulence: every run derives its gusts from the simulation seed, so check_requirements, optimize and
+  sweeps agree.
+- Recovery: shear pins only for bays that must stay closed during an earlier event; harness working load for all.
+- Stability failures report the angle of attack and the zero-AoA margin at the minimum.
+- Editing: atomic add_component, materials by name, student-style aliases (span, sweepLength, mass), sweep is a
+  length.
+- Output size: compact JSON and a one-line-per-component tree (-33% tool output).
+
 ### Phase 3 — next
 
 - **Sections**: identify independently tethered sections from the design (separation points) for per-section landing

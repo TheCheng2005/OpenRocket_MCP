@@ -142,16 +142,20 @@ public final class MotorTools {
 				}));
 
 		s.tool(new ToolDef("rank_motors", "Rank motors by simulating them",
-				"Simulate every candidate motor that fits a mount and rank them. objective: target_apogee (closest to "
-						+ "targetApogee), max_apogee, or min_impulse_meeting_rules. Each row reports apogee, rail exit speed, "
-						+ "thrust-to-weight, max Mach and optimum delay, and whether rail exit and TWR meet the rule set. The design is "
-						+ "left unchanged; use set_motor to apply a choice.",
+				"Simulate the motors that fit a mount (diameter and length) and rank them. objective: target_apogee "
+						+ "(closest to targetApogee), max_apogee, or min_impulse_meeting_rules. Each row: apogee, rail exit speed, "
+						+ "thrust-to-weight, minimum ascent stability WITH that motor's mass, max Mach, optimum delay, and whether it "
+						+ "meets the rules; compliant motors come first. Works on a new design without a flight configuration. The "
+						+ "design is left unchanged; use set_motor to apply a choice.",
 				filterSchema(Schema.object().str("designId", DesignTools.DESIGN_ID, false)
 						.str("mount", "Motor mount id or name.", true)
 						.str("configuration", DesignTools.CONFIG, false)
 						.enumStr("objective", "Ranking objective.", false, "target_apogee", "max_apogee", "min_impulse_meeting_rules")
 						.qty("targetApogee", "Target apogee AGL for objective=target_apogee.", false)
-						.integer("maxCandidates", "Maximum motors to simulate (default 30, max 80).", false)).build(),
+						.integer("maxCandidates", "Maximum motors to simulate (default 60, max 120); above that, a second pass "
+								+ "concentrates on the impulse range the objective points to.", false)
+						.qty("maxOverhang", "Allowed motor overhang beyond the mount when maxLength is not given (default 50 mm).", false)
+						.integer("limit", "Rows to return (default 12).", false)).build(),
 				true, a -> rank(ctx, a)));
 
 		s.tool(new ToolDef("import_motor_file", "Import motor files (.eng/.rse)",
@@ -249,6 +253,24 @@ public final class MotorTools {
 		throw new ToolException("Give thrustCurve, or averageThrust and burnTime.");
 	}
 
+	/** Metrics of one simulated motor candidate. */
+	private record Ranked(ThrustCurveMotor motor, double apogee, double railExit, double twr, double maxMach, double delay,
+			double minStability, List<String> issues) {
+		boolean compliant() {
+			return issues.isEmpty();
+		}
+	}
+
+	private static double minTwrRule(Context ctx) {
+		com.google.gson.JsonObject rules = ctx.standards().rules();
+		if (!rules.has("thrustToWeight")) {
+			return Double.NaN;
+		}
+		com.google.gson.JsonObject byYear = rules.getAsJsonObject("thrustToWeight").getAsJsonObject("minByYear");
+		String year = ctx.standards().str("competitionYear", "2026");
+		return byYear != null && byYear.has(year) ? byYear.get(year).getAsDouble() : Double.NaN;
+	}
+
 	private static Object rank(Context ctx, Args a) {
 		Designs.Design d = ctx.designs.get(a.str("designId", null));
 		Rocket rocket = d.doc.getRocket();
@@ -256,91 +278,211 @@ public final class MotorTools {
 		if (!(comp instanceof MotorMount mount)) {
 			throw new ToolException("'" + comp.getName() + "' is not a motor mount.");
 		}
-		FlightConfiguration fc = Components.config(rocket, a.str("configuration", null));
-		List<ThrustCurveMotor> candidates = Motors.search(filter(a, mount.getMotorMountDiameter()));
-		int max = Math.min(80, a.integer("maxCandidates", 30));
-		if (candidates.isEmpty()) {
-			throw new ToolException("No motors match the filters for a " + Units.fmt(mount.getMotorMountDiameter(), Dim.LENGTH) + " mount.");
-		}
-		// Spread the sample over the impulse range when there are more candidates than we simulate.
-		List<ThrustCurveMotor> sample = new ArrayList<>();
-		if (candidates.size() <= max) {
-			sample.addAll(candidates);
+		Map<String, Object> res = new LinkedHashMap<>();
+		FlightConfiguration fc;
+		if (rocket.getIds().isEmpty()) {
+			// A new design has no flight configuration yet: create one so candidates have somewhere to go.
+			fc = rocket.createFlightConfiguration(new info.openrocket.core.rocketcomponent.FlightConfigurationId());
+			rocket.setSelectedConfiguration(fc.getId());
+			d.doc.setSaved(false);
+			res.put("createdConfiguration", fc.getId().toString().substring(0, 8));
 		} else {
-			for (int i = 0; i < max; i++) {
-				sample.add(candidates.get((int) Math.round((double) i * (candidates.size() - 1) / (max - 1))));
-			}
+			fc = Components.config(rocket, a.str("configuration", null));
 		}
-		MotorConfiguration original = mount.getMotorConfig(fc.getId());
-		double railMin = ctx.standards().rule("railDepartureVelocity.min", Dim.VELOCITY);
+		mount.setMotorMount(true);
+
+		// Candidates: fit the mount diameter and (unless maxLength is given) the mount length + allowed overhang.
+		double maxOverhang = a.qty("maxOverhang", Dim.LENGTH, 0.05);
+		Motors.Filter f = filter(a, mount.getMotorMountDiameter());
+		if (!a.has("maxLength")) {
+			f = new Motors.Filter(f.minDiameter(), f.maxDiameter(), mount.getLength() + maxOverhang, f.minClass(), f.maxClass(),
+					f.manufacturer(), f.designationContains(), f.type(), f.availableOnly());
+		}
+		Map<String, ThrustCurveMotor> unique = new LinkedHashMap<>();
+		for (ThrustCurveMotor m : Motors.search(f)) {
+			unique.putIfAbsent(m.getManufacturer().getSimpleName() + "|" + m.getDesignation().toUpperCase(), m);
+		}
+		List<ThrustCurveMotor> candidates = new ArrayList<>(unique.values());
+		if (candidates.isEmpty()) {
+			throw new ToolException("No motors match the filters for a " + Units.fmt(mount.getMotorMountDiameter(), Dim.LENGTH)
+					+ " x " + Units.fmt(mount.getLength(), Dim.LENGTH) + " mount (overhang up to " + Units.fmt(maxOverhang, Dim.LENGTH)
+					+ "). Relax minClass/maxClass, pass maxLength, or lengthen the mount.");
+		}
 		String objective = a.str("objective", a.has("targetApogee") ? "target_apogee" : "max_apogee");
 		double target = a.qty("targetApogee", Dim.DISTANCE, Double.NaN);
 		if (objective.equals("target_apogee") && Double.isNaN(target)) {
 			throw new ToolException("targetApogee is required for objective=target_apogee.");
 		}
-		Simulation base = Sims.prepare(d, null, fc.getId().toString(), Sims.Overrides.none(), ctx.standards(), false);
+		int budget = Math.min(120, a.integer("maxCandidates", 60));
+
+		MotorConfiguration original = fc.getId() == null ? null : mount.getMotorConfig(fc.getId());
+		Simulation base = Sims.prepare(d, null, fc.getId().toString(), Sims.Overrides.none(), ctx.standards(), false, true);
 		String mountId = comp.getID().toString();
-		List<Simulation> variants = new ArrayList<>();
-		for (ThrustCurveMotor m : sample) {
-			variants.add(Variants.of(base, d.doc, r -> {
-				MotorMount mm = (MotorMount) Components.find(r, mountId);
-				MotorConfiguration mc = new MotorConfiguration(mm, fc.getId());
-				mc.setMotor(m);
-				mc.setEjectionDelay(original.getEjectionDelay());
-				mc.setIgnitionEvent(original.getIgnitionEvent());
-				mc.setIgnitionDelay(original.getIgnitionDelay());
-				mm.setMotorConfig(mc, fc.getId());
-				r.getFlightConfiguration(fc.getId()).update();
-			}, null));
-		}
-		List<Variants.Run> runs = Variants.runAll(variants);
-		List<Object[]> rows = new ArrayList<>();
-		for (int i = 0; i < runs.size(); i++) {
-			if (!runs.get(i).ok()) {
-				continue;
+		double railRule = ctx.standards().rule("railDepartureVelocity.min", Dim.VELOCITY);
+		double twrRule = minTwrRule(ctx);
+		double stabRule = ctx.standards().rule("stability.minCalibers", Dim.DIMENSIONLESS);
+
+		java.util.function.Function<List<ThrustCurveMotor>, List<Ranked>> simulate = batch -> {
+			List<Simulation> variants = new ArrayList<>();
+			for (ThrustCurveMotor m : batch) {
+				variants.add(Variants.of(base, d.doc, r -> {
+					MotorMount mm = (MotorMount) Components.find(r, mountId);
+					MotorConfiguration mc = new MotorConfiguration(mm, fc.getId());
+					mc.setMotor(m);
+					if (original != null && original.getMotor() != null) {
+						mc.setEjectionDelay(original.getEjectionDelay());
+						mc.setIgnitionEvent(original.getIgnitionEvent());
+						mc.setIgnitionDelay(original.getIgnitionDelay());
+					} else {
+						double[] delays = m.getStandardDelays();
+						mc.setEjectionDelay(delays != null && delays.length > 0 ? delays[delays.length - 1] : Double.NaN);
+					}
+					mm.setMotorConfig(mc, fc.getId());
+					r.getFlightConfiguration(fc.getId()).update();
+				}, null));
 			}
-			ThrustCurveMotor m = sample.get(i);
-			FlightData data = runs.get(i).sim().getSimulatedData();
-			double liftMass = data.getBranch(0).getByIndex(FlightDataType.TYPE_MASS, 0);
-			double twr = m.getAverageThrustEstimate() * original.getMotorCount() / (liftMass * Atmosphere.G0);
-			rows.add(new Object[] { m, data.getMaxAltitude(), data.getLaunchRodVelocity(), twr, data.getMaxMachNumber(),
-					data.getOptimumDelay() });
-		}
-		switch (objective) {
-			case "target_apogee" -> rows.sort((x, y) -> Double.compare(Math.abs((double) x[1] - target), Math.abs((double) y[1] - target)));
-			case "min_impulse_meeting_rules" -> {
-				rows.removeIf(r -> !Double.isNaN(railMin) && (double) r[2] < railMin);
-				rows.sort((x, y) -> Double.compare(((ThrustCurveMotor) x[0]).getTotalImpulseEstimate(), ((ThrustCurveMotor) y[0]).getTotalImpulseEstimate()));
+			List<Variants.Run> runs = Variants.runAll(variants);
+			List<Ranked> out = new ArrayList<>();
+			for (int i = 0; i < runs.size(); i++) {
+				if (!runs.get(i).ok()) {
+					continue;
+				}
+				ThrustCurveMotor m = batch.get(i);
+				Simulation sim = runs.get(i).sim();
+				FlightData data = sim.getSimulatedData();
+				double liftMass = data.getBranch(0).getByIndex(FlightDataType.TYPE_MASS, 0);
+				double twr = m.getAverageThrustEstimate() * Math.max(1, mount.getMotorCount()) / (liftMass * Atmosphere.G0);
+				Sims.Window w = Sims.ascentStability(data.getBranch(0));
+				double minStab = w == null ? Double.NaN : w.min();
+				List<String> issues = new ArrayList<>();
+				if (!Double.isNaN(railRule) && data.getLaunchRodVelocity() < railRule) {
+					issues.add("rail exit below " + Units.fmt(railRule, Dim.VELOCITY));
+				}
+				if (!Double.isNaN(twrRule) && twr < twrRule) {
+					issues.add("thrust-to-weight below " + Units.num(twrRule));
+				}
+				if (!Double.isNaN(stabRule) && !(minStab >= stabRule)) {
+					issues.add("ascent stability " + Units.num(minStab) + " cal below " + Units.num(stabRule));
+				}
+				for (Sims.Deployment dep : Sims.deployments(sim)) {
+					if (!Double.isNaN(dep.timeAfterApogee()) && dep.timeAfterApogee() < -0.5) {
+						issues.add(dep.device().getName() + " deploys " + Units.num(-dep.timeAfterApogee()) + " s before apogee");
+					}
+				}
+				issues.addAll(io.github.openrocketmcp.or.Requirements.lateFirstDeployments(sim));
+				out.add(new Ranked(m, data.getMaxAltitude(), data.getLaunchRodVelocity(), twr, data.getMaxMachNumber(),
+						data.getOptimumDelay(), minStab, issues));
 			}
-			default -> rows.sort((x, y) -> Double.compare((double) y[1], (double) x[1]));
+			return out;
+		};
+
+		// Pass 1: spread over the impulse range. Pass 2: concentrate on the region the objective points to.
+		candidates.sort((x, y) -> Double.compare(x.getTotalImpulseEstimate(), y.getTotalImpulseEstimate()));
+		List<ThrustCurveMotor> first = spread(candidates, candidates.size() <= budget ? candidates.size() : budget / 2);
+		List<Ranked> results = new ArrayList<>(simulate.apply(first));
+		if (candidates.size() > first.size()) {
+			double focus = focusImpulse(results, objective, target);
+			List<ThrustCurveMotor> rest = new ArrayList<>(candidates);
+			rest.removeAll(first);
+			rest.sort((x, y) -> Double.compare(Math.abs(Math.log(x.getTotalImpulseEstimate() / focus)),
+					Math.abs(Math.log(y.getTotalImpulseEstimate() / focus))));
+			results.addAll(simulate.apply(rest.subList(0, Math.min(budget - first.size(), rest.size()))));
 		}
-		List<Map<String, Object>> out = new ArrayList<>();
-		for (Object[] r : rows) {
-			ThrustCurveMotor m = (ThrustCurveMotor) r[0];
+
+		java.util.Comparator<Ranked> byObjective = switch (objective) {
+			case "target_apogee" -> java.util.Comparator.comparingDouble(r -> Math.abs(r.apogee() - target));
+			case "min_impulse_meeting_rules" -> java.util.Comparator.comparingDouble(r -> r.motor().getTotalImpulseEstimate());
+			default -> java.util.Comparator.comparingDouble(r -> -r.apogee());
+		};
+		results.sort(java.util.Comparator.comparing((Ranked r) -> !r.compliant()).thenComparing(byObjective));
+
+		List<Map<String, Object>> rows = new ArrayList<>();
+		int shown = Math.min(a.integer("limit", 12), results.size());
+		for (Ranked r : results.subList(0, shown)) {
+			ThrustCurveMotor m = r.motor();
 			Map<String, Object> row = new LinkedHashMap<>();
 			row.put("motor", m.getManufacturer().getSimpleName() + " " + m.getDesignation());
-			row.put("class", Motors.impulseClass(m.getTotalImpulseEstimate()));
-			row.put("totalImpulse", Units.fmt(m.getTotalImpulseEstimate(), Dim.IMPULSE));
-			row.put("apogee", Units.fmt((double) r[1], Dim.DISTANCE));
-			if (!Double.isNaN(target)) {
-				row.put("apogeeError", Units.fmt((double) r[1] - target, Dim.DISTANCE));
-			}
-			row.put("railExitVelocity", Units.fmt((double) r[2], Dim.VELOCITY)
-					+ (!Double.isNaN(railMin) && (double) r[2] < railMin ? " (below rule)" : ""));
-			row.put("thrustToWeight", Units.num((double) r[3]));
-			row.put("maxMach", Units.num((double) r[4]));
-			row.put("optimumDelay", Units.fmt((double) r[5], Dim.TIME));
+			row.put("impulse", Motors.impulseClass(m.getTotalImpulseEstimate()) + ", " + Units.fmt(m.getTotalImpulseEstimate(), Dim.IMPULSE));
+			row.put("apogee", Units.fmt(r.apogee(), Dim.DISTANCE)
+					+ (Double.isNaN(target) ? "" : " (" + (r.apogee() >= target ? "+" : "") + Units.fmt(r.apogee() - target, Dim.DISTANCE) + ")"));
+			row.put("railExit", Units.fmt(r.railExit(), Dim.VELOCITY));
+			row.put("thrustToWeight", Units.num(r.twr()));
+			row.put("minAscentStability", Units.num(r.minStability()) + " cal");
+			row.put("maxMach", Units.num(r.maxMach()));
+			row.put("optimumDelay", Units.fmt(r.delay(), Dim.TIME));
 			row.put("length", Units.fmt(m.getLength(), Dim.LENGTH));
-			out.add(row);
+			row.put("meetsRules", r.compliant() ? "yes" : "NO: " + String.join("; ", r.issues()));
+			rows.add(row);
 		}
-		Map<String, Object> res = new LinkedHashMap<>();
-		res.put("mount", comp.getName() + " (" + Units.fmt(mount.getMotorMountDiameter(), Dim.LENGTH) + ")");
-		res.put("objective", objective);
-		res.put("candidatesMatching", candidates.size());
-		res.put("simulated", sample.size());
-		res.put("ranking", out.subList(0, Math.min(20, out.size())));
-		res.put("note", "Motor length is not checked against the mount; confirm it fits. Uses the configuration's existing "
-				+ "simulation settings (or the team's launch-site defaults).");
+		long compliant = results.stream().filter(Ranked::compliant).count();
+		res.put("mount", comp.getName() + " (" + Units.fmt(mount.getMotorMountDiameter(), Dim.LENGTH) + " x "
+				+ Units.fmt(mount.getLength(), Dim.LENGTH) + ")");
+		res.put("objective", objective + (Double.isNaN(target) ? "" : " " + Units.fmt(target, Dim.DISTANCE)));
+		res.put("candidates", unique.size() + " distinct motors fit (diameter" + (a.has("maxLength") ? ", maxLength" : ", length + "
+				+ Units.fmt(maxOverhang, Dim.LENGTH) + " overhang") + ", filters); " + results.size() + " simulated; " + compliant + " meet the rules");
+		res.put("ranking", rows);
+		List<String> onEjection = new ArrayList<>();
+		for (RocketComponent rc : rocket) {
+			if (rc instanceof info.openrocket.core.rocketcomponent.RecoveryDevice rd && rd.getDeploymentConfigurations().get(fc.getId())
+					.getDeployEvent() == info.openrocket.core.rocketcomponent.DeploymentConfiguration.DeployEvent.EJECTION) {
+				onEjection.add(rd.getName());
+			}
+		}
+		if (!onEjection.isEmpty()) {
+			res.put("warning", String.join(", ", onEjection) + " deploy on the motor ejection charge (OpenRocket's default for new "
+					+ "parachutes), so results depend on each motor's delay. For electronic dual deployment use set_deployment "
+					+ "(drogue: apogee; main: altitude).");
+		}
+		res.put("note", "Rule-compliant motors are listed first (rail exit, thrust-to-weight, ascent stability with each motor's "
+				+ "mass). The design is unchanged; use set_motor to apply a choice.");
 		return res;
+	}
+
+	private static List<ThrustCurveMotor> spread(List<ThrustCurveMotor> sorted, int n) {
+		if (n >= sorted.size()) {
+			return new ArrayList<>(sorted);
+		}
+		List<ThrustCurveMotor> out = new ArrayList<>();
+		for (int i = 0; i < n; i++) {
+			ThrustCurveMotor m = sorted.get((int) Math.round((double) i * (sorted.size() - 1) / Math.max(1, n - 1)));
+			if (!out.contains(m)) {
+				out.add(m);
+			}
+		}
+		return out;
+	}
+
+	/** Impulse to concentrate pass 2 on: interpolated from pass-1 apogees for a target, else the extreme end. */
+	private static double focusImpulse(List<Ranked> r, String objective, double target) {
+		List<Ranked> s = new ArrayList<>(r);
+		s.sort((x, y) -> Double.compare(x.motor().getTotalImpulseEstimate(), y.motor().getTotalImpulseEstimate()));
+		if (s.isEmpty()) {
+			return 1000;
+		}
+		switch (objective) {
+			case "target_apogee" -> {
+				Ranked best = s.stream().min(java.util.Comparator.comparingDouble(x -> Math.abs(x.apogee() - target))).get();
+				for (int i = 0; i + 1 < s.size(); i++) {
+					double a0 = s.get(i).apogee(), a1 = s.get(i + 1).apogee();
+					if ((a0 - target) * (a1 - target) <= 0 && a1 != a0) {
+						double i0 = Math.log(s.get(i).motor().getTotalImpulseEstimate());
+						double i1 = Math.log(s.get(i + 1).motor().getTotalImpulseEstimate());
+						return Math.exp(i0 + (target - a0) / (a1 - a0) * (i1 - i0));
+					}
+				}
+				return best.motor().getTotalImpulseEstimate();
+			}
+			case "min_impulse_meeting_rules" -> {
+				for (Ranked x : s) {
+					if (x.compliant()) {
+						return x.motor().getTotalImpulseEstimate();
+					}
+				}
+				return s.get(s.size() - 1).motor().getTotalImpulseEstimate();
+			}
+			default -> {
+				return s.get(s.size() - 1).motor().getTotalImpulseEstimate();
+			}
+		}
 	}
 }

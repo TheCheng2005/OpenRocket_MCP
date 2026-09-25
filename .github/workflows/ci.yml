@@ -25,3 +25,6 @@ jobs:
         run: |
           out=$(echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | ./scripts/openrocket-mcp 2>/dev/null)
           echo "$out" | grep -q '"name":"check_requirements"'
+      - name: Scenario benchmark
+        if: runner.os == 'Linux'
+        run: python3 scripts/benchmark.py

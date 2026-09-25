@@ -91,6 +91,12 @@ public final class Sims {
 	/** As above; with {@code persistNew == false} a newly created simulation is not added to the document. */
 	public static Simulation prepare(Designs.Design d, String simRef, String configRef, Overrides o, Standards std,
 			boolean persistNew) {
+		return prepare(d, simRef, configRef, o, std, persistNew, false);
+	}
+
+	/** As above; {@code allowNoMotors} lets callers that set motors per variant (motor ranking) start from an empty configuration. */
+	public static Simulation prepare(Designs.Design d, String simRef, String configRef, Overrides o, Standards std,
+			boolean persistNew, boolean allowNoMotors) {
 		Rocket rocket = d.doc.getRocket();
 		Simulation base = find(d, simRef);
 		if (base == null) {
@@ -102,7 +108,7 @@ public final class Sims {
 				}
 			}
 			if (base == null) {
-				if (!fc.hasMotors()) {
+				if (!fc.hasMotors() && !allowNoMotors) {
 					throw new ToolException("Flight configuration '" + fc.getName() + "' has no motors. Use set_motor first.");
 				}
 				base = new Simulation(d.doc, rocket);
@@ -170,6 +176,9 @@ public final class Sims {
 	}
 
 	public static FlightData run(Simulation sim) {
+		// Turbulence always follows the simulation's random seed, so every tool (run, check, optimize, sweep) sees the
+		// same gusts for the same simulation. See Variants.seed.
+		Variants.seed(sim.getOptions(), sim.getOptions().getRandomSeed());
 		try {
 			sim.simulate();
 		} catch (Exception e) {

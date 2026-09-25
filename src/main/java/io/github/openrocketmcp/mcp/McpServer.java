@@ -197,7 +197,8 @@ public final class McpServer {
 				: new JsonObject();
 		try {
 			Object value = tool.handler().call(new Args(arguments));
-			return textResult(value instanceof String s ? s : gson.toJson(value), false);
+			// Compact JSON: indentation roughly doubles the size of every result the model has to read.
+			return textResult(value instanceof String s ? s : compact.toJson(value), false);
 		} catch (ToolException e) {
 			return textResult("Error: " + e.getMessage(), true);
 		} catch (Exception e) {

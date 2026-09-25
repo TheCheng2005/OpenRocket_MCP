@@ -82,7 +82,7 @@ class McpIntegrationTest {
 	@Order(2)
 	void openAndInspect() {
 		String open = call("open_design", "{\"example\":\"Two stage high power\"}");
-		assertTrue(open.contains("\"designId\": \"d1\""));
+		assertTrue(open.contains("\"designId\":\"d1\""));
 		String design = call("get_design", "{}");
 		assertTrue(design.contains("Sustainer") && design.contains("Booster"));
 		assertTrue(design.contains("after Booster separates"), "per-stack stability");
@@ -107,7 +107,7 @@ class McpIntegrationTest {
 	@Order(4)
 	void recoveryChain() {
 		String rec = call("recovery_analysis", "{\"pinType\":\"4-40 nylon\"}");
-		assertTrue(rec.contains("openingLoadInfiniteMass") && rec.contains("shearPinsToHoldDesignLoad"));
+		assertTrue(rec.contains("openingLoadInfiniteMass") && rec.contains("shearPinsForLaterBays") && rec.contains("harnessWorkingLoad"), rec);
 		String sweep = call("deployment_delay_sweep", "{\"device\":\"Sustainer Drogue\",\"delays\":[0,2,4],\"pinType\":\"4-40 nylon\",\"pinCount\":4}");
 		assertTrue(sweep.contains("latestDelayWithinCapacity"));
 		String size = call("size_parachute", "{\"device\":\"Sustainer Main\",\"targetDescentRate\":\"20 ft/s\"}");
@@ -130,7 +130,7 @@ class McpIntegrationTest {
 	void motorsAndEditing(@TempDir Path tmp) throws Exception {
 		call("search_motors", "{\"maxDiameter\":\"38 mm\",\"certLevel\":\"L1\",\"limit\":5}");
 		String design = call("get_design", "{}");
-		assertTrue(design.contains("motorMount"));
+		assertTrue(design.contains("motor mount"), design);
 		String rank = call("rank_motors", "{\"mount\":\"Sustainer Motor Mount\",\"objective\":\"max_apogee\",\"maxCandidates\":6}");
 		assertTrue(rank.contains("ranking"));
 		String custom = call("create_custom_motor", "{\"designation\":\"TestLiquid-K\",\"manufacturer\":\"UTAT\",\"type\":\"liquid\","
@@ -163,17 +163,11 @@ class McpIntegrationTest {
 		assertTrue(reopened.contains("d2"));
 	}
 
-	static String firstIdOfType(com.google.gson.JsonArray nodes, String type) {
-		for (com.google.gson.JsonElement e : nodes) {
-			JsonObject o = e.getAsJsonObject();
-			if (type.equals(o.get("type").getAsString())) {
-				return o.get("id").getAsString();
-			}
-			if (o.has("children")) {
-				String id = firstIdOfType(o.getAsJsonArray("children"), type);
-				if (id != null) {
-					return id;
-				}
+	static String firstIdOfType(com.google.gson.JsonArray lines, String type) {
+		for (com.google.gson.JsonElement e : lines) {
+			java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\[([0-9a-f]{8})\\] (\\w+):").matcher(e.getAsString());
+			if (m.find() && m.group(2).equals(type)) {
+				return m.group(1);
 			}
 		}
 		return null;
@@ -188,7 +182,7 @@ class McpIntegrationTest {
 		call("set_units", "{\"system\":\"both\"}");
 		call("update_standards", "{\"patch\":{\"launchSite\":{\"altitudeMsl\":\"300 m\"},\"recovery\":{\"shearPins\":{\"2-56 nylon\":{\"strength\":\"35 lbf\"}}}}}");
 		String pins = call("shear_pins", "{\"holdForce\":\"100 lbf\",\"pinType\":\"2-56 nylon\"}");
-		assertTrue(pins.contains("\"pins\": 6"), pins);
+		assertTrue(pins.contains("\"pins\":6"), pins);
 		JsonObject std = JsonParser.parseString(call("get_standards", "{}")).getAsJsonObject();
 		assertEquals("300 m", std.getAsJsonObject("standards").getAsJsonObject("launchSite").get("altitudeMsl").getAsString());
 	}
@@ -216,7 +210,7 @@ class McpIntegrationTest {
 		assertTrue(sim.contains("apogee"), sim);
 		String after = call("get_design", "{\"designId\":\"" + id + "\"}");
 		assertTrue(after.contains("MCP - "), "new simulation is stored with the design");
-		assertTrue(after.contains("6 deg") || call("run_simulation", "{\"designId\":\"" + id + "\"}").contains("\"launchRodAngleFromVertical\": \"6 deg\""));
+		assertTrue(call("run_simulation", "{\"designId\":\"" + id + "\"}").contains("\"launchRodAngleFromVertical\":\"6 deg\""));
 	}
 
 	@Test
@@ -250,7 +244,7 @@ class McpIntegrationTest {
 		String mc1 = call("monte_carlo", "{\"designId\":\"" + id + "\",\"runs\":24,\"seed\":7}");
 		String mc2 = call("monte_carlo", "{\"designId\":\"" + id + "\",\"runs\":24,\"seed\":7}");
 		assertTrue(mc1.contains("ellipse2Sigma") && mc1.contains("maxDesignLoad"), mc1);
-		assertEquals(mc1.replaceAll("\"elapsed\": \"[^\"]*\"", ""), mc2.replaceAll("\"elapsed\": \"[^\"]*\"", ""),
+		assertEquals(mc1.replaceAll("\"elapsed\":\"[^\"]*\"", ""), mc2.replaceAll("\"elapsed\":\"[^\"]*\"", ""),
 				"same seed must give the same result even though runs are parallel");
 	}
 

@@ -110,9 +110,14 @@ RSO.
 ## Development
 
 ```sh
-./gradlew test          # unit tests (calculators checked against the team's worked examples) + end-to-end MCP tests
-./gradlew installDist   # build/install/openrocket-mcp/bin/openrocket-mcp[.bat]
+./gradlew test                  # unit tests (calculators checked against the team's worked examples) + end-to-end MCP tests
+./gradlew installDist           # build/install/openrocket-mcp/bin/openrocket-mcp[.bat]
+python3 scripts/benchmark.py    # scenario benchmark: realistic team requests, pass/fail + timings + output size
 ```
+
+`scripts/benchmark.py` drives a fresh server over stdio through realistic requests (design a 10k ft rocket from
+scratch and make it pass Launch Canada; size recovery and check loads; two-stage checks; a custom liquid engine;
+dispersion and a design-review report) and checks each answer against engineering expectations. It runs in CI.
 
 The server speaks MCP over stdio (JSON-RPC 2.0, newline-delimited); stdout is reserved for the protocol, logs go to
 stderr. See [`docs/SPEC.md`](docs/SPEC.md) for the design and roadmap.

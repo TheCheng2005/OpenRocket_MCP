@@ -58,6 +58,9 @@ public final class MonteCarlo {
 				o.setWindTurbulenceIntensity(s.turbulence());
 			}
 			Variants.seed(o, seed);
+			// Landing spread is insensitive to the ascent step size (0.1 s changes apogee and landing by ~0.1 m on the
+			// OpenRocket examples; OpenRocket also limits each step's rotation) and it is ~25% faster.
+			o.setTimeStep(Math.max(o.getTimeStep(), 0.1));
 			sims.add(v);
 		}
 		List<Variants.Run> runs = Variants.runAll(sims);
@@ -153,7 +156,8 @@ public final class MonteCarlo {
 		out.put("notes", List.of(
 				"Positions: x = east, y = north of the pad. The 2-sigma ellipse holds ~86% of landings for a normal spread.",
 				"Only launch conditions are randomized (wind speed/direction, launch angle and direction, turbulence seed). "
-						+ "Mass, drag and thrust variation are not modeled yet."));
+						+ "Mass, drag and thrust variation are not modeled yet.",
+				"Runs use a 0.1 s ascent time step for speed; use run_simulation for the nominal-flight numbers."));
 		return out;
 	}
 

@@ -21,6 +21,7 @@
     "inflationExponent": 1,
     "inflationNotes": "Fill constant n and exponent j are assumptions for the finite-mass estimate (fill time = n*D0/v). Lower n / lower j are more conservative. Calibrate from deployment test data.",
     "shearPinHoldSafetyFactor": 2.0,
+    "harnessSafetyFactor": 2.0,
     "ejectionForceSafetyFactor": 1.5,
     "backupChargeFactor": 1.25,
     "blackPowderBulkDensity": "1.0 g/cm3",

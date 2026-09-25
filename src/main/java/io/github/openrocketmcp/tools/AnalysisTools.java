@@ -57,6 +57,8 @@ public final class AnalysisTools {
 						.num("maxMach", "Maximum Mach number.", false)
 						.qty("minApogee", "Minimum apogee.", false)
 						.integer("maxEvaluations", "Simulation budget (default 40, max 200).", false)
+						.bool("checkDesignWind", "Also evaluate each candidate at the rule set's maximum ground wind and apply "
+								+ "constraints to the worse case (default true when a stability constraint is given).", false)
 						.bool("apply", "Apply the best values to the design (default false).", false).build(),
 				false, a -> optimize(ctx, a)));
 
@@ -121,7 +123,11 @@ public final class AnalysisTools {
 		Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
 				ctx.standards(), false);
 		long t0 = System.nanoTime();
-		Optimizer.Result r = Optimizer.run(base, d.doc, vars, obj, target, c, Math.max(4, Math.min(200, a.integer("maxEvaluations", 40))), 1);
+		double maxWind = ctx.standards().rule("maxGroundWind.value", Dim.VELOCITY);
+		boolean stabilityConstrained = !Double.isNaN(c.minStability()) || !Double.isNaN(c.maxStability());
+		double windCase = a.bool("checkDesignWind", stabilityConstrained) && !Double.isNaN(maxWind) ? maxWind : Double.NaN;
+		Optimizer.Result r = Optimizer.run(base, d.doc, vars, obj, target, c, Math.max(4, Math.min(200, a.integer("maxEvaluations", 40))), 1,
+				windCase);
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("objective", obj.name().toLowerCase() + (Double.isNaN(target) ? ""
 				: " " + (obj == Optimizer.Objective.TARGET_APOGEE ? Units.fmt(target, Dim.DISTANCE) : Units.num(target) + " cal")));
@@ -141,6 +147,9 @@ public final class AnalysisTools {
 		if (!Double.isNaN(c.minApogee())) {
 			cons.put("minApogee", Units.fmt(c.minApogee(), Dim.DISTANCE));
 		}
+		if (!Double.isNaN(windCase)) {
+			cons.put("evaluatedAt", "nominal wind and " + Units.fmt(windCase, Dim.VELOCITY) + " (rule set maximum ground wind); worse of the two");
+		}
 		out.put("constraints", cons);
 		out.put("feasible", r.feasible());
 		out.put("best", r.best() == null ? null : Optimizer.render(r.best(), vars));
@@ -149,7 +158,11 @@ public final class AnalysisTools {
 		for (int i = 0; i < vars.size(); i++) {
 			current[i] = (Double) Components.getRaw(Components.find(d.doc.getRocket(), vars.get(i).componentId()), vars.get(i).property());
 		}
-		out.put("current", Optimizer.render(Optimizer.evaluateOne(base, d.doc, vars, current, true), vars));
+		Optimizer.Point cur = Optimizer.evaluateOne(base, d.doc, vars, current, true, windCase);
+		Map<String, Object> curOut = Optimizer.render(cur, vars);
+		List<String> curV = Optimizer.violations(cur, c);
+		curOut.put("meetsConstraints", curV.isEmpty() ? "yes" : "NO: " + String.join("; ", curV));
+		out.put("current", curOut);
 		List<Map<String, Object>> runners = new ArrayList<>();
 		for (Optimizer.Point p : Optimizer.top(r, obj, target, c, 5)) {
 			if (p != r.best()) {
@@ -160,8 +173,9 @@ public final class AnalysisTools {
 		out.put("evaluations", r.evaluated().size());
 		out.put("elapsed", Units.num((System.nanoTime() - t0) / 1e9) + " s");
 		if (!r.feasible()) {
-			out.put("note", "No evaluated point met every constraint; 'best' is the least-violating one. Widen the bounds, "
-					+ "add a variable, or relax a constraint.");
+			out.put("note", "No evaluated point met every constraint; 'best' is the least-violating one ("
+					+ String.join("; ", Optimizer.violations(r.best(), c)) + "). Widen the bounds, add a variable (e.g. nose ballast "
+					+ "to cut CG travel), or relax a constraint.");
 		}
 		if (a.bool("apply", false) && r.best() != null && r.best().error() == null) {
 			List<String> applied = new ArrayList<>();

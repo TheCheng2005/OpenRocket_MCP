@@ -215,9 +215,15 @@ public final class DesignTools {
 					} else {
 						parent.addChild(c);
 					}
+					// Atomic: if any property is rejected, take the component out again.
 					List<String> done = new ArrayList<>();
-					for (Map.Entry<String, JsonElement> e : a.obj("properties").raw().entrySet()) {
-						done.add(Components.set(c, e.getKey(), e.getValue()));
+					try {
+						for (Map.Entry<String, JsonElement> e : a.obj("properties").raw().entrySet()) {
+							done.add(Components.set(c, e.getKey(), e.getValue()));
+						}
+					} catch (RuntimeException e) {
+						parent.removeChild(c);
+						throw e instanceof ToolException te ? new ToolException(te.getMessage() + " Nothing was added.") : e;
 					}
 					d.doc.setSaved(false);
 					Map<String, Object> out = new LinkedHashMap<>();

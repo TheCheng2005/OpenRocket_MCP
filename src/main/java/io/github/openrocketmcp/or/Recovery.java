@@ -95,10 +95,17 @@ public final class Recovery {
 				row.put("role", role(deps, i));
 				Loads l = loads(d, otherCdA, std, cxOverride);
 				row.putAll(renderLoads(l));
-				if (!Double.isNaN(pinStrength)) {
-					int pins = Charges.shearPinsToHold(l.design(), pinStrength, pinSf);
-					row.put("shearPinsToHoldDesignLoad", pins + " x " + (pinName == null ? Units.fmt(pinStrength, Dim.FORCE) + " pins" : pinName)
-							+ " (safety factor " + Units.num(pinSf) + "; applies to a pinned joint that must stay closed under this load)");
+				double harnessSf = std.q("recovery.harnessSafetyFactor", Dim.DIMENSIONLESS, 2);
+				row.put("harnessWorkingLoad", Units.fmt(l.design() * harnessSf, Dim.FORCE) + " (design load x " + Units.num(harnessSf)
+						+ ": rating needed for shock cord, quick links, swivels, eye bolts)");
+				boolean laterEvent = i < deps.size() - 1;
+				if (!Double.isNaN(pinStrength) && laterEvent) {
+					int pins = Math.max(3, Charges.shearPinsToHold(l.design(), pinStrength, pinSf));
+					row.put("shearPinsForLaterBays", pins + " x " + (pinName == null ? Units.fmt(pinStrength, Dim.FORCE) + " pins" : pinName)
+							+ " (safety factor " + Units.num(pinSf) + ", min 3): bays that must stay closed while this device opens");
+				}
+				if (!Double.isNaN(d.timeAfterApogee()) && d.timeAfterApogee() < -0.5) {
+					row.put("WARNING", "deploys " + Units.num(-d.timeAfterApogee()) + " s BEFORE apogee; check the deployment event");
 				}
 				if (i == deps.size() - 1) {
 					double v = d.steadyDescentRate();

@@ -109,6 +109,15 @@ public final class Optimizer {
 
 	public static Result run(Simulation base, OpenRocketDocument doc, List<Variable> vars, Objective o, double target,
 			Constraints c, int budget, long seed) {
+		return run(base, doc, vars, o, target, c, budget, seed, Double.NaN);
+	}
+
+	/**
+	 * @param windCase if not NaN, every candidate is also simulated at this wind speed and the constraints use the
+	 *                 worse of the two runs (e.g. the rule set's maximum ground wind)
+	 */
+	public static Result run(Simulation base, OpenRocketDocument doc, List<Variable> vars, Objective o, double target,
+			Constraints c, int budget, long seed, double windCase) {
 		if (vars.isEmpty() || vars.size() > 3) {
 			throw new ToolException("Give 1 to 3 variables.");
 		}
@@ -145,7 +154,7 @@ public final class Optimizer {
 							: lo[i] + (hi[i] - lo[i]) * (perm[k] + rnd.nextDouble()) / m;
 				}
 			}
-			List<Point> pts = evaluate(base, doc, vars, xs, simulate);
+			List<Point> pts = evaluate(base, doc, vars, xs, simulate, windCase);
 			all.addAll(pts);
 			for (Point p : pts) {
 				double s = score(p, o, target, c);
@@ -168,6 +177,26 @@ public final class Optimizer {
 					double center = best.x()[i];
 					lo[i] = Math.max(vars.get(i).min(), center - half);
 					hi[i] = Math.min(vars.get(i).max(), center + half);
+				}
+			}
+		}
+		// Repair: if nothing met the constraints, line-search each variable around the least-violating point. Thin
+		// feasible bands (e.g. a stability window) are easy to step across along one axis at a time.
+		for (int i = 0; best != null && violation(best, c) > 1e-9 && i < n; i++) {
+			double span = (vars.get(i).max() - vars.get(i).min()) * 0.15;
+			List<double[]> xs = new ArrayList<>();
+			for (int k = 0; k < batch; k++) {
+				double[] x = best.x().clone();
+				x[i] = Math.max(vars.get(i).min(), Math.min(vars.get(i).max(), x[i] - span + 2 * span * k / (batch - 1)));
+				xs.add(x);
+			}
+			List<Point> pts = evaluate(base, doc, vars, xs, simulate, windCase);
+			all.addAll(pts);
+			for (Point p : pts) {
+				double sc = score(p, o, target, c);
+				if (sc < bestScore) {
+					bestScore = sc;
+					best = p;
 				}
 			}
 		}
@@ -229,49 +258,96 @@ public final class Optimizer {
 	}
 
 	static List<Point> evaluate(Simulation base, OpenRocketDocument doc, List<Variable> vars, List<double[]> xs,
-			boolean simulate) {
+			boolean simulate, double windCase) {
+		boolean wind = simulate && !Double.isNaN(windCase);
 		List<Simulation> sims = new ArrayList<>();
 		List<Point> statics = new ArrayList<>();
 		for (double[] x : xs) {
 			String[] err = new String[1];
-			Simulation s = Variants.of(base, doc, r -> {
+			java.util.function.Consumer<info.openrocket.core.rocketcomponent.Rocket> edit = r -> {
 				try {
 					applyTo(r, vars, x);
 				} catch (ToolException e) {
 					err[0] = e.getMessage();
 				}
-			}, null);
+			};
+			Simulation s = Variants.of(base, doc, edit, null);
 			FlightConfiguration fc = s.getRocket().getFlightConfiguration(s.getFlightConfigurationId());
 			Analysis.Stability st = Analysis.stability(fc, 0.3);
 			statics.add(new Point(x, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, st.marginCalibers(),
 					st.launchMass(), err[0]));
 			sims.add(s);
+			if (wind) {
+				Simulation w = Variants.of(base, doc, edit, null);
+				w.getOptions().setWindSpeedAverage(windCase);
+				sims.add(w);
+			}
 		}
 		if (!simulate) {
 			return statics;
 		}
 		List<Variants.Run> runs = Variants.runAll(sims);
+		int per = wind ? 2 : 1;
 		List<Point> out = new ArrayList<>();
 		for (int i = 0; i < xs.size(); i++) {
 			Point st = statics.get(i);
-			Variants.Run run = runs.get(i);
-			if (st.error() != null || !run.ok()) {
+			Variants.Run run = runs.get(i * per);
+			Variants.Run windRun = wind ? runs.get(i * per + 1) : null;
+			String error = st.error() != null ? st.error() : !run.ok() ? run.error()
+					: windRun != null && !windRun.ok() ? "wind case: " + windRun.error() : null;
+			if (error != null) {
 				out.add(new Point(st.x(), Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, st.launchMargin(),
-						st.launchMass(), st.error() != null ? st.error() : run.error()));
+						st.launchMass(), error));
 				continue;
 			}
 			FlightData data = run.sim().getSimulatedData();
 			Sims.Window w = Sims.ascentStability(data.getBranch(0));
-			out.add(new Point(st.x(), data.getMaxAltitude(), w == null ? Double.NaN : w.min(),
-					w == null ? Double.NaN : w.max(), data.getLaunchRodVelocity(), data.getMaxMachNumber(),
-					st.launchMargin(), st.launchMass(), null));
+			double minS = w == null ? Double.NaN : w.min(), maxS = w == null ? Double.NaN : w.max();
+			double rail = data.getLaunchRodVelocity();
+			if (windRun != null) {
+				FlightData wd = windRun.sim().getSimulatedData();
+				Sims.Window ww = Sims.ascentStability(wd.getBranch(0));
+				if (ww != null) {
+					minS = Math.min(minS, ww.min());
+					maxS = Math.max(maxS, ww.max());
+				}
+				rail = Math.min(rail, wd.getLaunchRodVelocity());
+			}
+			out.add(new Point(st.x(), data.getMaxAltitude(), minS, maxS, rail, data.getMaxMachNumber(), st.launchMargin(),
+					st.launchMass(), null));
 		}
 		return out;
 	}
 
+	/** Human-readable list of the constraints a point violates. */
+	public static List<String> violations(Point p, Constraints c) {
+		List<String> v = new ArrayList<>();
+		if (p.error() != null) {
+			v.add(p.error());
+			return v;
+		}
+		if (!Double.isNaN(c.minStability()) && p.minStability() < c.minStability()) {
+			v.add("min ascent stability " + Units.num(p.minStability()) + " < " + Units.num(c.minStability()) + " cal");
+		}
+		if (!Double.isNaN(c.maxStability()) && p.maxStability() > c.maxStability()) {
+			v.add("max ascent stability " + Units.num(p.maxStability()) + " > " + Units.num(c.maxStability()) + " cal");
+		}
+		if (!Double.isNaN(c.minRailExit()) && p.railExit() < c.minRailExit()) {
+			v.add("rail exit " + Units.fmt(p.railExit(), Dim.VELOCITY) + " < " + Units.fmt(c.minRailExit(), Dim.VELOCITY));
+		}
+		if (!Double.isNaN(c.maxMach()) && p.maxMach() > c.maxMach()) {
+			v.add("Mach " + Units.num(p.maxMach()) + " > " + Units.num(c.maxMach()));
+		}
+		if (!Double.isNaN(c.minApogee()) && p.apogee() < c.minApogee()) {
+			v.add("apogee " + Units.fmt(p.apogee(), Dim.DISTANCE) + " < " + Units.fmt(c.minApogee(), Dim.DISTANCE));
+		}
+		return v;
+	}
+
 	/** Evaluates a single point (e.g. the current design, for comparison). */
-	public static Point evaluateOne(Simulation base, OpenRocketDocument doc, List<Variable> vars, double[] x, boolean simulate) {
-		return evaluate(base, doc, vars, List.of(x), simulate).get(0);
+	public static Point evaluateOne(Simulation base, OpenRocketDocument doc, List<Variable> vars, double[] x, boolean simulate,
+			double windCase) {
+		return evaluate(base, doc, vars, List.of(x), simulate, windCase).get(0);
 	}
 
 	public static Map<String, Object> render(Point p, List<Variable> vars) {
