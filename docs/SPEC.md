@@ -149,11 +149,20 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   from `MassCalculator` changes over the first calls after loading (lazy position resolution) — designs are settled on
   open and before analyses / simulations.
 
+### External data (v0.7.0)
+
+- `import_aero_table`: RASAero II aero export (lowest-alpha rows, CD power-off / power-on, CP in inches) or plain
+  Mach / CD [/ CP] CSV. A simulation listener replaces OpenRocket's axial CD (power state from thrust) until the first
+  separation; the CP gives a stability item in check_requirements. Validated by importing a table generated from
+  OpenRocket's own CD (apogee within 3%).
+- `compare_flight`: altimeter CSV (header or explicit units, pad altitude removed, launch alignment), apogee / time to
+  apogee / drogue and main descent-rate comparison, overlay SVG, and the airframe drag factor that reproduces the
+  measured apogee (parallel sims over 0.5-2x). Validated closed-loop: a flight flown with 1.3x drag is recovered as 1.3.
+
 ### Phase 3 — next
 
 - **Sections**: identify independently tethered sections from the design (separation points) for per-section landing
   energy, bay volumes and nose cone interior volume without manual input.
-- **RASAero overrides**: import RASAero CP/CD tables as OpenRocket overrides (DTEG R10.3.1 for diameter changes).
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.
 
 ### Phase 4 — later

@@ -214,6 +214,7 @@ public final class Requirements {
 					Units.num(mach), null);
 		}
 
+		importedCp(r, sim, std, fc);
 		flutter(r, sim, std);
 		edicts(r, sim, fc, std);
 
@@ -368,6 +369,24 @@ public final class Requirements {
 	}
 
 	/** A recovery device opening before apogee (e.g. OpenRocket's default "motor ejection charge" with a short delay). */
+	/** Stability with an imported (e.g. RASAero) CP table and the simulated CG. */
+	static void importedCp(Report r, Simulation sim, Standards std, FlightConfiguration fc) {
+		AeroTable.Table t = AeroTable.of(sim.getRocket());
+		if (t == null || !t.hasCp()) {
+			return;
+		}
+		AeroTable.Margin m = AeroTable.minMargin(sim, t, Analysis.maxDiameter(fc));
+		if (m == null) {
+			return;
+		}
+		double min = std.rule(Analysis.hasDiameterChange(fc) ? "stability.minCalibersWithDiameterChange" : "stability.minCalibers",
+				Dim.DIMENSIONLESS);
+		r.add(Double.isNaN(min) ? Status.INFO : m.min() >= min ? Status.PASS : Status.FAIL,
+				"Ascent stability with imported CP (" + t.source() + ")",
+				Double.isNaN(min) ? "for information" : ">= " + Units.num(min) + " cal (imported CP vs simulated CG, until apogee or staging)",
+				Units.num(m.min()) + " cal at t=" + Units.num(m.time()) + " s (Mach " + Units.num(m.mach()) + ")", std.ruleRef("stability"));
+	}
+
 	/** Fin flutter margin along the flight (team standard, not a competition rule). */
 	static void flutter(Report r, Simulation sim, Standards std) {
 		double need = std.q("structures.flutterMinMargin", Dim.DIMENSIONLESS, 1.5);

@@ -28,6 +28,9 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
    - Launch-day winds -> `wind_profile` (forecast levels, or power_law from the ground wind) then `monte_carlo`.
    - Real parts -> `search_parts` + `apply_preset` (tubes, nose cones, couplers, rail buttons, chutes).
    - Show the vehicle -> `draw_rocket`.
+   - RASAero data (required for diameter changes) -> `import_aero_table`, then `check_requirements`.
+   - After a flight -> `compare_flight` with the altimeter CSV and the day's conditions; use the drag factor for the
+     next prediction.
 5. Recovery chain -> `recovery_analysis` (pinType from standards), `deployment_delay_sweep` for late drogue deployment,
    `ejection_charge` (pins to break), `recovery_bay_fit`, `descent_energy` per tethered section.
 6. Re-run `check_requirements`. Only `save_design` after the user agrees; prefer saving to a new file.

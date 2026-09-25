@@ -17,6 +17,8 @@ import io.github.openrocketmcp.mcp.Schema;
 import io.github.openrocketmcp.mcp.ToolDef;
 import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.or.Aero;
+import io.github.openrocketmcp.or.AeroTable;
+import io.github.openrocketmcp.or.FlightLog;
 import io.github.openrocketmcp.or.Analysis;
 import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
@@ -78,6 +80,36 @@ public final class AeroTools {
 							"Margins use the maximum body diameter as reference. OpenRocket's Barrowman model is least accurate "
 									+ "transonic; LC expects RASAero CP/CD for airframes with diameter changes."));
 					return out;
+				}));
+
+		s.tool(new ToolDef("import_aero_table", "Use RASAero (or other) CD / CP data",
+				"Import an aerodynamic table (RASAero II 'export aero data' CSV, or any CSV with Mach, CD [, CP]) for a design. The "
+						+ "drag replaces OpenRocket's in every simulation (power-on / power-off), the CP is used for a stability check "
+						+ "against the simulated CG (Launch Canada asks for RASAero CP/CD when the airframe diameter changes). Shows the "
+						+ "table next to OpenRocket's own CD / CP and the effect on apogee and minimum stability. mode clear / show.",
+				SimTools.simSelect(Schema.object())
+						.enumStr("mode", "import (default) | show | clear", false, "import", "show", "clear")
+						.str("path", "CSV file path.", false).str("csv", "CSV text (instead of path).", false)
+						.str("cpUnit", "Unit of the CP column, measured from the nose tip (default in, as RASAero writes).", false)
+						.bool("useDrag", "Apply the table's drag to simulations (default true).", false)
+						.str("source", "Label for CSV text, e.g. \"RASAero rev B\".", false).build(),
+				false, a -> importAeroTable(ctx, a)));
+
+		s.tool(new ToolDef("compare_flight", "Compare an altimeter log with the simulation",
+				"Read an altimeter CSV (time, altitude; units from the header or altitudeUnit) and compare apogee, time to "
+						+ "apogee and descent rates under drogue and main with the simulation, then fit the drag multiplier that "
+						+ "reproduces the measured apogee (model calibration for the next flight). Optionally writes an overlay plot. "
+						+ "Set the day's conditions with the wind / launch overrides.",
+				SimTools.overrides(SimTools.simSelect(Schema.object()))
+						.str("path", "Altimeter CSV path.", false).str("csv", "CSV text (instead of path).", false)
+						.str("altitudeUnit", "ft or m when the header does not say (default: header, else ft).", false)
+						.str("plotPath", "Write a simulated-vs-measured altitude SVG here.", false).build(),
+				true, a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId", null));
+					FlightLog.Log log = FlightLog.parse(readText(a, "path", "csv"), a.str("altitudeUnit", null));
+					Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), SimTools.overrides(a),
+							ctx.standards(), false);
+					return FlightLog.compare(base, d.doc, log, a.str("plotPath", null), d.name() + ": simulated vs measured");
 				}));
 
 		s.tool(new ToolDef("wind_profile", "Winds aloft (multi-level wind)",
@@ -163,6 +195,90 @@ public final class AeroTools {
 					out.put("stability", Analysis.render(Analysis.stability(fc, 0.3)));
 					return out;
 				}));
+	}
+
+	static String readText(Args a, String pathKey, String textKey) throws java.io.IOException {
+		if (a.has(pathKey)) {
+			return Files.readString(Path.of(a.str(pathKey)));
+		}
+		if (a.has(textKey)) {
+			return a.str(textKey);
+		}
+		throw new ToolException("Give " + pathKey + " (a file) or " + textKey + " (the CSV text).");
+	}
+
+	private static Object importAeroTable(Context ctx, Args a) throws java.io.IOException {
+		Designs.Design d = ctx.designs.get(a.str("designId", null));
+		var rocket = d.doc.getRocket();
+		String mode = a.str("mode", "import");
+		if (mode.equals("clear")) {
+			AeroTable.clear(rocket);
+			return Map.of("cleared", true, "note", "Simulations use OpenRocket's own drag again.");
+		}
+		AeroTable.Table t;
+		if (mode.equals("show")) {
+			t = AeroTable.of(rocket);
+			if (t == null) {
+				return Map.of("table", "none imported");
+			}
+		} else {
+			String text = readText(a, "path", "csv");
+			double cpUnit = Units.toSi("1 " + a.str("cpUnit", "in"), Dim.LENGTH);
+			t = AeroTable.parse(text, a.has("path") ? Path.of(a.str("path")).getFileName().toString() : a.str("source", "imported table"),
+					cpUnit, a.bool("useDrag", true));
+			AeroTable.set(rocket, t);
+		}
+		FlightConfiguration fc = Components.config(rocket, a.str("configuration", null));
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("table", AeroTable.describe(t));
+		// Side by side with OpenRocket's own model.
+		List<Map<String, Object>> cmp = new ArrayList<>();
+		double[] ms = { 0.3, 0.6, 0.8, 0.95, 1.1, 1.5, 2.0 };
+		double top = t.mach()[t.mach().length - 1];
+		for (double m : ms) {
+			if (m > top + 1e-9) {
+				continue;
+			}
+			Aero.Point p = Aero.sweep(fc, new double[] { m }).get(0);
+			Map<String, Object> r = new LinkedHashMap<>();
+			r.put("mach", Units.num(m));
+			r.put("cdImportedPowerOff", Units.num(t.cd(m, false)));
+			r.put("cdImportedPowerOn", Units.num(t.cd(m, true)));
+			r.put("cdOpenRocket", Units.num(p.cd()));
+			if (t.hasCp()) {
+				r.put("cpImported", Units.fmt(t.cpAt(m), Dim.LENGTH));
+			}
+			r.put("cpOpenRocket", Units.fmt(p.cpX(), Dim.LENGTH));
+			cmp.add(r);
+		}
+		out.put("vsOpenRocket", cmp);
+		// Effect on the flight.
+		Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
+				ctx.standards(), false);
+		List<io.github.openrocketmcp.or.Variants.Run> runs = io.github.openrocketmcp.or.Variants.runAll(List.of(
+				AeroTable.without(io.github.openrocketmcp.or.Variants.of(base, d.doc, null, null)),
+				io.github.openrocketmcp.or.Variants.of(base, d.doc, null, null)));
+		if (runs.get(0).ok() && runs.get(1).ok()) {
+			Map<String, Object> eff = new LinkedHashMap<>();
+			eff.put("apogeeOpenRocketDrag", Units.fmt(runs.get(0).sim().getSimulatedData().getMaxAltitude(), Dim.DISTANCE));
+			eff.put("apogeeImportedDrag", t.useDrag() ? Units.fmt(runs.get(1).sim().getSimulatedData().getMaxAltitude(), Dim.DISTANCE)
+					: "not applied (useDrag false)");
+			AeroTable.Margin mImp = AeroTable.minMargin(runs.get(1).sim(), t, Analysis.maxDiameter(fc));
+			if (mImp != null) {
+				eff.put("minAscentStabilityImportedCp", Units.num(mImp.min()) + " cal at Mach " + Units.num(mImp.mach()));
+			}
+			var w = io.github.openrocketmcp.or.Sims.ascentStability(runs.get(0).sim().getSimulatedData().getBranch(0));
+			if (w != null) {
+				eff.put("minAscentStabilityOpenRocketCp", Units.num(w.min()) + " cal");
+			}
+			out.put("effect", eff);
+		}
+		out.put("notes", List.of(
+				"Drag replaces OpenRocket's axial CD in every simulation of this design (power-on while a motor burns) until the "
+						+ "first stage separation; afterwards OpenRocket's model applies (import one table per configuration you fly).",
+				"The table is kept for this session; re-import after reopening the design. check_requirements adds a stability "
+						+ "item with the imported CP (DTEG R10.3.1 for airframes with diameter changes)."));
+		return out;
 	}
 
 	private static Object windProfile(Context ctx, Args a) {

@@ -338,4 +338,30 @@ class McpIntegrationTest {
 		call("draw_rocket", "{\"designId\":\"" + id + "\",\"path\":\"" + svg + "\"}");
 		assertTrue(Files.readString(tmp.resolve("r.svg")).contains("CP "));
 	}
+
+	@Test
+	@Order(12)
+	void aeroTablesAndFlightLogs(@TempDir Path tmp) throws Exception {
+		String open = call("open_design", "{\"example\":\"Dual parachute\"}");
+		String id = JsonParser.parseString(open).getAsJsonObject().get("designId").getAsString();
+		String csv = "Mach,Alpha,CD Power-Off,CD Power-On,CP\\n0.01,0,0.60,0.55,44\\n0.5,0,0.62,0.57,44.5\\n1.0,0,0.95,0.9,46\\n2.0,0,0.7,0.65,47";
+		JsonObject imp = JsonParser.parseString(call("import_aero_table", "{\"designId\":\"" + id + "\",\"csv\":\"" + csv
+				+ "\",\"source\":\"RASAero test\"}")).getAsJsonObject();
+		assertTrue(imp.getAsJsonObject("effect").has("apogeeImportedDrag") && imp.getAsJsonArray("vsOpenRocket").size() >= 3, imp.toString());
+		String check = call("check_requirements", "{\"designId\":\"" + id + "\",\"includeWindCase\":false}");
+		assertTrue(check.contains("Ascent stability with imported CP (RASAero test)"), check);
+		assertTrue(call("import_aero_table", "{\"designId\":\"" + id + "\",\"mode\":\"show\"}").contains("with CP"));
+		call("import_aero_table", "{\"designId\":\"" + id + "\",\"mode\":\"clear\"}");
+		assertTrue(!call("check_requirements", "{\"designId\":\"" + id + "\",\"includeWindCase\":false}").contains("imported CP"));
+
+		// Our own full-resolution export read back as an altimeter log: the model matches itself.
+		String log = tmp.resolve("flight.csv").toString().replace("\\", "/");
+		call("export_flight_data", "{\"designId\":\"" + id + "\",\"path\":\"" + log + "\",\"variables\":[\"altitude\"]}");
+		String plot = tmp.resolve("overlay.svg").toString().replace("\\", "/");
+		JsonObject cmp = JsonParser.parseString(call("compare_flight", "{\"designId\":\"" + id + "\",\"path\":\"" + log
+				+ "\",\"plotPath\":\"" + plot + "\"}")).getAsJsonObject();
+		String fit = cmp.getAsJsonObject("calibration").get("dragFactor").getAsString();
+		assertEquals(1.0, Double.parseDouble(fit.split(" ")[0]), 0.03, cmp.toString());
+		assertTrue(Files.exists(tmp.resolve("overlay.svg")));
+	}
 }

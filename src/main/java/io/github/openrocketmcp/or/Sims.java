@@ -176,6 +176,11 @@ public final class Sims {
 		// same gusts for the same simulation. See Variants.seed.
 		Variants.seed(sim.getOptions(), sim.getOptions().getRandomSeed());
 		Analysis.settle(sim.getRocket().getFlightConfiguration(sim.getFlightConfigurationId()));
+		var table = AeroTable.listenerFor(sim);
+		if (table != null) {
+			listeners = java.util.Arrays.copyOf(listeners, listeners.length + 1);
+			listeners[listeners.length - 1] = table;
+		}
 		try {
 			sim.simulate(listeners);
 		} catch (Exception e) {

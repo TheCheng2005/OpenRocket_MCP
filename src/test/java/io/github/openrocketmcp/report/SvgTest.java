@@ -12,8 +12,8 @@ import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.junit.jupiter.api.Test;
 
-class SvgTest {
-	static void wellFormed(String svg) {
+public class SvgTest {
+	public static void wellFormed(String svg) {
 		assertDoesNotThrow(() -> DocumentBuilderFactory.newInstance().newDocumentBuilder()
 				.parse(new ByteArrayInputStream(svg.getBytes(StandardCharsets.UTF_8))), svg);
 		assertFalse(svg.contains("NaN"), "no NaN coordinates");
