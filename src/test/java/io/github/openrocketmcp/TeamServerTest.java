@@ -124,6 +124,11 @@ class TeamServerTest {
 		assertFalse(files.contains(".openrocket"), files);
 		String opened = call("open_design", "{\"path\":\"designs/simple.ork\"}");
 		assertTrue(opened.contains("\"file\":\"designs/simple.ork\""), "paths shown relative to the workspace: " + opened);
+		// Windows paths come out the same way (backslashes are doubled inside JSON strings).
+		var win = Main.relativePaths("C:\\Rockets", "\\");
+		assertEquals("{\"file\":\"designs/v2/rocket.ork\"}", win.apply("{\"file\":\"C:\\\\Rockets\\\\designs\\\\v2\\\\rocket.ork\"}"));
+		assertEquals("saved designs/rocket.ork", win.apply("saved C:\\Rockets\\designs\\rocket.ork"));
+		assertEquals("C:\\Other\\x.ork", win.apply("C:\\Other\\x.ork"));
 		assertFalse(opened.contains(ws.toString()), opened);
 	}
 

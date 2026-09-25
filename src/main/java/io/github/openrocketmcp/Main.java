@@ -187,13 +187,25 @@ public final class Main {
 
 	/** Shows workspace files as relative paths ("designs/rocket.ork"), as people know them from the files page. */
 	static java.util.function.UnaryOperator<String> relativePaths(Path workspace) {
-		String sep = workspace.getFileSystem().getSeparator();
-		String raw = workspace + sep;
-		String json = raw.replace("\\", "\\\\");
 		if (workspace.getParent() == null) {
 			return java.util.function.UnaryOperator.identity(); // the file system root: nothing sensible to strip
 		}
-		return text -> text.replace(json, "").replace(raw, "");
+		return relativePaths(workspace.toString(), workspace.getFileSystem().getSeparator());
+	}
+
+	static java.util.function.UnaryOperator<String> relativePaths(String workspace, String sep) {
+		String raw = workspace + sep;
+		String json = raw.replace("\\", "\\\\");
+		if (!sep.equals("\\")) {
+			return text -> text.replace(raw, "");
+		}
+		// Windows: in JSON output each backslash is doubled; show the rest of the path with "/" like the files page.
+		java.util.regex.Pattern jsonPath = java.util.regex.Pattern.compile(java.util.regex.Pattern.quote(json) + "([^\"\\s]*)");
+		java.util.regex.Pattern rawPath = java.util.regex.Pattern.compile(java.util.regex.Pattern.quote(raw) + "([^\"\\s]*)");
+		return text -> {
+			String t = jsonPath.matcher(text).replaceAll(m -> java.util.regex.Matcher.quoteReplacement(m.group(1).replace("\\\\", "/")));
+			return rawPath.matcher(t).replaceAll(m -> java.util.regex.Matcher.quoteReplacement(m.group(1).replace("\\", "/")));
+		};
 	}
 
 	static HttpTransport http(List<String> a) throws Exception {
