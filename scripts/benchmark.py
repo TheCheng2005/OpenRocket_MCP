@@ -380,6 +380,36 @@ def scenario_post_flight(s, d, tmp):
     check(sc, "calibration < 15 s", dt < 15, f"{dt:.1f} s")
 
 
+def scenario_studies(s, d):
+    """'Which nose cone and fin edges should we build? What lands where, and what do the joints carry?'"""
+    sc = "shape study, sections, loads"
+    t0 = time.time()
+    sh = s.call("compare_shapes", {"designId": d})
+    dt = time.time() - t0
+    rows = sh["options"]
+    check(sc, "every nose profile and fin edge flown (>= 11 options, no duplicates)",
+          len(rows) >= 11 and len({(r["nose"], r["finEdges"]) for r in rows}) == len(rows), str(len(rows)))
+    check(sc, "recommendation respects the stability floor", "bestMeetingStability" in sh, json.dumps(sh.get("bestMeetingStability")))
+    haack = [r for r in rows if r["nose"].startswith("Von Karman")]
+    blunt = [r for r in rows if r["nose"].startswith("1/2 power")]
+    check(sc, "supersonic design: Von Karman has less drag than a 1/2-power nose",
+          haack and blunt and float(haack[0]["cdAtDesignMach"]) < float(blunt[0]["cdAtDesignMach"]),
+          f'{haack[0]["cdAtDesignMach"] if haack else "?"} vs {blunt[0]["cdAtDesignMach"] if blunt else "?"} at Mach {sh["designMach"]}')
+    check(sc, "shape study < 20 s", dt < 20, f"{dt:.1f} s")
+
+    sec = s.call("recovery_sections", {"designId": d})
+    check(sc, "sections derived from the bays (nose / main bay / drogue bay + fin can)", len(sec["sections"]) == 3,
+          json.dumps([x["section"] for x in sec["sections"]]))
+    check(sc, "each section has landing energy vs the limit", all("landingEnergy" in x for x in sec["sections"]))
+    check(sc, "bay fill reported for the main and drogue bays", sum(len(x.get("bays", [])) for x in sec["sections"]) == 2)
+
+    ld = s.call("structural_loads", {"designId": d, "allowableStress": "150 MPa"})
+    check(sc, "loads at every joint with axial and bending", all("maxAxialCompression" in j and "bendingMomentMaxQGust" in j
+                                                                for j in ld["joints"]) and len(ld["joints"]) >= 2)
+    check(sc, "fiberglass airframe has positive margin", all("OK" in j.get("margin", "OK") for j in ld["joints"]),
+          json.dumps([j.get("margin") for j in ld["joints"]]))
+
+
 def main():
     if not os.path.exists(BIN):
         sys.exit(f"Build first: ./gradlew installDist ({BIN} missing)")
@@ -395,7 +425,8 @@ def main():
                      ("Dispersion + report", lambda: scenario_dispersion_report(s, tmp)),
                      ("Structures + vehicle dispersion", lambda: scenario_structures(s, scratch["d"])),
                      ("OpenRocket depth", lambda: scenario_openrocket_depth(s, scratch["d"], tmp)),
-                     ("Post-flight", lambda: scenario_post_flight(s, scratch["d"], tmp))]:
+                     ("Post-flight", lambda: scenario_post_flight(s, scratch["d"], tmp)),
+                     ("Design studies", lambda: scenario_studies(s, scratch["d"]))]:
         print(f"\n== {name}")
         try:
             fn()

@@ -39,7 +39,9 @@
         "strength": "140 N",
         "source": "UTAT-ROC-LIQ-REC-001: four 4-40 pins hold 560 N"
       }
-    }
+    },
+    "maxLandingEnergy": "75 ft-lbf",
+    "maxLandingEnergyNote": "Per independently landing section; common high-power practice (e.g. IREC). Set your competition's value."
   },
   "structures": {
     "flutterMinMargin": 1.5,
@@ -74,6 +76,7 @@
         "value": "0.8 GPa",
         "source": "typical"
       }
-    }
+    },
+    "loadSafetyFactor": 2.0
   }
 }

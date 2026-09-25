@@ -170,7 +170,10 @@ class StructuresTest {
 				d.doc, nose, 0.6 * nose.getLength(), target);
 		assertEquals(b.baseMinStability(), again.baseMinStability(), 1e-12, "repeatable across calls");
 		assertTrue(b.minStability() >= target - 0.03, b.toString());
-		assertTrue(b.minStability() <= target + 0.15, "not grossly over-ballasted: " + b);
+		// The simulated minimum can jump across the target (platform arithmetic moves the jump); an overshoot must then
+		// be explained to the user.
+		assertTrue(b.minStability() <= target + 0.15 || (b.note() != null && b.note().contains("jumps")),
+				"overshoot without explanation: " + b);
 	}
 
 	@Test

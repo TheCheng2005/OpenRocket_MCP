@@ -326,6 +326,12 @@ public final class Structures {
 					simBest = rn.sim();
 				}
 			}
+			if (sBest > target + 0.1 && !Double.isNaN(hi) && lo > 0 && hi - lo < 0.05 * Math.max(hi, 0.1)) {
+				note = "The simulated minimum stability jumps from " + Units.num(sLo) + " to " + Units.num(sHi) + " cal between "
+						+ Units.fmt(lo, Dim.MASS) + " and " + Units.fmt(hi, Dim.MASS) + " of ballast (the minimum moves to a different "
+						+ "point of the flight), so " + Units.num(target) + " cal exactly is not reachable; this is the lightest mass "
+						+ "that meets it.";
+			}
 			if (sBest < target - 0.02) {
 				note = "Could not reach " + Units.num(target) + " cal within the iteration budget; best "
 						+ Units.num(sBest) + " cal. The minimum may occur where ballast has little effect (e.g. high AoA "
