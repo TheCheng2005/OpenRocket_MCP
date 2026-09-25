@@ -15,14 +15,16 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
    - Descent rate -> `size_parachute` (with `device` to use the simulated descent mass), then `edit_components`.
    - Motor -> `rank_motors` (objective target_apogee / max_apogee / min_impulse_meeting_rules), then `set_motor`.
      Custom engines (liquid/hybrid/static-fire data) -> `create_custom_motor` or `import_motor_file`.
-   - Stability (CP/CG) -> `optimize` a fin dimension or ballast `componentMass` (objective target_stability, or
-     max_apogee with minStability), check the result, then apply. Use `sweep` to show the trade-off table.
+   - Stability (CP/CG) -> `optimize` a fin dimension or ballast `componentMass` with `meetRules: true` (LC 2027: at
+     least max(1.5 cal, 10% of body length), also in 30 km/h wind), check the result, then apply. Use `sweep` to show the trade-off table.
    - Target apogee -> `optimize` with objective target_apogee (ballast, or motor choice via `rank_motors`).
    - Wind / landing area -> `monte_carlo` for the landing ellipse and worst-case deployment loads.
 5. Recovery chain -> `recovery_analysis` (pinType from standards), `deployment_delay_sweep` for late drogue deployment,
    `ejection_charge` (pins to break), `recovery_bay_fit`, `descent_energy` per tethered section.
 6. Re-run `check_requirements`. Only `save_design` after the user agrees; prefer saving to a new file.
-7. For design reviews, `generate_report` writes report.md, the DTEG R10.3.2 stability plots and a CSV.
+7. Liquid / hybrid programs: `pressure_vessel` for every tank/COPV/chamber, `advanced_probation` for the GLPP level and
+   Isp/AASI; `create_custom_motor` from static-fire data. Walk through the `manualChecks` list from check_requirements.
+8. For design reviews, `generate_report` writes report.md, the DTEG R10.3.2 stability plots and a CSV.
 
 Write results like the team's test reports: inputs, equations, values, results. Label each number as simulated
 (OpenRocket), calculated (tool formula) or assumed (standards). Remind the user that ground tests and RSO review are

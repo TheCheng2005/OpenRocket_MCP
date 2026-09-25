@@ -51,6 +51,8 @@ public final class AnalysisTools {
 						.enumStr("objective", "What to optimize.", true, "target_apogee", "max_apogee", "target_stability", "min_mass")
 						.qty("targetApogee", "Target apogee for target_apogee.", false)
 						.num("targetStability", "Target launch margin (cal) for target_stability.", false)
+						.bool("meetRules", "Derive stability limits from the rule set: floor = max(minimum calibers, % of body "
+								+ "length x L:D) (LC 2027: 10% BL), ceiling = over-stability; rail exit from the rules.", false)
 						.num("minStability", "Minimum simulated ascent stability, cal (e.g. 1.5).", false)
 						.num("maxStability", "Maximum simulated ascent stability, cal.", false)
 						.qty("minRailExit", "Minimum rail exit velocity (default: rule set).", false)
@@ -117,8 +119,29 @@ public final class AnalysisTools {
 			default -> Double.NaN;
 		};
 		double railRule = ctx.standards().rule("railDepartureVelocity.min", Dim.VELOCITY);
-		Optimizer.Constraints c = new Optimizer.Constraints(a.num("minStability", Double.NaN), a.num("maxStability", Double.NaN),
-				a.qty("minRailExit", Dim.VELOCITY, obj == Optimizer.Objective.TARGET_STABILITY && !a.has("minStability") ? Double.NaN : railRule),
+		double minStab = a.num("minStability", Double.NaN), maxStab = a.num("maxStability", Double.NaN);
+		String ruleBasis = null;
+		if (a.bool("meetRules", false)) {
+			// Stability floor from the rule set: max(minimum calibers, % of body length x L:D); ceiling: over-stability.
+			var std = ctx.standards();
+			var fcNow = d.doc.getRocket().getSelectedConfiguration();
+			double cal = std.rule(io.github.openrocketmcp.or.Analysis.hasDiameterChange(fcNow)
+					? "stability.minCalibersWithDiameterChange" : "stability.minCalibers", Dim.DIMENSIONLESS);
+			double pct = std.rule("staticMarginPercentLength.min", Dim.DIMENSIONLESS);
+			double ld = io.github.openrocketmcp.or.Dynamics.lengthToDiameter(fcNow);
+			double floor = Math.max(Double.isNaN(cal) ? 0 : cal, Double.isNaN(pct) ? 0 : pct / 100 * ld);
+			if (Double.isNaN(minStab) && floor > 0) {
+				minStab = floor;
+			}
+			double over = std.rule("stability.overStable", Dim.DIMENSIONLESS);
+			if (Double.isNaN(maxStab) && !Double.isNaN(over)) {
+				maxStab = over;
+			}
+			ruleBasis = "minStability " + Units.num(minStab) + " cal = max(" + Units.num(cal) + " cal, " + Units.num(pct)
+					+ "% of body length at L:D " + Units.num(ld) + "); maxStability " + Units.num(maxStab) + " cal (over-stable)";
+		}
+		Optimizer.Constraints c = new Optimizer.Constraints(minStab, maxStab,
+				a.qty("minRailExit", Dim.VELOCITY, obj == Optimizer.Objective.TARGET_STABILITY && Double.isNaN(minStab) ? Double.NaN : railRule),
 				a.num("maxMach", Double.NaN), a.qtyOrNaN("minApogee", Dim.DISTANCE));
 		Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
 				ctx.standards(), false);
@@ -149,6 +172,9 @@ public final class AnalysisTools {
 		}
 		if (!Double.isNaN(windCase)) {
 			cons.put("evaluatedAt", "nominal wind and " + Units.fmt(windCase, Dim.VELOCITY) + " (rule set maximum ground wind); worse of the two");
+		}
+		if (ruleBasis != null) {
+			cons.put("fromRules", ruleBasis);
 		}
 		out.put("constraints", cons);
 		out.put("feasible", r.feasible());

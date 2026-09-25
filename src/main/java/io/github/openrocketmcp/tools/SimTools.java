@@ -106,10 +106,13 @@ public final class SimTools {
 				true, a -> sweep(ctx, a)));
 
 		s.tool(new ToolDef("check_requirements", "Check the design against competition rules",
-				"Simulate and check against the active rule set (default Launch Canada DTEG R4) and team standards: launch angle, "
-						+ "rail departure velocity, thrust-to-weight (per stage for staged flights), ascent stability and "
-						+ "over-stability (also in the design wind), air-start tilt and altitude inhibit, dual-event recovery, "
-						+ "drogue and main descent rates, main deployment altitude. Returns PASS/FAIL/WARN/INFO with rule references.",
+				"Simulate and check against the active rule set (default Launch Canada 2027 = DTEG R4 + 2027 edicts) and team "
+						+ "standards: launch angle, rail departure velocity, thrust-to-weight (per stage), ascent stability and "
+						+ "over-stability (also in the design wind), L:D ratio, damping ratio, static margin as % of body length, "
+						+ "rail button material, SRAD engine Isp, air-start tilt and altitude inhibit, early/late deployments, "
+						+ "dual-event recovery, drogue and main descent rates, main deployment altitude, and the dress-rehearsal pop "
+						+ "tests to plan. Returns PASS/FAIL/WARN/INFO with rule references plus a manual checklist (electronics, "
+						+ "radio, structures, operations).",
 				overrides(simSelect(Schema.object()))
 						.bool("includeWindCase", "Also simulate at the rule set's maximum ground wind (default true).", false).build(),
 				false, a -> {

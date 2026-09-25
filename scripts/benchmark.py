@@ -142,14 +142,20 @@ def scenario_from_scratch(s):
                                 "variables": fins, "maxEvaluations": 48})
     check(sc, "an infeasible stability window is explained (which limits bind)",
           tight["feasible"] or ("stability" in tight.get("note", "")), tight.get("note", "feasible"))
-    opt = s.call("optimize", {"designId": d, "objective": "max_apogee", "minStability": 1.5, "maxStability": 6,
+    opt = s.call("optimize", {"designId": d, "objective": "max_apogee", "meetRules": True,
                               "variables": fins, "maxEvaluations": 48, "apply": True})
-    check(sc, "optimizer finds fins meeting DTEG 1.5-6 cal incl. design wind", opt["feasible"],
+    check(sc, "optimizer meets the rule-derived stability window (incl. 10% body length, design wind)", opt["feasible"],
           opt.get("note", json.dumps(opt["best"])))
+    check(sc, "rule-derived stability floor includes the 2027 %-body-length edict",
+          "body length" in opt["constraints"].get("fromRules", ""), opt["constraints"].get("fromRules", ""))
     check(sc, "optimizer evaluates the design-wind case", "evaluatedAt" in opt["constraints"])
     req = s.call("check_requirements", {"designId": d})
     fails = [c for c in req["checks"] if c["status"] == "FAIL"]
     check(sc, "final design has no rule failures", not fails, json.dumps(fails)[:600])
+    items = " ".join(c["item"] for c in req["checks"])
+    check(sc, "2027 edicts checked: L:D, damping ratio, % body length, pop tests",
+          all(k in items for k in ["Length-to-diameter", "Damping ratio", "% of body length", "dress rehearsal"]), items[:300])
+    check(sc, "manual checklist (electronics, radio, structures) included", len(req.get("manualChecks", [])) >= 10)
     return d
 
 
@@ -211,6 +217,24 @@ def scenario_custom_engine(s, tmp):
     check(sc, "simulates with the custom engine", num(sim["flight"]["apogee"]) > 100, sim["flight"]["apogee"])
 
 
+def scenario_liquid_program(s):
+    """'Is our N2O tank OK at 800 psi, and which probation level are we in?' (LC 2027 edicts)"""
+    sc = "liquid program (2027 edicts)"
+    pv = s.call("pressure_vessel", {"meop": "800 psi", "outerDiameter": "6 in", "wallThickness": "0.125 in",
+                                    "ultimateStrength": "290 MPa", "welded": True, "weldKnockdown": 1.3,
+                                    "proofPressure": "1200 psi"})
+    burst_psi = 2 * 290e6 / 6894.757 * 0.125 / 6
+    check(sc, "Barlow burst and 2 x MEOP x knockdown check", pv["burstCheck"] == ("PASS" if burst_psi >= 2 * 800 * 1.3 else "FAIL"),
+          f'{pv["burstPressure"]} vs {pv["requiredBurst"]}')
+    check(sc, "proof pressure >= 1.5 x MEOP", pv["proofCheck"] == "PASS", pv.get("proofCheck"))
+    copv = s.call("pressure_vessel", {"meop": "750 psi", "burstPressure": "2800 psi", "copv": True})
+    check(sc, "COPV needs 4 x MEOP (2800 < 3000 psi fails)", copv["burstCheck"] == "FAIL", copv["requiredBurst"])
+    pl = s.call("advanced_probation", {"glppVolume": "6 L", "totalImpulse": "9000 Ns", "propellantMass": "7 kg",
+                                       "targetAltitude": "10000 ft", "actualAltitude": "7000 ft"})
+    check(sc, "6 L GLPP is probation level 1", pl["probationLevel"].startswith("PL1"), pl["probationLevel"])
+    check(sc, "AASI = min(1, 7000/10000) x Isp", abs(num(pl["aasi"]) - 0.7 * 9000 / (7 * 9.80665)) < 0.2, pl["aasi"])
+
+
 def scenario_dispersion_report(s, tmp):
     """'Where will it land in 15 km/h wind, and give me the design-review package.'"""
     sc = "dispersion + report"
@@ -237,6 +261,7 @@ def main():
                      ("Recovery chain", lambda: scenario_recovery(s)),
                      ("Two-stage", lambda: scenario_two_stage(s)),
                      ("Custom liquid engine", lambda: scenario_custom_engine(s, tmp)),
+                     ("Liquid program (2027 edicts)", lambda: scenario_liquid_program(s)),
                      ("Dispersion + report", lambda: scenario_dispersion_report(s, tmp))]:
         print(f"\n== {name}")
         try:

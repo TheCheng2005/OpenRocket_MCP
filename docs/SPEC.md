@@ -98,6 +98,21 @@ Found by building a 10k ft Launch Canada rocket from scratch through the tools, 
   length.
 - Output size: compact JSON and a one-line-per-component tree (-33% tool output).
 
+### Launch Canada 2027 edicts (v0.4.0)
+
+From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-canada-2027` (now the default):
+
+- Length-to-diameter ratio (shall ≤ 45, should ≤ 25).
+- Damping ratio along the ascent (shall 0.03–0.5, should 0.05–0.3): Barrowman/Apogee formulation with OpenRocket's
+  per-component CNα and CP (verified to reproduce OpenRocket's vehicle CP), simulated inertia and jet damping; the
+  vehicle configuration follows staging.
+- Static margin ≥ 10% of body length from rail exit to twice each stage's burn time (the stack after separation uses
+  its own length); `optimize` with `meetRules` derives the floor max(1.5 cal, 10% x L:D).
+- Metal rail buttons prohibited; SRAD/hybrid/liquid static-fire Isp ≥ 100 s; concentric avionics reminder above
+  Mach 0.7; pop-test list for the dress rehearsal; manual checklist for electronics, radio allocations, structures,
+  SRAD test sequence and operations.
+- `pressure_vessel` and `advanced_probation` tools (GLPP probation levels, AASI).
+
 ### Phase 3 — next
 
 - **Sections**: identify independently tethered sections from the design (separation points) for per-section landing

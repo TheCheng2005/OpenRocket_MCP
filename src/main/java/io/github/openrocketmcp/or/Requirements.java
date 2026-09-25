@@ -12,6 +12,8 @@ import info.openrocket.core.motor.MotorConfiguration;
 import info.openrocket.core.motor.ThrustCurveMotor;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.MotorMount;
+import info.openrocket.core.rocketcomponent.RecoveryDevice;
+import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.simulation.FlightData;
 import info.openrocket.core.simulation.FlightDataBranch;
 import info.openrocket.core.simulation.FlightDataType;
@@ -35,6 +37,7 @@ public final class Requirements {
 
 	public static final class Report {
 		final List<Map<String, Object>> items = new ArrayList<>();
+		List<String> manual;
 
 		void add(Status s, String item, String requirement, String value, String ref) {
 			Map<String, Object> m = new LinkedHashMap<>();
@@ -62,6 +65,9 @@ public final class Requirements {
 			out.put("summary", fail == 0 ? (warn == 0 ? "All checks pass." : "No failures; " + warn + " warning(s).")
 					: fail + " failure(s), " + warn + " warning(s).");
 			out.put("checks", items);
+			if (manual != null) {
+				out.put("manualChecks", manual);
+			}
 			return out;
 		}
 	}
@@ -72,6 +78,12 @@ public final class Requirements {
 
 	public static Report check(Simulation sim, Simulation windCase, Standards std) {
 		Report r = new Report();
+		if (std.rules().has("manualChecks")) {
+			r.manual = new ArrayList<>();
+			for (com.google.gson.JsonElement e : std.rules().getAsJsonArray("manualChecks")) {
+				r.manual.add(e.getAsString());
+			}
+		}
 		FlightData data = sim.getSimulatedData();
 		SimulationOptions opt = sim.getOptions();
 		FlightConfiguration fc = sim.getRocket().getFlightConfiguration(sim.getFlightConfigurationId());
@@ -184,6 +196,8 @@ public final class Requirements {
 					Units.num(mach), null);
 		}
 
+		edicts(r, sim, fc, std);
+
 		// Recovery, per branch
 		earlyDeployments(r, sim);
 		recovery(r, sim, std);
@@ -221,6 +235,116 @@ public final class Requirements {
 			Status s = w.max() >= over ? Status.WARN : !Double.isNaN(concern) && w.max() > concern ? Status.WARN : Status.PASS;
 			r.add(s, label + " (maximum, over-stability)", "should stay below ~" + Units.num(concern) + " cal; >= "
 					+ Units.num(over) + " cal is over-stable", Units.num(w.max()) + " cal", std.ruleRef("stability"));
+		}
+	}
+
+	/** Checks from the Launch Canada 2027 edicts (present only in rule sets that define them). */
+	static void edicts(Report r, Simulation sim, FlightConfiguration fc, Standards std) {
+		double ldMax = std.rule("lengthToDiameter.max", Dim.DIMENSIONLESS);
+		if (!Double.isNaN(ldMax)) {
+			double ld = Dynamics.lengthToDiameter(fc);
+			double ldRec = std.rule("lengthToDiameter.recommendedMax", Dim.DIMENSIONLESS);
+			r.add(ld > ldMax ? Status.FAIL : ld > ldRec ? Status.WARN : Status.PASS, "Length-to-diameter ratio",
+					"shall not exceed " + Units.num(ldMax) + ", should not exceed " + Units.num(ldRec), Units.num(ld),
+					std.ruleRef("lengthToDiameter"));
+		}
+		double zMin = std.rule("dampingRatio.min", Dim.DIMENSIONLESS);
+		double pctMin = std.rule("staticMarginPercentLength.min", Dim.DIMENSIONLESS);
+		if (!Double.isNaN(zMin) || !Double.isNaN(pctMin)) {
+			List<Dynamics.Sample> samples = Dynamics.ascent(sim, 30.48, 150);
+			if (!Double.isNaN(zMin) && !samples.isEmpty()) {
+				double zMax = std.rule("dampingRatio.max", Dim.DIMENSIONLESS);
+				double zrMin = std.rule("dampingRatio.recommendedMin", Dim.DIMENSIONLESS);
+				double zrMax = std.rule("dampingRatio.recommendedMax", Dim.DIMENSIONLESS);
+				Dynamics.Sample lo = null, hi = null;
+				for (Dynamics.Sample x : samples) {
+					if (Double.isNaN(x.dampingRatio())) {
+						continue;
+					}
+					lo = lo == null || x.dampingRatio() < lo.dampingRatio() ? x : lo;
+					hi = hi == null || x.dampingRatio() > hi.dampingRatio() ? x : hi;
+				}
+				if (lo != null) {
+					Status st = lo.dampingRatio() < zMin || hi.dampingRatio() > zMax ? Status.FAIL
+							: lo.dampingRatio() < zrMin || hi.dampingRatio() > zrMax ? Status.WARN : Status.PASS;
+					r.add(st, "Damping ratio during ascent (airspeed > 100 ft/s)",
+							Units.num(zMin) + " to " + Units.num(zMax) + " (shall), " + Units.num(zrMin) + " to " + Units.num(zrMax)
+									+ " (should); low = weak damping of oscillations, high = hard weathercocking",
+							Units.num(lo.dampingRatio()) + " (t=" + Units.num(lo.time()) + " s, Mach " + Units.num(lo.mach()) + ") to "
+									+ Units.num(hi.dampingRatio()) + " (t=" + Units.num(hi.time()) + " s)",
+							std.ruleRef("dampingRatio"));
+				}
+			}
+			if (!Double.isNaN(pctMin)) {
+				double end = Dynamics.marginWindowEnd(sim);
+				Dynamics.Sample worst = null;
+				for (Dynamics.Sample x : samples) {
+					if ((Double.isNaN(end) || x.time() <= end) && !Double.isNaN(x.marginPercentLength())
+							&& (worst == null || x.marginPercentLength() < worst.marginPercentLength())) {
+						worst = x;
+					}
+				}
+				if (worst != null) {
+					r.add(worst.marginPercentLength() >= pctMin ? Status.PASS : Status.FAIL,
+							"Static margin as % of body length (rail exit to 2 x burn time" + (Double.isNaN(end) ? "" : ", t <= "
+									+ Units.num(end) + " s") + ")",
+							">= " + Units.num(pctMin) + "% of body length (= " + Units.num(pctMin / 100 * Dynamics.lengthToDiameter(fc))
+									+ " cal for this L:D)",
+							Units.num(worst.marginPercentLength()) + "% (" + Units.num(worst.marginCalibers()) + " cal) at t="
+									+ Units.num(worst.time()) + " s",
+							std.ruleRef("staticMarginPercentLength"));
+				}
+			}
+		}
+		if (std.rules().has("railButtons")) {
+			for (RocketComponent c : fc.getRocket()) {
+				if (c instanceof info.openrocket.core.rocketcomponent.RailButton rb && fc.isComponentActive(c)) {
+					String mat = rb.getMaterial().getName().toLowerCase(java.util.Locale.ROOT);
+					boolean metal = mat.contains("aluminum") || mat.contains("aluminium") || mat.contains("steel")
+							|| mat.contains("brass") || mat.contains("titanium") || mat.contains("copper");
+					r.add(metal ? Status.FAIL : Status.PASS, "Rail button material (" + c.getName() + ")",
+							"no metal rail buttons; machine them from Delrin (POM)", rb.getMaterial().getName(), std.ruleRef("railButtons"));
+				}
+			}
+		}
+		double machAv = std.rule("avionicsMachConcentric.value", Dim.DIMENSIONLESS);
+		if (!Double.isNaN(machAv) && sim.getSimulatedData().getMaxMachNumber() > machAv) {
+			r.add(Status.INFO, "Avionics bay layout (Mach " + Units.num(sim.getSimulatedData().getMaxMachNumber()) + ")",
+					"above Mach " + Units.num(machAv) + ": concentric altimeter bay with concentric air sampling holes; crescent "
+							+ "bays only in RF-transparent material", "verify in CAD", std.ruleRef("avionicsMachConcentric"));
+		}
+		double ispMin = std.rule("srad.minStaticFireIsp", Dim.TIME);
+		if (!Double.isNaN(ispMin)) {
+			for (info.openrocket.core.motor.MotorConfiguration mc : fc.getActiveMotors()) {
+				if (mc.getMotor() instanceof info.openrocket.core.motor.ThrustCurveMotor m
+						&& (m.getMotorType() == info.openrocket.core.motor.Motor.Type.HYBRID
+								|| m.getMotorType() == info.openrocket.core.motor.Motor.Type.UNKNOWN)) {
+					double prop = m.getLaunchMass() - m.getBurnoutMass();
+					double isp = prop > 0 ? m.getTotalImpulseEstimate() / (prop * io.github.openrocketmcp.calc.Atmosphere.G0) : Double.NaN;
+					r.add(isp >= ispMin ? Status.PASS : Status.FAIL, "SRAD/hybrid/liquid engine Isp (" + m.getDesignation() + ")",
+							">= " + Units.num(ispMin) + " s in static fires to come to competition (higher by probation level; "
+									+ "see advanced_probation)",
+							Units.num(isp) + " s (total impulse / propellant weight)", std.ruleRef("srad"));
+				}
+			}
+		}
+		if (std.rules().has("popTests")) {
+			List<String> tests = new ArrayList<>();
+			for (RocketComponent c : fc.getRocket()) {
+				if (c instanceof RecoveryDevice && fc.isComponentActive(c)) {
+					tests.add("pop test: " + c.getName() + " bay");
+				}
+			}
+			for (info.openrocket.core.rocketcomponent.AxialStage st : fc.getActiveStages()) {
+				if (st.getStageNumber() > 0) {
+					tests.add("separation test: " + st.getName());
+				}
+			}
+			if (!tests.isEmpty()) {
+				r.add(Status.INFO, "Assembly dress rehearsal tests", "pop-test every component that separates in flight, with the "
+						+ "finished rocket (no change to nose weight, tolerances or shear pins); yank test for single-bay dual deploy",
+						String.join("; ", tests), std.ruleRef("popTests"));
+			}
 		}
 	}
 
