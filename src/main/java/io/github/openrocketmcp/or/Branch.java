@@ -21,12 +21,17 @@ import info.openrocket.core.simulation.FlightDataType;
 final class Branch {
 	private static final Map<FlightDataBranch, Branch> CACHE = Collections.synchronizedMap(new WeakHashMap<>());
 
-	final FlightDataBranch raw;
+	/*
+	 * Weak: the cache below is a WeakHashMap keyed by the FlightDataBranch; a strong reference from the value back to
+	 * its key would keep every simulated flight alive for the life of the server (it did: a long session, or the test
+	 * suite, eventually spent all its time in garbage collection).
+	 */
+	private final java.lang.ref.WeakReference<FlightDataBranch> raw;
 	final double[] time;
 	private final Map<FlightDataType, double[]> columns = new ConcurrentHashMap<>();
 
 	private Branch(FlightDataBranch raw) {
-		this.raw = raw;
+		this.raw = new java.lang.ref.WeakReference<>(raw);
 		this.time = toArray(raw.get(FlightDataType.TYPE_TIME));
 	}
 
@@ -52,7 +57,8 @@ final class Branch {
 	/** Column values; NaN-filled when the type was not recorded. */
 	double[] col(FlightDataType type) {
 		return columns.computeIfAbsent(type, t -> {
-			double[] v = toArray(raw.get(t));
+			FlightDataBranch b = raw.get();
+			double[] v = b == null ? new double[0] : toArray(b.get(t));
 			if (v.length == 0) {
 				v = new double[time.length];
 				Arrays.fill(v, Double.NaN);

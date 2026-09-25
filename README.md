@@ -40,6 +40,8 @@ Claude: A 36 in chute lands the 2.84 lb section at 19.9 ft/s. The drogue opens a
 
 **Structures**
 - "Will our fins flutter?" — and how thick they need to be if they will.
+- "Will it get too hot?" — nose tip, fin edges and body temperatures at speed against your materials' limits.
+- "How straight do the fins need to be?" — roll rate from misaligned fins, and whether it risks a roll-pitch resonance.
 - Loads at every airframe joint during boost and at maximum speed, to size couplers and fasteners.
 
 **Competition and reviews**
@@ -47,6 +49,11 @@ Claude: A 36 in chute lands the 2.84 lb section at 19.9 ft/s. The drogue opens a
 - A design-review package: report, stability plots and flight data, ready for your review board.
 - Pressure vessel margins and probation level for liquid and hybrid programmes.
 - Use RASAero data where Launch Canada asks for it.
+
+**Launch day**
+- "What will the winds be at our site on Saturday at 10 am?" — give the launch site's GPS coordinates and Claude pulls
+  the forecast, including winds up at altitude, and flies the rocket in it. No internet? Just tell Claude the winds.
+- A one-page flight card: predictions, motor delay, deployment settings, drift in each wind, and sign-off lines.
 
 **After you fly**
 - Load your altimeter file: Claude compares it with the prediction and tunes the model for next time.

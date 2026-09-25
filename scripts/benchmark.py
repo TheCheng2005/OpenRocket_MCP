@@ -410,6 +410,31 @@ def scenario_studies(s, d):
           json.dumps([j.get("margin") for j in ld["joints"]]))
 
 
+def scenario_launch_day(s, d, tmp):
+    """'Here are our launch site coordinates: what will the winds do, and give us the flight card.'"""
+    sc = "launch day: weather, flight card, heating, roll"
+    ask = s.call("weather_forecast", {"designId": d, "apply": False}, expect_error=True)
+    check(sc, "asks for GPS coordinates when the site is unknown", "GPS coordinates" in ask, ask[:120])
+    sample = open(os.path.join(ROOT, "src", "test", "resources", "open-meteo-sample.json")).read()
+    wx = s.call("weather_forecast", {"designId": d, "forecastJson": sample, "time": "2027-08-21T15:00"})
+    check(sc, "forecast parsed: ground wind, gusts, winds aloft, rule-limit check",
+          all(k in wx["ground"] for k in ("wind", "gusts", "vsRuleLimit")) and len(wx["windsAloft"]) >= 8, json.dumps(wx["ground"]))
+    check(sc, "forecast applied and the flight re-simulated", "flightInForecast" in wx)
+    card = os.path.join(tmp, "flight-card.md")
+    s.call("flight_card", {"designId": d, "path": card})
+    md = open(card).read()
+    check(sc, "flight card has vehicle, motors + delay, recovery, drift table and rule check",
+          all(h in md for h in ("## Vehicle", "optimumDelay", "## Recovery settings", "## Drift vs ground wind", "## Rule check")))
+    heat = s.call("aero_heating", {"designId": d})
+    check(sc, "heating screen covers nose tip, fins and body with material limits",
+          any("(tip)" in x["surface"] for x in heat["surfaces"]) and any("leading edges" in x["surface"] for x in heat["surfaces"]))
+    t0 = time.time()
+    roll = s.call("roll_analysis", {"designId": d})
+    check(sc, "roll analysis gives a fin alignment tolerance", "deg" in roll["alignmentTolerance"], roll["alignmentTolerance"])
+    check(sc, "roll sweep < 15 s", time.time() - t0 < 15, f"{time.time() - t0:.1f} s")
+    s.call("wind_profile", {"designId": d, "mode": "average"})
+
+
 def main():
     if not os.path.exists(BIN):
         sys.exit(f"Build first: ./gradlew installDist ({BIN} missing)")
@@ -426,7 +451,8 @@ def main():
                      ("Structures + vehicle dispersion", lambda: scenario_structures(s, scratch["d"])),
                      ("OpenRocket depth", lambda: scenario_openrocket_depth(s, scratch["d"], tmp)),
                      ("Post-flight", lambda: scenario_post_flight(s, scratch["d"], tmp)),
-                     ("Design studies", lambda: scenario_studies(s, scratch["d"]))]:
+                     ("Design studies", lambda: scenario_studies(s, scratch["d"])),
+                     ("Launch day", lambda: scenario_launch_day(s, scratch["d"], tmp))]:
         print(f"\n== {name}")
         try:
             fn()

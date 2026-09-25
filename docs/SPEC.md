@@ -174,6 +174,18 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   separation); thin-wall stress, required allowable with `structures.loadSafetyFactor`, optional margin. Verified by
   equilibrium: the bending moment vanishes past the tail and the axial force there equals thrust.
 
+### Launch day, heating, roll (v0.9.0)
+
+- `weather_forecast`: Open-Meteo hourly forecast by coordinates (asks for them when the standards do not have them):
+  10 m wind, gusts, 2 m temperature, surface pressure, 80/120/180 m winds and 16 pressure levels 1000-100 hPa with
+  geopotential heights (levels below ground or inside the near-surface band dropped); applied as an AGL wind profile
+  plus site altitude, temperature and pressure; `forecastJson` fallback when the server is offline. Tested against a
+  local HTTP server serving a recorded-format response.
+- `flight_card`: one-page Markdown card from the simulation in the day's conditions.
+- `aero_heating`: stagnation / recovery temperature and Sutton-Graves nose-tip flux along the flight vs
+  `structures.maxServiceTemperature`.
+- `roll_analysis`: cant sweep on copies; roll rate vs pitch natural frequency sqrt(C1 / I) / 2 pi (roll resonance).
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

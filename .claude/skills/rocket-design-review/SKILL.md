@@ -31,6 +31,9 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
    - Nose cone / fin shape -> `compare_shapes` (fix stability first if it reports none meets the floor).
    - Sections and landing energy -> `recovery_sections`; joints and couplers -> `structural_loads`.
    - RASAero data (required for diameter changes) -> `import_aero_table`, then `check_requirements`.
+   - Launch day -> ask for the site's GPS coordinates, `weather_forecast` (or `wind_profile` with winds the user gives),
+     then `monte_carlo`, `check_requirements` and `flight_card`.
+   - Fast vehicles -> `aero_heating`; fin alignment tolerance -> `roll_analysis`.
    - After a flight -> `compare_flight` with the altimeter CSV and the day's conditions; use the drag factor for the
      next prediction.
 5. Recovery chain -> `recovery_analysis` (pinType from standards), `deployment_delay_sweep` for late drogue deployment,

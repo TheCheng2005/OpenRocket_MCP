@@ -242,7 +242,15 @@ public final class Standards {
 	 * case-insensitive name fragments (e.g. "fiberglass|g10"). Returns {modulus, key} or null.
 	 */
 	public Object[] shearModulus(String material) {
-		JsonElement table = path(data, "structures.shearModulus");
+		return materialValue("structures.shearModulus", material, Dim.PRESSURE);
+	}
+
+	/**
+	 * A per-material value from a standards table whose keys are '|'-separated case-insensitive name fragments (e.g.
+	 * "fiberglass|g10"). Returns {SI value, key} or null. Team entries win over default ones.
+	 */
+	public Object[] materialValue(String tablePath, String material, Dim dim) {
+		JsonElement table = path(data, tablePath);
 		if (table == null || !table.isJsonObject() || material == null) {
 			return null;
 		}
@@ -254,7 +262,7 @@ public final class Standards {
 			for (String frag : e.getKey().toLowerCase(java.util.Locale.ROOT).split("\\|")) {
 				if (!frag.isBlank() && m.contains(frag.trim())) {
 					JsonElement v = e.getValue().isJsonObject() ? e.getValue().getAsJsonObject().get("value") : e.getValue();
-					double g = v.getAsJsonPrimitive().isNumber() ? v.getAsDouble() : Units.toSi(v.getAsString(), Dim.PRESSURE);
+					double g = v.getAsJsonPrimitive().isNumber() ? v.getAsDouble() : Units.toSi(v.getAsString(), dim);
 					return new Object[] { g, e.getKey() };
 				}
 			}

@@ -382,4 +382,37 @@ class McpIntegrationTest {
 				.getAsJsonObject();
 		assertTrue(loads.getAsJsonArray("joints").size() >= 5 && loads.has("highestWallStress"), loads.toString());
 	}
+
+	@Test
+	@Order(14)
+	void launchDay(@TempDir Path tmp) throws Exception {
+		String open = call("open_design", "{\"example\":\"Dual parachute\"}");
+		String id = JsonParser.parseString(open).getAsJsonObject().get("designId").getAsString();
+		String ask = callExpectError("weather_forecast", "{\"designId\":\"" + id + "\"}");
+		assertTrue(ask.contains("GPS coordinates"), "asks for the site's coordinates: " + ask);
+		String sample;
+		try (var in = McpIntegrationTest.class.getResourceAsStream("/open-meteo-sample.json")) {
+			sample = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+		}
+		JsonObject args = new JsonObject();
+		args.addProperty("designId", id);
+		args.addProperty("time", "2027-08-21T09:00");
+		args.addProperty("forecastJson", sample);
+		JsonObject wx = JsonParser.parseString(call("weather_forecast", args.toString())).getAsJsonObject();
+		assertTrue(wx.has("windsAloft") && wx.has("flightInForecast") && wx.getAsJsonObject("ground").has("vsRuleLimit"), wx.toString());
+		assertTrue(call("wind_profile", "{\"designId\":\"" + id + "\",\"mode\":\"show\"}").contains("multi-level"));
+
+		String card = tmp.resolve("card.md").toString().replace("\\", "/");
+		JsonObject fc = JsonParser.parseString(call("flight_card", "{\"designId\":\"" + id + "\",\"path\":\"" + card + "\"}")).getAsJsonObject();
+		String md = Files.readString(tmp.resolve("card.md"));
+		assertTrue(md.contains("profile (AGL)") && md.contains("48.47"), "forecast wind and site on the card");
+		assertTrue(fc.has("apogee"));
+
+		JsonObject heat = JsonParser.parseString(call("aero_heating", "{\"designId\":\"" + id + "\"}")).getAsJsonObject();
+		assertTrue(heat.getAsJsonArray("surfaces").size() >= 3, heat.toString());
+		JsonObject roll = JsonParser.parseString(call("roll_analysis", "{\"designId\":\"" + id + "\",\"cantAngles\":[0,\"0.5 deg\",\"1 deg\"]}"))
+				.getAsJsonObject();
+		assertEquals(3, roll.getAsJsonArray("cases").size());
+		assertTrue(roll.has("alignmentTolerance"));
+	}
 }
