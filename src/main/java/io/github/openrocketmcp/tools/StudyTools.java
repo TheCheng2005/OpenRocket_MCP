@@ -26,6 +26,7 @@ public final class StudyTools {
 	}
 
 	public static void register(McpServer s, Context ctx) {
+		registerMore(s, ctx);
 		s.tool(new ToolDef("compare_shapes", "Nose cone and fin shape trade study",
 				"Fly the design with every nose cone profile (conical, tangent ogive, elliptical, 1/2 and 3/4 power, parabolic, "
 						+ "1/2 parabola, Von Karman, LV-Haack; optionally at several nose lengths) and every fin edge profile "
@@ -98,6 +99,53 @@ public final class StudyTools {
 					double sf = a.num("safetyFactor", ctx.standards().q("structures.loadSafetyFactor", Dim.DIMENSIONLESS, 2));
 					Map<String, Object> out = Loads.analyze(sim, gust, sf, a.qtyOrNaN("allowableStress", Dim.PRESSURE));
 					return out;
+				}));
+	}
+
+	static void registerMore(McpServer s, Context ctx) {
+		s.tool(new ToolDef("aero_heating", "Aerodynamic heating screen",
+				"Stagnation temperature at the nose tip and fin leading edges and recovery temperature on the body along the "
+						+ "simulated flight, compared with each part's material limit (structures.maxServiceTemperature, e.g. epoxy "
+						+ "glass transition, PLA softening), plus the nose-tip heat flux and heat load (Sutton-Graves). Adiabatic "
+						+ "upper bounds: below the limit is clear; above it needs a thermal check. Matters from about Mach 2.",
+				SimTools.overrides(SimTools.simSelect(Schema.object()))
+						.qty("noseTipRadius", "Nose tip radius for the heat flux (default 5 mm).", false).build(),
+				true, a -> {
+					Simulation sim = SimTools.runSelected(ctx, a);
+					return io.github.openrocketmcp.or.Heating.analyze(sim, ctx.standards(), a.qty("noseTipRadius", Dim.LENGTH, 0.005));
+				}));
+
+		s.tool(new ToolDef("roll_analysis", "Roll from fin misalignment",
+				"Fly the design with several fin cant (misalignment) angles and report the maximum roll rate, the roll rate at "
+						+ "burnout, the maximum angle of attack, and whether the roll rate crosses the vehicle's pitch natural "
+						+ "frequency (roll-pitch resonance risk). Recommends the fin alignment tolerance that keeps the roll below "
+						+ "maxRollRate with no crossing. Does not edit the design.",
+				SimTools.simSelect(Schema.object())
+						.array("cantAngles", "Cant angles to try (default 0, 0.1, 0.25, 0.5, 1, 2 deg).", Schema.quantityItem(), false)
+						.str("finSet", "Only cant this fin set (id or name); default all fin sets.", false)
+						.num("maxRollRate", "Acceptable roll rate in rev/s (default 2).", false).build(),
+				true, a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId", null));
+					Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
+							ctx.standards(), false);
+					java.util.List<Double> cants = a.has("cantAngles") ? a.qtyList("cantAngles", Dim.ANGLE)
+							: java.util.List.of(0.0, Math.toRadians(0.1), Math.toRadians(0.25), Math.toRadians(0.5), Math.toRadians(1),
+									Math.toRadians(2));
+					String finId = null;
+					int finCount = 4;
+					if (a.has("finSet")) {
+						var f = Components.find(base.getRocket(), a.str("finSet"), info.openrocket.core.rocketcomponent.FinSet.class, "fin set");
+						finId = f.getID().toString();
+						finCount = f.getFinCount();
+					} else {
+						for (RocketComponent c : base.getRocket()) {
+							if (c instanceof info.openrocket.core.rocketcomponent.FinSet f) {
+								finCount = f.getFinCount();
+							}
+						}
+					}
+					return io.github.openrocketmcp.or.Roll.render(io.github.openrocketmcp.or.Roll.sweep(base, d.doc, finId, cants),
+							a.num("maxRollRate", 2), finCount);
 				}));
 	}
 

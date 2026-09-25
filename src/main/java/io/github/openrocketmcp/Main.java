@@ -21,17 +21,20 @@ import io.github.openrocketmcp.tools.ReportTools;
 import io.github.openrocketmcp.tools.SimTools;
 import io.github.openrocketmcp.tools.StandardsTools;
 import io.github.openrocketmcp.tools.StudyTools;
+import io.github.openrocketmcp.tools.LaunchTools;
 import io.github.openrocketmcp.tools.StructureTools;
 
 /** Entry point: stdio MCP server for OpenRocket. */
 public final class Main {
-	public static final String VERSION = "0.8.0";
+	public static final String VERSION = "0.9.0";
 
 	static final String INSTRUCTIONS = """
 			OpenRocket MCP: design, simulate and check high-power / competition rockets with OpenRocket's physics.
 			Workflow: open_design -> get_design -> run_simulation / check_requirements -> change things -> re-check -> save_design.
 			- Let the tools do numeric work: use size_parachute, rank_motors, sweep, optimize, ballast, fin_flutter, monte_carlo,
 			  recovery_analysis, deployment_delay_sweep, aero_analysis rather than estimating by hand.
+			- Launch day: ask for the site's GPS coordinates and use weather_forecast (or wind_profile with winds the user
+			  types), then flight_card.
 			- Use OpenRocket's data: search_parts / apply_preset for real catalog parts, wind_profile for winds aloft,
 			  draw_rocket to show the design. What-if tools never modify the design. Deployment airspeed comes from the simulation and includes horizontal velocity and wind.
 			- Inputs accept units ("20 ft/s", "4 in", "15 psi"); bare numbers are SI. Output uses the team's unit setting.
@@ -56,6 +59,7 @@ public final class Main {
 		StructureTools.register(server, ctx);
 		AeroTools.register(server, ctx);
 		StudyTools.register(server, ctx);
+		LaunchTools.register(server, ctx);
 		AdvancedTools.register(server, ctx);
 		StandardsTools.register(server, ctx);
 		Prompts.register(server, ctx);

@@ -77,6 +77,57 @@
         "source": "typical"
       }
     },
-    "loadSafetyFactor": 2.0
+    "loadSafetyFactor": 2.0,
+    "maxServiceTemperature": {
+      "fiberglass|g10|g-10|fr4|fr-4": {
+        "value": "130 C",
+        "source": "G10/FR4 glass transition (~130-140 C)"
+      },
+      "carbon": {
+        "value": "80 C",
+        "source": "room-temperature-cure laminating epoxy (Tg ~60-80 C); post-cured / prepreg 120-180 C: set yours"
+      },
+      "aluminum|aluminium|6061": {
+        "value": "150 C",
+        "source": "6061-T6 loses strength above ~150 C"
+      },
+      "steel": {
+        "value": "400 C",
+        "source": "carbon steel, conservative"
+      },
+      "titanium": {
+        "value": "400 C",
+        "source": "Ti-6Al-4V, conservative"
+      },
+      "phenolic|kraft|cardboard|paper|blue tube": {
+        "value": "150 C",
+        "source": "phenolic / paper tubes, typical"
+      },
+      "plywood|birch|balsa|wood": {
+        "value": "150 C",
+        "source": "wood with epoxy glue lines, typical"
+      },
+      "polycarbonate": {
+        "value": "130 C",
+        "source": "typical heat deflection"
+      },
+      "pla": {
+        "value": "55 C",
+        "source": "3D-printed PLA softens ~55-60 C"
+      },
+      "petg": {
+        "value": "75 C",
+        "source": "3D-printed PETG"
+      },
+      "abs|asa": {
+        "value": "95 C",
+        "source": "3D-printed ABS/ASA"
+      },
+      "nylon": {
+        "value": "90 C",
+        "source": "3D-printed nylon, typical heat deflection"
+      }
+    },
+    "heatingNotes": "Service temperatures are typical glass-transition / softening limits; use your resin's datasheet (a post-cure raises epoxy Tg a lot)."
   }
 }

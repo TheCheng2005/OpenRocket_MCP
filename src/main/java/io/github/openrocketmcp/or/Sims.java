@@ -181,9 +181,11 @@ public final class Sims {
 		Variants.seed(sim.getOptions(), sim.getOptions().getRandomSeed());
 		Analysis.settle(sim.getRocket().getFlightConfiguration(sim.getFlightConfigurationId()));
 		var table = AeroTable.listenerFor(sim);
+		int extra = table == null ? 1 : 2;
+		listeners = java.util.Arrays.copyOf(listeners, listeners.length + extra);
+		listeners[listeners.length - 1] = new Watchdog();
 		if (table != null) {
-			listeners = java.util.Arrays.copyOf(listeners, listeners.length + 1);
-			listeners[listeners.length - 1] = table;
+			listeners[listeners.length - 2] = table;
 		}
 		try {
 			sim.simulate(listeners);

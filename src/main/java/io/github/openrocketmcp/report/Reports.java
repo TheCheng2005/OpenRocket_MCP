@@ -32,7 +32,7 @@ public final class Reports {
 	}
 
 	/** Markdown table from rows of key/value maps (union of keys, in first-seen order). */
-	static String table(List<Map<String, Object>> rows) {
+	public static String table(List<Map<String, Object>> rows) {
 		List<String> keys = new ArrayList<>();
 		for (Map<String, Object> r : rows) {
 			for (String k : r.keySet()) {
@@ -60,7 +60,7 @@ public final class Reports {
 		return t.replace("|", "\\|").replace("\n", " ");
 	}
 
-	static String kv(Map<String, Object> m) {
+	public static String kv(Map<String, Object> m) {
 		StringBuilder s = new StringBuilder("| Quantity | Value |\n|---|---|\n");
 		for (Map.Entry<String, Object> e : m.entrySet()) {
 			s.append("| ").append(e.getKey()).append(" | ").append(cell(e.getValue())).append(" |\n");
@@ -153,7 +153,7 @@ public final class Reports {
 	}
 
 	/** Apogee, rail exit, minimum stability and landing distance per stage at 0 / 10 / 20 / 30 km/h (to the rule maximum). */
-	static List<Map<String, Object>> windTable(Designs.Design d, Simulation sim, Standards std) {
+	public static List<Map<String, Object>> windTable(Designs.Design d, Simulation sim, Standards std) {
 		double max = std.rule("maxGroundWind.value", io.github.openrocketmcp.units.Dim.VELOCITY);
 		if (Double.isNaN(max)) {
 			max = 30 / 3.6;
