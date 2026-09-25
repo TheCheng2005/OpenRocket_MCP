@@ -1,0 +1,38 @@
+{
+  "units": "both",
+  "ruleset": "launch-canada-2027",
+  "competitionYear": 2027,
+  "stagedCategory": false,
+  "launchSite": {
+    "name": "Launch Canada",
+    "altitudeMsl": null,
+    "latitude": null,
+    "longitude": null,
+    "railLength": "18.5 ft",
+    "launchAngleFromVertical": "6 deg",
+    "designWindSpeed": "30 km/h",
+    "notes": "Rail length is the LCRA-provided 18.5 ft 1515 rail (DTEG R4 11.1.1). Set altitudeMsl/latitude for your launch site; density at deployment depends on it."
+  },
+  "recovery": {
+    "openingForceCoefficient": 1.4,
+    "openingForceCoefficientSource": "Knacke, Parachute Recovery Systems Design Manual, table 5-1 (infinite-mass Cx); team doc UTAT-ROC-LIQ-REC-001",
+    "openingLoadMethod": "infinite_mass",
+    "canopyFillConstant": 4,
+    "inflationExponent": 1,
+    "inflationNotes": "Fill constant n and exponent j are assumptions for the finite-mass estimate (fill time = n*D0/v). Lower n / lower j are more conservative. Calibrate from deployment test data.",
+    "shearPinHoldSafetyFactor": 2.0,
+    "harnessSafetyFactor": 2.0,
+    "ejectionForceSafetyFactor": 1.5,
+    "backupChargeFactor": 1.25,
+    "blackPowderBulkDensity": "1.0 g/cm3",
+    "packingFactor": 2.0,
+    "measuredPackingFactors": {
+      "2026 booster main bay (test fit 11 in vs 8.87 in calculated)": 1.24,
+      "2026 sustainer nose cone (190 in3 used vs 108 in3 calculated)": 1.76
+    },
+    "shockCord": { "width": "0.75 in", "thickness": "0.25 in" },
+    "shearPins": {
+      "4-40 nylon": { "strength": "140 N", "source": "UTAT-ROC-LIQ-REC-001: four 4-40 pins hold 560 N" }
+    }
+  }
+}

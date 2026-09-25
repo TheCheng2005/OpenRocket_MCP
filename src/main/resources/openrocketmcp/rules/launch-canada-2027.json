@@ -1,0 +1,191 @@
+{
+  "id": "launch-canada-2027",
+  "name": "Launch Canada 2027: DTEG Revision 4 + LC 2027 DTEG and R&R Edicts (to become DTEG R5)",
+  "note": "Thresholds from DTEG R4 and the LC 2027 edicts. Edicts take precedence where they differ; final R5 wording may change but the rules and intent will not (edicts preamble). Always verify against the current official documents.",
+  "launchAngleFromVertical": {
+    "nominal": "6 deg",
+    "tolerance": "1 deg",
+    "tiltInhibitedStaged": "3 deg",
+    "ref": "R10.1.1"
+  },
+  "railLength": {
+    "value": "18.5 ft",
+    "ref": "11.1.1"
+  },
+  "railDepartureVelocity": {
+    "min": "100 ft/s",
+    "minWithDetailedAnalysis": "85 ft/s",
+    "ref": "R10.2.1"
+  },
+  "thrustToWeight": {
+    "minByYear": {
+      "2026": 6,
+      "2027": 8,
+      "2028": 10
+    },
+    "recommended": 10,
+    "recommendedBasic": 12,
+    "stagedBoosterMin": 10,
+    "stagedSustainerMin": 5,
+    "ref": "R10.2.2, R3.1.2, R3.1.3; 2027 Edicts (Advanced Specific)",
+    "advancedMinByYear": {
+      "2027": 8,
+      "2028": 10
+    }
+  },
+  "stability": {
+    "minCalibers": 1.5,
+    "minCalibersWithDiameterChange": 2.0,
+    "diameterChangeNote": "With transitions between airframe diameters, use RASAero CP/CD overrides and keep margin above 2 cal.",
+    "overStableConcern": 4,
+    "overStable": 6,
+    "ref": "R10.3.1, R10.4.1"
+  },
+  "maxGroundWind": {
+    "value": "30 km/h",
+    "ref": "R10.3.3"
+  },
+  "dualEventAboveApogeeAgl": {
+    "value": "1500 ft",
+    "ref": "R4.1.1"
+  },
+  "drogueDescentRate": {
+    "min": "50 ft/s",
+    "max": "150 ft/s",
+    "recommendedMin": "75 ft/s",
+    "recommendedMax": "100 ft/s",
+    "ref": "R4.2.2"
+  },
+  "mainDeployAltitudeMaxAgl": {
+    "value": "1500 ft",
+    "ref": "R4.3.1"
+  },
+  "mainDescentRate": {
+    "max": "30 ft/s",
+    "recommended": "20 ft/s",
+    "ref": "R4.3.1"
+  },
+  "chuteReleaseLimits": {
+    "maxMainDiameter": "48 in",
+    "maxMassAtSeparation": "10 kg",
+    "ref": "R4.1.1 (Jolly Logic Chute Release not permitted beyond these)"
+  },
+  "blackPowder": {
+    "minChargeNote": "1 g",
+    "chargeWellMaxVolumeRatio": 2,
+    "ref": "8.8.4"
+  },
+  "shearPins": {
+    "recommendedMinimum": 3,
+    "ref": "8.8.3 (common practice)"
+  },
+  "staging": {
+    "tiltLimitMax": "15 deg",
+    "tiltLimitRecommended": "10 deg",
+    "ignitionAltitudeFraction": 0.8,
+    "ref": "R3.2.2, R3.4.1"
+  },
+  "lengthToDiameter": {
+    "max": 45,
+    "recommendedMax": 25,
+    "ref": "2027 Edicts, Stability: L:D Ratio"
+  },
+  "dampingRatio": {
+    "min": 0.03,
+    "max": 0.5,
+    "recommendedMin": 0.05,
+    "recommendedMax": 0.3,
+    "ref": "2027 Edicts, Stability: Damping ratio"
+  },
+  "staticMarginPercentLength": {
+    "min": 10,
+    "window": "rail exit to twice the burn duration of each stage",
+    "ref": "2027 Edicts, Stability: Static Margin (10% of body length)"
+  },
+  "railButtons": {
+    "metalProhibited": true,
+    "recommendedMaterial": "Delrin",
+    "ref": "2027 Edicts, Structures"
+  },
+  "avionicsMachConcentric": {
+    "value": 0.7,
+    "ref": "2027 Edicts, Electronics"
+  },
+  "srad": {
+    "minStaticFireIsp": "100 s",
+    "ref": "2027 Edicts, Advanced Probationary Levels"
+  },
+  "popTests": {
+    "ref": "2027 Edicts, Operations: Assembly Dress Rehearsal"
+  },
+  "pressureVessels": {
+    "proofFactor": 1.5,
+    "burstFactor": 2.0,
+    "minWeldKnockdown": 1.2,
+    "copvBurstFactor": 4.0,
+    "ref": "2027 Edicts, Advanced Specific: Pressure Vessels"
+  },
+  "probationLevels": [
+    {
+      "level": "PL1",
+      "glppMin": "2 L",
+      "glppMax": "8 L",
+      "stagedOrClusterMaxImpulse": "15000 Ns",
+      "minStaticFireIsp": "100 s",
+      "aasiToAdvance": "100 s"
+    },
+    {
+      "level": "PL2",
+      "glppMin": "8 L",
+      "glppMax": "20 L",
+      "stagedOrClusterMaxImpulse": "40000 Ns",
+      "minStaticFireIsp": "100 s",
+      "aasiToAdvance": "145 s"
+    },
+    {
+      "level": "PL3",
+      "glppMin": "20 L",
+      "glppMax": "32 L",
+      "minStaticFireIsp": "145 s",
+      "aasiToAdvance": "170 s"
+    },
+    {
+      "level": "Cleared",
+      "glppMin": "32 L",
+      "minStaticFireIsp": "170 s"
+    }
+  ],
+  "fillToFire": {
+    "smallTank": "24 L",
+    "small": {
+      "maxF2F": "20 min",
+      "recommendedF2F": "10 min",
+      "maxAbort": "10 min",
+      "recommendedAbort": "5 min"
+    },
+    "large": {
+      "maxF2F": "30 min",
+      "recommendedF2F": "15 min",
+      "maxAbort": "15 min",
+      "recommendedAbort": "8 min"
+    },
+    "ref": "2027 Edicts, Fill to Fire Times"
+  },
+  "manualChecks": [
+    "Altimeter bays of any stage above Mach 0.7: concentric bay with concentric air sampling holes; crescent bays only in RF-transparent material.",
+    "No more than one altimeter per circuit; no custom circuitry/software to arm a COTS altimeter; SRAD PCBs with COTS altimeters only to simplify one board's wiring.",
+    "Hardware shunts on sustainer ignition circuits.",
+    "Physical switch for all electronics; wireless switches in series with a physical switch reachable (ladder rules: 3 points of contact, secured shoes).",
+    "Lithium batteries: vinyl or shrink wrap for fire/puncture protection, padded cells, never zip-tied to a plank.",
+    "Individual power supply for each deployment altimeter and each GPS/RF beacon; plan on-rail/external charging.",
+    "Radax joints mechanically pinned AND chemically bonded.",
+    "Recessed nozzles clear a 45 degree expansion fan without touching the airframe.",
+    "3D-printed parts: holes modelled in CAD (no drilling into infill / heat-set inserts in infill); multiple walls, gyroid/cubic infill.",
+    "Rail buttons machined from Delrin (POM); no metal rail buttons.",
+    "Assembly dress rehearsal with the finished rocket: pop test every separating bay (drogue, main, every stage); yank test for single-bay dual deploy.",
+    "Radio: at most 2 allocations per stage across 220/440/915 MHz; one 220 MHz beacon per stage (25 kHz); one 440 MHz per stage (125 kHz); 915 MHz: one per project, or up to 2 Featherweight Swift / BRB900L per stage; 2.4/5.8 GHz narrow (10 MHz) directional links.",
+    "SRAD engines: two full-duration tests bounding the operating pressure; hydrotest -> 20 valve actuations at MEOP -> abort test -> cold flow -> hot fire.",
+    "Clusters: demonstrate simultaneous ignition.",
+    "Operations: rocket on the rail before yellow flag; red flag 10 min before salvo; >25 min past salvo start = timeout."
+  ]
+}

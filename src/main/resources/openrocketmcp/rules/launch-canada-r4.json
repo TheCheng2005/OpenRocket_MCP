@@ -1,0 +1,38 @@
+{
+  "id": "launch-canada-r4",
+  "name": "Launch Canada Challenge Design, Test & Evaluation Guide, Revision 4 (effective 2025-11-06)",
+  "note": "Thresholds transcribed from DTEG R4. 'shall' items are requirements, 'should' items are recommendations. Always verify against the current official document.",
+  "launchAngleFromVertical": { "nominal": "6 deg", "tolerance": "1 deg", "tiltInhibitedStaged": "3 deg", "ref": "R10.1.1" },
+  "railLength": { "value": "18.5 ft", "ref": "11.1.1" },
+  "railDepartureVelocity": { "min": "100 ft/s", "minWithDetailedAnalysis": "85 ft/s", "ref": "R10.2.1" },
+  "thrustToWeight": {
+    "minByYear": { "2026": 6, "2027": 8, "2028": 10 },
+    "recommended": 10,
+    "recommendedBasic": 12,
+    "stagedBoosterMin": 10,
+    "stagedSustainerMin": 5,
+    "ref": "R10.2.2, R3.1.2, R3.1.3"
+  },
+  "stability": {
+    "minCalibers": 1.5,
+    "minCalibersWithDiameterChange": 2.0,
+    "diameterChangeNote": "With transitions between airframe diameters, use RASAero CP/CD overrides and keep margin above 2 cal.",
+    "overStableConcern": 4,
+    "overStable": 6,
+    "ref": "R10.3.1, R10.4.1"
+  },
+  "maxGroundWind": { "value": "30 km/h", "ref": "R10.3.3" },
+  "dualEventAboveApogeeAgl": { "value": "1500 ft", "ref": "R4.1.1" },
+  "drogueDescentRate": { "min": "50 ft/s", "max": "150 ft/s", "recommendedMin": "75 ft/s", "recommendedMax": "100 ft/s", "ref": "R4.2.2" },
+  "mainDeployAltitudeMaxAgl": { "value": "1500 ft", "ref": "R4.3.1" },
+  "mainDescentRate": { "max": "30 ft/s", "recommended": "20 ft/s", "ref": "R4.3.1" },
+  "chuteReleaseLimits": { "maxMainDiameter": "48 in", "maxMassAtSeparation": "10 kg", "ref": "R4.1.1 (Jolly Logic Chute Release not permitted beyond these)" },
+  "blackPowder": { "minChargeNote": "1 g", "chargeWellMaxVolumeRatio": 2, "ref": "8.8.4" },
+  "shearPins": { "recommendedMinimum": 3, "ref": "8.8.3 (common practice)" },
+  "staging": {
+    "tiltLimitMax": "15 deg",
+    "tiltLimitRecommended": "10 deg",
+    "ignitionAltitudeFraction": 0.8,
+    "ref": "R3.2.2, R3.4.1"
+  }
+}
