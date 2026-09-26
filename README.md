@@ -62,21 +62,23 @@ Claude: A 36 in chute lands the 2.84 lb section at 19.9 ft/s. The drogue opens a
 
 ## Getting started
 
+Works with **Claude Desktop**, **claude.ai**, **Claude Code** and **Codex**.
+
 **Claude Desktop (easiest).** Download the extension for your computer from the
 [Releases page](https://github.com/TheCheng2005/OpenRocket_MCP/releases) — `win32` for Windows, `darwin-arm64` for
 Apple-silicon Macs, `darwin-x64` for Intel Macs, `linux` for Linux — and double-click it. Claude Desktop asks for your
 rocket folder (where your `.ork` files live) and you are done. Nothing else to install: Java and OpenRocket come
-inside it.
+inside it. (If your team runs a team server, Claude Desktop can use that instead: see below.)
 
-**The whole team, from claude.ai.** One person runs the team server on a computer or cloud machine everyone can reach:
+**The whole team, from claude.ai or Claude Desktop.** One person runs the team server on a computer or cloud machine everyone can reach:
 
 ```sh
 docker build -t openrocket-mcp . && docker run -p 8765:8765 -v "$PWD/rockets:/workspace" openrocket-mcp
 # or, with Java 17+:  ./gradlew installDist && build/install/openrocket-mcp/bin/openrocket-mcp --http --host 0.0.0.0
 ```
 
-It prints a private link. Put it in claude.ai under Settings → Connectors → Add custom connector, and everyone on the
-team can use it. The server also prints a files page where people drop their `.ork` files and download reports.
+It prints a private link. Put it in claude.ai under Settings → Connectors → Add custom connector (the same connector
+then shows up in Claude Desktop), and everyone on the team can use it. The server also prints a files page where people drop their `.ork` files and download reports.
 claude.ai needs an `https://` address: host it somewhere with a certificate, or put a tunnel such as
 `cloudflared tunnel --url http://localhost:8765` in front of it. Keep the link private — anyone with it can use the
 server.
@@ -100,6 +102,30 @@ claude mcp add --transport http openrocket https://your-server/mcp/YOUR-TOKEN
 ```
 
 `./gradlew mcpb` builds the Claude Desktop extension for your own computer.
+
+**Codex (CLI, IDE extension or app).** Build it as above, then add this to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.openrocket]
+command = "/path/to/openrocket_mcp/scripts/openrocket-mcp"   # Windows: 'C:\path\to\openrocket_mcp\scripts\openrocket-mcp.cmd'
+startup_timeout_sec = 60
+tool_timeout_sec = 300        # dispersion and motor ranking can take a few minutes
+
+[mcp_servers.openrocket.env]
+OPENROCKET_MCP_WORKSPACE = "/path/to/your/rockets"          # optional: the folder with your .ork files
+```
+
+Or connect Codex to your team server:
+
+```toml
+[mcp_servers.openrocket]
+url = "https://your-server/mcp"
+bearer_token_env_var = "OPENROCKET_MCP_TOKEN"   # set this environment variable to the server's token
+tool_timeout_sec = 300
+```
+
+For Claude's design-review routine in Codex too, copy [`.agents/skills/rocket-design-review`](.agents/skills/rocket-design-review)
+into `~/.codex/skills/` (or into `.agents/skills/` in your team's repository).
 
 Then just ask — for example: *"Open the two-stage example and check it against Launch Canada rules."*
 
