@@ -15,6 +15,7 @@ import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.simulation.FlightData;
 import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.standards.Standards;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
@@ -42,12 +43,15 @@ public final class Optimizer {
 
 	/** Constraints; NaN = unconstrained. Stability is the simulated ascent minimum/maximum (cal). */
 	public record Constraints(double minStability, double maxStability, double minRailExit, double maxMach,
-			double minApogee) {
+			double minApogee, double minFlutterMargin, Standards std) {
+		public Constraints(double minStability, double maxStability, double minRailExit, double maxMach, double minApogee) {
+			this(minStability, maxStability, minRailExit, maxMach, minApogee, Double.NaN, null);
+		}
 	}
 
 	/** Metrics of one evaluated design point. */
 	public record Point(double[] x, double apogee, double minStability, double maxStability, double railExit,
-			double maxMach, double launchMargin, double launchMass, String error) {
+			double maxMach, double launchMargin, double launchMass, double flutterMargin, String error) {
 		boolean simulated() {
 			return !Double.isNaN(apogee);
 		}
@@ -76,6 +80,9 @@ public final class Optimizer {
 		if (!Double.isNaN(c.minApogee())) {
 			v += Math.max(0, (c.minApogee() - p.apogee()) / 100);
 		}
+		if (!Double.isNaN(c.minFlutterMargin()) && !Double.isNaN(p.flutterMargin())) {
+			v += Math.max(0, (c.minFlutterMargin() - p.flutterMargin()) * 2);
+		}
 		return Double.isNaN(v) ? 1e6 : v;
 	}
 
@@ -97,7 +104,8 @@ public final class Optimizer {
 
 	private static boolean needsSimulation(Objective o, Constraints c) {
 		return o != Objective.TARGET_STABILITY || !Double.isNaN(c.minStability()) || !Double.isNaN(c.maxStability())
-				|| !Double.isNaN(c.minRailExit()) || !Double.isNaN(c.maxMach()) || !Double.isNaN(c.minApogee());
+				|| !Double.isNaN(c.minRailExit()) || !Double.isNaN(c.maxMach()) || !Double.isNaN(c.minApogee())
+				|| !Double.isNaN(c.minFlutterMargin());
 	}
 
 	static void applyTo(Rocket r, List<Variable> vars, double[] x) {
@@ -154,7 +162,7 @@ public final class Optimizer {
 							: lo[i] + (hi[i] - lo[i]) * (perm[k] + rnd.nextDouble()) / m;
 				}
 			}
-			List<Point> pts = evaluate(base, doc, vars, xs, simulate, windCase);
+			List<Point> pts = evaluate(base, doc, vars, xs, simulate, windCase, c.std());
 			all.addAll(pts);
 			for (Point p : pts) {
 				double s = score(p, o, target, c);
@@ -190,7 +198,7 @@ public final class Optimizer {
 				x[i] = Math.max(vars.get(i).min(), Math.min(vars.get(i).max(), x[i] - span + 2 * span * k / (batch - 1)));
 				xs.add(x);
 			}
-			List<Point> pts = evaluate(base, doc, vars, xs, simulate, windCase);
+			List<Point> pts = evaluate(base, doc, vars, xs, simulate, windCase, c.std());
 			all.addAll(pts);
 			for (Point p : pts) {
 				double sc = score(p, o, target, c);
@@ -258,7 +266,7 @@ public final class Optimizer {
 	}
 
 	static List<Point> evaluate(Simulation base, OpenRocketDocument doc, List<Variable> vars, List<double[]> xs,
-			boolean simulate, double windCase) {
+			boolean simulate, double windCase, Standards flutterStd) {
 		boolean wind = simulate && !Double.isNaN(windCase);
 		List<Simulation> sims = new ArrayList<>();
 		List<Point> statics = new ArrayList<>();
@@ -275,7 +283,7 @@ public final class Optimizer {
 			FlightConfiguration fc = s.getRocket().getFlightConfiguration(s.getFlightConfigurationId());
 			Analysis.Stability st = Analysis.stability(fc, 0.3);
 			statics.add(new Point(x, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, st.marginCalibers(),
-					st.launchMass(), err[0]));
+					st.launchMass(), Double.NaN, err[0]));
 			sims.add(s);
 			if (wind) {
 				Simulation w = Variants.of(base, doc, edit, null);
@@ -297,7 +305,7 @@ public final class Optimizer {
 					: windRun != null && !windRun.ok() ? "wind case: " + windRun.error() : null;
 			if (error != null) {
 				out.add(new Point(st.x(), Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, st.launchMargin(),
-						st.launchMass(), error));
+						st.launchMass(), Double.NaN, error));
 				continue;
 			}
 			FlightData data = run.sim().getSimulatedData();
@@ -314,9 +322,22 @@ public final class Optimizer {
 				rail = Math.min(rail, wd.getLaunchRodVelocity());
 			}
 			out.add(new Point(st.x(), data.getMaxAltitude(), minS, maxS, rail, data.getMaxMachNumber(), st.launchMargin(),
-					st.launchMass(), null));
+					st.launchMass(), flutterStd == null ? Double.NaN : flutterMargin(run.sim(), flutterStd), null));
 		}
 		return out;
+	}
+
+	/** Worst flutter margin of any fin set along the flight; NaN without fins or with a fin material of unknown stiffness. */
+	static double flutterMargin(Simulation sim, Standards std) {
+		try {
+			double m = Double.NaN;
+			for (Structures.FlutterResult f : Structures.flutter(sim, std, null, Double.NaN)) {
+				m = Double.isNaN(m) ? f.minMargin() : Math.min(m, f.minMargin());
+			}
+			return m;
+		} catch (ToolException e) {
+			return Double.NaN;
+		}
 	}
 
 	/** Human-readable list of the constraints a point violates. */
@@ -341,13 +362,16 @@ public final class Optimizer {
 		if (!Double.isNaN(c.minApogee()) && p.apogee() < c.minApogee()) {
 			v.add("apogee " + Units.fmt(p.apogee(), Dim.DISTANCE) + " < " + Units.fmt(c.minApogee(), Dim.DISTANCE));
 		}
+		if (!Double.isNaN(c.minFlutterMargin()) && p.flutterMargin() < c.minFlutterMargin()) {
+			v.add("fin flutter margin " + Units.num(p.flutterMargin()) + " < " + Units.num(c.minFlutterMargin()));
+		}
 		return v;
 	}
 
 	/** Evaluates a single point (e.g. the current design, for comparison). */
 	public static Point evaluateOne(Simulation base, OpenRocketDocument doc, List<Variable> vars, double[] x, boolean simulate,
-			double windCase) {
-		return evaluate(base, doc, vars, List.of(x), simulate, windCase).get(0);
+			double windCase, Standards flutterStd) {
+		return evaluate(base, doc, vars, List.of(x), simulate, windCase, flutterStd).get(0);
 	}
 
 	public static Map<String, Object> render(Point p, List<Variable> vars) {
@@ -371,6 +395,9 @@ public final class Optimizer {
 			m.put("maxAscentStability", Units.num(p.maxStability()) + " cal");
 			m.put("railExitVelocity", Units.fmt(p.railExit(), Dim.VELOCITY));
 			m.put("maxMach", Units.num(p.maxMach()));
+			if (!Double.isNaN(p.flutterMargin())) {
+				m.put("finFlutterMargin", Units.num(p.flutterMargin()));
+			}
 		}
 		return m;
 	}

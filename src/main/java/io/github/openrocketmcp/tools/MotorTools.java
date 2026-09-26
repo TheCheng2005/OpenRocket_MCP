@@ -119,8 +119,7 @@ public final class MotorTools {
 					if (a.has("ejectionDelay")) {
 						mc.setEjectionDelay(a.qty("ejectionDelay", Dim.TIME));
 					} else {
-						double[] delays = motor.getStandardDelays();
-						mc.setEjectionDelay(delays != null && delays.length > 0 ? delays[delays.length - 1] : Double.NaN);
+						mc.setEjectionDelay(Motors.defaultDelay(motor));
 					}
 					if (a.has("ignitionEvent")) {
 						mc.setIgnitionEvent(IgnitionEvent.valueOf(a.str("ignitionEvent").toUpperCase()));
@@ -334,8 +333,7 @@ public final class MotorTools {
 						mc.setIgnitionEvent(original.getIgnitionEvent());
 						mc.setIgnitionDelay(original.getIgnitionDelay());
 					} else {
-						double[] delays = m.getStandardDelays();
-						mc.setEjectionDelay(delays != null && delays.length > 0 ? delays[delays.length - 1] : Double.NaN);
+						mc.setEjectionDelay(Motors.defaultDelay(m));
 					}
 					mm.setMotorConfig(mc, fc.getId());
 					r.getFlightConfiguration(fc.getId()).update();

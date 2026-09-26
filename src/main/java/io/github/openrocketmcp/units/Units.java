@@ -224,6 +224,11 @@ public final class Units {
 		return u.fromSi(si);
 	}
 
+	/** Unit for plot axes: imperial for an imperial team, else metric. */
+	public static String plotUnit(Dim dim) {
+		return system == UnitSystem.IMPERIAL ? dim.imperial : dim.metric;
+	}
+
 	/** Formats an SI value for display in the active unit system, e.g. "30.5 m/s (100 ft/s)". */
 	public static String fmt(double si, Dim dim) {
 		if (Double.isNaN(si)) {

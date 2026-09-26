@@ -12,12 +12,23 @@ Claude: A 36 in chute lands the 2.84 lb section at 19.9 ft/s. The drogue opens a
         so four pins hold with plenty of margin — even if the drogue fires up to 4 s late.
 ```
 
+## See it in action
+
+[**Examples**](docs/EXAMPLES.md) follows one 10,000 ft rocket from a blank page to launch day: the prompts a team types,
+the answers, and the plots. Everything on that page is real output.
+
+<p>
+<img src="docs/examples/landing.svg" alt="200 simulated landings around the pad with the 2-sigma ellipse" width="48%">
+<img src="docs/examples/flight-profile.svg" alt="Altitude against time with burnout, apogee and deployments" width="48%">
+</p>
+
 ## What you can ask
 
 **Design and stability**
 - Build a rocket from scratch, or open your team's `.ork` file and change it.
 - "Is it stable all the way up, including in 30 km/h wind?" — checked at every moment of the flight, for every stage.
-- "How much nose weight do I need?" or "How big should the fins be?"
+- "How much nose weight do I need?" or "How big should the fins be?" — the smallest fins that meet the stability rules
+  without fluttering.
 - "Which nose cone and fin shape should we build?" — every common shape flown and compared.
 - Pick real parts from OpenRocket's catalogue (tubes, nose cones, couplers, rail buttons, parachutes).
 - Get a drawing of the rocket with its CG and CP marked.
@@ -28,7 +39,8 @@ Claude: A 36 in chute lands the 2.84 lb section at 19.9 ft/s. The drogue opens a
 
 **Flight**
 - Apogee, speed, Mach number, rail exit speed, thrust-to-weight, staging and landing distance.
-- "Where will it land?" — up to a thousand possible flights with varied wind, launch angle, mass, drag and thrust.
+- "Where will it land?" — up to a thousand possible flights with varied wind, launch angle, mass, drag and thrust,
+  drawn on a landing map.
 - Use a wind forecast with winds at altitude, not just the ground wind.
 - "Where does our drag come from?" — drag of every part, and how it changes with speed.
 
@@ -142,6 +154,11 @@ materials. You can also just tell Claude ("our pins are 2-56 nylon, 35 lbf each"
 - Nothing is saved to your design file until you ask Claude to save it.
 - On a team server, everyone connected shares the open designs, so say which one you mean if several are open.
 - Details on every tool, the methods behind them and their limits: [docs/REFERENCE.md](docs/REFERENCE.md).
+
+## Contributing
+
+Found a number that looks wrong, or want a new capability? [Open an issue](https://github.com/TheCheng2005/OpenRocket_MCP/issues/new/choose).
+Code, rule sets and flight data are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

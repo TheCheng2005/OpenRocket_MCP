@@ -1,5 +1,7 @@
 package io.github.openrocketmcp.or;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -124,6 +126,11 @@ public final class MonteCarlo {
 	}
 
 	public static Map<String, Object> run(Simulation base, OpenRocketDocument doc, Settings s, Standards std) {
+		return run(base, doc, s, std, null);
+	}
+
+	/** As above; with {@code plot}, also writes the landing map (SVG) there. */
+	public static Map<String, Object> run(Simulation base, OpenRocketDocument doc, Settings s, Standards std, Path plot) {
 		SimulationOptions bo = base.getOptions();
 		double windMean = Double.isNaN(s.windSpeed()) ? Winds.speed(bo) : s.windSpeed();
 		double angleMean = Double.isNaN(s.launchAngle()) ? bo.getLaunchRodAngle() : s.launchAngle();
@@ -272,6 +279,18 @@ public final class MonteCarlo {
 			land.put(e.getKey(), landing(e.getValue()));
 		}
 		out.put("landing", land);
+		if (plot != null && !landings.isEmpty()) {
+			try {
+				Path pp = plot.toAbsolutePath();
+				if (pp.getParent() != null) {
+					Files.createDirectories(pp.getParent());
+				}
+				Files.writeString(pp, landingSvg(landings, base.getRocket().getName() + ": " + okOutputs.size() + " simulated landings"));
+				out.put("plot", pp.toString());
+			} catch (java.io.IOException ex) {
+				throw new io.github.openrocketmcp.mcp.ToolException("Could not write the plot: " + ex.getMessage());
+			}
+		}
 		List<Map<String, Object>> deps = new ArrayList<>();
 		for (Map.Entry<String, double[]> e : worstDeploy.entrySet()) {
 			Map<String, Object> m = new LinkedHashMap<>();
@@ -387,8 +406,8 @@ public final class MonteCarlo {
 		return m;
 	}
 
-	/** Landing statistics: mean point, distances, and the 2-sigma covariance ellipse. */
-	static Map<String, Object> landing(List<double[]> pts) {
+	/** Mean point and 2-sigma covariance ellipse {mx, my, semi-major, semi-minor, angle of the major axis from +x}. */
+	static double[] ellipse(List<double[]> pts) {
 		int n = pts.size();
 		double mx = 0, my = 0;
 		for (double[] p : pts) {
@@ -398,24 +417,50 @@ public final class MonteCarlo {
 		mx /= n;
 		my /= n;
 		double sxx = 0, syy = 0, sxy = 0;
-		List<Double> dist = new ArrayList<>();
 		for (double[] p : pts) {
 			double dx = p[0] - mx, dy = p[1] - my;
 			sxx += dx * dx;
 			syy += dy * dy;
 			sxy += dx * dy;
-			dist.add(Math.hypot(p[0], p[1]));
 		}
 		int dof = Math.max(1, n - 1);
 		sxx /= dof;
 		syy /= dof;
 		sxy /= dof;
-		// Eigen-decomposition of the 2x2 covariance matrix.
 		double tr = sxx + syy, det = sxx * syy - sxy * sxy;
 		double disc = Math.sqrt(Math.max(0, tr * tr / 4 - det));
 		double l1 = tr / 2 + disc, l2 = Math.max(0, tr / 2 - disc);
-		double theta = 0.5 * Math.atan2(2 * sxy, sxx - syy); // major axis angle from +x (east), counter-clockwise
-		double bearing = Math.toDegrees(Math.PI / 2 - theta);
+		return new double[] { mx, my, 2 * Math.sqrt(l1), 2 * Math.sqrt(l2), 0.5 * Math.atan2(2 * sxy, sxx - syy) };
+	}
+
+	/** Landing map SVG (display units) of every stage's landing points and 2-sigma ellipse. */
+	public static String landingSvg(Map<String, List<double[]>> landings, String title) {
+		String unit = Units.plotUnit(Dim.DISTANCE);
+		double k = Units.fromSi(1, unit);
+		List<io.github.openrocketmcp.report.Svg.Cloud> clouds = new ArrayList<>();
+		for (Map.Entry<String, List<double[]>> e : landings.entrySet()) {
+			List<double[]> pts = e.getValue();
+			double[] x = new double[pts.size()], y = new double[pts.size()];
+			for (int i = 0; i < pts.size(); i++) {
+				x[i] = pts.get(i)[0] * k;
+				y[i] = pts.get(i)[1] * k;
+			}
+			double[] el = ellipse(pts);
+			clouds.add(new io.github.openrocketmcp.report.Svg.Cloud(e.getKey(), x, y, el[0] * k, el[1] * k, el[2] * k, el[3] * k, el[4]));
+		}
+		return io.github.openrocketmcp.report.Svg.landingMap(title, unit, clouds);
+	}
+
+	/** Landing statistics: mean point, distances, and the 2-sigma covariance ellipse. */
+	static Map<String, Object> landing(List<double[]> pts) {
+		int n = pts.size();
+		double[] el = ellipse(pts);
+		double mx = el[0], my = el[1];
+		List<Double> dist = new ArrayList<>();
+		for (double[] p : pts) {
+			dist.add(Math.hypot(p[0], p[1]));
+		}
+		double bearing = Math.toDegrees(Math.PI / 2 - el[4]); // major axis, clockwise from north
 		bearing = ((bearing % 180) + 180) % 180;
 		double[] d = sorted(dist);
 		Map<String, Object> m = new LinkedHashMap<>();
@@ -423,7 +468,7 @@ public final class MonteCarlo {
 		m.put("meanPoint", Units.fmt(mx, Dim.DISTANCE) + " east, " + Units.fmt(my, Dim.DISTANCE) + " north");
 		m.put("distanceFromPad", Map.of("median", Units.fmt(pct(d, 50), Dim.DISTANCE), "p95", Units.fmt(pct(d, 95), Dim.DISTANCE),
 				"max", Units.fmt(d[d.length - 1], Dim.DISTANCE)));
-		m.put("ellipse2Sigma", Units.fmt(2 * Math.sqrt(l1), Dim.DISTANCE) + " x " + Units.fmt(2 * Math.sqrt(l2), Dim.DISTANCE)
+		m.put("ellipse2Sigma", Units.fmt(el[2], Dim.DISTANCE) + " x " + Units.fmt(el[3], Dim.DISTANCE)
 				+ " (semi-axes), major axis bearing " + Units.num(bearing) + " deg from north");
 		return m;
 	}

@@ -41,8 +41,8 @@ public final class AnalysisTools {
 				"Find values for 1-3 component properties that reach a goal while meeting constraints, by simulating batches "
 						+ "of candidates in parallel and zooming in on the best. Objectives: target_apogee (value = apogee), "
 						+ "max_apogee, target_stability (value = launch margin in cal; static, fast), min_mass. Constraints use the "
-						+ "simulated ascent stability (rail exit to apogee, > 100 ft/s), rail exit velocity, Mach and apogee; "
-						+ "minRailExit defaults to the rule set. Examples: fin span for 1.8 cal with max apogee; ballast for a "
+						+ "simulated ascent stability (rail exit to apogee, > 100 ft/s), rail exit velocity, Mach, apogee and fin "
+						+ "flutter margin along the flight; minRailExit defaults to the rule set. Examples: fin span for 1.8 cal with max apogee; ballast for a "
 						+ "10,000 ft target. The design is unchanged unless apply=true.",
 				Schema.object().str("designId", DesignTools.DESIGN_ID, false)
 						.str("simulation", "Simulation index or name.", false)
@@ -52,12 +52,15 @@ public final class AnalysisTools {
 						.qty("targetApogee", "Target apogee for target_apogee.", false)
 						.num("targetStability", "Target launch margin (cal) for target_stability.", false)
 						.bool("meetRules", "Derive stability limits from the rule set: floor = max(minimum calibers, % of body "
-								+ "length x L:D) (LC 2027: 10% BL), ceiling = over-stability; rail exit from the rules.", false)
+								+ "length x L:D) (LC 2027: 10% BL), ceiling = over-stability; rail exit from the rules; fin flutter "
+								+ "margin from the team standards (structures.flutterMinMargin).", false)
 						.num("minStability", "Minimum simulated ascent stability, cal (e.g. 1.5).", false)
 						.num("maxStability", "Maximum simulated ascent stability, cal.", false)
 						.qty("minRailExit", "Minimum rail exit velocity (default: rule set).", false)
 						.num("maxMach", "Maximum Mach number.", false)
 						.qty("minApogee", "Minimum apogee.", false)
+						.num("minFlutterMargin", "Minimum fin flutter margin (flutter speed / airspeed, e.g. 1.5), so the fins "
+								+ "found do not flutter at the speeds they fly.", false)
 						.integer("maxEvaluations", "Simulation budget (default 40, max 200).", false)
 						.bool("checkDesignWind", "Also evaluate each candidate at the rule set's maximum ground wind and apply "
 								+ "constraints to the worse case (default true when a stability constraint is given).", false)
@@ -87,7 +90,9 @@ public final class AnalysisTools {
 						.num("massSd", "Structure mass uncertainty, fractional 1 sd (e.g. 0.05 = 5%; motors excluded).", false)
 						.num("dragSd", "Airframe drag coefficient uncertainty, fractional 1 sd (e.g. 0.1).", false)
 						.num("thrustSd", "Motor thrust / total impulse uncertainty, fractional 1 sd (e.g. 0.03).", false)
-						.num("chuteCdSd", "Parachute Cd uncertainty, fractional 1 sd, per chute (e.g. 0.1).", false).build(),
+						.num("chuteCdSd", "Parachute Cd uncertainty, fractional 1 sd, per chute (e.g. 0.1).", false)
+						.str("plotPath", "Also draw the landing map (SVG): every landing and the 2-sigma ellipse per stage, e.g. "
+								+ "\"plots/landing.svg\".", false).build(),
 				true, a -> {
 					Designs.Design d = ctx.designs.get(a.str("designId", null));
 					Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null),
@@ -100,7 +105,8 @@ public final class AnalysisTools {
 							a.num("turbulence", Double.NaN), a.integer("seed", 1), frac(a.num("massSd", 0)), frac(a.num("dragSd", 0)),
 							frac(a.num("thrustSd", 0)), frac(a.num("chuteCdSd", 0)));
 					long t0 = System.nanoTime();
-					Map<String, Object> out = MonteCarlo.run(base, d.doc, st, ctx.standards());
+					Map<String, Object> out = MonteCarlo.run(base, d.doc, st, ctx.standards(),
+							a.has("plotPath") ? ctx.path(a.str("plotPath")) : null);
 					out.put("elapsed", Units.num((System.nanoTime() - t0) / 1e9) + " s");
 					return out;
 				}));
@@ -155,9 +161,12 @@ public final class AnalysisTools {
 			ruleBasis = "minStability " + io.github.openrocketmcp.or.Requirements.floorText(fl) + "; maxStability "
 					+ Units.num(maxStab) + " cal (over-stable)";
 		}
+		// Fin flutter: a constraint when asked for or with meetRules (the team's structures.flutterMinMargin); always reported.
+		double minFlutter = a.num("minFlutterMargin", a.bool("meetRules", false)
+				? ctx.standards().q("structures.flutterMinMargin", Dim.DIMENSIONLESS, 1.5) : Double.NaN);
 		Optimizer.Constraints c = new Optimizer.Constraints(minStab, maxStab,
 				a.qty("minRailExit", Dim.VELOCITY, obj == Optimizer.Objective.TARGET_STABILITY && Double.isNaN(minStab) ? Double.NaN : railRule),
-				a.num("maxMach", Double.NaN), a.qtyOrNaN("minApogee", Dim.DISTANCE));
+				a.num("maxMach", Double.NaN), a.qtyOrNaN("minApogee", Dim.DISTANCE), minFlutter, ctx.standards());
 		Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
 				ctx.standards(), false);
 		long t0 = System.nanoTime();
@@ -185,6 +194,10 @@ public final class AnalysisTools {
 		if (!Double.isNaN(c.minApogee())) {
 			cons.put("minApogee", Units.fmt(c.minApogee(), Dim.DISTANCE));
 		}
+		if (!Double.isNaN(c.minFlutterMargin())) {
+			cons.put("minFinFlutterMargin", Units.num(c.minFlutterMargin()) + " (flutter speed / airspeed along the flight; fins of "
+					+ "unknown stiffness are not constrained)");
+		}
 		if (!Double.isNaN(windCase)) {
 			cons.put("evaluatedAt", "nominal wind and " + Units.fmt(windCase, Dim.VELOCITY) + " (rule set maximum ground wind); worse of the two");
 		}
@@ -199,7 +212,7 @@ public final class AnalysisTools {
 		for (int i = 0; i < vars.size(); i++) {
 			current[i] = (Double) Components.getRaw(Components.find(d.doc.getRocket(), vars.get(i).componentId()), vars.get(i).property());
 		}
-		Optimizer.Point cur = Optimizer.evaluateOne(base, d.doc, vars, current, true, windCase);
+		Optimizer.Point cur = Optimizer.evaluateOne(base, d.doc, vars, current, true, windCase, ctx.standards());
 		Map<String, Object> curOut = Optimizer.render(cur, vars);
 		List<String> curV = Optimizer.violations(cur, c);
 		curOut.put("meetsConstraints", curV.isEmpty() ? "yes" : "NO: " + String.join("; ", curV));
@@ -217,9 +230,13 @@ public final class AnalysisTools {
 		}
 		out.put("elapsed", Units.num((System.nanoTime() - t0) / 1e9) + " s");
 		if (!r.feasible()) {
-			out.put("note", "No evaluated point met every constraint; 'best' is the least-violating one ("
-					+ String.join("; ", Optimizer.violations(r.best(), c)) + "). Widen the bounds, add a variable (e.g. nose ballast "
-					+ "to cut CG travel), or relax a constraint.");
+			List<String> why = Optimizer.violations(r.best(), c);
+			boolean flutter = why.stream().anyMatch(v -> v.startsWith("fin flutter"));
+			out.put("note", "No evaluated point met every constraint; 'best' is the least-violating one (" + String.join("; ", why)
+					+ "). " + (flutter ? "Fin size alone cannot fix flutter at these speeds: use thicker or stiffer fins (fin_flutter "
+							+ "gives the thickness or shear modulus needed; record a measured modulus with update_standards), or a "
+							+ "motor that flies slower. " : "")
+					+ "Widen the bounds, add a variable (e.g. nose ballast to cut CG travel), or relax a constraint.");
 		}
 		if (a.bool("apply", false) && r.best() != null && r.best().error() == null) {
 			List<String> applied = new ArrayList<>();
