@@ -328,6 +328,9 @@ public final class Diff {
 			}
 			Map<String, Object> pa = Components.describe(ca), pb = Components.describe(cb);
 			for (Map.Entry<String, Object> e : pa.entrySet()) {
+				if (inactiveOverride(e.getKey(), ca, cb)) {
+					continue;
+				}
 				Object vb = pb.get(e.getKey());
 				String x = brief(e.getValue()), y = brief(vb);
 				if (!Objects.equals(x, y)) {
@@ -357,6 +360,16 @@ public final class Diff {
 			}
 		}
 		return out;
+	}
+
+	/** Override values (mass, CG, CD) only matter when that override is switched on in either revision. */
+	static boolean inactiveOverride(String property, RocketComponent a, RocketComponent b) {
+		return switch (property) {
+			case "overrideMass" -> !a.isMassOverridden() && !b.isMassOverridden();
+			case "overrideCGX" -> !a.isCGOverridden() && !b.isCGOverridden();
+			case "overrideCD" -> !a.isCDOverridden() && !b.isCDOverridden();
+			default -> false;
+		};
 	}
 
 	/** Flags edits whose mass or CG cannot reach the simulation because a parent overrides its subcomponents. */

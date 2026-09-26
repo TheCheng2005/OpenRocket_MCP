@@ -87,6 +87,15 @@ See `openrocket://methods` for equations and sources. In short:
 Outputs are engineering estimates for design iteration. They do not replace ground tests, flight tests, mentors or the
 RSO.
 
+## Plots
+
+`run_simulation` and `monte_carlo` take `plotPath` (SVG): the flight profile (altitude against time per stage, with
+burnout, separation, apogee and deployments marked) and the landing map (every landing and the 2-sigma ellipse per
+stage, equal-scale axes, the pad marked). `generate_report` includes the flight profile. Plots follow the team's unit
+setting (imperial for an imperial team, else metric) and light / dark themes. The optimizer also reports the fin flutter
+margin of each design and, with `meetRules` or `minFlutterMargin`, only accepts fins that meet it (materials of unknown
+stiffness are not constrained).
+
 ## Development
 
 ```sh
@@ -94,6 +103,7 @@ RSO.
                                 # tests (scaling laws, inverses), protocol, standards, SVG, OpenRocket-backed checks, end-to-end MCP
 ./gradlew installDist           # build/install/openrocket-mcp/bin/openrocket-mcp[.bat]
 python3 scripts/benchmark.py    # scenario benchmark: realistic team requests, pass/fail + timings + output size
+python3 scripts/make_examples.py  # rebuilds docs/EXAMPLES.md and its plots from real runs (also run in CI)
 ```
 
 `scripts/benchmark.py` drives a fresh server over stdio through realistic requests (design a 10k ft rocket from

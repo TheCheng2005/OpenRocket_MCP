@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import info.openrocket.core.document.Simulation;
@@ -96,6 +97,36 @@ public final class Reports {
 	 * Stability vs time. OpenRocket does not record stability while the rocket is on the rail; there it is filled in
 	 * as (Barrowman CP at that instant's Mach - simulated CG) / reference diameter.
 	 */
+	/** Altitude vs time for each stage (up to two) with the flight's events marked. */
+	public static String profileSvg(Simulation sim) {
+		FlightData data = sim.getSimulatedData();
+		String unit = Units.plotUnit(io.github.openrocketmcp.units.Dim.DISTANCE);
+		double k = Units.fromSi(1, unit);
+		List<Svg.Series> series = new ArrayList<>();
+		for (FlightDataBranch b : data.getBranches()) {
+			double[] t = column(b, FlightDataType.TYPE_TIME), alt = column(b, FlightDataType.TYPE_ALTITUDE);
+			for (int i = 0; i < alt.length; i++) {
+				alt[i] *= k;
+			}
+			series.add(new Svg.Series(data.getBranchCount() > 1 ? b.getName() : null, t, alt));
+		}
+		List<Svg.Marker> markers = new ArrayList<>();
+		for (FlightEvent e : data.getBranch(0).getEvents()) {
+			String label = switch (e.getType()) {
+				case BURNOUT -> "burnout";
+				case STAGE_SEPARATION -> "separation";
+				case APOGEE -> "apogee";
+				case RECOVERY_DEVICE_DEPLOYMENT -> e.getSource() == null ? "deploy" : e.getSource().getName().toLowerCase(Locale.ROOT);
+				default -> null;
+			};
+			if (label != null) {
+				markers.add(new Svg.Marker(e.getTime(), label));
+			}
+		}
+		return Svg.lines(sim.getRocket().getName() + ": apogee " + Units.fmt(data.getMaxAltitude(), io.github.openrocketmcp.units.Dim.DISTANCE),
+				"Time (s)", "Altitude above the pad (" + unit + ")", series.subList(0, Math.min(2, series.size())), Double.NaN, null, markers);
+	}
+
 	static String stabilityPlot(Simulation sim, FlightDataBranch b, double t0, double t1, String title, double minRule,
 			String ruleRef) {
 		double[] t = column(b, FlightDataType.TYPE_TIME);
@@ -268,6 +299,9 @@ public final class Reports {
 		md.append("## 3. Flight simulation\n\n### Conditions\n\n").append(kv((Map<String, Object>) summary.get("conditions")));
 		md.append("\n### Wind model\n\n").append(kv(io.github.openrocketmcp.or.Winds.describe(sim.getOptions())));
 		md.append("\n### Results\n\n").append(kv((Map<String, Object>) summary.get("flight"))).append('\n');
+		Path profile = dir.resolve("flight-profile.svg");
+		Files.writeString(profile, profileSvg(sim));
+		md.append("![flight-profile.svg](flight-profile.svg)\n\n");
 		List<Map<String, Object>> ign = (List<Map<String, Object>>) summary.get("ignitions");
 		if (ign.size() > 1) {
 			md.append("### Ignitions\n\n").append(table(ign)).append('\n');
@@ -292,6 +326,7 @@ public final class Reports {
 				+ "exit the simulation's value includes the angle of attack from wind, so the curve can step.\n\n");
 		md.append("Data: `flight-data.csv`.\n\n");
 
+		files.add(profile);
 		md.append("## 5. Recovery\n\n");
 		List<Map<String, Object>> deps = new ArrayList<>();
 		for (Map<String, Object> dep : (List<Map<String, Object>>) recovery.get("deployments")) {

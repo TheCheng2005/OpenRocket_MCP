@@ -142,7 +142,11 @@ def scenario_from_scratch(s):
                                 "variables": fins, "maxEvaluations": 48})
     check(sc, "an infeasible stability window is explained (which limits bind)",
           tight["feasible"] or ("stability" in tight.get("note", "")), tight.get("note", "feasible"))
-    opt = s.call("optimize", {"designId": d, "objective": "max_apogee", "meetRules": True,
+    thin = s.call("optimize", {"designId": d, "objective": "max_apogee", "meetRules": True,
+                               "variables": fins, "maxEvaluations": 24})
+    check(sc, "with meetRules the optimizer will not size 1/8 in fins that flutter at Mach > 1, and says what to do",
+          not thin["feasible"] and "thicker or stiffer fins" in thin.get("note", ""), thin.get("note", "feasible"))
+    opt = s.call("optimize", {"designId": d, "objective": "max_apogee", "meetRules": True, "minFlutterMargin": 0,
                               "variables": fins, "maxEvaluations": 48, "apply": True})
     check(sc, "optimizer meets the rule-derived stability window (incl. 10% body length, design wind)", opt["feasible"],
           opt.get("note", json.dumps(opt["best"])))
@@ -160,8 +164,10 @@ def scenario_from_scratch(s):
         fl = s.call("fin_flutter", {"designId": d})["finSets"][0]
         check(sc, f"suggested fin thickness ({sheet} in stock) passes the flutter screen", fl["status"] == "PASS",
               fl["minMargin"])
-        s.call("optimize", {"designId": d, "objective": "max_apogee", "meetRules": True, "variables": fins,
-                            "maxEvaluations": 32, "apply": True})
+        refit = s.call("optimize", {"designId": d, "objective": "max_apogee", "meetRules": True, "variables": fins,
+                                    "maxEvaluations": 32, "apply": True})
+        check(sc, "after the thickness fix, fins meeting stability AND flutter are found",
+              refit["feasible"] and num(refit["best"].get("finFlutterMargin", "0")) >= 1.5, refit.get("note", json.dumps(refit["best"])))
     req = s.call("check_requirements", {"designId": d})
     fails = [c for c in req["checks"] if c["status"] == "FAIL"]
     check(sc, "final design has no rule failures", not fails, json.dumps(fails)[:600])

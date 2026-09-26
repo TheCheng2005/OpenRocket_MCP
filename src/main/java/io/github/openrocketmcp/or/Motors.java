@@ -25,6 +25,23 @@ import io.github.openrocketmcp.units.Units;
  * Motor database search, lookup, import and custom (liquid / hybrid / research) motor creation.
  */
 public final class Motors {
+
+	/**
+	 * Default ejection delay for a motor: its longest listed delay, or plugged (OpenRocket's PLUGGED_DELAY) when it lists
+	 * none. Some catalogue entries list NaN for "plugged"; a NaN delay makes OpenRocket's simulation fail.
+	 */
+	public static double defaultDelay(info.openrocket.core.motor.Motor m) {
+		double best = Double.NaN;
+		double[] delays = m instanceof ThrustCurveMotor t ? t.getStandardDelays() : null;
+		if (delays != null) {
+			for (double d : delays) {
+				if (Double.isFinite(d) && d >= 0 && (Double.isNaN(best) || d > best)) {
+					best = d;
+				}
+			}
+		}
+		return Double.isNaN(best) ? info.openrocket.core.motor.Motor.PLUGGED_DELAY : best;
+	}
 	private Motors() {
 	}
 

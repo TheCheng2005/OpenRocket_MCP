@@ -272,10 +272,10 @@ public final class DesignTools {
 					Rocket rocket = d.doc.getRocket();
 					RecoveryDevice rd = Components.find(rocket, a.str("component"), RecoveryDevice.class, "recovery device");
 					DeploymentConfiguration.DeployEvent ev = DeploymentConfiguration.DeployEvent.valueOf(a.str("event").toUpperCase());
-					List<FlightConfigurationId> ids = "all".equalsIgnoreCase(a.str("configuration", ""))
-							? rocket.getIds() : List.of(Components.config(rocket, a.str("configuration", null)).getId());
-					for (FlightConfigurationId id : ids) {
-						DeploymentConfiguration dc = rd.getDeploymentConfigurations().get(id).copy(id);
+					boolean all = "all".equalsIgnoreCase(a.str("configuration", ""));
+					List<FlightConfigurationId> ids = all ? rocket.getIds()
+							: List.of(Components.config(rocket, a.str("configuration", null)).getId());
+					java.util.function.UnaryOperator<DeploymentConfiguration> edit = dc -> {
 						dc.setDeployEvent(ev);
 						if (a.has("altitude")) {
 							dc.setDeployAltitude(a.qty("altitude", Dim.DISTANCE));
@@ -283,13 +283,21 @@ public final class DesignTools {
 						if (a.has("delay")) {
 							dc.setDeployDelay(a.qty("delay", Dim.TIME));
 						}
-						rd.getDeploymentConfigurations().set(id, dc);
+						return dc;
+					};
+					var set = rd.getDeploymentConfigurations();
+					if (all) {
+						// Also the default, so flight configurations created later (e.g. by set_motor) deploy the same way.
+						set.setDefault(edit.apply(set.getDefault().copy(null)));
+					}
+					for (FlightConfigurationId id : ids) {
+						set.set(id, edit.apply(set.get(id).copy(id)));
 					}
 					d.doc.setSaved(false);
-					DeploymentConfiguration now = rd.getDeploymentConfigurations().get(ids.get(0));
+					DeploymentConfiguration now = ids.isEmpty() ? set.getDefault() : set.get(ids.get(0));
 					return Map.of("device", rd.getName(), "deployment", now.getDeployEvent().name() + ", altitude "
 							+ Units.fmt(now.getDeployAltitude(), Dim.DISTANCE) + ", delay " + Units.fmt(now.getDeployDelay(), Dim.TIME),
-							"configurations", ids.size());
+							"configurations", all ? ids.size() + " existing, and the default for new ones" : "1");
 				}));
 
 		s.tool(new ToolDef("set_stage_separation", "Set when a stage separates",
@@ -307,10 +315,10 @@ public final class DesignTools {
 					Rocket rocket = d.doc.getRocket();
 					AxialStage stage = Components.find(rocket, a.str("stage"), AxialStage.class, "stage");
 					StageSeparationConfiguration.SeparationEvent ev = StageSeparationConfiguration.SeparationEvent.valueOf(a.str("event").toUpperCase());
-					List<FlightConfigurationId> ids = "all".equalsIgnoreCase(a.str("configuration", ""))
-							? rocket.getIds() : List.of(Components.config(rocket, a.str("configuration", null)).getId());
-					for (FlightConfigurationId id : ids) {
-						StageSeparationConfiguration sc = stage.getSeparationConfigurations().get(id).copy(id);
+					boolean all = "all".equalsIgnoreCase(a.str("configuration", ""));
+					List<FlightConfigurationId> ids = all ? rocket.getIds()
+							: List.of(Components.config(rocket, a.str("configuration", null)).getId());
+					java.util.function.UnaryOperator<StageSeparationConfiguration> edit = sc -> {
 						sc.setSeparationEvent(ev);
 						if (a.has("delay")) {
 							sc.setSeparationDelay(a.qty("delay", Dim.TIME));
@@ -318,6 +326,14 @@ public final class DesignTools {
 						if (a.has("altitude")) {
 							sc.setSeparationAltitude(a.qty("altitude", Dim.DISTANCE));
 						}
+						return sc;
+					};
+					if (all) {
+						// Also the default, so flight configurations created later separate the same way.
+						stage.getSeparationConfigurations().setDefault(edit.apply(stage.getSeparationConfigurations().getDefault().copy(null)));
+					}
+					for (FlightConfigurationId id : ids) {
+						StageSeparationConfiguration sc = edit.apply(stage.getSeparationConfigurations().get(id).copy(id));
 						stage.getSeparationConfigurations().set(id, sc);
 					}
 					d.doc.setSaved(false);

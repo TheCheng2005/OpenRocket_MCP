@@ -75,7 +75,22 @@ public final class SimTools {
 						+ "velocity, thrust-to-weight, stability at rail exit and min/max during ascent, each stage's events, "
 						+ "ignitions (tilt and altitude for air starts), every recovery deployment (airspeed, altitude, density, mass, "
 						+ "steady descent rate) and landing distance per stage. Overrides apply to this run only.",
-				overrides(simSelect(Schema.object())).build(), false, a -> Sims.summarize(runSelected(ctx, a))));
+				overrides(simSelect(Schema.object()))
+						.str("plotPath", "Also draw the flight profile (SVG): altitude vs time for each stage with burnout, "
+								+ "separation, apogee and deployments marked, e.g. \"plots/flight.svg\".", false).build(),
+				false, a -> {
+					Simulation sim = runSelected(ctx, a);
+					Map<String, Object> out = Sims.summarize(sim);
+					if (a.has("plotPath")) {
+						java.nio.file.Path p = ctx.path(a.str("plotPath"));
+						if (p.getParent() != null) {
+							java.nio.file.Files.createDirectories(p.getParent());
+						}
+						java.nio.file.Files.writeString(p, io.github.openrocketmcp.report.Reports.profileSvg(sim));
+						out.put("plot", p.toString());
+					}
+					return out;
+				}));
 
 		s.tool(new ToolDef("get_flight_data", "Get time series from a simulation",
 				"Down-sampled time series for plotting or inspection (e.g. stability vs time for the design review plots). "
