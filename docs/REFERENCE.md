@@ -139,7 +139,12 @@ macOS arm64 / x64, and attaches the bundles to GitHub releases for `v*` tags.
 
 - MCP prompts: `recovery_review`, `design_review`, `motor_selection`; resources: `openrocket://standards`,
   `openrocket://rules`, `openrocket://methods`.
-- Claude Code skill: `.claude/skills/rocket-design-review` (the review workflow).
+- Claude Code skill: `.claude/skills/rocket-design-review` (the review workflow); the same skill for Codex and other
+  agents in `.agents/skills/rocket-design-review` (kept identical by `SkillsTest`).
+- Codex: stdio (`command`) or the team server (`url` + `bearer_token_env_var`) in `~/.codex/config.toml`; raise
+  `tool_timeout_sec` (default 60 s) for dispersion and motor ranking. Codex offers the tools to its model under the
+  `mcp__openrocket` namespace with the schemas unchanged. `scripts/test_codex.py` runs the real Codex CLI against the
+  server with a local stand-in for the model (in CI, Codex version pinned).
 - Team standards file location: `openrocket-mcp.json` in the workspace (the directory the server runs from, or
   `OPENROCKET_MCP_WORKSPACE` / `--workspace`), or the path in the `OPENROCKET_MCP_STANDARDS` environment variable.
 - Imported aero tables are kept next to the design as `NAME.aero.json` (SI, readable, diffable) when it is saved, and
