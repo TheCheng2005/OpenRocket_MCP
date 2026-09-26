@@ -84,7 +84,8 @@ def main():
     w("Units follow the team setting (here metric with imperial in brackets).")
     w()
     w("The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch")
-    w("Canada 2027.")
+    w("Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before")
+    w("step 3) or [`examples/maple-10k.ork`](examples/maple-10k.ork) (the finished design) and ask the same questions.")
     w()
 
     # 1. Build ---------------------------------------------------------------------------------------------------------
@@ -135,7 +136,9 @@ def main():
     w()
     table(rows, ["motor", "impulse", "apogee", "railExit", "maxMach", "minAscentStability", "meetsRules"],
           ["Motor", "Impulse", "Apogee (vs 10,000 ft)", "Rail exit", "Max Mach", "Min stability", "Meets rules"])
-    call("save_design", {"designId": d, "path": os.path.join(tmp, "maple-pdr.ork")})  # the "PDR" version, compared later
+    # The "PDR" version, compared later; also shipped for people to try (and for the demo video).
+    call("save_design", {"designId": d, "path": os.path.join(tmp, "maple-pdr.ork")})
+    shutil.copy(os.path.join(tmp, "maple-pdr.ork"), os.path.join(IMG, "maple-10k-pdr.ork"))
 
     # 3. Flutter -------------------------------------------------------------------------------------------------------
     fl = call("fin_flutter", {"designId": d})["finSets"][0]
@@ -310,6 +313,7 @@ def main():
     w("![Stability margin during the ascent with the rule minimum](examples/stability-ascent.svg)")
     w()
 
+    call("save_design", {"designId": d, "path": os.path.join(IMG, "maple-10k.ork")})
     diff = call("compare_designs", {"designId": d, "baselinePath": os.path.join(tmp, "maple-pdr.ork")})
     ask(14, "What changed since the version we showed at PDR?", ["compare_designs"])
     for line in diff["summary"]:

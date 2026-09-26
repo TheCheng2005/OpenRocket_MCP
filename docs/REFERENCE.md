@@ -103,7 +103,7 @@ stiffness are not constrained).
                                 # tests (scaling laws, inverses), protocol, standards, SVG, OpenRocket-backed checks, end-to-end MCP
 ./gradlew installDist           # build/install/openrocket-mcp/bin/openrocket-mcp[.bat]
 python3 scripts/benchmark.py    # scenario benchmark: realistic team requests, pass/fail + timings + output size
-python3 scripts/make_examples.py  # rebuilds docs/EXAMPLES.md and its plots from real runs (also run in CI)
+python3 scripts/make_examples.py  # rebuilds docs/EXAMPLES.md, its plots and the demo designs from real runs (also in CI)
 ```
 
 `scripts/benchmark.py` drives a fresh server over stdio through realistic requests (design a 10k ft rocket from

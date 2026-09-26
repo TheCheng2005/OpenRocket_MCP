@@ -155,6 +155,11 @@ materials. You can also just tell Claude ("our pins are 2-56 nylon, 35 lbf each"
 - On a team server, everyone connected shares the open designs, so say which one you mean if several are open.
 - Details on every tool, the methods behind them and their limits: [docs/REFERENCE.md](docs/REFERENCE.md).
 
+## Contributing
+
+Found a number that looks wrong, or want a new capability? [Open an issue](https://github.com/TheCheng2005/OpenRocket_MCP/issues/new/choose).
+Code, rule sets and flight data are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 GPL-3.0-or-later, like OpenRocket. See [LICENSE](LICENSE).

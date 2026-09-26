@@ -6,7 +6,8 @@ by [`scripts/make_examples.py`](../scripts/make_examples.py); the one-line answe
 Units follow the team setting (here metric with imperial in brackets).
 
 The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch
-Canada 2027.
+Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before
+step 3) or [`examples/maple-10k.ork`](examples/maple-10k.ork) (the finished design) and ask the same questions.
 
 ## Design
 
@@ -99,7 +100,7 @@ Claude builds the rocket part by part in OpenRocket (it opens in the OpenRocket 
 |---|---|---|---|
 | WARN | Launch site altitude | 0 m (0 ft) used by this simulation |  |
 | WARN | Ascent stability (maximum, over-stability) | 5.425 cal | R10.3.1, R10.4.1 |
-| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.425 cal | R10.3.1, R10.4.1 |
+| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.426 cal | R10.3.1, R10.4.1 |
 | WARN | Maximum Mach number | 1.424 |  |
 | PASS | Simulated launch angle | 6 deg | R10.1.1 |
 | PASS | Rail departure velocity | 49.24 m/s (161.6 ft/s) | R10.2.1 |
@@ -122,7 +123,7 @@ Claude builds the rocket part by part in OpenRocket (it opens in the OpenRocket 
 
 <sub>Tools Claude uses: `monte_carlo`</sub>
 
-> Over 200 simulated flights the median landing is 174.8 m (573.5 ft) from the pad and 95% land within 460.3 m (1510 ft); the landings centre 286 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 3041 m (9976 ft) ± 219.1 m (719 ft).
+> Over 200 simulated flights the median landing is 176.2 m (578 ft) from the pad and 95% land within 460.5 m (1511 ft); the landings centre 286 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 3040 m (9975 ft) ± 218.8 m (717.9 ft).
 
 ![200 simulated landings around the pad with the 2-sigma ellipse](examples/landing.svg)
 
@@ -130,12 +131,12 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 
 | Uncertain input | Apogee | Min stability | Landing distance |
 |---|---|---|---|
-| windSpeed | -0.08104 | -0.9575 | -0.4553 |
-| launchAngle | -0.1296 | -0.003078 | 0.1627 |
-| structureMass | -0.05058 | 0.1778 | 0.09537 |
-| airframeDrag | -0.935 | 0.04173 | -0.1729 |
-| motorThrust | 0.3212 | 0.04286 | 0.00564 |
-| parachuteCd | -0.03292 | 0.0299 | -0.001973 |
+| windSpeed | -0.08234 | -0.9575 | -0.4541 |
+| launchAngle | -0.1294 | -0.003078 | 0.1614 |
+| structureMass | -0.04954 | 0.1778 | 0.0956 |
+| airframeDrag | -0.9351 | 0.04173 | -0.1746 |
+| motorThrust | 0.3207 | 0.04286 | 0.002559 |
+| parachuteCd | -0.03236 | 0.0299 | -0.002945 |
 
 <sub>Correlation from -1 to 1: the closer to ±1, the more that input drives the result.</sub>
 

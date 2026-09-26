@@ -1,0 +1,21 @@
+name: Idea or request
+description: Something you would like Claude to be able to do with your rocket.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: ask
+    attributes:
+      label: What would you like to ask Claude?
+      description: Write it the way you would type it, e.g. "Size our avionics bay vent holes for the altimeter".
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What do you do today instead?
+      description: Spreadsheet, hand calculation, another program, a rule you check by hand...
+  - type: textarea
+    id: refs
+    attributes:
+      label: Methods or rules it should follow (optional)
+      description: Equations, papers, rule numbers (e.g. DTEG R4.3.1) or your team's procedure.

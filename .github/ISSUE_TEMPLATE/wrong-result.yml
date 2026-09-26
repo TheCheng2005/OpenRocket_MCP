@@ -1,0 +1,41 @@
+name: A result looks wrong
+description: A number, check or recommendation that does not match a hand calculation, RASAero, a flight log or a test.
+labels: ["accuracy"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks: these reports make the tool trustworthy for everyone. Numbers are estimates (OpenRocket's models,
+        ideal-gas black powder, Knacke opening loads, NACA flutter screen), so please say where your expected value comes from.
+  - type: textarea
+    id: ask
+    attributes:
+      label: What you asked
+      description: The prompt, or the tool and its arguments if you know them (e.g. `recovery_analysis` with pinType "4-40 nylon").
+    validations:
+      required: true
+  - type: textarea
+    id: got
+    attributes:
+      label: What you got
+      description: Paste the relevant part of the answer or tool output.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and from where
+      description: e.g. "1.1 g of BP from our ground test", "RASAero II gives CD 0.52 at Mach 0.9", "altimeter apogee 9,420 ft".
+    validations:
+      required: true
+  - type: textarea
+    id: design
+    attributes:
+      label: Design
+      description: Attach the .ork (zip it if GitHub refuses the extension), or say which bundled example you used. Remove anything private first.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "openrocket-mcp --version, or the Claude Desktop extension version"
+      placeholder: "0.11.0"

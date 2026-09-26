@@ -1,0 +1,42 @@
+name: Something broke
+description: An error, a crash, a tool that never answers, or an install that does not work.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you asked and the error or behaviour you saw (paste the error text).
+    validations:
+      required: true
+  - type: dropdown
+    id: app
+    attributes:
+      label: Where you use it
+      options:
+        - Claude Desktop (extension)
+        - Claude Desktop (manual config)
+        - claude.ai (team server)
+        - Claude Code
+        - Codex
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Computer
+      placeholder: "Windows 11 / macOS 15 (Apple silicon) / Ubuntu 24.04"
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: "0.11.0"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (optional)
+      description: |
+        Claude Desktop: Settings > Developer > openrocket > Open logs. Team server: the terminal it runs in.
+        Remove tokens and private paths before pasting.
+      render: text
