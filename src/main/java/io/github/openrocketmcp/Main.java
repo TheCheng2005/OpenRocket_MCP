@@ -75,6 +75,7 @@ public final class Main {
 		ReportTools.register(server, ctx);
 		StructureTools.register(server, ctx);
 		io.github.openrocketmcp.tools.FinTools.register(server, ctx);
+		io.github.openrocketmcp.tools.IntegrationTools.register(server, ctx);
 		AeroTools.register(server, ctx);
 		StudyTools.register(server, ctx);
 		LaunchTools.register(server, ctx);
