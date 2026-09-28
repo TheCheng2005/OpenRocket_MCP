@@ -131,6 +131,15 @@ public final class MonteCarlo {
 
 	/** As above; with {@code plot}, also writes the landing map (SVG) there. */
 	public static Map<String, Object> run(Simulation base, OpenRocketDocument doc, Settings s, Standards std, Path plot) {
+		return run(base, doc, s, std, plot, null, null);
+	}
+
+	/**
+	 * @param kml  also write the landing zones as KML (Google Earth), or null
+	 * @param site {latitude, longitude} of the pad for the KML, or null for the simulation's launch site
+	 */
+	public static Map<String, Object> run(Simulation base, OpenRocketDocument doc, Settings s, Standards std, Path plot,
+			Path kml, double[] site) {
 		SimulationOptions bo = base.getOptions();
 		double windMean = Double.isNaN(s.windSpeed()) ? Winds.speed(bo) : s.windSpeed();
 		double angleMean = Double.isNaN(s.launchAngle()) ? bo.getLaunchRodAngle() : s.launchAngle();
@@ -175,6 +184,7 @@ public final class MonteCarlo {
 			o.setTimeStep(Math.max(o.getTimeStep(), 0.1));
 			sims.add(v);
 		}
+		io.github.openrocketmcp.mcp.CallContext.current().expect(sims.size(), "flights simulated");
 		List<Variants.Run> runs = Variants.runAll(sims);
 
 		List<Double> apogees = new ArrayList<>();
@@ -287,8 +297,36 @@ public final class MonteCarlo {
 				}
 				Files.writeString(pp, landingSvg(landings, base.getRocket().getName() + ": " + okOutputs.size() + " simulated landings"));
 				out.put("plot", pp.toString());
+				io.github.openrocketmcp.report.Png.attachFile(pp, "Landing map");
 			} catch (java.io.IOException ex) {
 				throw new io.github.openrocketmcp.mcp.ToolException("Could not write the plot: " + ex.getMessage());
+			}
+		}
+		if (kml != null && !landings.isEmpty()) {
+			double lat = site != null ? site[0] : base.getOptions().getLaunchLatitude();
+			double lon = site != null ? site[1] : base.getOptions().getLaunchLongitude();
+			Map<String, double[]> ellipses = new LinkedHashMap<>();
+			for (Map.Entry<String, List<double[]>> e : landings.entrySet()) {
+				if (e.getValue().size() >= 3) {
+					ellipses.put(e.getKey(), ellipse(e.getValue()));
+				}
+			}
+			try {
+				Path kp = kml.toAbsolutePath();
+				if (kp.getParent() != null) {
+					Files.createDirectories(kp.getParent());
+				}
+				Files.writeString(kp, io.github.openrocketmcp.report.Kml.landings(base.getRocket().getName() + " landing zones", lat, lon,
+						landings, ellipses, okOutputs.size() + " simulated flights, wind " + Units.fmt(windMean, Dim.VELOCITY)
+								+ ". Ellipses hold about 86% of landings (2 sigma)."));
+				out.put("kml", kp + " (open in Google Earth; pad at " + String.format(java.util.Locale.ROOT, "%.5f, %.5f", lat, lon) + ")");
+				if (site == null && Double.isNaN(std.q("launchSite.latitude", Dim.DIMENSIONLESS, Double.NaN))) {
+					out.put("kmlNote", "The pad position is the simulation's launch site; OpenRocket's default is Cape Canaveral. Set "
+							+ "launchSite.latitude / longitude in the team standards, or pass siteLatitude / siteLongitude, so the "
+							+ "map sits on your field.");
+				}
+			} catch (java.io.IOException ex) {
+				throw new io.github.openrocketmcp.mcp.ToolException("Could not write the KML: " + ex.getMessage());
 			}
 		}
 		List<Map<String, Object>> deps = new ArrayList<>();

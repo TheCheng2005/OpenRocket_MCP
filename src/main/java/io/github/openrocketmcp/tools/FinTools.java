@@ -112,6 +112,7 @@ public final class FinTools {
 		double windCase = a.bool("checkDesignWind", true) && !Double.isNaN(maxWind) ? maxWind : Double.NaN;
 		int budget = Math.max(16, Math.min(300, a.integer("maxEvaluations", 48)));
 		long t0 = System.nanoTime();
+		io.github.openrocketmcp.mcp.CallContext.current().expect((thick.size() * budget + 1) * (Double.isNaN(windCase) ? 1 : 2), "simulations");
 		List<FinDesign.Run> runs = FinDesign.optimize(base, d.doc, fin, lim, thick, obj, target, c, budget, windCase);
 
 		// Best over all thicknesses (feasibility first, then the objective).
@@ -213,6 +214,7 @@ public final class FinTools {
 				}
 				Files.writeString(p, FinDesign.svg(d.name() + ": " + fin.getName() + " planform", now, bestShape,
 						fin.getAxialMethod() == info.openrocket.core.rocketcomponent.position.AxialMethod.BOTTOM));
+				io.github.openrocketmcp.report.Png.attachFile(p, "Current and optimized fin planforms");
 			} catch (IOException e) {
 				throw new ToolException("Could not write " + p + ": " + e.getMessage());
 			}

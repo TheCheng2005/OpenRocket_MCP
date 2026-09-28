@@ -234,6 +234,15 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
 - Fixes: `aero_analysis` drag breakdown counted one fin of a set (OpenRocket's per-component drag is per copy), and
   `structural_loads` split drag along the body the same way; unit inputs accept fractions ("1/8 in").
 
+### Working with Claude (v0.14.0)
+
+- MCP: per-call context (progress notifications from `Variants.runAll`, cancellation checkpoints, image content);
+  stdio requests run concurrently with per-design locks; Streamable HTTP answers a tool call with a progress token as
+  server-sent events.
+- Images: our SVGs rasterized with Apache Batik (`report.Png`), best effort (no image, same text, if it fails).
+- `design_status`; `undo` / `redo` / `history` (rocket copies around every editing tool, kept when OpenRocket's
+  modification id changes); KML landing zones from `monte_carlo`.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

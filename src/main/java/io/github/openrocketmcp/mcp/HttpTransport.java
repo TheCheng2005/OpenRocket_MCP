@@ -179,6 +179,10 @@ public final class HttpTransport {
 			}
 			return;
 		}
+		if (wantsStream(ex, msg)) {
+			stream(ex, msg.getAsJsonObject());
+			return;
+		}
 		JsonObject r = server.handleLine(msg.toString());
 		if (r == null) {
 			send(ex, 202, null, null); // notification or client response
@@ -186,6 +190,49 @@ public final class HttpTransport {
 			sendJson(ex, 200, r);
 		}
 	}
+
+	/** A tool call whose client asked for progress and accepts an event stream (Streamable HTTP). */
+	private static boolean wantsStream(HttpExchange ex, JsonElement msg) {
+		String accept = ex.getRequestHeaders().getFirst("Accept");
+		if (accept == null || !accept.contains("text/event-stream") || !msg.isJsonObject()) {
+			return false;
+		}
+		JsonObject o = msg.getAsJsonObject();
+		if (!o.has("method") || !"tools/call".equals(o.get("method").getAsString()) || !o.has("params")
+				|| !o.get("params").isJsonObject()) {
+			return false;
+		}
+		JsonObject p = o.getAsJsonObject("params");
+		return p.has("_meta") && p.get("_meta").isJsonObject() && p.getAsJsonObject("_meta").has("progressToken");
+	}
+
+	/** Answers one tool call as server-sent events: progress notifications while it runs, then the result. */
+	private void stream(HttpExchange ex, JsonObject msg) throws IOException {
+		ex.getResponseHeaders().add("Content-Type", "text/event-stream");
+		ex.sendResponseHeaders(200, 0);
+		try (OutputStream o = ex.getResponseBody()) {
+			java.util.function.Consumer<JsonObject> event = m -> {
+				byte[] b = ("event: message\ndata: " + compactGson.toJson(m) + "\n\n").getBytes(StandardCharsets.UTF_8);
+				synchronized (o) {
+					try {
+						o.write(b);
+						o.flush();
+					} catch (IOException e) {
+						throw new java.io.UncheckedIOException(e);
+					}
+				}
+			};
+			JsonObject r = server.handle(msg.toString(), event);
+			if (r != null) {
+				event.accept(r);
+			}
+		} catch (java.io.UncheckedIOException e) {
+			// the client went away
+		}
+	}
+
+	private static final com.google.gson.Gson compactGson = new com.google.gson.GsonBuilder().disableHtmlEscaping()
+			.serializeSpecialFloatingPointValues().create();
 
 	private static JsonObject rpcError(String message) {
 		JsonObject err = new JsonObject();

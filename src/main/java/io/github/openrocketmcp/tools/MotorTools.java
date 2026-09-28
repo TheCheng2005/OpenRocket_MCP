@@ -376,6 +376,7 @@ public final class MotorTools {
 
 		// Pass 1: spread over the impulse range. Pass 2: concentrate on the region the objective points to.
 		candidates.sort((x, y) -> Double.compare(x.getTotalImpulseEstimate(), y.getTotalImpulseEstimate()));
+		io.github.openrocketmcp.mcp.CallContext.current().expect(Math.min(budget, candidates.size()), "motors flown");
 		List<ThrustCurveMotor> first = spread(candidates, candidates.size() <= budget ? candidates.size() : budget / 2);
 		List<Ranked> results = new ArrayList<>(simulate.apply(first));
 		if (candidates.size() > first.size()) {

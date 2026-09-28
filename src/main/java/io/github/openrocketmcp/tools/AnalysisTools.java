@@ -92,7 +92,11 @@ public final class AnalysisTools {
 						.num("thrustSd", "Motor thrust / total impulse uncertainty, fractional 1 sd (e.g. 0.03).", false)
 						.num("chuteCdSd", "Parachute Cd uncertainty, fractional 1 sd, per chute (e.g. 0.1).", false)
 						.str("plotPath", "Also draw the landing map (SVG): every landing and the 2-sigma ellipse per stage, e.g. "
-								+ "\"plots/landing.svg\".", false).build(),
+								+ "\"plots/landing.svg\".", false)
+						.str("kmlPath", "Also write the landing zones for Google Earth (KML): the pad, every landing and the 2-sigma "
+								+ "ellipse per stage on the map, e.g. \"landing.kml\".", false)
+						.num("siteLatitude", "Pad latitude for the KML (default: the launch site in the team standards).", false)
+						.num("siteLongitude", "Pad longitude for the KML.", false).build(),
 				true, a -> {
 					Designs.Design d = ctx.designs.get(a.str("designId", null));
 					Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null),
@@ -105,8 +109,10 @@ public final class AnalysisTools {
 							a.num("turbulence", Double.NaN), a.integer("seed", 1), frac(a.num("massSd", 0)), frac(a.num("dragSd", 0)),
 							frac(a.num("thrustSd", 0)), frac(a.num("chuteCdSd", 0)));
 					long t0 = System.nanoTime();
+					double[] site = a.has("siteLatitude") && a.has("siteLongitude")
+							? new double[] { a.num("siteLatitude"), a.num("siteLongitude") } : null;
 					Map<String, Object> out = MonteCarlo.run(base, d.doc, st, ctx.standards(),
-							a.has("plotPath") ? ctx.path(a.str("plotPath")) : null);
+							a.has("plotPath") ? ctx.path(a.str("plotPath")) : null, a.has("kmlPath") ? ctx.path(a.str("kmlPath")) : null, site);
 					out.put("elapsed", Units.num((System.nanoTime() - t0) / 1e9) + " s");
 					return out;
 				}));
@@ -224,7 +230,9 @@ public final class AnalysisTools {
 		double maxWind = ctx.standards().rule("maxGroundWind.value", Dim.VELOCITY);
 		boolean stabilityConstrained = !Double.isNaN(c.minStability()) || !Double.isNaN(c.maxStability());
 		double windCase = a.bool("checkDesignWind", stabilityConstrained) && !Double.isNaN(maxWind) ? maxWind : Double.NaN;
-		Optimizer.Result r = Optimizer.run(base, d.doc, vars, obj, target, c, Math.max(4, Math.min(200, a.integer("maxEvaluations", 40))), 1,
+		int budget = Math.max(4, Math.min(200, a.integer("maxEvaluations", 40)));
+		io.github.openrocketmcp.mcp.CallContext.current().expect((budget + 1) * (Double.isNaN(windCase) ? 1 : 2), "simulations");
+		Optimizer.Result r = Optimizer.run(base, d.doc, vars, obj, target, c, budget, 1,
 				windCase);
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("objective", obj.name().toLowerCase() + (Double.isNaN(target) ? ""

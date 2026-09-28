@@ -97,15 +97,24 @@ public final class Variants {
 
 	/** Simulates all variants in parallel, preserving order. Failed runs are reported, not thrown. */
 	public static List<Run> runAll(List<Simulation> sims) {
+		// The tool call this runs for: progress is counted per finished flight, and a cancelled call stops here.
+		io.github.openrocketmcp.mcp.CallContext call = io.github.openrocketmcp.mcp.CallContext.current();
+		call.checkCancelled();
 		List<Future<Run>> futures = new ArrayList<>();
 		for (Simulation s : sims) {
 			futures.add(POOL.submit(() -> {
+				if (call.isCancelled()) {
+					LISTENERS.remove(s);
+					return new Run(s, "cancelled");
+				}
 				try {
 					SimulationListener[] l = LISTENERS.remove(s);
 					Sims.run(s, l == null ? new SimulationListener[0] : l);
 					return new Run(s, null);
 				} catch (ToolException e) {
 					return new Run(s, e.getMessage());
+				} finally {
+					call.advance();
 				}
 			}));
 		}
@@ -121,6 +130,7 @@ public final class Variants {
 				out.add(new Run(null, c.getClass().getSimpleName() + ": " + c.getMessage()));
 			}
 		}
+		call.checkCancelled();
 		return out;
 	}
 

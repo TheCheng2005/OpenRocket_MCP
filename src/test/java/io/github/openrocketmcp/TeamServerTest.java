@@ -82,6 +82,28 @@ class TeamServerTest {
 	}
 
 	@Test
+	void toolCallWithAProgressTokenStreamsProgressThenTheResult() throws Exception {
+		String open = call("open_design", "{\"example\":\"Dual parachute\"}");
+		String id = JsonParser.parseString(open).getAsJsonObject().get("designId").getAsString();
+		HttpResponse<String> r = post("/mcp/" + TOKEN, "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":"
+				+ "\"monte_carlo\",\"arguments\":{\"designId\":\"" + id + "\",\"runs\":8},\"_meta\":{\"progressToken\":\"p9\"}}}");
+		assertEquals(200, r.statusCode());
+		assertTrue(r.headers().firstValue("Content-Type").orElse("").startsWith("text/event-stream"));
+		List<JsonObject> events = new java.util.ArrayList<>();
+		for (String line : r.body().split("\n")) {
+			if (line.startsWith("data: ")) {
+				events.add(JsonParser.parseString(line.substring(6)).getAsJsonObject());
+			}
+		}
+		assertTrue(events.size() >= 2, r.body());
+		assertEquals("notifications/progress", events.get(0).get("method").getAsString());
+		JsonObject last = events.get(events.size() - 1);
+		assertEquals(9, last.get("id").getAsInt(), "the result comes last on the same stream");
+		assertFalse(last.getAsJsonObject("result").get("isError").getAsBoolean());
+		call("close_design", "{\"designId\":\"" + id + "\"}");
+	}
+
+	@Test
 	void speaksMcpOverHttpWithTheToken() throws Exception {
 		String init = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\"}}";
 		assertEquals(401, post("/mcp", init).statusCode());

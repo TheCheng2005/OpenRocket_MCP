@@ -509,6 +509,65 @@ def scenario_fins_fea_cfd(s, d, tmp):
     check(sc, "joint load cases as CSV for FEA", open(loads["csv"]).read().startswith("joint,station_m"))
 
 
+def raw(s, tool, args, token=None, cancel_after=None):
+    """A tool call with the whole response: (result, progress notifications). With cancel_after, cancel the call after
+    that many progress notifications and return (None, notes) once a ping sent afterwards is answered."""
+    s.id += 1
+    rid = s.id
+    params = {"name": tool, "arguments": args}
+    if token:
+        params["_meta"] = {"progressToken": token}
+    s.p.stdin.write(json.dumps({"jsonrpc": "2.0", "id": rid, "method": "tools/call", "params": params}) + "\n")
+    s.p.stdin.flush()
+    notes, ping = [], None
+    while True:
+        m = json.loads(s.p.stdout.readline())
+        if m.get("method") == "notifications/progress":
+            notes.append(m["params"])
+            if cancel_after and len(notes) == cancel_after and ping is None:
+                s.id += 1
+                ping = s.id
+                s.p.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/cancelled",
+                                            "params": {"requestId": rid, "reason": "benchmark"}}) + "\n")
+                s.p.stdin.write(json.dumps({"jsonrpc": "2.0", "id": ping, "method": "ping"}) + "\n")
+                s.p.stdin.flush()
+            continue
+        if ping is not None and m.get("id") == ping:
+            return None, notes
+        if m.get("id") == rid:
+            return m["result"], notes
+
+
+def scenario_user_experience(s, d, tmp):
+    """Pictures in the chat, progress and cancel, status, undo, and the landing map for Google Earth."""
+    sc = "user experience"
+    r, _ = raw(s, "draw_rocket", {"designId": d, "path": os.path.join(tmp, "ux.svg")})
+    imgs = [c for c in r["content"] if c["type"] == "image"]
+    import base64
+    check(sc, "the drawing comes back as a PNG image in the result",
+          len(imgs) == 1 and imgs[0]["mimeType"] == "image/png" and base64.b64decode(imgs[0]["data"])[:4] == b"\x89PNG")
+    kml = os.path.join(tmp, "land.kml")
+    r, notes = raw(s, "monte_carlo", {"designId": d, "runs": 40, "kmlPath": kml, "siteLatitude": 48.47,
+                                      "siteLongitude": -81.33}, token="mc")
+    check(sc, "Monte Carlo reports progress to the end", len(notes) >= 2 and notes[-1]["progress"] == 40
+          and notes[-1]["total"] == 40, str(notes[-1:]))
+    import xml.etree.ElementTree as ET
+    root = ET.parse(kml).getroot()
+    ns = "{http://www.opengis.net/kml/2.2}"
+    check(sc, "KML landing map: pad, ellipse and every landing",
+          len(root.findall(f".//{ns}Polygon")) == 1 and len(root.findall(f".//{ns}Placemark")) >= 40)
+    t0 = time.time()
+    r, notes = raw(s, "monte_carlo", {"designId": d, "runs": 1000}, token="long", cancel_after=2)
+    check(sc, "a long run can be cancelled and the server keeps answering", r is None and time.time() - t0 < 30,
+          f"{time.time() - t0:.1f} s")
+    st = s.call("design_status", {"designId": d})
+    check(sc, "design_status gives readiness and next steps", st["readiness"] and len(st["nextSteps"]) >= 1, str(st)[:300])
+    before = s.call("describe_component", {"designId": d, "component": "Fins"})
+    s.call("edit_components", {"designId": d, "changes": [{"component": "Fins", "properties": {"thickness": "1 mm"}}]})
+    s.call("undo", {"designId": d})
+    check(sc, "undo restores the fins exactly", s.call("describe_component", {"designId": d, "component": "Fins"}) == before)
+
+
 def scenario_avionics(s, tmp):
     """'Lay out our av-bay with two altimeters and a GPS, and show us where everything goes.'"""
     sc = "avionics bay"
@@ -574,7 +633,8 @@ def main():
                      ("Launch day", lambda: scenario_launch_day(s, scratch["d"], tmp)),
                      ("Design review", lambda: scenario_design_review(s, scratch["d"], tmp)),
                      ("Avionics bay", lambda: scenario_avionics(s, tmp)),
-                     ("Fins, FEA and CFD", lambda: scenario_fins_fea_cfd(s, scratch["d"], tmp))]:
+                     ("Fins, FEA and CFD", lambda: scenario_fins_fea_cfd(s, scratch["d"], tmp)),
+                     ("User experience", lambda: scenario_user_experience(s, scratch["d"], tmp))]:
         print(f"\n== {name}")
         try:
             fn()

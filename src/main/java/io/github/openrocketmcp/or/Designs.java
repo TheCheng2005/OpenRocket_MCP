@@ -31,6 +31,8 @@ public final class Designs {
 		public final OpenRocketDocument doc;
 		public Path path;
 		public final String origin;
+		/** Edits made in this session, for undo / redo. */
+		public final History history = new History();
 
 		Design(String id, OpenRocketDocument doc, Path path, String origin) {
 			this.id = id;
