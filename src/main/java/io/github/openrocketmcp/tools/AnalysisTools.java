@@ -112,6 +112,70 @@ public final class AnalysisTools {
 				}));
 	}
 
+	/**
+	 * Optimizer constraints from the arguments; with meetRules (or {@code meetRulesDefault} when not given) the stability
+	 * floor / ceiling come from the rule set, the rail exit from the rules and the flutter margin from the team
+	 * standards. {@code basis[0]} receives a description of the rule-derived limits.
+	 */
+	static Optimizer.Constraints constraints(Context ctx, Designs.Design d, Args a, Optimizer.Objective obj,
+			boolean meetRulesDefault, String[] basis) {
+		boolean meetRules = a.bool("meetRules", meetRulesDefault);
+		double railRule = ctx.standards().rule("railDepartureVelocity.min", Dim.VELOCITY);
+		double minStab = a.num("minStability", Double.NaN), maxStab = a.num("maxStability", Double.NaN);
+		if (meetRules) {
+			// Stability floor from the rule set: max(minimum calibers, % of body length x L:D); ceiling: over-stability.
+			var std = ctx.standards();
+			double[] fl = io.github.openrocketmcp.or.Requirements.stabilityFloor(std, d.doc.getRocket().getSelectedConfiguration());
+			double floor = fl[0];
+			if (Double.isNaN(minStab) && floor > 0) {
+				minStab = floor;
+			}
+			double over = std.rule("stability.overStable", Dim.DIMENSIONLESS);
+			if (Double.isNaN(maxStab) && !Double.isNaN(over)) {
+				maxStab = over;
+			}
+			basis[0] = "minStability " + io.github.openrocketmcp.or.Requirements.floorText(fl) + "; maxStability "
+					+ Units.num(maxStab) + " cal (over-stable)";
+		}
+		// Fin flutter: a constraint when asked for or with meetRules (the team's structures.flutterMinMargin); always reported.
+		double minFlutter = a.num("minFlutterMargin", meetRules
+				? ctx.standards().q("structures.flutterMinMargin", Dim.DIMENSIONLESS, 1.5) : Double.NaN);
+		return new Optimizer.Constraints(minStab, maxStab,
+				a.qty("minRailExit", Dim.VELOCITY, obj == Optimizer.Objective.TARGET_STABILITY && Double.isNaN(minStab) ? Double.NaN : railRule),
+				a.num("maxMach", Double.NaN), a.qtyOrNaN("minApogee", Dim.DISTANCE), minFlutter, ctx.standards());
+	}
+
+	/** The constraints as reported to the user. */
+	static Map<String, Object> describe(Optimizer.Constraints c, double windCase, String ruleBasis) {
+		Map<String, Object> cons = new LinkedHashMap<>();
+		if (!Double.isNaN(c.minStability())) {
+			cons.put("minAscentStability", Units.num(c.minStability()) + " cal");
+		}
+		if (!Double.isNaN(c.maxStability())) {
+			cons.put("maxAscentStability", Units.num(c.maxStability()) + " cal");
+		}
+		if (!Double.isNaN(c.minRailExit())) {
+			cons.put("minRailExit", Units.fmt(c.minRailExit(), Dim.VELOCITY));
+		}
+		if (!Double.isNaN(c.maxMach())) {
+			cons.put("maxMach", Units.num(c.maxMach()));
+		}
+		if (!Double.isNaN(c.minApogee())) {
+			cons.put("minApogee", Units.fmt(c.minApogee(), Dim.DISTANCE));
+		}
+		if (!Double.isNaN(c.minFlutterMargin())) {
+			cons.put("minFinFlutterMargin", Units.num(c.minFlutterMargin()) + " (flutter speed / airspeed along the flight; fins of "
+					+ "unknown stiffness are not constrained)");
+		}
+		if (!Double.isNaN(windCase)) {
+			cons.put("evaluatedAt", "nominal wind and " + Units.fmt(windCase, Dim.VELOCITY) + " (rule set maximum ground wind); worse of the two");
+		}
+		if (ruleBasis != null) {
+			cons.put("fromRules", ruleBasis);
+		}
+		return cons;
+	}
+
 	private static double frac(double v) {
 		if (v < 0 || v > 0.5) {
 			throw new ToolException("Fractional standard deviations must be between 0 and 0.5 (e.g. 0.05 for 5%).");
@@ -143,30 +207,9 @@ public final class AnalysisTools {
 			case TARGET_STABILITY -> a.num("targetStability");
 			default -> Double.NaN;
 		};
-		double railRule = ctx.standards().rule("railDepartureVelocity.min", Dim.VELOCITY);
-		double minStab = a.num("minStability", Double.NaN), maxStab = a.num("maxStability", Double.NaN);
-		String ruleBasis = null;
-		if (a.bool("meetRules", false)) {
-			// Stability floor from the rule set: max(minimum calibers, % of body length x L:D); ceiling: over-stability.
-			var std = ctx.standards();
-			double[] fl = io.github.openrocketmcp.or.Requirements.stabilityFloor(std, d.doc.getRocket().getSelectedConfiguration());
-			double floor = fl[0];
-			if (Double.isNaN(minStab) && floor > 0) {
-				minStab = floor;
-			}
-			double over = std.rule("stability.overStable", Dim.DIMENSIONLESS);
-			if (Double.isNaN(maxStab) && !Double.isNaN(over)) {
-				maxStab = over;
-			}
-			ruleBasis = "minStability " + io.github.openrocketmcp.or.Requirements.floorText(fl) + "; maxStability "
-					+ Units.num(maxStab) + " cal (over-stable)";
-		}
-		// Fin flutter: a constraint when asked for or with meetRules (the team's structures.flutterMinMargin); always reported.
-		double minFlutter = a.num("minFlutterMargin", a.bool("meetRules", false)
-				? ctx.standards().q("structures.flutterMinMargin", Dim.DIMENSIONLESS, 1.5) : Double.NaN);
-		Optimizer.Constraints c = new Optimizer.Constraints(minStab, maxStab,
-				a.qty("minRailExit", Dim.VELOCITY, obj == Optimizer.Objective.TARGET_STABILITY && Double.isNaN(minStab) ? Double.NaN : railRule),
-				a.num("maxMach", Double.NaN), a.qtyOrNaN("minApogee", Dim.DISTANCE), minFlutter, ctx.standards());
+		String[] basis = new String[1];
+		Optimizer.Constraints c = constraints(ctx, d, a, obj, false, basis);
+		String ruleBasis = basis[0];
 		Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
 				ctx.standards(), false);
 		long t0 = System.nanoTime();
@@ -178,32 +221,7 @@ public final class AnalysisTools {
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("objective", obj.name().toLowerCase() + (Double.isNaN(target) ? ""
 				: " " + (obj == Optimizer.Objective.TARGET_APOGEE ? Units.fmt(target, Dim.DISTANCE) : Units.num(target) + " cal")));
-		Map<String, Object> cons = new LinkedHashMap<>();
-		if (!Double.isNaN(c.minStability())) {
-			cons.put("minAscentStability", Units.num(c.minStability()) + " cal");
-		}
-		if (!Double.isNaN(c.maxStability())) {
-			cons.put("maxAscentStability", Units.num(c.maxStability()) + " cal");
-		}
-		if (!Double.isNaN(c.minRailExit())) {
-			cons.put("minRailExit", Units.fmt(c.minRailExit(), Dim.VELOCITY));
-		}
-		if (!Double.isNaN(c.maxMach())) {
-			cons.put("maxMach", Units.num(c.maxMach()));
-		}
-		if (!Double.isNaN(c.minApogee())) {
-			cons.put("minApogee", Units.fmt(c.minApogee(), Dim.DISTANCE));
-		}
-		if (!Double.isNaN(c.minFlutterMargin())) {
-			cons.put("minFinFlutterMargin", Units.num(c.minFlutterMargin()) + " (flutter speed / airspeed along the flight; fins of "
-					+ "unknown stiffness are not constrained)");
-		}
-		if (!Double.isNaN(windCase)) {
-			cons.put("evaluatedAt", "nominal wind and " + Units.fmt(windCase, Dim.VELOCITY) + " (rule set maximum ground wind); worse of the two");
-		}
-		if (ruleBasis != null) {
-			cons.put("fromRules", ruleBasis);
-		}
+		Map<String, Object> cons = describe(c, windCase, ruleBasis);
 		out.put("constraints", cons);
 		out.put("feasible", r.feasible());
 		out.put("best", r.best() == null ? null : Optimizer.render(r.best(), vars));
