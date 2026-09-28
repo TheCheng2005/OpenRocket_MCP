@@ -77,4 +77,27 @@ class FinDesignTest {
 		String svg = FinDesign.svg("t", before, best, true);
 		assertEquals(2, svg.split("<polygon").length - 1);
 	}
+
+	@Test
+	void finCandidatesFlyOnOpenRocketsDragEvenWithAnImportedTable() throws Exception {
+		Designs.Design d = new Designs().openExample("Dual parachute");
+		TrapezoidFinSet fin = StudiesTest.first(d, TrapezoidFinSet.class);
+		Simulation base = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults(), false);
+		Optimizer.Applier none = (r, x) -> {
+		};
+		double own = Optimizer.evaluateOne(base, d.doc, none, new double[0], Double.NaN, null).apogee();
+		AeroTable.set(d.doc.getRocket(), AeroTable.parse("Mach,CD\n0.01,3.0\n3.0,3.0\n", "draggy", 1.0, true));
+		try {
+			double table = Optimizer.evaluateOne(base, d.doc, none, new double[0], Double.NaN, null).apogee();
+			assertTrue(table < own * 0.7, "the table applies to ordinary variants: " + table + " vs " + own);
+			FinDesign.Limits lim = FinDesign.defaults(fin, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, false, Double.NaN);
+			Optimizer.Applier ap = FinDesign.applier(fin.getID().toString(), lim, fin.getThickness());
+			assertTrue(ap.openRocketDrag());
+			double[] x = FinDesign.variables(FinDesign.of(fin), lim);
+			double fins = Optimizer.evaluateOne(base, d.doc, ap, x, Double.NaN, null).apogee();
+			assertEquals(own, fins, own * 0.01, "fin candidates ignore a table measured on the old fins");
+		} finally {
+			AeroTable.clear(d.doc.getRocket());
+		}
+	}
 }

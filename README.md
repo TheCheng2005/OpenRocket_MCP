@@ -29,6 +29,9 @@ the answers, and the plots. Everything on that page is real output.
 - "Is it stable all the way up, including in 30 km/h wind?" — checked at every moment of the flight, for every stage.
 - "How much nose weight do I need?" or "How big should the fins be?" — the smallest fins that meet the stability rules
   without fluttering.
+- "Optimize our fin shape" — root chord, tip chord, span and sweep searched together (and the thickness from the sheets
+  you can buy) for the least drag or the lightest fins, meeting the stability rules and staying clear of flutter. Only
+  buildable shapes are tried.
 - "Which nose cone and fin shape should we build?" — every common shape flown and compared.
 - Pick real parts from OpenRocket's catalogue (tubes, nose cones, couplers, rail buttons, parachutes).
 - "Lay out the avionics bay": two independent altimeters, each with its own battery and switch, a GPS tracker, the
@@ -58,7 +61,15 @@ the answers, and the plots. Everything on that page is real output.
 - "Will our fins flutter?" — and how thick they need to be if they will.
 - "Will it get too hot?" — nose tip, fin edges and body temperatures at speed against your materials' limits.
 - "How straight do the fins need to be?" — roll rate from misaligned fins, and whether it risks a roll-pitch resonance.
-- Loads at every airframe joint during boost and at maximum speed, to size couplers and fasteners.
+- Loads at every airframe joint during boost and at maximum speed, to size couplers and fasteners (also as a CSV for
+  your FEA).
+- "Check the fins in FEA" — a CalculiX finite-element model of the fin under its worst flight load: deflection, stress
+  margin and natural frequencies (bending and torsion). CalculiX is free; without it you still get the model file.
+
+**CFD, CAD and manufacturing**
+- "Export it for CFD" — the rocket as STL (a region per part), and the list of cases to run taken from your flight
+  (Mach, altitude, air, Reynolds number). Send the CFD drag and centre of pressure back and every simulation uses them.
+- Fin cutting patterns as DXF for a waterjet, laser or CNC router.
 
 **Competition and reviews**
 - A full check against the Launch Canada rules, with the rule numbers and a checklist of what to verify by hand.

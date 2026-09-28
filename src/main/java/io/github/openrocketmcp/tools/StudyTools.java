@@ -91,13 +91,24 @@ public final class StudyTools {
 				SimTools.overrides(SimTools.simSelect(Schema.object()))
 						.qty("gustSpeed", "Crosswind gust at max q (default: the rule set's maximum ground wind, 30 km/h).", false)
 						.num("safetyFactor", "Safety factor on stress (default structures.loadSafetyFactor, 2).", false)
-						.qty("allowableStress", "Allowable stress of the tube material, e.g. \"200 MPa\", for a margin.", false).build(),
+						.qty("allowableStress", "Allowable stress of the tube material, e.g. \"200 MPa\", for a margin.", false)
+						.str("csvPath", "Also write the load cases per joint (SI CSV: station, axial force, bending moments, "
+								+ "times, Mach, angle of attack) for FEA of tubes, couplers and fasteners.", false).build(),
 				true, a -> {
 					Simulation sim = SimTools.runSelected(ctx, a);
 					double gust = a.qty("gustSpeed", Dim.VELOCITY,
 							orDefault(ctx.standards().rule("maxGroundWind.value", Dim.VELOCITY), 30 / 3.6));
 					double sf = a.num("safetyFactor", ctx.standards().q("structures.loadSafetyFactor", Dim.DIMENSIONLESS, 2));
-					Map<String, Object> out = Loads.analyze(sim, gust, sf, a.qtyOrNaN("allowableStress", Dim.PRESSURE));
+					StringBuilder csv = a.has("csvPath") ? new StringBuilder() : null;
+					Map<String, Object> out = Loads.analyze(sim, gust, sf, a.qtyOrNaN("allowableStress", Dim.PRESSURE), csv);
+					if (csv != null) {
+						java.nio.file.Path p = ctx.path(a.str("csvPath"));
+						if (p.getParent() != null) {
+							java.nio.file.Files.createDirectories(p.getParent());
+						}
+						java.nio.file.Files.writeString(p, csv.toString());
+						out.put("csv", p.toAbsolutePath().toString());
+					}
 					return out;
 				}));
 	}

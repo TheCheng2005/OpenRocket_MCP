@@ -156,9 +156,9 @@ public final class IntegrationTools {
 				"CD = axial force / (q x reference area) at 0 deg: power-off with a closed base; power-on without base drag "
 						+ "(or leave it blank to reuse power-off). CP from the pitching moment at 2-4 deg: x_cp = x_ref - "
 						+ "M_ref / N, in metres from the nose tip.",
-				"Fill " + tpl.getFileName() + " and call import_aero_table with path = that file and cpUnit = \"m\". Every simulation, "
-						+ "check_requirements and optimize_fins then use the CFD drag and CP; aero_analysis shows them next to "
-						+ "OpenRocket's.",
+				"Fill " + tpl.getFileName() + " and call import_aero_table with path = that file and cpUnit = \"m\": it shows the CFD "
+						+ "values next to OpenRocket's and their effect on apogee and stability, and every later simulation and "
+						+ "check_requirements uses them (optimizers that change the shape fall back to OpenRocket's model).",
 				"Transonic (Mach 0.9-1.2) drag and the fin-body CP are where CFD differs most from OpenRocket's Barrowman "
 						+ "model; if time is short, run those Mach numbers first."));
 		out.put("notes", List.of(

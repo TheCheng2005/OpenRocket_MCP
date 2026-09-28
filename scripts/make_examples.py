@@ -208,8 +208,6 @@ def main():
 
     # 5. Stability and fin size: nose ballast to the rule floor, then the lightest fins that meet stability and flutter,
     #    then the motor again (up to two rounds: the motor changes the speed, which moves both).
-    fins = [{"component": "Fins", "property": "height", "min": "3.5 in", "max": "8 in"},
-            {"component": "Fins", "property": "rootChord", "min": "7 in", "max": "12 in"}]
     ballast_total = 0.0
     for rnd in range(2):
         bal = call("ballast", {"designId": d})
@@ -224,27 +222,31 @@ def main():
             else:
                 add("Nose cone", "MassComponent", "Nose ballast", {"componentMass": f"{grams:.0f} g", "length": "2 in",
                                                                    "axialMethod": "TOP", "axialOffset": pos})
-        opt = call("optimize", {"designId": d, "objective": "min_mass", "meetRules": True, "variables": fins,
-                                "maxEvaluations": 48, "apply": True})
+        opt = call("optimize_fins", {"designId": d, "objective": "max_apogee", "maxSpan": "8 in", "apply": True,
+                                     "plotPath": os.path.join(IMG, "fins.svg")})
         rank = best_motor()
         top = rank["ranking"][0]
         fl = call("fin_flutter", {"designId": d})["finSets"][0]
         if opt["feasible"] and fl["status"].startswith("PASS"):
             break
-    ask(6, "It has to meet the stability rules (also in 30 km/h wind): add the nose weight it needs, then make the fins as "
-           "small and light as possible while staying clear of flutter, and pick the motor again.",
-        ["ballast", "add_component", "optimize", "rank_motors", "fin_flutter"])
-    best = opt["best"]
-    names = {"height": "span", "rootChord": "root chord"}
-    w(f"> **{ballast_total:.0f} g of nose ballast**, then fin " +
-      ", ".join(f"{names.get(k.split('.')[1], k)} **{lead(v)}**" for k, v in best["values"].items()) +
-      f" ({'meets every constraint' if opt['feasible'] else 'closest found'}): stability {best['minAscentStability']} to "
-      f"{best['maxAscentStability']} in flight, flutter margin {best.get('finFlutterMargin', 'n/a')}. Best motor now: "
+    ask(6, "It has to meet the stability rules (also in 30 km/h wind): add the nose weight it needs, then optimize the fin "
+           "shape for the least drag while staying clear of flutter (span no more than 8 in), and pick the motor again.",
+        ["ballast", "add_component", "optimize_fins", "rank_motors", "fin_flutter"])
+    best = opt["optimized"]
+    w(f"> **{ballast_total:.0f} g of nose ballast**, then the whole fin shape at once: root chord **{lead(best['rootChord'])}**, "
+      f"tip chord **{lead(best['tipChord'])}**, span **{lead(best['span'])}**, sweep **{lead(best['sweep'].split(' (lead')[0])}** "
+      f"({'meets every constraint' if opt['feasible'] else 'closest found'}; launch mass {opt['change']['launchMass']}): "
+      f"stability {best['minAscentStability']} to {best['maxAscentStability']} in flight, flutter margin "
+      f"{best.get('finFlutterMargin', 'n/a')}. Best motor now: "
       f"**{top['motor']}**, {ft(top['apogee'].split(' (+')[0].split(' (-')[0])}, Mach {top['maxMach']}. Final flutter check: "
       f"**{fl['status'].split(':')[0]}**, margin {fl['minMargin'].split(' ')[0]}.")
     w()
-    w("<sub>Why ballast: with the real avionics bay modelled, the electronics sit further aft than a single lump would, so the "
-      f"CG moves back. Limits used: {opt['constraints'].get('fromRules', '')}; flutter margin ≥ "
+    w("![Current and optimized fin planforms, root on the body line](examples/fins.svg)")
+    w()
+    w("<sub>Only buildable fins are tried: tip chord at least 0.5 in, no tip trailing edge behind the root (it would take the "
+      "landing), leading-edge sweep at most 65 deg, span at most 8 in as asked. Why ballast: with the real avionics bay "
+      "modelled, the electronics sit further aft than a single lump would, so the CG moves back. Limits used: "
+      f"{opt['constraints'].get('fromRules', '')}; flutter margin ≥ "
       f"{opt['constraints'].get('minFinFlutterMargin', '1.5').split(' ')[0]} from the team standards.</sub>")
     w()
 
@@ -366,13 +368,44 @@ def main():
         w("</details>")
         w()
 
-    # 12. Review -------------------------------------------------------------------------------------------------------
+    # 12. FEA and CFD hand-offs -----------------------------------------------------------------------------------------
+    w("## Structures and CFD")
+    w()
+    fea = call("fin_fea", {"designId": d, "outDir": os.path.join(tmp, "fea"), "youngsModulus": "45 GPa",
+                           "poissonRatio": 0.3})
+    ask(14, "Check the fins in FEA: our quasi-isotropic laminate has E = 45 GPa and Poisson's ratio 0.3.", ["fin_fea"])
+    fe, ld = fea["fea"], fea["load"]
+    if isinstance(fe, dict):
+        w(f"> **{fe['status']}**, margin of safety {fe['marginOfSafety'].split(' ')[0]} with the team's safety factor of "
+          f"{ld['safetyFactor']}. Design load {ld['normalForceOnFin']}, from the {ld['basis']}. Tip deflection "
+          f"{lead(fe['maxDeflection'])}; peak stress {lead(fe['peakStress'])}. Natural frequencies: "
+          + ", ".join(fe["naturalFrequencies"][:3]) + ".")
+        w()
+        w("Claude writes a CalculiX model of the fin (8-node shells, clamped root, the flight load) and runs it when CalculiX is "
+          "installed. The input deck is kept, so a team member can refine it in PrePoMax or Abaqus. The model was checked "
+          "against cantilever plate theory: deflection, root stress and first frequency agree within 1-3%.")
+    else:
+        w(f"> {fe}")
+    w()
+
+    geo = call("export_geometry", {"designId": d, "outDir": os.path.join(tmp, "cfd")})
+    ask(15, "Export it for CFD, and tell us which cases to run.", ["export_geometry"])
+    w(f"> The rocket as STL ({geo['files']['stl'].split('(')[1].split(';')[0]}, one region per part so the solver reports "
+      "the force on each), the fin cutting pattern as DXF, and a run matrix taken from the simulated flight: each Mach "
+      "number at the altitude where the rocket reaches it. When the CFD results are in, `import_aero_table` reads them "
+      "back and every later simulation and rule check uses them.")
+    w()
+    cases = [c for c in geo["cases"] if c["case"].startswith("M") or c["case"] == "max_q"]
+    table(cases, ["case", "mach", "altitude", "velocity", "reynolds", "openrocketCd"],
+          ["Case", "Mach", "Altitude", "Velocity", "Reynolds", "OpenRocket CD"])
+
+    # 13. Review -------------------------------------------------------------------------------------------------------
     w("## Reviews")
     w()
     rep_dir = os.path.join(tmp, "report")
     call("generate_report", {"designId": d, "outputDir": rep_dir, "title": "Maple 10K design review"})
     shutil.copy(os.path.join(rep_dir, "stability-ascent.svg"), os.path.join(IMG, "stability-ascent.svg"))
-    ask(14, "Make the design review package.", ["generate_report"])
+    ask(16, "Make the design review package.", ["generate_report"])
     w("Claude writes a folder with `report.md` (requirement checks, vehicle, flight, stability, recovery, wind table, "
       "methods), the stability-vs-time plots Launch Canada asks for (DTEG R10.3.2), the drawing, the flight profile and a CSV "
       "of the flight data.")
@@ -382,7 +415,7 @@ def main():
 
     call("save_design", {"designId": d, "path": os.path.join(IMG, "maple-10k.ork")})
     diff = call("compare_designs", {"designId": d, "baselinePath": os.path.join(tmp, "maple-pdr.ork")})
-    ask(15, "What changed since the version we showed at PDR?", ["compare_designs"])
+    ask(17, "What changed since the version we showed at PDR?", ["compare_designs"])
     for line in diff["summary"]:
         w(f"- {line}")
     w()
@@ -395,7 +428,7 @@ def main():
     w("## Launch day")
     w()
     sample = open(os.path.join(ROOT, "src", "test", "resources", "open-meteo-sample.json")).read()
-    ask(16, "We launch at 48.47, -81.33 on August 21 at 3 pm. What will the winds do, and make us the flight card.",
+    ask(18, "We launch at 48.47, -81.33 on August 21 at 3 pm. What will the winds do, and make us the flight card.",
         ["weather_forecast", "flight_card"])
     wx = call("weather_forecast", {"designId": d, "forecastJson": sample, "time": "2027-08-21T15:00"})
     g = wx["ground"]

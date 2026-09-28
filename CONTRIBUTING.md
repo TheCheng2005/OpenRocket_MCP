@@ -17,7 +17,8 @@ physics change is checked against an independent reference.**
 
 ## Building and testing
 
-You need Java 17 or newer.
+You need Java 17 or newer. [CalculiX](http://www.calculix.de) (`ccx`) is optional: with it, the fin FEA tests also run
+the model against plate theory (`apt install calculix-ccx`; CI installs it).
 
 ```sh
 ./gradlew test                      # unit and end-to-end tests (~2 min)

@@ -199,6 +199,14 @@ public final class AnalysisTools {
 				throw new ToolException(c.getName() + "." + prop + " is not a continuous (number) property.");
 			}
 			Dim dim = Components.dimOf(prop);
+			var table = io.github.openrocketmcp.or.AeroTable.of(d.doc.getRocket());
+			if (table != null && table.useDrag() && (c instanceof info.openrocket.core.rocketcomponent.FinSet
+					|| c instanceof info.openrocket.core.rocketcomponent.SymmetricComponent
+							&& !(c instanceof info.openrocket.core.rocketcomponent.InternalComponent))) {
+				hidden.add("The imported aero table (" + table.source() + ") sets the drag of every candidate, so changing "
+						+ c.getName() + "'s shape does not change drag here. For shape changes use optimize_fins (OpenRocket's "
+						+ "shape-aware drag), or clear the table first.");
+			}
 			vars.add(new Optimizer.Variable(c.getID().toString(), c.getName(), prop, v.qty("min", dim), v.qty("max", dim)));
 		}
 		Optimizer.Objective obj = Optimizer.Objective.valueOf(a.str("objective").toUpperCase());

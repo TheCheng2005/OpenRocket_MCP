@@ -161,8 +161,8 @@ public final class FinTools {
 		out.put("constraints", cons);
 		out.put("feasible", best.result().feasible());
 		out.put("optimized", FinDesign.render(bp, bestShape));
-		Optimizer.Point cur = Optimizer.evaluateOne(base, d.doc, (r, x) -> {
-		}, new double[0], windCase, c.std());
+		Optimizer.Point cur = Optimizer.evaluateOne(base, d.doc, Optimizer.Applier.withOpenRocketDrag((r, x) -> {
+		}), new double[0], windCase, c.std());
 		Map<String, Object> curOut = FinDesign.render(cur, now);
 		List<String> curV = Optimizer.violations(cur, c);
 		curOut.put("meetsConstraints", curV.isEmpty() ? "yes" : "NO: " + String.join("; ", curV));
@@ -195,8 +195,11 @@ public final class FinTools {
 					+ "Widen the bounds (maxSpan, maxRootChord), add nose ballast, or relax a constraint.");
 		}
 		List<String> notes = new ArrayList<>();
-		notes.add("Aerodynamics are OpenRocket's (Barrowman with its transonic and supersonic extensions); import CFD or RASAero "
-				+ "data with import_aero_table to optimize on better drag and CP.");
+		var table = io.github.openrocketmcp.or.AeroTable.of(d.doc.getRocket());
+		notes.add("Aerodynamics are OpenRocket's (Barrowman with its transonic and supersonic extensions), because they follow the "
+				+ "fin shape" + (table != null ? "; the imported aero table (" + table.source() + ") describes the current fins only and "
+						+ "was not used. Re-run CFD / RASAero on the chosen fins (export_geometry) and import it again" : "")
+				+ ". To confirm the result, export_geometry gives the CFD model and run matrix for the new shape.");
 		notes.add("Check the chosen fins' strength and stiffness with fin_fea, and their flutter margin with fin_flutter.");
 		if (hidden != null) {
 			notes.add(hidden);

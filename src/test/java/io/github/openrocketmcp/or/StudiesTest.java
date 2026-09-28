@@ -173,8 +173,17 @@ class StudiesTest {
 	void loadsCoverEveryStackPhase() throws Exception {
 		Designs.Design d = new Designs().openExample("Two stage high power");
 		Simulation sim = run(d);
-		Map<String, Object> out = Loads.analyze(sim, 30 / 3.6, 2, 200e6);
+		StringBuilder csv = new StringBuilder();
+		Map<String, Object> out = Loads.analyze(sim, 30 / 3.6, 2, 200e6, csv);
 		List<String> phases = (List<String>) out.get("phases");
+		String[] rows = csv.toString().split("\n");
+		assertEquals(Loads.CSV_HEADER.strip(), rows[0]);
+		assertEquals(Loads.joints(d.doc.getRocket().getSelectedConfiguration()).size() + 1, rows.length, "a row per joint");
+		for (int i = 1; i < rows.length; i++) {
+			String[] c = rows[i].substring(rows[i].lastIndexOf('"') + 2).split(",");
+			assertEquals(13, c.length, rows[i]);
+			assertTrue(Double.parseDouble(c[5]) > 0, "bending moment at max q: " + rows[i]);
+		}
 		assertEquals(2, phases.size(), phases.toString());
 		List<Map<String, Object>> joints = (List<Map<String, Object>>) out.get("joints");
 		assertEquals(Loads.joints(d.doc.getRocket().getSelectedConfiguration()).size(), joints.size());

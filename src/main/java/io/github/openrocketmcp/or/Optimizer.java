@@ -60,6 +60,29 @@ public final class Optimizer {
 	/** Applies a point of the search space to a copy of the rocket. */
 	public interface Applier {
 		void apply(Rocket r, double[] x);
+
+		/**
+		 * Fly the candidates with OpenRocket's own drag even when the design has an imported aero table: a table
+		 * measured on one shape says nothing about the drag of another (e.g. new fins).
+		 */
+		default boolean openRocketDrag() {
+			return false;
+		}
+
+		/** {@code a}, flown with OpenRocket's own drag. */
+		static Applier withOpenRocketDrag(Applier a) {
+			return new Applier() {
+				@Override
+				public void apply(Rocket r, double[] x) {
+					a.apply(r, x);
+				}
+
+				@Override
+				public boolean openRocketDrag() {
+					return true;
+				}
+			};
+		}
 	}
 
 	public record Result(List<Variable> vars, Point best, List<Point> evaluated, double score, boolean feasible) {
@@ -296,6 +319,9 @@ public final class Optimizer {
 				}
 			};
 			Simulation s = Variants.of(base, doc, edit, null);
+			if (applier.openRocketDrag()) {
+				AeroTable.without(s);
+			}
 			FlightConfiguration fc = s.getRocket().getFlightConfiguration(s.getFlightConfigurationId());
 			Analysis.Stability st = Analysis.stability(fc, 0.3);
 			statics.add(new Point(x, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, st.marginCalibers(),
@@ -303,6 +329,9 @@ public final class Optimizer {
 			sims.add(s);
 			if (wind) {
 				Simulation w = Variants.of(base, doc, edit, null);
+				if (applier.openRocketDrag()) {
+					AeroTable.without(w);
+				}
 				Winds.setGround(w.getOptions(), windCase, Double.NaN);
 				sims.add(w);
 			}

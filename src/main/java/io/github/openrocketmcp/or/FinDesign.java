@@ -133,8 +133,10 @@ public final class FinDesign {
 		return runs;
 	}
 
+	/** Applies a planform; candidates fly on OpenRocket's drag model, which follows the fin shape (an imported table does not). */
 	public static Optimizer.Applier applier(String finId, Limits lim, double thickness) {
-		return (Rocket r, double[] x) -> applyTo((TrapezoidFinSet) Components.find(r, finId), shape(x, lim, thickness));
+		return Optimizer.Applier.withOpenRocketDrag(
+				(Rocket r, double[] x) -> applyTo((TrapezoidFinSet) Components.find(r, finId), shape(x, lim, thickness)));
 	}
 
 	/** Planform and metrics of a point, for the report. */

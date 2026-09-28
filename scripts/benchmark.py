@@ -464,6 +464,51 @@ def scenario_design_review(s, d, tmp):
     check(sc, "list_files finds the saved revision", any(f["path"].endswith("v1.ork") for f in files["files"]), json.dumps(files)[:300])
 
 
+def scenario_fins_fea_cfd(s, d, tmp):
+    """'Optimize our fins, check them in FEA, and give us what we need for CFD.'"""
+    sc = "fins, FEA and CFD"
+    before = s.call("describe_component", {"designId": d, "component": "Fins"})
+    opt = s.call("optimize_fins", {"designId": d, "maxEvaluations": 24, "thicknesses": ["1/8 in", "1/4 in"],
+                                   "plotPath": os.path.join(tmp, "fins.svg")})
+    best = opt["optimized"]
+    check(sc, "fin optimizer returns a planform per stock thickness", len(opt.get("byThickness", [])) == 2, str(opt)[:300])
+    check(sc, "optimized fins meet the rules and flutter margin", opt["feasible"] and num(best["minAscentStability"]) >= 1.5
+          and (best.get("finFlutterMargin") is None or num(best["finFlutterMargin"]) >= 1.5), str(best))
+    check(sc, "only buildable fins (tip chord >= 0.5 in, no aft overhang)",
+          num(best["tipChord"]) >= 12.69 and "aftOverhang" not in best, str(best))
+    after = s.call("describe_component", {"designId": d, "component": "Fins"})
+    check(sc, "optimize_fins leaves the design alone without apply", before == after)
+    check(sc, "planform drawing written", "<polygon" in open(os.path.join(tmp, "fins.svg")).read())
+
+    fea = s.call("fin_fea", {"designId": d, "outDir": os.path.join(tmp, "fea")})
+    deck = open(fea["files"]["deck"]).read()
+    check(sc, "FEA deck: shells, clamped root, flight pressure, modes",
+          "TYPE=S8R" in deck and "ROOT,1,6,0" in deck and "*FREQUENCY" in deck and num(fea["load"]["normalForceOnFin"]) > 0)
+    if isinstance(fea["fea"], dict):
+        fe = fea["fea"]
+        freqs = [num(f) for f in fe["naturalFrequencies"]]
+        check(sc, "CalculiX ran: stress margin, bending before torsion",
+              fe["status"].split(":")[0] in ("PASS", "FAIL", "INFO") and "1st bending" in fe["naturalFrequencies"][0]
+              and freqs == sorted(freqs), str(fe)[:300])
+    else:
+        check(sc, "without CalculiX the deck is written and the user told how to run it", "CalculiX not found" in fea["fea"])
+
+    geo = s.call("export_geometry", {"designId": d, "outDir": os.path.join(tmp, "cfd")})
+    stl = geo["files"]["stl"]
+    check(sc, "STL with a region per part, base and fins", "base" in stl and "fins" in stl and "nose" in stl, stl)
+    check(sc, "CFD run matrix reaches the flight's max Mach", any(c["case"] == "max_mach" for c in geo["cases"])
+          and os.path.exists(os.path.join(tmp, "cfd", "cfd-cases.csv")))
+    tpl = os.path.join(tmp, "cfd", "cfd-results.csv")
+    rows = open(tpl).read().strip().split("\n")
+    filled = [rows[0]] + [r.split(",")[0] + ",0,0.55,0.50," for r in rows[1:]]
+    open(tpl, "w").write("\n".join(filled) + "\n")
+    imp = s.call("import_aero_table", {"designId": d, "path": tpl, "cpUnit": "m"})
+    check(sc, "CFD results template reads back through import_aero_table", "vsOpenRocket" in imp, str(imp)[:200])
+    s.call("import_aero_table", {"designId": d, "mode": "clear"})
+    loads = s.call("structural_loads", {"designId": d, "csvPath": os.path.join(tmp, "loads.csv")})
+    check(sc, "joint load cases as CSV for FEA", open(loads["csv"]).read().startswith("joint,station_m"))
+
+
 def scenario_avionics(s, tmp):
     """'Lay out our av-bay with two altimeters and a GPS, and show us where everything goes.'"""
     sc = "avionics bay"
@@ -528,7 +573,8 @@ def main():
                      ("Design studies", lambda: scenario_studies(s, scratch["d"])),
                      ("Launch day", lambda: scenario_launch_day(s, scratch["d"], tmp)),
                      ("Design review", lambda: scenario_design_review(s, scratch["d"], tmp)),
-                     ("Avionics bay", lambda: scenario_avionics(s, tmp))]:
+                     ("Avionics bay", lambda: scenario_avionics(s, tmp)),
+                     ("Fins, FEA and CFD", lambda: scenario_fins_fea_cfd(s, scratch["d"], tmp))]:
         print(f"\n== {name}")
         try:
             fn()
