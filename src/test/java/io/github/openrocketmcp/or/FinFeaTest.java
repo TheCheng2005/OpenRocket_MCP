@@ -53,7 +53,7 @@ class FinFeaTest {
 		FinFea.Plate p = new FinFea.Plate(0.2, 0.08, 0.15, 0.1, 0.003, null);
 		FinFea.Material m = new FinFea.Material(55e9, 4.5e9, 0.06, 1780, 450e6, false);
 		FinFea.Deck d = FinFea.deck(p, m, 5000, 8, 6, 3);
-		String t = d.text();
+		String t = d.text().replace("\r\n", "\n"); // %n is CRLF on Windows
 		int nodes = (2 * 8 + 1) * (2 * 6 + 1) - 8 * 6;
 		assertTrue(t.contains("*NSET,NSET=NALL,GENERATE\n1," + nodes + ",1"), "8-node elements, no centre nodes");
 		assertEquals(48, d.elements());
