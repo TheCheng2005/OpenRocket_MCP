@@ -38,4 +38,4 @@ body:
     attributes:
       label: Version
       description: "openrocket-mcp --version, or the Claude Desktop extension version"
-      placeholder: "0.12.0"
+      placeholder: "0.13.0"

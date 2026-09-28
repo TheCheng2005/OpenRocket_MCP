@@ -156,7 +156,8 @@ public final class Loads {
 				continue;
 			}
 			AerodynamicForces f = e.getValue();
-			double cd = nz(f.getFrictionCD()) + nz(f.getPressureCD()) + nz(f.getBaseCD());
+			// Per-copy drag in OpenRocket's map: a fin set's four fins count four times.
+			double cd = io.github.openrocketmcp.or.Aero.instances(fc, e.getKey()) * (nz(f.getFrictionCD()) + nz(f.getPressureCD()) + nz(f.getBaseCD()));
 			double x0 = Structures.absoluteX(e.getKey(), 0);
 			if (cd > 0) {
 				// Pressure drag acts at the front of a nose / transition, base drag at the aft end; spread the rest.
@@ -257,6 +258,17 @@ public final class Loads {
 	 * simulated q x sin(AoA). The worst value per joint over all phases is reported.
 	 */
 	public static Map<String, Object> analyze(Simulation sim, double gustSpeed, double safetyFactor, double allowable) {
+		return analyze(sim, gustSpeed, safetyFactor, allowable, null);
+	}
+
+	/** Columns of the load-case CSV (SI) for FEA of tubes, couplers and joints. */
+	public static final String CSV_HEADER = "joint,station_m,radius_m,wall_m,max_axial_compression_n,time_axial_s,"
+			+ "moment_maxq_gust_nm,axial_maxq_gust_n,time_maxq_s,mach_maxq,aoa_gust_deg,moment_simulated_aoa_nm,time_simulated_s,"
+			+ "aoa_simulated_deg\n";
+
+	/** As above; when {@code csv} is given, one row per joint with the raw load cases is appended to it. */
+	public static Map<String, Object> analyze(Simulation sim, double gustSpeed, double safetyFactor, double allowable,
+			StringBuilder csv) {
 		FlightConfiguration full = sim.getRocket().getFlightConfiguration(sim.getFlightConfigurationId());
 		FlightDataBranch b = sim.getSimulatedData().getBranch(0);
 		Branch br = Branch.of(b);
@@ -347,8 +359,19 @@ public final class Loads {
 		List<Map<String, Object>> rows = new ArrayList<>();
 		String worstName = null;
 		double worstStress = 0;
+		if (csv != null) {
+			csv.append(CSV_HEADER);
+		}
 		for (JointLoads w : worst.values()) {
 			Joint jt = w.joint;
+			if (csv != null) {
+				csv.append(String.format(java.util.Locale.ROOT, "\"%s\",%.5f,%.5f,%.5f,%.2f,%.3f,%.3f,%.2f,%.3f,%.4f,%.3f,%.3f,%.3f,%.3f%n",
+						jt.name().replace("\"", "'"), jt.x(), jt.radius(), jt.thickness(), w.axial == null ? Double.NaN : w.axial.axial(),
+						w.axial == null ? Double.NaN : w.axial.time(), w.gust == null ? Double.NaN : w.gust.moment(),
+						w.gust == null ? Double.NaN : w.gust.axial(), w.gust == null ? Double.NaN : w.gust.time(),
+						w.gust == null ? Double.NaN : w.gust.mach(), Math.toDegrees(w.gustAlpha), w.sim == null ? Double.NaN : w.sim.moment(),
+						w.sim == null ? Double.NaN : w.sim.time(), Math.toDegrees(Math.abs(w.simAlpha))));
+			}
 			Map<String, Object> r = new LinkedHashMap<>();
 			r.put("joint", jt.name());
 			r.put("station", Units.fmt(jt.x(), Dim.LENGTH) + " from the nose tip");

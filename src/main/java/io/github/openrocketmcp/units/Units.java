@@ -146,9 +146,21 @@ public final class Units {
 	 * Parses "20 ft/s" into SI. A bare number (no unit) returns {@code dim == null}; the caller decides
 	 * whether that means SI.
 	 */
+	private static final Pattern FRACTION = Pattern.compile("\\s*(?:(\\d+)\\s+)?(\\d+)\\s*/\\s*(\\d+)\\s*(.*)");
+
 	public static Parsed parse(String text) {
 		// Accept this server's own dual-unit output as input: "274.3 mm (10.8 in)" means 274.3 mm.
 		text = text.replaceFirst("\\s*\\([^()]*\\)\\s*$", "");
+		// Fractions as teams write stock sizes: "1/8 in", "1 1/4 in", "3/16in".
+		Matcher f = FRACTION.matcher(text);
+		if (f.matches()) {
+			double whole = f.group(1) == null ? 0 : Double.parseDouble(f.group(1));
+			double den = Double.parseDouble(f.group(3));
+			if (den == 0) {
+				throw new IllegalArgumentException("Cannot parse quantity '" + text + "': division by zero.");
+			}
+			text = ((whole + Double.parseDouble(f.group(2)) / den) + " " + f.group(4)).trim();
+		}
 		Matcher m = QUANTITY.matcher(text);
 		if (!m.matches()) {
 			throw new IllegalArgumentException("Cannot parse quantity '" + text + "'. Use a number with a unit, e.g. \"20 ft/s\".");

@@ -27,18 +27,28 @@ class AeroTest {
 	}
 
 	@Test
-	void breakdownSharesSumTo100() throws Exception {
+	void breakdownAddsUpToOpenRocketsTotal() throws Exception {
 		Designs.Design d = new Designs().openExample("Two stage high power");
-		List<Map<String, Object>> rows = Aero.breakdown(d.doc.getRocket().getSelectedConfiguration(), 0.5);
-		double sum = 0, prev = Double.MAX_VALUE;
+		FlightConfiguration fc = d.doc.getRocket().getSelectedConfiguration();
+		List<Map<String, Object>> rows = Aero.breakdown(fc, 0.5);
+		double sum = 0, cdSum = 0, prev = Double.MAX_VALUE;
+		boolean fins = false;
 		for (Map<String, Object> r : rows) {
-			double share = Double.parseDouble(r.get("share").toString().replace("%", ""));
-			sum += share;
+			sum += Double.parseDouble(r.get("share").toString().replace("%", ""));
 			double cd = Double.parseDouble(r.get("cd").toString());
-			assertTrue(cd <= prev + 1e-9, "sorted by drag");
-			prev = cd;
+			cdSum += cd;
+			String name = r.get("component").toString();
+			if (!name.startsWith("whole-rocket")) {
+				assertTrue(cd <= prev + 1e-9, "parts sorted by drag");
+				prev = cd;
+			}
+			fins |= name.contains("(all ");
 		}
 		assertEquals(100, sum, 0.1);
+		// OpenRocket's per-component drag is per copy (one fin); the breakdown counts every copy, so the rows add up to
+		// the rocket's total drag (at zero angle of attack axial CD = CD).
+		assertEquals(Aero.sweep(fc, new double[] { 0.5 }).get(0).cd(), cdSum, 0.002);
+		assertTrue(fins, "a fin set lists all its fins: " + rows);
 		assertTrue(rows.size() >= 5);
 	}
 

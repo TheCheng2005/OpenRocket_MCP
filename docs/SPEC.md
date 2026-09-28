@@ -221,6 +221,19 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
 - New parachutes get a packed size from the canopy diameter (about 0.025 in³ per in² of D²) so drawings and bay checks
   are realistic; the unit parser accepts its own "274.3 mm (10.8 in)" output.
 
+### Fin design, FEA and CFD hand-offs (v0.13.0)
+
+- `optimize_fins`: the optimizer takes a custom applier (shape space of buildable trapezoids) and flies candidates on
+  OpenRocket's drag even with an imported table; rule-derived constraints shared with `optimize`.
+- `fin_fea`: CalculiX deck (S8R, engineering constants, clamped root, flight pressure, *FREQUENCY), run when ccx is
+  found ($CCX or the PATH; never an executable path from a tool argument), results read from .dat / .frd; CI installs
+  CalculiX on Linux and checks the model against cantilever plate theory.
+- `export_geometry`: multi-solid ASCII STL (closed and outward-oriented, checked by edge pairing and divergence-theorem
+  volume), DXF R12 fin patterns, CFD run matrix and results template.
+- `structural_loads csvPath`; standards gain youngsModulus, poissonRatio and strength tables.
+- Fixes: `aero_analysis` drag breakdown counted one fin of a set (OpenRocket's per-component drag is per copy), and
+  `structural_loads` split drag along the body the same way; unit inputs accept fractions ("1/8 in").
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

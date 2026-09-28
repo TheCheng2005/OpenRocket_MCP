@@ -52,8 +52,36 @@ public final class Optimizer {
 	/** Metrics of one evaluated design point. */
 	public record Point(double[] x, double apogee, double minStability, double maxStability, double railExit,
 			double maxMach, double launchMargin, double launchMass, double flutterMargin, String error) {
-		boolean simulated() {
+		public boolean simulated() {
 			return !Double.isNaN(apogee);
+		}
+	}
+
+	/** Applies a point of the search space to a copy of the rocket. */
+	public interface Applier {
+		void apply(Rocket r, double[] x);
+
+		/**
+		 * Fly the candidates with OpenRocket's own drag even when the design has an imported aero table: a table
+		 * measured on one shape says nothing about the drag of another (e.g. new fins).
+		 */
+		default boolean openRocketDrag() {
+			return false;
+		}
+
+		/** {@code a}, flown with OpenRocket's own drag. */
+		static Applier withOpenRocketDrag(Applier a) {
+			return new Applier() {
+				@Override
+				public void apply(Rocket r, double[] x) {
+					a.apply(r, x);
+				}
+
+				@Override
+				public boolean openRocketDrag() {
+					return true;
+				}
+			};
 		}
 	}
 
@@ -95,6 +123,11 @@ public final class Optimizer {
 		};
 	}
 
+	/** Score of a point (lower is better; infeasible points score above every feasible one). */
+	public static double scoreOf(Point p, Objective o, double target, Constraints c) {
+		return score(p, o, target, c);
+	}
+
 	/** Lexicographic: feasibility first, then objective. */
 	static double score(Point p, Objective o, double target, Constraints c) {
 		double v = violation(p, c);
@@ -129,6 +162,12 @@ public final class Optimizer {
 		if (vars.isEmpty() || vars.size() > 3) {
 			throw new ToolException("Give 1 to 3 variables.");
 		}
+		return run(base, doc, vars, (r, x) -> applyTo(r, vars, x), o, target, c, budget, seed, windCase);
+	}
+
+	/** As above, with a custom mapping from the search variables to design edits (e.g. a whole fin planform). */
+	public static Result run(Simulation base, OpenRocketDocument doc, List<Variable> vars, Applier applier, Objective o,
+			double target, Constraints c, int budget, long seed, double windCase) {
 		for (Variable v : vars) {
 			if (!(v.max() > v.min())) {
 				throw new ToolException("Variable " + v.componentName() + "." + v.property() + " needs max > min.");
@@ -162,7 +201,7 @@ public final class Optimizer {
 							: lo[i] + (hi[i] - lo[i]) * (perm[k] + rnd.nextDouble()) / m;
 				}
 			}
-			List<Point> pts = evaluate(base, doc, vars, xs, simulate, windCase, c.std());
+			List<Point> pts = evaluate(base, doc, applier, xs, simulate, windCase, c.std());
 			all.addAll(pts);
 			for (Point p : pts) {
 				double s = score(p, o, target, c);
@@ -198,7 +237,7 @@ public final class Optimizer {
 				x[i] = Math.max(vars.get(i).min(), Math.min(vars.get(i).max(), x[i] - span + 2 * span * k / (batch - 1)));
 				xs.add(x);
 			}
-			List<Point> pts = evaluate(base, doc, vars, xs, simulate, windCase, c.std());
+			List<Point> pts = evaluate(base, doc, applier, xs, simulate, windCase, c.std());
 			all.addAll(pts);
 			for (Point p : pts) {
 				double sc = score(p, o, target, c);
@@ -265,7 +304,7 @@ public final class Optimizer {
 		return p;
 	}
 
-	static List<Point> evaluate(Simulation base, OpenRocketDocument doc, List<Variable> vars, List<double[]> xs,
+	static List<Point> evaluate(Simulation base, OpenRocketDocument doc, Applier applier, List<double[]> xs,
 			boolean simulate, double windCase, Standards flutterStd) {
 		boolean wind = simulate && !Double.isNaN(windCase);
 		List<Simulation> sims = new ArrayList<>();
@@ -274,12 +313,15 @@ public final class Optimizer {
 			String[] err = new String[1];
 			java.util.function.Consumer<info.openrocket.core.rocketcomponent.Rocket> edit = r -> {
 				try {
-					applyTo(r, vars, x);
+					applier.apply(r, x);
 				} catch (ToolException e) {
 					err[0] = e.getMessage();
 				}
 			};
 			Simulation s = Variants.of(base, doc, edit, null);
+			if (applier.openRocketDrag()) {
+				AeroTable.without(s);
+			}
 			FlightConfiguration fc = s.getRocket().getFlightConfiguration(s.getFlightConfigurationId());
 			Analysis.Stability st = Analysis.stability(fc, 0.3);
 			statics.add(new Point(x, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, st.marginCalibers(),
@@ -287,6 +329,9 @@ public final class Optimizer {
 			sims.add(s);
 			if (wind) {
 				Simulation w = Variants.of(base, doc, edit, null);
+				if (applier.openRocketDrag()) {
+					AeroTable.without(w);
+				}
 				Winds.setGround(w.getOptions(), windCase, Double.NaN);
 				sims.add(w);
 			}
@@ -371,7 +416,13 @@ public final class Optimizer {
 	/** Evaluates a single point (e.g. the current design, for comparison). */
 	public static Point evaluateOne(Simulation base, OpenRocketDocument doc, List<Variable> vars, double[] x, boolean simulate,
 			double windCase, Standards flutterStd) {
-		return evaluate(base, doc, vars, List.of(x), simulate, windCase, flutterStd).get(0);
+		return evaluate(base, doc, (r, v) -> applyTo(r, vars, v), List.of(x), simulate, windCase, flutterStd).get(0);
+	}
+
+	/** Evaluates a single point through a custom applier. */
+	public static Point evaluateOne(Simulation base, OpenRocketDocument doc, Applier applier, double[] x, double windCase,
+			Standards flutterStd) {
+		return evaluate(base, doc, applier, List.of(x), true, windCase, flutterStd).get(0);
 	}
 
 	public static Map<String, Object> render(Point p, List<Variable> vars) {

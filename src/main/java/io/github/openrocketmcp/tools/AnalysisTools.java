@@ -112,41 +112,17 @@ public final class AnalysisTools {
 				}));
 	}
 
-	private static double frac(double v) {
-		if (v < 0 || v > 0.5) {
-			throw new ToolException("Fractional standard deviations must be between 0 and 0.5 (e.g. 0.05 for 5%).");
-		}
-		return v;
-	}
-
-	private static Object optimize(Context ctx, Args a) {
-		Designs.Design d = ctx.designs.get(a.str("designId", null));
-		List<Optimizer.Variable> vars = new ArrayList<>();
-		java.util.Set<String> hidden = new java.util.LinkedHashSet<>();
-		for (Args v : a.objList("variables")) {
-			RocketComponent c = Components.find(d.doc.getRocket(), v.str("component"));
-			String prop = v.str("property");
-			String hw = Components.overrideWarning(c);
-			if (hw != null) {
-				hidden.add(hw);
-			}
-			Object raw = Components.getRaw(c, prop);
-			if (!(raw instanceof Double)) {
-				throw new ToolException(c.getName() + "." + prop + " is not a continuous (number) property.");
-			}
-			Dim dim = Components.dimOf(prop);
-			vars.add(new Optimizer.Variable(c.getID().toString(), c.getName(), prop, v.qty("min", dim), v.qty("max", dim)));
-		}
-		Optimizer.Objective obj = Optimizer.Objective.valueOf(a.str("objective").toUpperCase());
-		double target = switch (obj) {
-			case TARGET_APOGEE -> a.qty("targetApogee", Dim.DISTANCE);
-			case TARGET_STABILITY -> a.num("targetStability");
-			default -> Double.NaN;
-		};
+	/**
+	 * Optimizer constraints from the arguments; with meetRules (or {@code meetRulesDefault} when not given) the stability
+	 * floor / ceiling come from the rule set, the rail exit from the rules and the flutter margin from the team
+	 * standards. {@code basis[0]} receives a description of the rule-derived limits.
+	 */
+	static Optimizer.Constraints constraints(Context ctx, Designs.Design d, Args a, Optimizer.Objective obj,
+			boolean meetRulesDefault, String[] basis) {
+		boolean meetRules = a.bool("meetRules", meetRulesDefault);
 		double railRule = ctx.standards().rule("railDepartureVelocity.min", Dim.VELOCITY);
 		double minStab = a.num("minStability", Double.NaN), maxStab = a.num("maxStability", Double.NaN);
-		String ruleBasis = null;
-		if (a.bool("meetRules", false)) {
+		if (meetRules) {
 			// Stability floor from the rule set: max(minimum calibers, % of body length x L:D); ceiling: over-stability.
 			var std = ctx.standards();
 			double[] fl = io.github.openrocketmcp.or.Requirements.stabilityFloor(std, d.doc.getRocket().getSelectedConfiguration());
@@ -158,26 +134,19 @@ public final class AnalysisTools {
 			if (Double.isNaN(maxStab) && !Double.isNaN(over)) {
 				maxStab = over;
 			}
-			ruleBasis = "minStability " + io.github.openrocketmcp.or.Requirements.floorText(fl) + "; maxStability "
+			basis[0] = "minStability " + io.github.openrocketmcp.or.Requirements.floorText(fl) + "; maxStability "
 					+ Units.num(maxStab) + " cal (over-stable)";
 		}
 		// Fin flutter: a constraint when asked for or with meetRules (the team's structures.flutterMinMargin); always reported.
-		double minFlutter = a.num("minFlutterMargin", a.bool("meetRules", false)
+		double minFlutter = a.num("minFlutterMargin", meetRules
 				? ctx.standards().q("structures.flutterMinMargin", Dim.DIMENSIONLESS, 1.5) : Double.NaN);
-		Optimizer.Constraints c = new Optimizer.Constraints(minStab, maxStab,
+		return new Optimizer.Constraints(minStab, maxStab,
 				a.qty("minRailExit", Dim.VELOCITY, obj == Optimizer.Objective.TARGET_STABILITY && Double.isNaN(minStab) ? Double.NaN : railRule),
 				a.num("maxMach", Double.NaN), a.qtyOrNaN("minApogee", Dim.DISTANCE), minFlutter, ctx.standards());
-		Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
-				ctx.standards(), false);
-		long t0 = System.nanoTime();
-		double maxWind = ctx.standards().rule("maxGroundWind.value", Dim.VELOCITY);
-		boolean stabilityConstrained = !Double.isNaN(c.minStability()) || !Double.isNaN(c.maxStability());
-		double windCase = a.bool("checkDesignWind", stabilityConstrained) && !Double.isNaN(maxWind) ? maxWind : Double.NaN;
-		Optimizer.Result r = Optimizer.run(base, d.doc, vars, obj, target, c, Math.max(4, Math.min(200, a.integer("maxEvaluations", 40))), 1,
-				windCase);
-		Map<String, Object> out = new LinkedHashMap<>();
-		out.put("objective", obj.name().toLowerCase() + (Double.isNaN(target) ? ""
-				: " " + (obj == Optimizer.Objective.TARGET_APOGEE ? Units.fmt(target, Dim.DISTANCE) : Units.num(target) + " cal")));
+	}
+
+	/** The constraints as reported to the user. */
+	static Map<String, Object> describe(Optimizer.Constraints c, double windCase, String ruleBasis) {
 		Map<String, Object> cons = new LinkedHashMap<>();
 		if (!Double.isNaN(c.minStability())) {
 			cons.put("minAscentStability", Units.num(c.minStability()) + " cal");
@@ -204,6 +173,63 @@ public final class AnalysisTools {
 		if (ruleBasis != null) {
 			cons.put("fromRules", ruleBasis);
 		}
+		return cons;
+	}
+
+	private static double frac(double v) {
+		if (v < 0 || v > 0.5) {
+			throw new ToolException("Fractional standard deviations must be between 0 and 0.5 (e.g. 0.05 for 5%).");
+		}
+		return v;
+	}
+
+	private static Object optimize(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId", null));
+		List<Optimizer.Variable> vars = new ArrayList<>();
+		java.util.Set<String> hidden = new java.util.LinkedHashSet<>();
+		for (Args v : a.objList("variables")) {
+			RocketComponent c = Components.find(d.doc.getRocket(), v.str("component"));
+			String prop = v.str("property");
+			String hw = Components.overrideWarning(c);
+			if (hw != null) {
+				hidden.add(hw);
+			}
+			Object raw = Components.getRaw(c, prop);
+			if (!(raw instanceof Double)) {
+				throw new ToolException(c.getName() + "." + prop + " is not a continuous (number) property.");
+			}
+			Dim dim = Components.dimOf(prop);
+			var table = io.github.openrocketmcp.or.AeroTable.of(d.doc.getRocket());
+			if (table != null && table.useDrag() && (c instanceof info.openrocket.core.rocketcomponent.FinSet
+					|| c instanceof info.openrocket.core.rocketcomponent.SymmetricComponent
+							&& !(c instanceof info.openrocket.core.rocketcomponent.InternalComponent))) {
+				hidden.add("The imported aero table (" + table.source() + ") sets the drag of every candidate, so changing "
+						+ c.getName() + "'s shape does not change drag here. For shape changes use optimize_fins (OpenRocket's "
+						+ "shape-aware drag), or clear the table first.");
+			}
+			vars.add(new Optimizer.Variable(c.getID().toString(), c.getName(), prop, v.qty("min", dim), v.qty("max", dim)));
+		}
+		Optimizer.Objective obj = Optimizer.Objective.valueOf(a.str("objective").toUpperCase());
+		double target = switch (obj) {
+			case TARGET_APOGEE -> a.qty("targetApogee", Dim.DISTANCE);
+			case TARGET_STABILITY -> a.num("targetStability");
+			default -> Double.NaN;
+		};
+		String[] basis = new String[1];
+		Optimizer.Constraints c = constraints(ctx, d, a, obj, false, basis);
+		String ruleBasis = basis[0];
+		Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
+				ctx.standards(), false);
+		long t0 = System.nanoTime();
+		double maxWind = ctx.standards().rule("maxGroundWind.value", Dim.VELOCITY);
+		boolean stabilityConstrained = !Double.isNaN(c.minStability()) || !Double.isNaN(c.maxStability());
+		double windCase = a.bool("checkDesignWind", stabilityConstrained) && !Double.isNaN(maxWind) ? maxWind : Double.NaN;
+		Optimizer.Result r = Optimizer.run(base, d.doc, vars, obj, target, c, Math.max(4, Math.min(200, a.integer("maxEvaluations", 40))), 1,
+				windCase);
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("objective", obj.name().toLowerCase() + (Double.isNaN(target) ? ""
+				: " " + (obj == Optimizer.Objective.TARGET_APOGEE ? Units.fmt(target, Dim.DISTANCE) : Units.num(target) + " cal")));
+		Map<String, Object> cons = describe(c, windCase, ruleBasis);
 		out.put("constraints", cons);
 		out.put("feasible", r.feasible());
 		out.put("best", r.best() == null ? null : Optimizer.render(r.best(), vars));

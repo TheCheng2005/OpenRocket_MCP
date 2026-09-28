@@ -1,0 +1,235 @@
+package io.github.openrocketmcp.tools;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import info.openrocket.core.document.Simulation;
+import info.openrocket.core.rocketcomponent.FinSet;
+import info.openrocket.core.rocketcomponent.RocketComponent;
+import info.openrocket.core.rocketcomponent.TrapezoidFinSet;
+import io.github.openrocketmcp.mcp.Args;
+import io.github.openrocketmcp.mcp.McpServer;
+import io.github.openrocketmcp.mcp.Schema;
+import io.github.openrocketmcp.mcp.ToolDef;
+import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.or.Analysis;
+import io.github.openrocketmcp.or.Components;
+import io.github.openrocketmcp.or.Designs;
+import io.github.openrocketmcp.or.FinDesign;
+import io.github.openrocketmcp.or.Optimizer;
+import io.github.openrocketmcp.or.Sims;
+import io.github.openrocketmcp.units.Dim;
+import io.github.openrocketmcp.units.Units;
+
+/** Fin planform optimization. */
+public final class FinTools {
+	private FinTools() {
+	}
+
+	public static void register(McpServer s, Context ctx) {
+		s.tool(new ToolDef("optimize_fins", "Optimize the fin planform",
+				"Search the whole trapezoidal fin shape at once (root chord, tip chord via taper, span and sweep, optionally "
+						+ "the thickness from a list of stock sheets) for the highest apogee (least drag), the lightest fins or a "
+						+ "target apogee, while meeting the stability rules along the simulated flight (also in the rule set's "
+						+ "maximum wind), rail exit and the team's fin flutter margin. Only buildable shapes are tried: tip chord "
+						+ "at least minTipChord, no tip trailing edge behind the root (unless allowAftOverhang), leading-edge sweep "
+						+ "capped, root no longer than the tube. Returns the current and optimized planforms with apogee, mass, "
+						+ "stability and flutter, runners-up, and an optional side-by-side planform drawing. The design is "
+						+ "unchanged unless apply=true. For nose / fin edge profiles use compare_shapes; for structural checks of "
+						+ "the result use fin_fea.",
+				SimTools.simSelect(Schema.object())
+						.str("finSet", "Fin set id or name (default: the only trapezoidal fin set).", false)
+						.enumStr("objective", "What to optimize (default max_apogee).", false, "max_apogee", "min_mass", "target_apogee")
+						.qty("targetApogee", "Target apogee for target_apogee.", false)
+						.array("thicknesses", "Stock thicknesses to choose from, e.g. [\"1/8 in\", \"3/16 in\", \"1/4 in\"] "
+								+ "(default: the current thickness).", Schema.quantityItem(), false)
+						.qty("minRootChord", "Smallest root chord (default 0.75 body diameters).", false)
+						.qty("maxRootChord", "Largest root chord (default 3 diameters, and no longer than the tube).", false)
+						.qty("minSpan", "Smallest span (default 0.5 diameters).", false)
+						.qty("maxSpan", "Largest span, e.g. for transport, the launch tower or ground clearance (default 2 diameters).", false)
+						.qty("minTipChord", "Smallest tip chord; thin tips break (default 0.5 in).", false)
+						.qty("maxSweepAngle", "Largest leading-edge sweep angle (default 65 deg).", false)
+						.bool("allowAftOverhang", "Allow the tip trailing edge behind the root (default false: such tips take the "
+								+ "landing).", false)
+						.bool("meetRules", "Stability floor and ceiling from the rule set, rail exit from the rules, flutter margin from "
+								+ "the team standards (default true).", false)
+						.num("minStability", "Minimum simulated ascent stability, cal.", false)
+						.num("maxStability", "Maximum simulated ascent stability, cal.", false)
+						.num("minFlutterMargin", "Minimum fin flutter margin (flutter speed / airspeed).", false)
+						.num("maxMach", "Maximum Mach number.", false)
+						.bool("checkDesignWind", "Also fly each candidate in the rule set's maximum ground wind (default true).", false)
+						.integer("maxEvaluations", "Simulations per thickness (default 48, max 300; more finds a slightly better shape).", false)
+						.str("plotPath", "Also draw the current and optimized planforms (SVG), e.g. \"plots/fins.svg\".", false)
+						.bool("apply", "Apply the optimized planform and thickness to the design (default false).", false).build(),
+				false, a -> optimize(ctx, a)));
+	}
+
+	static TrapezoidFinSet trapezoid(Designs.Design d, Args a) {
+		if (a.has("finSet")) {
+			FinSet f = Components.find(d.doc.getRocket(), a.str("finSet"), FinSet.class, "fin set");
+			if (f instanceof TrapezoidFinSet t) {
+				return t;
+			}
+			throw new ToolException(f.getName() + " is a " + f.getComponentName() + "; optimize_fins shapes trapezoidal fin sets. "
+					+ "Freeform and elliptical fins can be tuned with optimize (e.g. \"height\" or \"length\").");
+		}
+		List<TrapezoidFinSet> found = new ArrayList<>();
+		for (RocketComponent c : d.doc.getRocket().getSelectedConfiguration().getActiveComponents()) {
+			if (c instanceof TrapezoidFinSet t) {
+				found.add(t);
+			}
+		}
+		if (found.size() != 1) {
+			throw new ToolException(found.isEmpty() ? "The active configuration has no trapezoidal fin set."
+					: "Several trapezoidal fin sets; choose one with finSet.");
+		}
+		return found.get(0);
+	}
+
+	private static Object optimize(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId", null));
+		TrapezoidFinSet fin = trapezoid(d, a);
+		Optimizer.Objective obj = Optimizer.Objective.valueOf(a.str("objective", "max_apogee").toUpperCase());
+		double target = obj == Optimizer.Objective.TARGET_APOGEE ? a.qty("targetApogee", Dim.DISTANCE) : Double.NaN;
+		FinDesign.Limits lim = FinDesign.defaults(fin, a.qtyOrNaN("minRootChord", Dim.LENGTH), a.qtyOrNaN("maxRootChord", Dim.LENGTH),
+				a.qtyOrNaN("minSpan", Dim.LENGTH), a.qtyOrNaN("maxSpan", Dim.LENGTH), a.qtyOrNaN("minTipChord", Dim.LENGTH),
+				a.bool("allowAftOverhang", false), a.qtyOrNaN("maxSweepAngle", Dim.ANGLE));
+		List<Double> thick = a.has("thicknesses") ? a.qtyList("thicknesses", Dim.LENGTH) : List.of(fin.getThickness());
+		if (thick.isEmpty() || thick.size() > 6) {
+			throw new ToolException("Give 1 to 6 thicknesses.");
+		}
+		String[] basis = new String[1];
+		Optimizer.Constraints c = AnalysisTools.constraints(ctx, d, a, obj, true, basis);
+		String hidden = Components.overrideWarning(fin);
+		Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
+				ctx.standards(), false);
+		double maxWind = ctx.standards().rule("maxGroundWind.value", Dim.VELOCITY);
+		double windCase = a.bool("checkDesignWind", true) && !Double.isNaN(maxWind) ? maxWind : Double.NaN;
+		int budget = Math.max(16, Math.min(300, a.integer("maxEvaluations", 48)));
+		long t0 = System.nanoTime();
+		List<FinDesign.Run> runs = FinDesign.optimize(base, d.doc, fin, lim, thick, obj, target, c, budget, windCase);
+
+		// Best over all thicknesses (feasibility first, then the objective).
+		FinDesign.Run best = null;
+		double bestScore = Double.MAX_VALUE;
+		List<Map<String, Object>> perThickness = new ArrayList<>();
+		for (FinDesign.Run r : runs) {
+			if (r.result().best() == null) {
+				continue;
+			}
+			double sc = Optimizer.scoreOf(r.result().best(), obj, target, c);
+			if (sc < bestScore) {
+				bestScore = sc;
+				best = r;
+			}
+			if (runs.size() > 1) {
+				Map<String, Object> row = new LinkedHashMap<>();
+				row.put("thickness", Units.fmt(r.thickness(), Dim.LENGTH));
+				row.put("feasible", r.result().feasible());
+				Optimizer.Point p = r.result().best();
+				if (p.simulated()) {
+					row.put("apogee", Units.fmt(p.apogee(), Dim.DISTANCE));
+					row.put("launchMass", Units.fmt(p.launchMass(), Dim.MASS));
+					if (!Double.isNaN(p.flutterMargin())) {
+						row.put("finFlutterMargin", Units.num(p.flutterMargin()));
+					}
+				}
+				perThickness.add(row);
+			}
+		}
+		if (best == null) {
+			throw new ToolException("No candidate could be evaluated.");
+		}
+		Optimizer.Point bp = best.result().best();
+		FinDesign.Planform bestShape = FinDesign.shape(bp.x(), lim, best.thickness());
+		FinDesign.Planform now = FinDesign.of(fin);
+
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("finSet", fin.getName() + " [" + Components.shortId(fin) + "], " + fin.getFinCount() + " fins, "
+				+ fin.getMaterial().getName());
+		out.put("objective", obj.name().toLowerCase() + (Double.isNaN(target) ? "" : " " + Units.fmt(target, Dim.DISTANCE)));
+		Map<String, Object> cons = AnalysisTools.describe(c, windCase, basis[0]);
+		cons.put("shape", "root " + Units.fmt(lim.rootMin(), Dim.LENGTH) + " to " + Units.fmt(lim.rootMax(), Dim.LENGTH) + ", span "
+				+ Units.fmt(lim.spanMin(), Dim.LENGTH) + " to " + Units.fmt(lim.spanMax(), Dim.LENGTH) + ", tip chord >= "
+				+ Units.fmt(lim.minTip(), Dim.LENGTH) + ", leading-edge sweep <= " + Units.num(Math.toDegrees(lim.maxSweepAngle()))
+				+ " deg, " + (lim.maxSweepFraction() > 1 ? "aft overhang allowed" : "no tip trailing edge behind the root"));
+		out.put("constraints", cons);
+		out.put("feasible", best.result().feasible());
+		out.put("optimized", FinDesign.render(bp, bestShape));
+		Optimizer.Point cur = Optimizer.evaluateOne(base, d.doc, Optimizer.Applier.withOpenRocketDrag((r, x) -> {
+		}), new double[0], windCase, c.std());
+		Map<String, Object> curOut = FinDesign.render(cur, now);
+		List<String> curV = Optimizer.violations(cur, c);
+		curOut.put("meetsConstraints", curV.isEmpty() ? "yes" : "NO: " + String.join("; ", curV));
+		out.put("current", curOut);
+		if (bp.simulated() && cur.simulated()) {
+			Map<String, Object> gain = new LinkedHashMap<>();
+			gain.put("apogee", signed(bp.apogee() - cur.apogee(), Dim.DISTANCE));
+			gain.put("launchMass", signed(bp.launchMass() - cur.launchMass(), Dim.MASS));
+			gain.put("finAreaPerFin", signed(bestShape.area() - now.area(), Dim.AREA));
+			out.put("change", gain);
+		}
+		if (!perThickness.isEmpty()) {
+			out.put("byThickness", perThickness);
+		}
+		List<Map<String, Object>> alts = new ArrayList<>();
+		for (Optimizer.Point p : Optimizer.top(best.result(), obj, target, c, 4)) {
+			if (p != bp && Optimizer.violations(p, c).isEmpty()) {
+				alts.add(FinDesign.render(p, FinDesign.shape(p.x(), lim, best.thickness())));
+			}
+		}
+		out.put("alternatives", alts);
+		int n = runs.stream().mapToInt(r -> r.result().evaluated().size()).sum();
+		out.put("evaluations", n + (Double.isNaN(windCase) ? "" : " candidates (each flown twice: nominal and maximum wind)"));
+		out.put("elapsed", Units.num((System.nanoTime() - t0) / 1e9) + " s");
+		if (!best.result().feasible()) {
+			List<String> why = Optimizer.violations(bp, c);
+			boolean flutter = why.stream().anyMatch(v -> v.startsWith("fin flutter"));
+			out.put("note", "No planform met every constraint; 'optimized' is the least-violating (" + String.join("; ", why) + "). "
+					+ (flutter ? "Try thicker stock (thicknesses) or a stiffer material; fin_flutter gives what is needed. " : "")
+					+ "Widen the bounds (maxSpan, maxRootChord), add nose ballast, or relax a constraint.");
+		}
+		List<String> notes = new ArrayList<>();
+		var table = io.github.openrocketmcp.or.AeroTable.of(d.doc.getRocket());
+		notes.add("Aerodynamics are OpenRocket's (Barrowman with its transonic and supersonic extensions), because they follow the "
+				+ "fin shape" + (table != null ? "; the imported aero table (" + table.source() + ") describes the current fins only and "
+						+ "was not used. Re-run CFD / RASAero on the chosen fins (export_geometry) and import it again" : "")
+				+ ". To confirm the result, export_geometry gives the CFD model and run matrix for the new shape.");
+		notes.add("Check the chosen fins' strength and stiffness with fin_fea, and their flutter margin with fin_flutter.");
+		if (hidden != null) {
+			notes.add(hidden);
+		}
+		out.put("notes", notes);
+		if (a.has("plotPath")) {
+			Path p = ctx.path(a.str("plotPath"));
+			try {
+				if (p.getParent() != null) {
+					Files.createDirectories(p.getParent());
+				}
+				Files.writeString(p, FinDesign.svg(d.name() + ": " + fin.getName() + " planform", now, bestShape,
+						fin.getAxialMethod() == info.openrocket.core.rocketcomponent.position.AxialMethod.BOTTOM));
+			} catch (IOException e) {
+				throw new ToolException("Could not write " + p + ": " + e.getMessage());
+			}
+			out.put("plot", p.toAbsolutePath().toString());
+		}
+		if (a.bool("apply", false) && bp.error() == null) {
+			FinDesign.applyTo(fin, bestShape);
+			d.doc.setSaved(false);
+			out.put("applied", "root " + Units.fmt(bestShape.root(), Dim.LENGTH) + ", tip " + Units.fmt(bestShape.tip(), Dim.LENGTH)
+					+ ", span " + Units.fmt(bestShape.span(), Dim.LENGTH) + ", sweep " + Units.fmt(bestShape.sweep(), Dim.LENGTH)
+					+ ", thickness " + Units.fmt(bestShape.thickness(), Dim.LENGTH));
+			out.put("stability", Analysis.stageStacks(d.doc.getRocket().getSelectedConfiguration(), 0.3));
+		}
+		return out;
+	}
+
+	private static String signed(double v, Dim dim) {
+		return (v >= 0 ? "+" : "") + Units.fmt(v, dim);
+	}
+}

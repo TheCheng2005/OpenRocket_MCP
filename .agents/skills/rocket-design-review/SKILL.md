@@ -31,6 +31,10 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
      battery); fix any "not enough room" warning before trusting stability, since it moves mass.
    - Show the vehicle -> `draw_rocket` (a cut-away: check the chutes, electronics and motor sit where the team expects).
    - Nose cone / fin shape -> `compare_shapes` (fix stability first if it reports none meets the floor).
+   - Fin planform -> `optimize_fins` (give the stock thicknesses and any span limit; apply only once agreed), then
+     `fin_flutter` and `fin_fea` on the result.
+   - CFD / CAD -> `export_geometry` (STL, fin DXF, run matrix); CFD results back with `import_aero_table` (cpUnit "m").
+     Tube / coupler FEA -> `structural_loads` with csvPath.
    - Sections and landing energy -> `recovery_sections`; joints and couplers -> `structural_loads`.
    - RASAero data (required for diameter changes) -> `import_aero_table`, then `check_requirements`.
    - Launch day -> ask for the site's GPS coordinates, `weather_forecast` (or `wind_profile` with winds the user gives),

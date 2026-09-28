@@ -37,6 +37,15 @@ class UnitsTest {
 	}
 
 	@Test
+	void acceptsFractions() {
+		assertEquals(0.003175, Units.toSi("1/8 in", Dim.LENGTH), 1e-9);
+		assertEquals(0.0047625, Units.toSi("3/16in", Dim.LENGTH), 1e-9);
+		assertEquals(0.03175, Units.toSi("1 1/4 in", Dim.LENGTH), 1e-9);
+		assertEquals(0.5, Units.toSi("1/2", Dim.LENGTH), 1e-12, "bare fraction is SI");
+		assertThrows(IllegalArgumentException.class, () -> Units.toSi("1/0 in", Dim.LENGTH));
+	}
+
+	@Test
 	void bareNumbersAreSi() {
 		assertEquals(12.5, Units.toSi(12.5, Dim.MASS));
 		assertEquals(12.5, Units.toSi("12.5", Dim.MASS));

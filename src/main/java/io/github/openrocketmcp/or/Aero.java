@@ -63,36 +63,65 @@ public final class Aero {
 		return out;
 	}
 
-	/** Per-component drag at one Mach number, sorted by share of the total. */
+	/**
+	 * How many copies of a component fly (fins in a set, rail buttons, pods). OpenRocket's per-component drag is per
+	 * copy; its total multiplies by this count.
+	 */
+	static int instances(FlightConfiguration fc, RocketComponent c) {
+		var list = fc.getActiveInstances().get(c);
+		return list == null || list.isEmpty() ? 1 : list.size();
+	}
+
+	/**
+	 * Per-component drag at one Mach number (all copies of the component), sorted by share of the total, plus what
+	 * OpenRocket adds for the whole rocket only (the body's friction form factor and fin thickness corrections).
+	 */
 	public static List<Map<String, Object>> breakdown(FlightConfiguration fc, double mach) {
 		Map<RocketComponent, AerodynamicForces> map = new BarrowmanCalculator().getForceAnalysis(fc, conditions(fc, mach),
 				new WarningSet());
-		double total = 0;
+		double sum = 0, total = Double.NaN;
 		List<Object[]> rows = new ArrayList<>();
 		for (Map.Entry<RocketComponent, AerodynamicForces> e : map.entrySet()) {
+			AerodynamicForces f = e.getValue();
+			if (e.getKey() instanceof info.openrocket.core.rocketcomponent.Rocket) {
+				total = nz(f.getFrictionCD()) + nz(f.getPressureCD()) + nz(f.getBaseCD());
+			}
 			if (e.getKey() instanceof ComponentAssembly) {
 				continue;
 			}
-			AerodynamicForces f = e.getValue();
-			double cd = nz(f.getFrictionCD()) + nz(f.getPressureCD()) + nz(f.getBaseCD());
+			int n = instances(fc, e.getKey());
+			double fr = n * nz(f.getFrictionCD()), pr = n * nz(f.getPressureCD()), ba = n * nz(f.getBaseCD());
+			double cd = fr + pr + ba;
 			if (cd <= 0) {
 				continue;
 			}
-			total += cd;
-			rows.add(new Object[] { e.getKey(), cd, f });
+			sum += cd;
+			rows.add(new Object[] { e.getKey(), cd, new double[] { fr, pr, ba }, n });
+		}
+		if (Double.isNaN(total) || total <= 0) {
+			total = sum;
 		}
 		rows.sort((a, b) -> Double.compare((double) b[1], (double) a[1]));
 		List<Map<String, Object>> out = new ArrayList<>();
 		for (Object[] r : rows) {
 			RocketComponent c = (RocketComponent) r[0];
-			AerodynamicForces f = (AerodynamicForces) r[2];
+			double[] parts = (double[]) r[2];
+			int n = (int) r[3];
 			Map<String, Object> m = new LinkedHashMap<>();
-			m.put("component", c.getName() + " [" + Components.shortId(c) + "]");
+			m.put("component", c.getName() + " [" + Components.shortId(c) + "]" + (n > 1 ? " (all " + n + ")" : ""));
 			m.put("cd", Units.num((double) r[1]));
 			m.put("share", Units.num(100 * (double) r[1] / total) + "%");
-			m.put("friction", Units.num(nz(f.getFrictionCD())));
-			m.put("pressure", Units.num(nz(f.getPressureCD())));
-			m.put("base", Units.num(nz(f.getBaseCD())));
+			m.put("friction", Units.num(parts[0]));
+			m.put("pressure", Units.num(parts[1]));
+			m.put("base", Units.num(parts[2]));
+			out.add(m);
+		}
+		double rest = total - sum;
+		if (Math.abs(rest) > 0.005 * total) {
+			Map<String, Object> m = new LinkedHashMap<>();
+			m.put("component", "whole-rocket corrections (body friction form factor, fin thickness; not per part)");
+			m.put("cd", Units.num(rest));
+			m.put("share", Units.num(100 * rest / total) + "%");
 			out.add(m);
 		}
 		return out;
