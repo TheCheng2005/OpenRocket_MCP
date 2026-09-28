@@ -333,6 +333,7 @@ public final class Requirements {
 					"above Mach " + Units.num(machAv) + ": concentric altimeter bay with concentric air sampling holes; crescent "
 							+ "bays only in RF-transparent material", "verify in CAD", std.ruleRef("avionicsMachConcentric"));
 		}
+		electronics(r, fc);
 		double ispMin = std.rule("srad.minStaticFireIsp", Dim.TIME);
 		if (!Double.isNaN(ispMin)) {
 			for (info.openrocket.core.motor.MotorConfiguration mc : fc.getActiveMotors()) {
@@ -427,6 +428,37 @@ public final class Requirements {
 	}
 
 	/** First deployment of each branch more than 3 s after apogee: the vehicle is falling fast when it opens. */
+	/**
+	 * Electronics modelled as typed OpenRocket parts (altimeter, flight computer, tracker, battery): what the design
+	 * carries, and whether every deployment altimeter and tracker can have its own battery (Launch Canada: individual
+	 * power supply for each deployment altimeter and each GPS / RF beacon).
+	 */
+	static void electronics(Report r, FlightConfiguration fc) {
+		int alt = 0, trk = 0, bat = 0;
+		for (info.openrocket.core.rocketcomponent.RocketComponent c : fc.getActiveComponents()) {
+			if (c instanceof info.openrocket.core.rocketcomponent.MassComponent m) {
+				switch (m.getMassComponentType()) {
+					case ALTIMETER, FLIGHTCOMPUTER -> alt++;
+					case TRACKER -> trk++;
+					case BATTERY -> bat++;
+					default -> {
+					}
+				}
+			}
+		}
+		if (alt + trk == 0) {
+			r.add(Status.INFO, "Electronics in the design", "model altimeters, trackers and batteries as typed mass components "
+					+ "(add_avionics_bay does) so mass, CG and the checks include them", "none modelled", null);
+			return;
+		}
+		String have = alt + " altimeter(s) / flight computer(s), " + trk + " tracker(s), " + bat + " battery(ies)";
+		r.add(alt >= 2 ? Status.PASS : Status.WARN, "Redundant deployment electronics",
+				"two independent altimeters (each on its own circuit)", have, "2027 Edicts, Electronics");
+		r.add(bat >= alt + trk ? Status.PASS : Status.WARN, "Individual power supply per altimeter and tracker",
+				"one battery for each deployment altimeter and each GPS / RF beacon", bat + " batteries for " + (alt + trk)
+						+ " devices", "2027 Edicts, Electronics");
+	}
+
 	public static List<String> lateFirstDeployments(Simulation sim) {
 		List<String> out = new ArrayList<>();
 		java.util.Set<String> seen = new java.util.HashSet<>();

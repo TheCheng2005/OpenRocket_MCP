@@ -190,7 +190,7 @@ public final class AeroTools {
 					if (p.getParent() != null) {
 						Files.createDirectories(p.getParent());
 					}
-					Files.writeString(p, Drawing.svg(fc, d.name() + " (" + fc.getName() + ")"));
+					Files.writeString(p, Drawing.svg(fc, Drawing.title(d.name(), fc)));
 					Map<String, Object> out = new LinkedHashMap<>();
 					out.put("file", p.toString());
 					out.put("stability", Analysis.render(Analysis.stability(fc, 0.3)));

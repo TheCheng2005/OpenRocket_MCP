@@ -464,6 +464,51 @@ def scenario_design_review(s, d, tmp):
     check(sc, "list_files finds the saved revision", any(f["path"].endswith("v1.ork") for f in files["files"]), json.dumps(files)[:300])
 
 
+def scenario_avionics(s, tmp):
+    """'Lay out our av-bay with two altimeters and a GPS, and show us where everything goes.'"""
+    sc = "avionics bay"
+    d = s.call("open_design", {"newRocketName": "Bench av-bay"})["designId"]
+    stage = s.call("get_design", {"designId": d})["components"][0].split("[")[1][:8]
+    add = lambda parent, typ, name, props: s.call("add_component", {"designId": d, "parent": parent, "type": typ,
+                                                                    "name": name, "properties": props})
+    tube = {"outerDiameter": "4.02 in", "thickness": "2 mm", "material": "Fiberglass"}
+    add(stage, "NoseCone", "Nose cone", {"shapeType": "OGIVE", "length": "18 in", "aftDiameter": "4.02 in",
+                                          "thickness": "2.5 mm", "aftShoulderLength": "4 in",
+                                          "aftShoulderDiameter": "3.9 in"})
+    add(stage, "BodyTube", "Upper airframe", dict(tube, length="24 in"))
+    add(stage, "BodyTube", "Lower airframe", dict(tube, length="40 in"))
+    add("Lower airframe", "InnerTube", "MMT", {"length": "30 in", "outerDiameter": "78 mm", "thickness": "1.5 mm",
+                                              "axialMethod": "BOTTOM", "axialOffset": 0})
+    add("Lower airframe", "TrapezoidFinSet", "Fins", {"finCount": 4, "rootChord": "9 in", "tipChord": "3 in",
+                                                      "span": "5 in", "sweepLength": "5 in", "thickness": "3.2 mm",
+                                                      "axialMethod": "BOTTOM", "axialOffset": 0})
+    chute = add("Upper airframe", "Parachute", "Main", {"diameter": "60 in", "cd": 0.8})
+    check(sc, "new parachute gets a packed size", any("packed size" in a for a in chute["applied"]), str(chute["applied"]))
+    add("Upper airframe", "ShockCord", "Main cord", {"cordLength": "25 ft", "length": "4 in"})
+    add("Lower airframe", "Parachute", "Drogue", {"diameter": "18 in", "cd": 0.8})
+    add("Lower airframe", "ShockCord", "Drogue cord", {"cordLength": "20 ft", "length": "3 in"})
+    bay = s.call("add_avionics_bay", {"designId": d})
+    parts = [x["part"].lower() for x in bay["layout"]]
+    count = lambda word: sum(word in p for p in parts)
+    check(sc, "two altimeters, each with its own battery and switch",
+          sum(p.endswith("altimeter") for p in parts) == 2 and count("battery (") == 2 and count("switch (") == 2,
+          str(parts))
+    check(sc, "four ejection charges and a tracker", count("charge") == 4 and "tracker" in bay["electronics"].lower(),
+          str(parts))
+    warn = [x for x in bay["recoveryPacked"] if x.startswith("WARNING")]
+    check(sc, "drogue bay that runs into the motor mount is flagged", any("Lower airframe" in x for x in warn), str(warn))
+    s.call("set_motor", {"designId": d, "mount": "MMT", "motor": "L1170FJ"})
+    rules = json.dumps(s.call("check_requirements", {"designId": d}))
+    check(sc, "rule check sees redundant electronics and separate batteries",
+          "Redundant deployment electronics" in rules and "Individual power supply" in rules)
+    out = os.path.join(tmp, "avbay.svg")
+    s.call("draw_rocket", {"designId": d, "path": out})
+    svg = open(out).read()
+    check(sc, "cut-away shows electronics, parachutes, charges and separations",
+          all(f'class="{c}"' in svg for c in ("elec", "batt", "chute", "charge", "sep")))
+    s.call("close_design", {"designId": d})
+
+
 def main():
     if not os.path.exists(BIN):
         sys.exit(f"Build first: ./gradlew installDist ({BIN} missing)")
@@ -482,7 +527,8 @@ def main():
                      ("Post-flight", lambda: scenario_post_flight(s, scratch["d"], tmp)),
                      ("Design studies", lambda: scenario_studies(s, scratch["d"])),
                      ("Launch day", lambda: scenario_launch_day(s, scratch["d"], tmp)),
-                     ("Design review", lambda: scenario_design_review(s, scratch["d"], tmp))]:
+                     ("Design review", lambda: scenario_design_review(s, scratch["d"], tmp)),
+                     ("Avionics bay", lambda: scenario_avionics(s, tmp))]:
         print(f"\n== {name}")
         try:
             fn()
