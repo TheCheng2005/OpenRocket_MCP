@@ -77,6 +77,97 @@
         "source": "typical"
       }
     },
+    "youngsModulus": {
+      "fiberglass|g10|g-10|fr4|fr-4": {
+        "value": "18 GPa",
+        "source": "typical G10/FR4 in-plane (lengthwise ~2.6-2.8 Msi)"
+      },
+      "carbon": {
+        "value": "55 GPa",
+        "source": "typical 0/90 woven carbon/epoxy in-plane; quasi-isotropic ~40-45 GPa; set your laminate's"
+      },
+      "aluminum|aluminium|6061": {
+        "value": "68.9 GPa",
+        "source": "6061-T6"
+      },
+      "steel": {
+        "value": "200 GPa",
+        "source": "carbon steel"
+      },
+      "titanium": {
+        "value": "114 GPa",
+        "source": "Ti-6Al-4V"
+      },
+      "plywood|birch": {
+        "value": "9 GPa",
+        "source": "aircraft birch plywood along the face grain; highly variable"
+      },
+      "polycarbonate": {
+        "value": "2.4 GPa",
+        "source": "typical"
+      }
+    },
+    "poissonRatio": {
+      "fiberglass|g10|g-10|fr4|fr-4": {
+        "value": 0.12,
+        "source": "typical G10/FR4 in-plane"
+      },
+      "carbon": {
+        "value": 0.06,
+        "source": "typical 0/90 woven carbon/epoxy in-plane; quasi-isotropic ~0.3"
+      },
+      "aluminum|aluminium|6061": {
+        "value": 0.33,
+        "source": "6061-T6"
+      },
+      "steel": {
+        "value": 0.29,
+        "source": "carbon steel"
+      },
+      "titanium": {
+        "value": 0.34,
+        "source": "Ti-6Al-4V"
+      },
+      "plywood|birch": {
+        "value": 0.07,
+        "source": "typical"
+      },
+      "polycarbonate": {
+        "value": 0.37,
+        "source": "typical"
+      }
+    },
+    "strength": {
+      "fiberglass|g10|g-10|fr4|fr-4": {
+        "value": "240 MPa",
+        "source": "typical G10/FR4 tensile strength lengthwise (flexural ~400 MPa)"
+      },
+      "carbon": {
+        "value": "450 MPa",
+        "source": "typical 0/90 woven carbon/epoxy (compression governs); wet layups are often lower: test coupons"
+      },
+      "aluminum|aluminium|6061": {
+        "value": "276 MPa",
+        "source": "6061-T6 yield"
+      },
+      "steel": {
+        "value": "250 MPa",
+        "source": "mild steel yield"
+      },
+      "titanium": {
+        "value": "880 MPa",
+        "source": "Ti-6Al-4V yield"
+      },
+      "plywood|birch": {
+        "value": "40 MPa",
+        "source": "aircraft birch plywood, typical bending; highly variable"
+      },
+      "polycarbonate": {
+        "value": "60 MPa",
+        "source": "typical yield"
+      }
+    },
+    "finFeaNotes": "Fin FEA (fin_fea) uses youngsModulus, shearModulus and poissonRatio as in-plane engineering constants of a homogeneous plate, and strength as the allowable (yield for metals, a failure stress for laminates) with loadSafetyFactor. Replace the typical values with your laminate's coupon data.",
     "loadSafetyFactor": 2.0,
     "maxServiceTemperature": {
       "fiberglass|g10|g-10|fr4|fr-4": {
