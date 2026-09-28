@@ -265,7 +265,7 @@ public final class Reports {
 		md.append(table((List<Map<String, Object>>) checks.get("checks"))).append('\n');
 
 		Path drawing = dir.resolve("rocket.svg");
-		Files.writeString(drawing, Drawing.svg(fc, d.name() + " (" + fc.getName() + ")"));
+		Files.writeString(drawing, Drawing.svg(fc, Drawing.title(d.name(), fc)));
 		files.add(drawing);
 		md.append("## 2. Vehicle\n\n![rocket.svg](rocket.svg)\n\n### Stability by stage stack (static, Mach 0.3)\n\n");
 		md.append(table(Analysis.stageStacks(fc, 0.3))).append('\n');

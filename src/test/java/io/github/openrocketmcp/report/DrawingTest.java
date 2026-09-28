@@ -56,4 +56,24 @@ class DrawingTest {
 		assertTrue(offAxis, "parallel boosters appear beside the core");
 		SvgTest.wellFormed(Drawing.svg(fc, "pods"));
 	}
+
+	@Test
+	void drawsWhatIsInside() throws Exception {
+		Designs.Design d = new Designs().openExample("Dual parachute");
+		FlightConfiguration fc = d.doc.getRocket().getSelectedConfiguration();
+		var parts = Drawing.internals(fc);
+		long chutes = parts.stream().filter(p -> p.cls().equals("chute")).count();
+		assertEquals(2, chutes, "main and drogue");
+		assertTrue(parts.stream().anyMatch(p -> p.cls().equals("chute") && p.label() != null && p.label().contains("42")),
+				"labelled with the canopy size");
+		assertTrue(parts.stream().anyMatch(p -> p.cls().equals("motor") && p.label() != null), "the motor, labelled");
+		assertTrue(parts.stream().anyMatch(p -> p.cls().equals("tube") || p.cls().equals("struct")), "couplers / bulkheads");
+		for (var p : parts) {
+			assertTrue(p.x0() >= -1e-6 && p.x1() <= fc.getLength() + 0.05, "inside the vehicle: " + p);
+		}
+		assertEquals(2, Drawing.separations(fc).size(), "two separation points for dual deploy");
+		String svg = Drawing.svg(fc, "Dual");
+		SvgTest.wellFormed(svg);
+		assertTrue(svg.contains("parachute / streamer") && svg.contains("where the airframe separates"));
+	}
 }

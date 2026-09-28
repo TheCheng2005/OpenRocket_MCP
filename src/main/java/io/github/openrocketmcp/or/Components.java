@@ -204,8 +204,9 @@ public final class Components {
 		if (p.contains("angle") || p.contains("rotation") || p.contains("direction")) {
 			return Dim.ANGLE;
 		}
+		// "ratio" only as a suffix: "instanceSeparation" and "duration" contain the letters too.
 		if (p.equals("cd") || p.contains("coefficient") || p.contains("shapeparameter") || p.contains("count")
-				|| p.contains("ratio") || p.contains("scale")) {
+				|| p.endsWith("ratio") || p.contains("scale")) {
 			return Dim.DIMENSIONLESS;
 		}
 		if (p.contains("area")) {

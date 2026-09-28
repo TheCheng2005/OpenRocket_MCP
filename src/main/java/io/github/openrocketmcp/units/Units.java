@@ -147,6 +147,8 @@ public final class Units {
 	 * whether that means SI.
 	 */
 	public static Parsed parse(String text) {
+		// Accept this server's own dual-unit output as input: "274.3 mm (10.8 in)" means 274.3 mm.
+		text = text.replaceFirst("\\s*\\([^()]*\\)\\s*$", "");
 		Matcher m = QUANTITY.matcher(text);
 		if (!m.matches()) {
 			throw new IllegalArgumentException("Cannot parse quantity '" + text + "'. Use a number with a unit, e.g. \"20 ft/s\".");

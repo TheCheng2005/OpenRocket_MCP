@@ -233,6 +233,19 @@ public final class DesignTools {
 						parent.removeChild(c);
 						throw e instanceof ToolException te ? new ToolException(te.getMessage() + " Nothing was added.") : e;
 					}
+					// A new parachute without a packed size gets a realistic one (OpenRocket's default is a tiny bundle).
+					var given = a.obj("properties").raw().keySet().stream().map(k -> k.toLowerCase(java.util.Locale.ROOT)).toList();
+					if (c instanceof info.openrocket.core.rocketcomponent.Parachute p && given.stream().noneMatch(k -> k.contains("length")
+							|| k.contains("radius") || k.contains("packed"))) {
+						double inner = parent instanceof info.openrocket.core.rocketcomponent.BodyTube bt ? bt.getInnerRadius() * 2 : 0.08;
+						double pd = 0.9 * inner;
+						double vol = io.github.openrocketmcp.calc.Packing.parachuteVolume(p.getDiameter());
+						p.setRadius(pd / 2);
+						p.setLength(Math.max(vol / (Math.PI * pd * pd / 4), 0.5 * pd));
+						done.add("packed size estimated: " + Units.fmt(pd, io.github.openrocketmcp.units.Dim.LENGTH) + " dia x "
+								+ Units.fmt(p.getLength(), io.github.openrocketmcp.units.Dim.LENGTH)
+								+ " (typical for the canopy size; set length / radius from your chute's packed size)");
+					}
 					d.doc.setSaved(false);
 					Map<String, Object> out = new LinkedHashMap<>();
 					out.put("id", Components.shortId(c));

@@ -142,8 +142,10 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   per-level turbulence seeded for repeatability; wind overrides scale / rotate the profile.
 - `search_parts` / `apply_preset`: the full parts database (all ComponentPreset types), filters on diameter, maker,
   text and material; presets load dimensions, material and mass.
-- `draw_rocket`: side profile from OpenRocket geometry (body radius profiles, fin outlines, pods) with CG / CP; in the
-  report as rocket.svg.
+- `draw_rocket`: cut-away from OpenRocket geometry (body radius profiles, fin outlines, pods) with the internal
+  components drawn by kind (typed mass components, recovery devices, shock cords, rings, couplers, shoulders, motors at
+  their overhang), separation points from the recovery sections, labels without overlap, legend, CG / CP; in the report
+  as rocket.svg.
 - OpenRocket 24.12 quirks found and handled: `SimulationOptions.getWindSpeedAverage()` (and the direction, turbulence
   and deviation getters) select the average wind model, so merely reading the wind discarded a profile; the launch CG
   from `MassCalculator` changes over the first calls after loading (lazy position resolution) — designs are settled on
@@ -209,6 +211,15 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   (no configurations yet) now set the default for configurations created later; motors that list no ejection delay
   get a plugged delay instead of NaN, which made every simulation fail; design diff ignores override values that are
   switched off.
+
+### Avionics and cut-away drawing (v0.12.0)
+
+- `add_avionics_bay`: builds the bay from OpenRocket's typed mass components (ALTIMETER, BATTERY, TRACKER,
+  DEPLOYMENTCHARGE, RECOVERYHARDWARE) per the 2027 electronics edicts; packs recovery against it and checks the free
+  length to the nose shoulder / motor mount or motor.
+- `check_requirements`: redundant deployment electronics and one power supply per altimeter and tracker.
+- New parachutes get a packed size from the canopy diameter (about 0.025 in³ per in² of D²) so drawings and bay checks
+  are realistic; the unit parser accepts its own "274.3 mm (10.8 in)" output.
 
 ### Phase 3 — next
 

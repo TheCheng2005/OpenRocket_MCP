@@ -31,7 +31,11 @@ the answers, and the plots. Everything on that page is real output.
   without fluttering.
 - "Which nose cone and fin shape should we build?" — every common shape flown and compared.
 - Pick real parts from OpenRocket's catalogue (tubes, nose cones, couplers, rail buttons, parachutes).
-- Get a drawing of the rocket with its CG and CP marked.
+- "Lay out the avionics bay": two independent altimeters, each with its own battery and switch, a GPS tracker, the
+  ejection charges and static ports, placed by the Launch Canada electronics rules, with the parachutes packed against
+  it and a warning if a bay is too short.
+- Get a cut-away drawing: parachutes, shock cords, electronics, batteries, charges, motor, rings and bulkheads where
+  they really sit, where the airframe separates, and the CG and CP.
 
 **Motors**
 - "Find a motor for 10,000 ft on an L2 certification" — candidates are flown, not just filtered.

@@ -29,6 +29,14 @@ class UnitsTest {
 	}
 
 	@Test
+	void acceptsItsOwnDualUnitOutput() {
+		// Tools print "274.3 mm (10.8 in)"; a model often passes that straight back as an argument.
+		assertEquals(0.2743, Units.toSi("274.3 mm (10.8 in)", Dim.LENGTH), 1e-9);
+		assertEquals(6.096, Units.toSi("6.096 m/s (20 ft/s)", Dim.VELOCITY), 1e-9);
+		assertEquals(0.2743, Units.toSi(Units.fmt(0.2743, Dim.LENGTH), Dim.LENGTH), 1e-4, "round trip through fmt");
+	}
+
+	@Test
 	void bareNumbersAreSi() {
 		assertEquals(12.5, Units.toSi(12.5, Dim.MASS));
 		assertEquals(12.5, Units.toSi("12.5", Dim.MASS));
