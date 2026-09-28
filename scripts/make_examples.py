@@ -372,8 +372,10 @@ def main():
     w("## Structures and CFD")
     w()
     fea = call("fin_fea", {"designId": d, "outDir": os.path.join(tmp, "fea"), "youngsModulus": "45 GPa",
-                           "poissonRatio": 0.3})
-    ask(14, "Check the fins in FEA: our quasi-isotropic laminate has E = 45 GPa and Poisson's ratio 0.3.", ["fin_fea"])
+                           "poissonRatio": 0.3, "plotPath": os.path.join(IMG, "fin-stress.svg")})
+    loads = call("structural_loads", {"designId": d, "csvPath": os.path.join(tmp, "joint-loads.csv")})
+    ask(14, "Check the fins in FEA: our quasi-isotropic laminate has E = 45 GPa and Poisson's ratio 0.3. And give us the "
+            "joint loads for the airframe FEA.", ["fin_fea", "structural_loads"])
     fe, ld = fea["fea"], fea["load"]
     if isinstance(fe, dict):
         w(f"> **{fe['status']}**, margin of safety {fe['marginOfSafety'].split(' ')[0]} with the team's safety factor of "
@@ -381,19 +383,29 @@ def main():
           f"{lead(fe['maxDeflection'])}; peak stress {lead(fe['peakStress'])}. Natural frequencies: "
           + ", ".join(fe["naturalFrequencies"][:3]) + ".")
         w()
+        w("![The fin coloured by stress under the design load, clamped at the root](examples/fin-stress.svg)")
+        w()
         w("Claude writes a CalculiX model of the fin (8-node shells, clamped root, the flight load) and runs it when CalculiX is "
           "installed. The input deck is kept, so a team member can refine it in PrePoMax or Abaqus. The model was checked "
-          "against cantilever plate theory: deflection, root stress and first frequency agree within 1-3%.")
+          "against cantilever plate theory: deflection, root stress and first frequency agree within 0.2%. The stress peaks at "
+          "the root, most at its corners, where the real fin's fillet or tab spreads the load.")
+        w()
+        w(f"Joint loads for the airframe: {len(loads['joints'])} joints, the highest wall stress at "
+          f"{loads.get('highestWallStress', 'n/a')}; the load cases (axial force, bending moments, the flight time, Mach and "
+          "angle of attack of each) go to a CSV for the tube and coupler FEA.")
     else:
         w(f"> {fe}")
     w()
 
     geo = call("export_geometry", {"designId": d, "outDir": os.path.join(tmp, "cfd")})
+    shutil.copy(os.path.join(tmp, "cfd", "preview.svg"), os.path.join(IMG, "cfd-model.svg"))
     ask(15, "Export it for CFD, and tell us which cases to run.", ["export_geometry"])
     w(f"> The rocket as STL ({geo['files']['stl'].split('(')[1].split(';')[0]}, one region per part so the solver reports "
-      "the force on each), the fin cutting pattern as DXF, and a run matrix taken from the simulated flight: each Mach "
+      "the force on each), the fin cutting pattern as DXF for the waterjet or laser, and a run matrix taken from the simulated flight: each Mach "
       "number at the altitude where the rocket reaches it. When the CFD results are in, `import_aero_table` reads them "
       "back and every later simulation and rule check uses them.")
+    w()
+    w("![The exported CFD model: nose, airframe sections, base and fins as separate regions](examples/cfd-model.svg)")
     w()
     cases = [c for c in geo["cases"] if c["case"].startswith("M") or c["case"] == "max_q"]
     table(cases, ["case", "mach", "altitude", "velocity", "reynolds", "openrocketCd"],

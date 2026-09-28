@@ -80,6 +80,12 @@ class GeometryTest {
 		}
 		assertEquals(exact, volume(body), exact * 0.005, "enclosed volume (180 facets lose about 0.02%)");
 
+		String preview = Geometry.previewSvg(all, "t");
+		for (Geometry.Solid sd : all) {
+			assertTrue(preview.contains(">" + sd.name + "</text>"), "legend lists " + sd.name);
+		}
+		int drawn = preview.split("<polygon").length - 1, total = all.stream().mapToInt(sd -> sd.tris.size()).sum();
+		assertTrue(drawn > total / 3 && drawn < total * 2 / 3, "back faces dropped: " + drawn + " of " + total);
 		assertEquals(1, fins.size());
 		assertClosed(fins, "fins");
 		FinSet f = StudiesTest.first(d, FinSet.class);

@@ -138,7 +138,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 |---|---|---|---|
 | WARN | Launch site altitude | 0 m (0 ft) used by this simulation |  |
 | WARN | Ascent stability (maximum, over-stability) | 5.693 cal | R10.3.1, R10.4.1 |
-| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.692 cal | R10.3.1, R10.4.1 |
+| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.691 cal | R10.3.1, R10.4.1 |
 | WARN | Maximum Mach number | 1.175 |  |
 | PASS | Simulated launch angle | 6 deg | R10.1.1 |
 | PASS | Rail departure velocity | 41.63 m/s (136.6 ft/s) | R10.2.1 |
@@ -161,7 +161,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 <sub>Tools Claude uses: `monte_carlo`</sub>
 
-> Over 200 simulated flights the median landing is 197.2 m (646.9 ft) from the pad and 95% land within 490.5 m (1609 ft); the landings centre 494 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2972 m (9751 ft) ± 199.2 m (653.6 ft).
+> Over 200 simulated flights the median landing is 200 m (656.2 ft) from the pad and 95% land within 489.4 m (1606 ft); the landings centre 494 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 201.1 m (659.7 ft).
 
 ![200 simulated landings around the pad with the 2-sigma ellipse](examples/landing.svg)
 
@@ -169,12 +169,12 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 
 | Uncertain input | Apogee | Min stability | Landing distance |
 |---|---|---|---|
-| windSpeed | -0.1329 | -0.9653 | -0.6745 |
-| launchAngle | -0.1509 | -0.006994 | 0.3195 |
-| structureMass | -0.05307 | 0.1309 | 0.0966 |
-| airframeDrag | -0.9276 | 0.04255 | -0.1826 |
-| motorThrust | 0.3153 | 0.08091 | -0.01762 |
-| parachuteCd | -0.0325 | 0.03086 | -0.07262 |
+| windSpeed | -0.1304 | -0.9653 | -0.6765 |
+| launchAngle | -0.1487 | -0.006994 | 0.3164 |
+| structureMass | -0.05036 | 0.1309 | 0.09638 |
+| airframeDrag | -0.9262 | 0.04255 | -0.1737 |
+| motorThrust | 0.3169 | 0.08091 | -0.02039 |
+| parachuteCd | -0.03485 | 0.03086 | -0.07579 |
 
 <sub>Correlation from -1 to 1: the closer to ±1, the more that input drives the result.</sub>
 
@@ -193,8 +193,8 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 | tangent ogive (current) | rounded | 3575 m (11730 ft) | 19.66% | 1.144 | 3.528 cal |
 | Von Karman (Haack LD) | square (current) | 3002 m (9850 ft) | 0.4851% | 1.341 | 3.525 cal |
 | 1/2 power | square (current) | 3001 m (9847 ft) | 0.4484% | 1.34 | 3.537 cal |
-| LV-Haack | square (current) | 2993 m (9821 ft) | 0.1891% | 1.356 | 3.533 cal |
-| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02332% | 1.36 | 3.513 cal |
+| LV-Haack | square (current) | 2993 m (9821 ft) | 0.1889% | 1.356 | 3.533 cal |
+| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02325% | 1.36 | 3.513 cal |
 | tangent ogive (current) | square (current) | 2988 m (9803 ft) | 0% | 1.351 | 3.522 cal |
 
 <details><summary>Claude's shape guidance (from the tool)</summary>
@@ -208,19 +208,25 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 
 ## Structures and CFD
 
-### 14. "Check the fins in FEA: our quasi-isotropic laminate has E = 45 GPa and Poisson's ratio 0.3."
+### 14. "Check the fins in FEA: our quasi-isotropic laminate has E = 45 GPa and Poisson's ratio 0.3. And give us the joint loads for the airframe FEA."
 
-<sub>Tools Claude uses: `fin_fea`</sub>
+<sub>Tools Claude uses: `fin_fea`, `structural_loads`</sub>
 
 > **PASS**, margin of safety 8.957 with the team's safety factor of 2. Design load 210.7 N (47.38 lbf) (limit load; the most loaded fin), from the crosswind gust at max q at t=3.905 s, Mach 1.174, q 87.33 kPa (12.67 psi), angle of attack 1.208 deg. Tip deflection 1.085 mm; peak stress 22.6 MPa. Natural frequencies: 182.6 Hz (1st bending), 630.5 Hz (1st torsion), 1062 Hz (2nd bending).
 
-Claude writes a CalculiX model of the fin (8-node shells, clamped root, the flight load) and runs it when CalculiX is installed. The input deck is kept, so a team member can refine it in PrePoMax or Abaqus. The model was checked against cantilever plate theory: deflection, root stress and first frequency agree within 1-3%.
+![The fin coloured by stress under the design load, clamped at the root](examples/fin-stress.svg)
+
+Claude writes a CalculiX model of the fin (8-node shells, clamped root, the flight load) and runs it when CalculiX is installed. The input deck is kept, so a team member can refine it in PrePoMax or Abaqus. The model was checked against cantilever plate theory: deflection, root stress and first frequency agree within 0.2%. The stress peaks at the root, most at its corners, where the real fin's fillet or tab spreads the load.
+
+Joint loads for the airframe: 3 joints, the highest wall stress at Switch band / Lower airframe: 4378 kPa (635 psi); the load cases (axial force, bending moments, the flight time, Mach and angle of attack of each) go to a CSV for the tube and coupler FEA.
 
 ### 15. "Export it for CFD, and tell us which cases to run."
 
 <sub>Tools Claude uses: `export_geometry`</sub>
 
-> The rocket as STL (9840 triangles, mm, one region per part so the solver reports the force on each), the fin cutting pattern as DXF, and a run matrix taken from the simulated flight: each Mach number at the altitude where the rocket reaches it. When the CFD results are in, `import_aero_table` reads them back and every later simulation and rule check uses them.
+> The rocket as STL (9840 triangles, mm, one region per part so the solver reports the force on each), the fin cutting pattern as DXF for the waterjet or laser, and a run matrix taken from the simulated flight: each Mach number at the altitude where the rocket reaches it. When the CFD results are in, `import_aero_table` reads them back and every later simulation and rule check uses them.
+
+![The exported CFD model: nose, airframe sections, base and fins as separate regions](examples/cfd-model.svg)
 
 | Case | Mach | Altitude | Velocity | Reynolds | OpenRocket CD |
 |---|---|---|---|---|---|
@@ -270,7 +276,7 @@ Claude writes a folder with `report.md` (requirement checks, vehicle, flight, st
 
 <sub>Tools Claude uses: `weather_forecast`, `flight_card`</sub>
 
-> Ground wind 6.75 m/s (22.15 ft/s) (24.3 km/h) from 250 deg, gusts 12 m/s (39.37 ft/s) (43.2 km/h) (mean wind within 30 km/h limit; gusts exceed it). Flown in the forecast winds aloft: apogee 3018 m (9903 ft), landing 121.5 m (398.6 ft) from the pad.
+> Ground wind 6.75 m/s (22.15 ft/s) (24.3 km/h) from 250 deg, gusts 12 m/s (39.37 ft/s) (43.2 km/h) (mean wind within 30 km/h limit; gusts exceed it). Flown in the forecast winds aloft: apogee 3018 m (9903 ft), landing 121.1 m (397.2 ft) from the pad.
 
 <sub>(A recorded forecast is used here so the page is reproducible; with internet access Claude fetches the live one from Open-Meteo.)</sub>
 

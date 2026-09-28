@@ -70,6 +70,7 @@ public final class IntegrationTools {
 						.qty("pressure", "Use this uniform pressure instead of the flight load (e.g. a ground-test load).", false)
 						.integer("modes", "Natural frequencies to compute (default 4).", false)
 						.str("outDir", "Folder for the deck and results (default \"<design>-fea\").", false)
+						.str("plotPath", "Also draw the fin coloured by stress (SVG), e.g. \"plots/fin-stress.svg\".", false)
 						.bool("run", "Run CalculiX when it is available (default true).", false).build(),
 				false, a -> fea(ctx, a)));
 	}
@@ -98,6 +99,9 @@ public final class IntegrationTools {
 			regions.add(sd.name);
 			tris += sd.tris.size();
 		}
+		Path preview = dir.resolve("preview.svg");
+		Files.writeString(preview, Geometry.previewSvg(Geometry.solids(fc, 36), d.name() + ": CFD model (STL regions)"));
+		files.put("preview", preview.toAbsolutePath() + " (3-D view of the regions)");
 		files.put("stl", stl.toAbsolutePath() + " (" + tris + " triangles, " + units + "; regions: " + String.join(", ", regions) + ")");
 
 		List<String> dxfs = new ArrayList<>();
@@ -321,6 +325,15 @@ public final class IntegrationTools {
 			if (!Double.isNaN(fb) && !Double.isNaN(ft)) {
 				fe.put("torsionToBendingRatio", Units.num(ft / fb) + " (flutter needs the torsion and bending modes to couple; "
 						+ "the closer this is to 1, the lower the flutter speed)");
+			}
+			if (a.has("plotPath")) {
+				Path pp = ctx.path(a.str("plotPath"));
+				if (pp.getParent() != null) {
+					Files.createDirectories(pp.getParent());
+				}
+				Files.writeString(pp, FinFea.stressSvg(deck, metal ? r.vonMisesGrid() : r.principalGrid(), d.name() + ": " + fin.getName()
+						+ " under the design load", metal ? "von Mises" : "largest principal", Double.isNaN(strength) ? Double.NaN : strength / sf));
+				files.put("stressPlot", pp.toAbsolutePath().toString());
 			}
 			out.put("fea", fe);
 		} else {

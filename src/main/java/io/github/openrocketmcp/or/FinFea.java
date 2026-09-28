@@ -140,7 +140,7 @@ public final class FinFea {
 	}
 
 	/** Input deck plus the node numbers used to classify modes. */
-	public record Deck(String text, int[] leadingEdge, int[] trailingEdge, int elements, Plate plate) {
+	public record Deck(String text, int[] leadingEdge, int[] trailingEdge, int elements, Plate plate, int nc, int ns) {
 		int tipLeadingEdge() {
 			return leadingEdge[leadingEdge.length - 1];
 		}
@@ -197,7 +197,7 @@ public final class FinFea {
 			le[j] = id[0][j];
 			te[j] = id[2 * nc][j];
 		}
-		return new Deck(b.toString(), le, te, e, p);
+		return new Deck(b.toString(), le, te, e, p, nc, ns);
 	}
 
 	/** One natural mode. */
@@ -210,7 +210,7 @@ public final class FinFea {
 	 * where the idealised clamp makes the stress grow with mesh refinement.
 	 */
 	public record Result(double maxDeflection, double maxVonMises, double maxPrincipal, double vonMisesAwayFromCorners,
-			double principalAwayFromCorners, List<Mode> modes) {
+			double principalAwayFromCorners, List<Mode> modes, double[][] vonMisesGrid, double[][] principalGrid) {
 	}
 
 	/** A CalculiX executable: $CCX, else ccx / ccx_static / ccx_dynamic / ccx_2.2x on the PATH; null if none. */
@@ -322,8 +322,9 @@ public final class FinFea {
 			Map<Integer, Double> b = m + 1 < blocks.size() ? blocks.get(m + 1) : Map.of();
 			modes.add(new Mode(freqs.get(m), kind(line(b, deck.leadingEdge()), line(b, deck.trailingEdge()))));
 		}
-		double[] s = frdStress(frd, deck.plate());
-		return new Result(maxU.isEmpty() ? Double.NaN : maxU.get(0), s[0], s[1], s[2], s[3], modes);
+		double[][] vmGrid = new double[deck.nc()][deck.ns()], prGrid = new double[deck.nc()][deck.ns()];
+		double[] s = frdStress(frd, deck, vmGrid, prGrid);
+		return new Result(maxU.isEmpty() ? Double.NaN : maxU.get(0), s[0], s[1], s[2], s[3], modes, vmGrid, prGrid);
 	}
 
 	private static double[] line(Map<Integer, Double> uz, int[] nodes) {
@@ -391,9 +392,11 @@ public final class FinFea {
 
 	/**
 	 * Maximum von Mises and absolute principal stress of the first (static) STRESS block of an .frd file: {over all
-	 * nodes, over nodes outside 10% of the root chord from either root corner}.
+	 * nodes, over nodes outside 10% of the root chord from either root corner}. When grids are given, each element's
+	 * largest nodal value (through the thickness) goes into its cell.
 	 */
-	static double[] frdStress(String frd, Plate p) {
+	static double[] frdStress(String frd, Deck deck, double[][] vmGrid, double[][] prGrid) {
+		Plate p = deck.plate();
 		double vm = 0, pr = 0, vmAway = 0, prAway = 0;
 		boolean in = false, seen = false, coords = false;
 		Map<Integer, double[]> xyz = new java.util.HashMap<>();
@@ -437,9 +440,124 @@ public final class FinFea {
 					vmAway = Math.max(vmAway, m);
 					prAway = Math.max(prAway, q);
 				}
+				if (c != null && vmGrid != null) {
+					for (int[] ij : cells(deck, c[0], c[1])) {
+						vmGrid[ij[0]][ij[1]] = Math.max(vmGrid[ij[0]][ij[1]], m);
+						prGrid[ij[0]][ij[1]] = Math.max(prGrid[ij[0]][ij[1]], q);
+					}
+				}
 			}
 		}
 		return new double[] { vm, pr, vmAway, prAway };
+	}
+
+	/** The mesh cells a point of the plate belongs to (several on a cell boundary). */
+	static List<int[]> cells(Deck d, double x, double y) {
+		Plate p = d.plate();
+		double v = Math.max(0, Math.min(1, y / p.span()));
+		double chord = p.root() + (p.tip() - p.root()) * v;
+		double u = Math.max(0, Math.min(1, (x - p.sweep() * v) / chord));
+		List<int[]> out = new ArrayList<>();
+		for (int i : near(u * d.nc(), d.nc())) {
+			for (int j : near(v * d.ns(), d.ns())) {
+				out.add(new int[] { i, j });
+			}
+		}
+		return out;
+	}
+
+	private static List<Integer> near(double t, int n) {
+		List<Integer> out = new ArrayList<>();
+		int k = (int) Math.floor(t);
+		if (Math.abs(t - Math.rint(t)) < 1e-3) { // on a grid line (the .frd prints ~6 digits): both neighbours
+			int r = (int) Math.rint(t);
+			if (r - 1 >= 0) {
+				out.add(r - 1);
+			}
+			if (r < n) {
+				out.add(r);
+			}
+		} else {
+			out.add(Math.min(n - 1, Math.max(0, k)));
+		}
+		return out;
+	}
+
+	/**
+	 * The fin's stress as a colour map on its planform (SVG): each element coloured by its peak stress, with the colour
+	 * scale, the clamped root and the flow direction.
+	 */
+	public static String stressSvg(Deck d, double[][] grid, String title, String measure, double allowable) {
+		Plate p = d.plate();
+		double w = 640, h = 420, pad = 50, legendW = 90;
+		double maxX = Math.max(p.root(), p.sweep() + p.tip());
+		double sc = Math.min((w - 2 * pad - legendW) / maxX, (h - 2 * pad - 40) / p.span());
+		double x0 = pad, y0 = h - pad;
+		double top = 0;
+		for (double[] col : grid) {
+			for (double v : col) {
+				top = Math.max(top, v);
+			}
+		}
+		if (top <= 0) {
+			top = 1;
+		}
+		StringBuilder s = new StringBuilder();
+		s.append(String.format(Locale.ROOT, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"%.0f\" height=\"%.0f\" viewBox=\"0 0 %.0f %.0f\" "
+				+ "font-family=\"sans-serif\">%n<rect width=\"100%%\" height=\"100%%\" fill=\"#fcfcfb\"/>%n", w, h, w, h));
+		s.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"24\" font-size=\"15\" font-weight=\"600\">%s</text>%n", pad, esc(title)));
+		for (int i = 0; i < d.nc(); i++) {
+			for (int j = 0; j < d.ns(); j++) {
+				StringBuilder pts = new StringBuilder();
+				for (double[] uv : new double[][] { { i, j }, { i + 1, j }, { i + 1, j + 1 }, { i, j + 1 } }) {
+					double v = uv[1] / d.ns(), u = uv[0] / d.nc();
+					double x = p.sweep() * v + (p.root() + (p.tip() - p.root()) * v) * u, y = p.span() * v;
+					pts.append(String.format(Locale.ROOT, "%.1f,%.1f ", x0 + x * sc, y0 - y * sc));
+				}
+				String col = color(grid[i][j] / top);
+				s.append(String.format(Locale.ROOT, "<polygon points=\"%s\" fill=\"%s\" stroke=\"%s\" stroke-width=\"0.5\"/>%n",
+						pts.toString().trim(), col, col));
+			}
+		}
+		s.append(String.format(Locale.ROOT, "<line x1=\"%.0f\" x2=\"%.1f\" y1=\"%.1f\" y2=\"%.1f\" stroke=\"#333\" stroke-width=\"3\"/>%n",
+				x0 - 10, x0 + p.root() * sc + 10, y0, y0));
+		s.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"%.1f\" font-size=\"11\" fill=\"#444\">clamped root (body tube); flow "
+				+ "left to right</text>%n", x0, y0 + 16));
+		// Colour scale.
+		double lx = w - pad - 40, ly = 60, lh = h - 2 * pad - 50;
+		for (int k = 0; k < 50; k++) {
+			s.append(String.format(Locale.ROOT, "<rect x=\"%.0f\" y=\"%.2f\" width=\"16\" height=\"%.2f\" fill=\"%s\"/>%n", lx,
+					ly + lh * k / 50.0, lh / 50.0 + 0.5, color(1 - k / 49.0)));
+		}
+		s.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"%.0f\" font-size=\"11\" text-anchor=\"end\">%s</text>%n", lx + 36, ly - 8,
+				esc(measure)));
+		s.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"%.0f\" font-size=\"11\" text-anchor=\"end\">%.3g MPa</text>%n", lx - 4,
+				ly + 8, top / 1e6));
+		s.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"%.0f\" font-size=\"11\" text-anchor=\"end\">0</text>%n", lx - 4, ly + lh));
+		if (!Double.isNaN(allowable) && allowable > 0) {
+			s.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"%.0f\" font-size=\"11\" fill=\"#444\">allowable / safety factor %.3g MPa; the "
+					+ "highest element is at %.0f%% of it</text>%n", pad, 44.0, allowable / 1e6, 100 * top / allowable));
+		}
+		s.append("</svg>\n");
+		return s.toString();
+	}
+
+	/** Sequential colour scale from pale blue (0) through yellow to dark red (1). */
+	static String color(double t) {
+		double[][] stops = { { 0.87, 0.92, 0.97 }, { 0.62, 0.79, 0.88 }, { 0.99, 0.85, 0.46 }, { 0.96, 0.52, 0.26 },
+				{ 0.70, 0.09, 0.17 } };
+		t = Math.max(0, Math.min(1, t)) * (stops.length - 1);
+		int k = Math.min(stops.length - 2, (int) t);
+		double f = t - k;
+		int[] c = new int[3];
+		for (int i = 0; i < 3; i++) {
+			c[i] = (int) Math.round(255 * (stops[k][i] + (stops[k + 1][i] - stops[k][i]) * f));
+		}
+		return String.format("#%02x%02x%02x", c[0], c[1], c[2]);
+	}
+
+	private static String esc(String t) {
+		return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
 	}
 
 	private static double num(String l, int k) {

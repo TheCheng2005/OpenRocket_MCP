@@ -271,6 +271,68 @@ public final class Geometry {
 		return (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
 	}
 
+	/**
+	 * A shaded 3-D view of the solids (SVG): rotated to look slightly from above and behind, back faces dropped, the
+	 * rest painted far to near, lit from one side; one colour per region with a legend.
+	 */
+	public static String previewSvg(List<Solid> solids, String title) {
+		String[] palette = { "#c9d3df", "#9db4d3", "#e3bf7c", "#86b7a5", "#d49a9a", "#a996d6", "#8fcfc9", "#c7b39a" };
+		double ca = Math.cos(Math.toRadians(35)), sa = Math.sin(Math.toRadians(35));
+		double cb = Math.cos(Math.toRadians(20)), sb = Math.sin(Math.toRadians(20));
+		double[] light = { 0.3, 0.6, 0.75 };
+		double ln = Math.sqrt(light[0] * light[0] + light[1] * light[1] + light[2] * light[2]);
+		List<double[]> polys = new ArrayList<>(); // depth, shade, colour index, x1 y1 x2 y2 x3 y3
+		double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE, minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+		for (int si = 0; si < solids.size(); si++) {
+			for (double[] t : solids.get(si).tris) {
+				double[][] r = new double[3][];
+				for (int v = 0; v < 3; v++) {
+					double x = t[3 * v], y = t[3 * v + 1], z = t[3 * v + 2];
+					double y1 = y * ca - z * sa, z1 = y * sa + z * ca;
+					r[v] = new double[] { x * cb - z1 * sb, y1, x * sb + z1 * cb };
+				}
+				double[] n = normal(r[0], r[1], r[2]);
+				if (n == null || n[2] < 0) {
+					continue; // facing away (the viewer looks along -z)
+				}
+				double shade = 0.35 + 0.65 * Math.max(0, (n[0] * light[0] + n[1] * light[1] + n[2] * light[2]) / ln);
+				polys.add(new double[] { (r[0][2] + r[1][2] + r[2][2]) / 3, shade, si, r[0][0], r[0][1], r[1][0], r[1][1], r[2][0], r[2][1] });
+				for (double[] q : r) {
+					minX = Math.min(minX, q[0]);
+					maxX = Math.max(maxX, q[0]);
+					minY = Math.min(minY, q[1]);
+					maxY = Math.max(maxY, q[1]);
+				}
+			}
+		}
+		polys.sort((a, b) -> Double.compare(a[0], b[0]));
+		double w = 1200, pad = 20, top = 40 + 18 * solids.size();
+		double sc = (w - 2 * pad) / Math.max(1e-9, maxX - minX);
+		double h = Math.ceil((maxY - minY) * sc + pad + top);
+		StringBuilder b = new StringBuilder(String.format(Locale.ROOT, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"%.0f\" height=\"%.0f\" "
+				+ "viewBox=\"0 0 %.0f %.0f\" font-family=\"sans-serif\">%n<rect width=\"100%%\" height=\"100%%\" fill=\"#fcfcfb\"/>%n", w, h, w, h));
+		b.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"24\" font-size=\"15\" font-weight=\"600\">%s</text>%n", pad,
+				title.replace("&", "&amp;").replace("<", "&lt;")));
+		for (double[] q : polys) {
+			String c = palette[(int) q[2] % palette.length];
+			int[] rgb = new int[3];
+			for (int k = 0; k < 3; k++) {
+				rgb[k] = (int) Math.round(Integer.parseInt(c.substring(1 + 2 * k, 3 + 2 * k), 16) * q[1]);
+			}
+			String col = String.format("#%02x%02x%02x", rgb[0], rgb[1], rgb[2]);
+			b.append(String.format(Locale.ROOT, "<polygon points=\"%.1f,%.1f %.1f,%.1f %.1f,%.1f\" fill=\"%s\" stroke=\"%s\" stroke-width=\"0.4\"/>%n",
+					pad + (q[3] - minX) * sc, h - pad - (q[4] - minY) * sc, pad + (q[5] - minX) * sc, h - pad - (q[6] - minY) * sc,
+					pad + (q[7] - minX) * sc, h - pad - (q[8] - minY) * sc, col, col));
+		}
+		for (int si = 0; si < solids.size(); si++) {
+			double y = 40 + 18 * si;
+			b.append(String.format(Locale.ROOT, "<rect x=\"%.0f\" y=\"%.0f\" width=\"12\" height=\"12\" fill=\"%s\"/><text x=\"%.0f\" "
+					+ "y=\"%.0f\" font-size=\"12\">%s</text>%n", pad, y, palette[si % palette.length], pad + 18, y + 11, solids.get(si).name));
+		}
+		b.append("</svg>\n");
+		return b.toString();
+	}
+
 	/** ASCII STL, one "solid" per part, scaled (1 = metres, 1000 = millimetres). */
 	public static String stl(List<Solid> solids, double scale) {
 		StringBuilder b = new StringBuilder();

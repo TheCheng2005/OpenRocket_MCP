@@ -82,6 +82,17 @@ class FinFeaTest {
 		assertEquals(FinFea.bendingFrequency(p, m), r.modes().get(0).frequency(), FinFea.bendingFrequency(p, m) * 0.01, "1st mode");
 		assertEquals("1st bending", r.modes().get(0).kind());
 		assertTrue(r.modes().stream().anyMatch(x -> x.kind().contains("torsion")), r.modes().toString());
+		// Stress map: every element gets a value, and a cantilever's stress grows toward the root.
+		double[][] g = r.principalGrid();
+		for (double[] col : g) {
+			for (double v : col) {
+				assertTrue(v > 0, "every element has a stress");
+			}
+			assertTrue(col[0] > col[col.length - 1] * 5, "root far above tip");
+		}
+		String svg = FinFea.stressSvg(d, g, "plate", "largest principal", 276e6 / 2);
+		assertEquals(1 + 50, svg.split("<rect").length - 1, "background and the colour scale");
+		assertEquals(12 * 10, svg.split("<polygon").length - 1);
 	}
 
 	@Test
