@@ -245,6 +245,7 @@ public final class FlightLog {
 					List.of(new io.github.openrocketmcp.report.Svg.Series("simulated", st[0], scale(st[1], k)),
 							new io.github.openrocketmcp.report.Svg.Series("measured", lt, scale(log.alt(), k))),
 					Double.NaN, null, List.of()));
+			io.github.openrocketmcp.report.Png.attachFile(p, "Simulated and measured altitude");
 			out.put("plot", p.toString());
 		}
 		return out;

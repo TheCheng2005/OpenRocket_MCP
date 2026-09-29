@@ -35,7 +35,7 @@ import io.github.openrocketmcp.tools.StructureTools;
 
 /** Entry point: stdio MCP server for OpenRocket. */
 public final class Main {
-	public static final String VERSION = "0.13.0";
+	public static final String VERSION = "0.14.0";
 
 	static final String INSTRUCTIONS = """
 			OpenRocket MCP: design, simulate and check high-power / competition rockets with OpenRocket's physics.
@@ -81,7 +81,10 @@ public final class Main {
 		LaunchTools.register(server, ctx);
 		AdvancedTools.register(server, ctx);
 		StandardsTools.register(server, ctx);
+		io.github.openrocketmcp.tools.StatusTools.register(server, ctx);
+		io.github.openrocketmcp.tools.HistoryTools.register(server, ctx);
 		Prompts.register(server, ctx);
+		server.wrapTools(t -> io.github.openrocketmcp.tools.HistoryTools.recording(ctx, t));
 		return server;
 	}
 
@@ -131,6 +134,7 @@ public final class Main {
 		Path ws = wsEnv == null || wsEnv.isBlank() ? Path.of("") : Path.of(wsEnv);
 		Context ctx = new Context(Standards.discover(ws), ws, false);
 		McpServer server = build(ctx);
+		server.guard(new DesignLocks(ctx)); // requests run concurrently: calls on one design take turns
 		warmUp();
 		Log.info("openrocket-mcp " + VERSION + " ready; standards: "
 				+ (ctx.standards().source() == null ? "built-in defaults" : ctx.standards().source()));

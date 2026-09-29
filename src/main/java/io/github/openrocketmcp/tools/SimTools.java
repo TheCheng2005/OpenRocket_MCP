@@ -88,6 +88,7 @@ public final class SimTools {
 						}
 						java.nio.file.Files.writeString(p, io.github.openrocketmcp.report.Reports.profileSvg(sim));
 						out.put("plot", p.toString());
+						io.github.openrocketmcp.report.Png.attachFile(p, "Flight profile");
 					}
 					return out;
 				}));
@@ -171,6 +172,7 @@ public final class SimTools {
 				labels.add(v.isJsonPrimitive() ? v.getAsString() : v.toString());
 			}
 		}
+		io.github.openrocketmcp.mcp.CallContext.current().expect(variants.size(), "cases flown");
 		List<Variants.Run> runs = Variants.runAll(variants);
 		List<Map<String, Object>> rows = new ArrayList<>();
 		for (int i = 0; i < runs.size(); i++) {

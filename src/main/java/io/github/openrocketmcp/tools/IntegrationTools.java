@@ -102,6 +102,7 @@ public final class IntegrationTools {
 		Path preview = dir.resolve("preview.svg");
 		Files.writeString(preview, Geometry.previewSvg(Geometry.solids(fc, 36), d.name() + ": CFD model (STL regions)"));
 		files.put("preview", preview.toAbsolutePath() + " (3-D view of the regions)");
+		io.github.openrocketmcp.report.Png.attachFile(preview, "CFD model regions");
 		files.put("stl", stl.toAbsolutePath() + " (" + tris + " triangles, " + units + "; regions: " + String.join(", ", regions) + ")");
 
 		List<String> dxfs = new ArrayList<>();
@@ -334,6 +335,7 @@ public final class IntegrationTools {
 				Files.writeString(pp, FinFea.stressSvg(deck, metal ? r.vonMisesGrid() : r.principalGrid(), d.name() + ": " + fin.getName()
 						+ " under the design load", metal ? "von Mises" : "largest principal", Double.isNaN(strength) ? Double.NaN : strength / sf));
 				files.put("stressPlot", pp.toAbsolutePath().toString());
+				io.github.openrocketmcp.report.Png.attachFile(pp, "Fin stress under the design load");
 			}
 			out.put("fea", fe);
 		} else {

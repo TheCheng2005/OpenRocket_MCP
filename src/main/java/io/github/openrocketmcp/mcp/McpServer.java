@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.gson.Gson;
@@ -57,6 +58,10 @@ public final class McpServer {
 	private final String instructions;
 	private volatile Guard guard;
 	private volatile java.util.function.UnaryOperator<String> outputFilter = java.util.function.UnaryOperator.identity();
+	/** Tool calls in flight, by request id (as JSON text), so notifications/cancelled can reach them. */
+	private final Map<String, CallContext> running = new java.util.concurrent.ConcurrentHashMap<>();
+	/** Marks a result that must not be sent: the client cancelled the request. */
+	private static final JsonObject CANCELLED = new JsonObject();
 
 	public McpServer(String name, String version, String instructions) {
 		this.name = name;
@@ -87,28 +92,77 @@ public final class McpServer {
 		prompts.put(p.name(), p);
 	}
 
+	/** Replaces every registered tool with {@code f(tool)} (e.g. to add undo snapshots around editing tools). */
+	public void wrapTools(java.util.function.UnaryOperator<ToolDef> f) {
+		tools.replaceAll((n, t) -> f.apply(t));
+	}
+
 	public Map<String, ToolDef> tools() {
 		return tools;
 	}
 
-	/** Serves requests until stdin closes. {@code out} must be the real stdout. */
+	/**
+	 * Serves requests until stdin closes. {@code out} must be the real stdout. Requests are handled one at a time in
+	 * the order they arrive (a client may send several without waiting), on a worker thread, while this thread keeps
+	 * reading: ping and notifications/cancelled are answered at once, so a long simulation can be cancelled and the
+	 * server still answers pings. Every message written is one whole line. Returns once stdin has closed and every
+	 * request has been answered.
+	 */
 	public void serve(InputStream in, PrintStream out) throws IOException {
 		BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-		String line;
-		while ((line = reader.readLine()) != null) {
-			if (line.isBlank()) {
-				continue;
-			}
-			JsonObject response = handleLine(line);
-			if (response != null) {
-				out.println(compact.toJson(response));
+		java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+			Thread t = new Thread(r, "mcp-request");
+			t.setDaemon(true);
+			return t;
+		});
+		Consumer<JsonObject> write = msg -> {
+			String text = compact.toJson(msg);
+			synchronized (out) {
+				out.println(text);
 				out.flush();
+			}
+		};
+		try {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				if (line.isBlank()) {
+					continue;
+				}
+				String l = line;
+				if (l.contains("notifications/cancelled") || l.contains("\"ping\"")) {
+					JsonObject response = handle(l, write); // at once: the call it cancels is still running
+					if (response != null) {
+						write.accept(response);
+					}
+					continue;
+				}
+				pool.submit(() -> {
+					JsonObject response = handle(l, write);
+					if (response != null) {
+						write.accept(response);
+					}
+				});
+			}
+		} finally {
+			pool.shutdown();
+			try {
+				pool.awaitTermination(1, java.util.concurrent.TimeUnit.HOURS);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
 			}
 		}
 	}
 
 	/** Handles one JSON-RPC message; returns the response, or null for notifications. */
 	public JsonObject handleLine(String line) {
+		return handle(line, null);
+	}
+
+	/**
+	 * Handles one JSON-RPC message; returns the response, or null for notifications and cancelled requests.
+	 * {@code notify} receives progress notifications while a tool runs (null: none are sent).
+	 */
+	public JsonObject handle(String line, Consumer<JsonObject> notify) {
 		JsonObject msg;
 		try {
 			msg = JsonParser.parseString(line).getAsJsonObject();
@@ -129,12 +183,16 @@ public final class McpServer {
 				case "initialize" -> initialize(params);
 				case "ping" -> new JsonObject();
 				case "tools/list" -> listTools();
-				case "tools/call" -> callTool(params);
+				case "tools/call" -> callTool(params, id, notify);
 				case "resources/list" -> listResources();
 				case "resources/templates/list" -> templates();
 				case "resources/read" -> readResource(params);
 				case "prompts/list" -> listPrompts();
 				case "prompts/get" -> getPrompt(params);
+				case "notifications/cancelled" -> {
+					cancel(params);
+					yield null;
+				}
 				default -> {
 					if (method.startsWith("notifications/")) {
 						yield null;
@@ -142,7 +200,7 @@ public final class McpServer {
 					throw new RpcException(-32601, "Method not found: " + method);
 				}
 			};
-			if (notification) {
+			if (notification || result == CANCELLED) {
 				return null;
 			}
 			JsonObject response = new JsonObject();
@@ -206,7 +264,15 @@ public final class McpServer {
 		return result;
 	}
 
-	private JsonObject callTool(JsonObject params) {
+	private void cancel(JsonObject params) {
+		JsonElement rid = params.get("requestId");
+		CallContext c = rid == null ? null : running.get(rid.toString());
+		if (c != null) {
+			c.cancel();
+		}
+	}
+
+	private JsonObject callTool(JsonObject params, JsonElement id, Consumer<JsonObject> notify) {
 		String toolName = params.has("name") ? params.get("name").getAsString() : null;
 		ToolDef tool = toolName == null ? null : tools.get(toolName);
 		if (tool == null) {
@@ -215,7 +281,27 @@ public final class McpServer {
 		JsonObject arguments = params.has("arguments") && params.get("arguments").isJsonObject()
 				? params.getAsJsonObject("arguments")
 				: new JsonObject();
-		Args args = new Args(arguments);
+		JsonElement token = params.has("_meta") && params.get("_meta").isJsonObject()
+				? params.getAsJsonObject("_meta").get("progressToken")
+				: null;
+		CallContext ctx = new CallContext(token == null || token.isJsonNull() ? null : token, notify);
+		String key = id == null || id.isJsonNull() ? null : id.toString();
+		if (key != null) {
+			running.put(key, ctx);
+		}
+		CallContext.set(ctx);
+		try {
+			JsonObject r = runTool(tool, toolName, new Args(arguments), ctx);
+			return ctx.isCancelled() ? CANCELLED : r;
+		} finally {
+			CallContext.set(null);
+			if (key != null) {
+				running.remove(key);
+			}
+		}
+	}
+
+	private JsonObject runTool(ToolDef tool, String toolName, Args args, CallContext ctx) {
 		Guard g = guard;
 		java.util.concurrent.locks.Lock lock = null;
 		try {
@@ -227,9 +313,18 @@ public final class McpServer {
 			lock.lock();
 		}
 		try {
+			ctx.checkCancelled();
 			Object value = tool.handler().call(args);
 			// Compact JSON: indentation roughly doubles the size of every result the model has to read.
-			return textResult(outputFilter.apply(value instanceof String s ? s : compact.toJson(value)), false);
+			JsonObject r = textResult(outputFilter.apply(value instanceof String s ? s : compact.toJson(value)), false);
+			for (CallContext.Image im : ctx.images()) {
+				JsonObject c = new JsonObject();
+				c.addProperty("type", "image");
+				c.addProperty("data", im.base64());
+				c.addProperty("mimeType", im.mimeType());
+				r.getAsJsonArray("content").add(c);
+			}
+			return r;
 		} catch (ToolException e) {
 			return textResult(outputFilter.apply("Error: " + e.getMessage()), true);
 		} catch (Exception e) {

@@ -20,6 +20,7 @@ plain-language overview.
 | Design studies | `compare_shapes` (**nose cone and fin shape trade study**: every nose profile, optionally at several lengths, and every fin edge profile flown in OpenRocket; apogee, CD at the design Mach, stability, mass, and guidance), `recovery_sections` (**tethered sections from the design**: landing mass, velocity and kinetic energy per section, energy if the main fails, bay fill and a black powder estimate), `structural_loads` (**axial and bending loads at every joint** for boost and max q with a gust, inertial relief, wall stress and margin) |
 | Launch day | `weather_forecast` (**site forecast by GPS coordinates** from Open-Meteo: ground wind, gusts, temperature, pressure and winds at pressure levels up to the jet stream; applied to the simulation as a wind profile with site altitude, temperature and pressure; pasted-JSON fallback; `wind_profile` for winds entered by hand), `flight_card` (one-page launch-day card: vehicle, CG/CP, motors with optimum and closest available ejection delay, predictions, recovery settings, sections and landing energy, drift per ground wind, rule check, sign-off) |
 | Heating & roll | `aero_heating` (stagnation / recovery temperature at the nose tip, fin leading edges and body along the flight vs each material's service temperature, Sutton-Graves nose-tip heat flux and load), `roll_analysis` (fin cant / misalignment sweep: roll rate, roll at burnout, pitch-frequency crossing, alignment tolerance) |
+| Session | `design_status` (**where the design stands**: rule-check summary, what is not set up — motor, deployment, electronics, RASAero data where the diameter changes, team standards and launch site — mass overrides, unsaved changes, and the next steps in order with the tool for each), `undo` / `redo` / `history` (every tool call that changed the rocket is one step, up to 50; motors, deployment and all component properties included; files untouched until `save_design`) |
 | Reviews & files | `compare_designs` (**design diff** against another open design, another .ork or an earlier **git revision** of the same file: length, mass, CG, CP, stability, motors, apogee, velocity, Mach, rail exit, flight stability, descent rates, landing, every rule check whose status changed, and component edits matched by OpenRocket's persistent ids; both flown in the same conditions; optional Markdown summary; warns when an edit is hidden by a mass override), `list_files` (designs, motor files, tables and reports in the workspace) |
 | Structures | `fin_flutter` (flutter speed of every fin set along the simulated flight — NACA TN 4197 with the corrected constant — worst margin, and the thickness or shear modulus that fixes it); also part of `check_requirements`. `fin_fea` (**finite-element check of a fin with CalculiX**: 8-node shells clamped at the root, in-plane engineering constants from the team standards, the worst flight load — gust at max q or the largest simulated q × AoA — on the most loaded fin; tip deflection, stress margin with the load safety factor (corner peak reported apart), natural frequencies labelled bending / torsion, hand estimates alongside; the `.inp` deck is always written and also reads in Abaqus / PrePoMax; `plotPath` draws the fin coloured by stress) |
 | Fin design | `optimize_fins` (**whole trapezoidal planform at once**: root chord, taper, span and sweep, optionally a list of stock thicknesses; max apogee, min mass or target apogee; stability floor / ceiling from the rules also in the maximum wind, rail exit, flutter margin; only buildable shapes — minimum tip chord, no tip trailing edge behind the root unless allowed, capped sweep, root no longer than the tube; planform drawing; `apply` to keep it) |
@@ -100,6 +101,17 @@ See `openrocket://methods` for equations and sources. In short:
 
 Outputs are engineering estimates for design iteration. They do not replace ground tests, flight tests, mentors or the
 RSO.
+
+## Images, progress and cancellation
+
+- Tools that draw (`draw_rocket`, `run_simulation` / `monte_carlo` / `compare_flight` / `optimize_fins` / `fin_fea` with a
+  plot path, `export_geometry`) also return the picture as a PNG image in the result, so clients that show images (Claude
+  Desktop, claude.ai) display it in the chat. Set `OPENROCKET_MCP_INLINE_IMAGES=0` to send text only.
+- Long tools send MCP progress notifications when the client passes a `progressToken` (over stdio, or as server-sent
+  events on the team server): simulations flown out of the total. `notifications/cancelled` stops a call at its next
+  batch of simulations; no result is sent for it. Requests run concurrently; calls on the same design take turns.
+- `monte_carlo` `kmlPath` writes the landings for Google Earth: the pad, every landing and each stage's 2-sigma ellipse,
+  around the team's launch site (`launchSite.latitude` / `longitude`) or `siteLatitude` / `siteLongitude`.
 
 ## Plots
 

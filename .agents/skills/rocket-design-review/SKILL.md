@@ -9,7 +9,8 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
 
 1. `get_standards` - note units, launch site, safety factors and rule set. If `launchSite.altitudeMsl` is null, ask for it
    (air density at deployment depends on it) and set it with `update_standards`.
-2. `open_design` then `get_design` - components (ids), motors per configuration, stability of every stage stack.
+2. `open_design` then `design_status` - where the design stands and the next steps; `get_design` for components (ids),
+   motors per configuration and the stability of every stage stack. If an edit was a mistake, `undo` (see `history`).
 3. `check_requirements` - explain every FAIL and WARN with the rule reference and a concrete fix.
 4. Goals:
    - Descent rate -> `size_parachute` (with `device` to use the simulated descent mass), then `edit_components`.

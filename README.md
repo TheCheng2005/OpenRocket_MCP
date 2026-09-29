@@ -24,6 +24,14 @@ the answers, and the plots. Everything on that page is real output.
 
 ## What you can ask
 
+**Working with Claude**
+- "Where do we stand?" — the rule check in short, what is not set up yet, and the next steps in order with the tool for
+  each. A good first question in any session.
+- Plots and drawings appear right in the chat (Claude Desktop, claude.ai), and are saved as files too.
+- Long runs (optimizers, Monte Carlo, motor ranking) show their progress, and you can stop them.
+- "Undo that" — every change to a design in the session can be undone and redone; `history` lists them. Nothing is
+  written to your `.ork` until you ask Claude to save.
+
 **Design and stability**
 - Build a rocket from scratch, or open your team's `.ork` file and change it.
 - "Is it stable all the way up, including in 30 km/h wind?" — checked at every moment of the flight, for every stage.
@@ -48,6 +56,7 @@ the answers, and the plots. Everything on that page is real output.
 - Apogee, speed, Mach number, rail exit speed, thrust-to-weight, staging and landing distance.
 - "Where will it land?" — up to a thousand possible flights with varied wind, launch angle, mass, drag and thrust,
   drawn on a landing map.
+- A landing map for Google Earth: the pad, every simulated landing and the landing ellipse on the real terrain.
 - Use a wind forecast with winds at altitude, not just the ground wind.
 - "Where does our drag come from?" — drag of every part, and how it changes with speed.
 

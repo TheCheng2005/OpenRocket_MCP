@@ -193,6 +193,8 @@ public final class AeroTools {
 					Files.writeString(p, Drawing.svg(fc, Drawing.title(d.name(), fc)));
 					Map<String, Object> out = new LinkedHashMap<>();
 					out.put("file", p.toString());
+					out.put("shown", io.github.openrocketmcp.report.Png.attachFile(p, "Cut-away drawing of the rocket")
+							? "the drawing is attached as an image" : "open the file to see the drawing");
 					out.put("stability", Analysis.render(Analysis.stability(fc, 0.3)));
 					return out;
 				}));

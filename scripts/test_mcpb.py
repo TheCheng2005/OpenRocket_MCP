@@ -28,13 +28,16 @@ msgs = [
     {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "open_design", "arguments": {"example": "Dual parachute"}}},
     {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "save_design", "arguments": {"path": "dual.ork"}}},
     {"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "check_requirements", "arguments": {}}},
+    {"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "draw_rocket", "arguments": {"path": "dual.svg"}}},
 ]
 p = subprocess.run(cmd, input="\n".join(json.dumps(x) for x in msgs) + "\n", capture_output=True, text=True, env=env, timeout=600)
 out = {r["id"]: r for r in map(json.loads, p.stdout.splitlines())}
-assert len(out) == 5, p.stdout + p.stderr
+assert len(out) == 6, p.stdout + p.stderr
 names = {t["name"] for t in out[2]["result"]["tools"]}
 assert names == {t["name"] for t in m["tools"]}, "manifest tool list is out of date"
-for i in (3, 4, 5):
+for i in (3, 4, 5, 6):
     assert not out[i]["result"]["isError"], out[i]
 assert os.path.exists(os.path.join(rockets, "dual.ork")), "designs are saved in the rocket folder"
-print(f"OK: {os.path.basename(path)} starts on its bundled Java, {len(names)} tools, simulation and rule check run")
+images = [c for c in out[6]["result"]["content"] if c["type"] == "image"]
+assert images and images[0]["mimeType"] == "image/png", "the drawing is shown in the chat: " + str(out[6])[:500]
+print(f"OK: {os.path.basename(path)} starts on its bundled Java, {len(names)} tools, simulation, rule check and chat image work")

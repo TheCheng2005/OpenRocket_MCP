@@ -3,7 +3,7 @@
 One rocket, from a blank page to launch day. Each step shows what a team member types, what Claude answers, and the
 numbers and plots behind the answer. **Everything below is real output from the server** (OpenRocket 24.12), generated
 by [`scripts/make_examples.py`](../scripts/make_examples.py); the one-line answers are written from those numbers.
-Units follow the team setting (here metric with imperial in brackets).
+Units follow the team setting (here metric with imperial in brackets). In Claude Desktop the plots and drawings appear right in the chat, and long runs (optimizers, Monte Carlo) show their progress and can be stopped.
 
 The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch
 Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before
@@ -98,9 +98,21 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 88 in long, 10.53 kg (23.21 lb) on the pad, stability 3.875 cal at launch and 5.071 cal at burnout.
 
+### 8. "What if we used 1/8 in carbon for the fins to save weight?"
+
+<sub>Tools Claude uses: `edit_components`, `fin_flutter`</sub>
+
+> Claude makes the change and checks it: flutter **FAIL**, margin 0.7305 (flutter speed / airspeed; the team wants 1.5). Thinner fins would need 5.129 mm to be safe.
+
+### 9. "Undo that."
+
+<sub>Tools Claude uses: `undo`, `history`</sub>
+
+> Undone: *edit_components* (the thickness change). Every edit in the session can be undone or redone, newest first; `history` lists them (21 so far in this session). Nothing touches the `.ork` file until you ask Claude to save.
+
 ## Recovery
 
-### 8. "What main do we need to land at 20 ft/s? And a drogue for about 85 ft/s."
+### 10. "What main do we need to land at 20 ft/s? And a drogue for about 85 ft/s."
 
 <sub>Tools Claude uses: `size_parachute`, `edit_components`</sub>
 
@@ -115,7 +127,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 *"Use the Rocketman DG-07 and a 21 in drogue."*
 
-### 9. "What loads do the chutes see when they open, and how many 4-40 nylon shear pins do we need?"
+### 11. "What loads do the chutes see when they open, and how many 4-40 nylon shear pins do we need?"
 
 <sub>Tools Claude uses: `recovery_analysis`, `ejection_charge`</sub>
 
@@ -128,7 +140,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 ## Flight and rules
 
-### 10. "Does it pass Launch Canada?"
+### 12. "Does it pass Launch Canada?"
 
 <sub>Tools Claude uses: `check_requirements`</sub>
 
@@ -138,7 +150,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 |---|---|---|---|
 | WARN | Launch site altitude | 0 m (0 ft) used by this simulation |  |
 | WARN | Ascent stability (maximum, over-stability) | 5.693 cal | R10.3.1, R10.4.1 |
-| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.691 cal | R10.3.1, R10.4.1 |
+| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.692 cal | R10.3.1, R10.4.1 |
 | WARN | Maximum Mach number | 1.175 |  |
 | PASS | Simulated launch angle | 6 deg | R10.1.1 |
 | PASS | Rail departure velocity | 41.63 m/s (136.6 ft/s) | R10.2.1 |
@@ -149,7 +161,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 | PASS | Length-to-diameter ratio | 21.89 | 2027 Edicts, Stability: L:D Ratio |
 | PASS | Damping ratio during ascent (airspeed > 100 ft/s) | 0.06727 (t=17.95 s, Mach 0.09438) to 0.08034 (t=4.549 s) | 2027 Edicts, Stability: Damping ratio |
 
-### 11. "Simulate the flight and plot it."
+### 13. "Simulate the flight and plot it."
 
 <sub>Tools Claude uses: `run_simulation`</sub>
 
@@ -157,30 +169,32 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 ![Altitude against time with burnout, apogee and both deployments marked](examples/flight-profile.svg)
 
-### 12. "Where will it land in a 15 km/h west wind? Include our build and motor uncertainty."
+### 14. "Where will it land in a 15 km/h west wind? Include our build and motor uncertainty, and give us a map for Google Earth."
 
 <sub>Tools Claude uses: `monte_carlo`</sub>
 
-> Over 200 simulated flights the median landing is 200 m (656.2 ft) from the pad and 95% land within 489.4 m (1606 ft); the landings centre 494 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 201.1 m (659.7 ft).
+> Over 200 simulated flights the median landing is 200.6 m (658.3 ft) from the pad and 95% land within 487.1 m (1598 ft); the landings centre 495 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 201.2 m (660.2 ft).
 
 ![200 simulated landings around the pad with the 2-sigma ellipse](examples/landing.svg)
+
+[`landing.kml`](examples/landing.kml) puts the pad, every landing and the ellipse on the map in Google Earth (desktop, web or phone), so the recovery team and the RSO see the fields, roads and trees it covers.
 
 Claude also reports what drives the spread (correlation of each uncertain input with the result), so the team knows what to measure more carefully:
 
 | Uncertain input | Apogee | Min stability | Landing distance |
 |---|---|---|---|
-| windSpeed | -0.1304 | -0.9653 | -0.6765 |
-| launchAngle | -0.1487 | -0.006994 | 0.3164 |
-| structureMass | -0.05036 | 0.1309 | 0.09638 |
-| airframeDrag | -0.9262 | 0.04255 | -0.1737 |
-| motorThrust | 0.3169 | 0.08091 | -0.02039 |
-| parachuteCd | -0.03485 | 0.03086 | -0.07579 |
+| windSpeed | -0.13 | -0.9653 | -0.678 |
+| launchAngle | -0.1496 | -0.006994 | 0.3152 |
+| structureMass | -0.0506 | 0.1309 | 0.09416 |
+| airframeDrag | -0.9259 | 0.04255 | -0.1735 |
+| motorThrust | 0.3179 | 0.08091 | -0.02008 |
+| parachuteCd | -0.03481 | 0.03086 | -0.07641 |
 
 <sub>Correlation from -1 to 1: the closer to ±1, the more that input drives the result.</sub>
 
 ## Design studies
 
-### 13. "Would a different nose cone or fin shape fly higher?"
+### 15. "Would a different nose cone or fin shape fly higher?"
 
 <sub>Tools Claude uses: `compare_shapes`</sub>
 
@@ -193,8 +207,8 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 | tangent ogive (current) | rounded | 3575 m (11730 ft) | 19.66% | 1.144 | 3.528 cal |
 | Von Karman (Haack LD) | square (current) | 3002 m (9850 ft) | 0.4851% | 1.341 | 3.525 cal |
 | 1/2 power | square (current) | 3001 m (9847 ft) | 0.4484% | 1.34 | 3.537 cal |
-| LV-Haack | square (current) | 2993 m (9821 ft) | 0.1889% | 1.356 | 3.533 cal |
-| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02325% | 1.36 | 3.513 cal |
+| LV-Haack | square (current) | 2993 m (9821 ft) | 0.189% | 1.356 | 3.533 cal |
+| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02337% | 1.36 | 3.513 cal |
 | tangent ogive (current) | square (current) | 2988 m (9803 ft) | 0% | 1.351 | 3.522 cal |
 
 <details><summary>Claude's shape guidance (from the tool)</summary>
@@ -208,7 +222,7 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 
 ## Structures and CFD
 
-### 14. "Check the fins in FEA: our quasi-isotropic laminate has E = 45 GPa and Poisson's ratio 0.3. And give us the joint loads for the airframe FEA."
+### 16. "Check the fins in FEA: our quasi-isotropic laminate has E = 45 GPa and Poisson's ratio 0.3. And give us the joint loads for the airframe FEA."
 
 <sub>Tools Claude uses: `fin_fea`, `structural_loads`</sub>
 
@@ -220,7 +234,7 @@ Claude writes a CalculiX model of the fin (8-node shells, clamped root, the flig
 
 Joint loads for the airframe: 3 joints, the highest wall stress at Switch band / Lower airframe: 4378 kPa (635 psi); the load cases (axial force, bending moments, the flight time, Mach and angle of attack of each) go to a CSV for the tube and coupler FEA.
 
-### 15. "Export it for CFD, and tell us which cases to run."
+### 17. "Export it for CFD, and tell us which cases to run."
 
 <sub>Tools Claude uses: `export_geometry`</sub>
 
@@ -245,7 +259,30 @@ Joint loads for the airframe: 3 joints, the highest wall stress at Switch band /
 
 ## Reviews
 
-### 16. "Make the design review package."
+### 18. "Where do we stand? What's left before CDR?"
+
+<sub>Tools Claude uses: `design_status`</sub>
+
+> **In progress: 2 thing(s) to set up, 4 warning(s).** Launch Canada 2027: DTEG Revision 4 + LC 2027 DTEG and R&R Edicts (to become DTEG R5): No failures; 4 warning(s).
+
+| Area | Status | Finding |
+|---|---|---|
+| Launch site | WARN | Launch site altitude: 0 m (0 ft) used by this simulation |
+| Stability | WARN | Ascent stability (maximum, over-stability): 5.693 cal (R10.3.1, R10.4.1) |
+| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.692 cal (R10.3.1, R10.4.1) |
+| Rules | WARN | Maximum Mach number: 1.175 |
+| Standards | TODO | The team standards were changed in this session but are not saved to a file, so the next session and the rest of the team will not have them. |
+| File | TODO | Unsaved changes (21 edit(s) this session, undo available). |
+
+Next steps, in order:
+
+1. update_standards launchSite.altitudeMsl (and weather_forecast on the day).
+2. optimize_fins (smaller fins) or less nose ballast.
+3. check_requirements for the details and rule reference.
+4. update_standards with saveTo (e.g. openrocket-mcp.json), then commit the file.
+5. save_design once the team agrees (history shows what changed).
+
+### 19. "Make the design review package."
 
 <sub>Tools Claude uses: `generate_report`</sub>
 
@@ -253,7 +290,7 @@ Claude writes a folder with `report.md` (requirement checks, vehicle, flight, st
 
 ![Stability margin during the ascent with the rule minimum](examples/stability-ascent.svg)
 
-### 17. "What changed since the version we showed at PDR?"
+### 20. "What changed since the version we showed at PDR?"
 
 <sub>Tools Claude uses: `compare_designs`</sub>
 
@@ -272,11 +309,11 @@ Claude writes a folder with `report.md` (requirement checks, vehicle, flight, st
 
 ## Launch day
 
-### 18. "We launch at 48.47, -81.33 on August 21 at 3 pm. What will the winds do, and make us the flight card."
+### 21. "We launch at 48.47, -81.33 on August 21 at 3 pm. What will the winds do, and make us the flight card."
 
 <sub>Tools Claude uses: `weather_forecast`, `flight_card`</sub>
 
-> Ground wind 6.75 m/s (22.15 ft/s) (24.3 km/h) from 250 deg, gusts 12 m/s (39.37 ft/s) (43.2 km/h) (mean wind within 30 km/h limit; gusts exceed it). Flown in the forecast winds aloft: apogee 3018 m (9903 ft), landing 121.1 m (397.2 ft) from the pad.
+> Ground wind 6.75 m/s (22.15 ft/s) (24.3 km/h) from 250 deg, gusts 12 m/s (39.37 ft/s) (43.2 km/h) (mean wind within 30 km/h limit; gusts exceed it). Flown in the forecast winds aloft: apogee 3018 m (9903 ft), landing 123 m (403.4 ft) from the pad.
 
 <sub>(A recorded forecast is used here so the page is reproducible; with internet access Claude fetches the live one from Open-Meteo.)</sub>
 
@@ -296,7 +333,7 @@ From the one-page flight card (predictions, motor delay, deployment settings, dr
 > | | |
 > |---|---|
 > | Apogee | 3018 m (9903 ft) |
-> | Time to apogee | 20.42 s |
+> | Time to apogee | 20.43 s |
 > | Max velocity | 403.5 m/s (1324 ft/s) |
 > | Max Mach | 1.183 |
 > | Max acceleration | 153.6 m/s2 (504 ft/s2) = 15.66 G |

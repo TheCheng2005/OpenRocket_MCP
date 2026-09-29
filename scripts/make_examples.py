@@ -81,7 +81,8 @@ def main():
     w("One rocket, from a blank page to launch day. Each step shows what a team member types, what Claude answers, and the")
     w("numbers and plots behind the answer. **Everything below is real output from the server** (OpenRocket 24.12), generated")
     w("by [`scripts/make_examples.py`](../scripts/make_examples.py); the one-line answers are written from those numbers.")
-    w("Units follow the team setting (here metric with imperial in brackets).")
+    w("Units follow the team setting (here metric with imperial in brackets). In Claude Desktop the plots and drawings "
+  "appear right in the chat, and long runs (optimizers, Monte Carlo) show their progress and can be stopped.")
     w()
     w("The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch")
     w("Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before")
@@ -263,11 +264,28 @@ def main():
       f"and {st['stabilityAtBurnout']} at burnout.")
     w()
 
+    # What-if and undo --------------------------------------------------------------------------------------------------
+    call("edit_components", {"designId": d, "changes": [{"component": "Fins", "properties": {"thickness": "1/8 in"}}]})
+    thin = call("fin_flutter", {"designId": d})["finSets"][0]
+    ask(8, "What if we used 1/8 in carbon for the fins to save weight?", ["edit_components", "fin_flutter"])
+    w(f"> Claude makes the change and checks it: flutter **{thin['status'].split(':')[0]}**, margin "
+      f"{thin['minMargin'].split(' ')[0]} (flutter speed / airspeed; the team wants {thin['requiredMargin'].split(' ')[0]}). "
+      f"Thinner fins would need {lead(thin['toReachRequiredMargin']['thickness'])} to be safe."
+      if 'toReachRequiredMargin' in thin else f"> Flutter **{thin['status'].split(':')[0]}**, margin {thin['minMargin'].split(' ')[0]}.")
+    w()
+    hist = call("history", {"designId": d})
+    undo = call("undo", {"designId": d})
+    ask(9, "Undo that.", ["undo", "history"])
+    w(f"> Undone: *{undo['undone'][0].split(' (')[0]}* (the thickness change). Every edit in the session can be undone or "
+      f"redone, newest first; `history` lists them ({len(hist['canUndo'])} so far in this session). Nothing touches the "
+      "`.ork` file until you ask Claude to save.")
+    w()
+
     # 6. Recovery ------------------------------------------------------------------------------------------------------
     w("## Recovery")
     w()
     size = call("size_parachute", {"designId": d, "device": "Main", "targetDescentRate": "20 ft/s"})
-    ask(8, "What main do we need to land at 20 ft/s? And a drogue for about 85 ft/s.", ["size_parachute", "edit_components"])
+    ask(10, "What main do we need to land at 20 ft/s? And a drogue for about 85 ft/s.", ["size_parachute", "edit_components"])
     w(f"> The descending mass is {size['mass'].split(' (sim')[0]}, so the main needs a drag area of {size['requiredCdA']} "
       f"(a {lead(size['nominalDiameterAtCd0.8'])} flat canopy at Cd 0.8). Parachutes from OpenRocket's catalogue that do it:")
     w()
@@ -288,7 +306,7 @@ def main():
     w()
 
     rec = call("recovery_analysis", {"designId": d, "pinType": "4-40 nylon"})
-    ask(9, "What loads do the chutes see when they open, and how many 4-40 nylon shear pins do we need?",
+    ask(11, "What loads do the chutes see when they open, and how many 4-40 nylon shear pins do we need?",
         ["recovery_analysis", "ejection_charge"])
     rows = [{"device": x["device"], "opens at": f"{lead(x['altitudeAGL'])}, {lead(x['airspeedAtDeployment'])}",
              "design load": x["designLoad"].split(" [")[0], "harness rating": lead(x["harnessWorkingLoad"]),
@@ -305,7 +323,7 @@ def main():
     w("## Flight and rules")
     w()
     req = call("check_requirements", {"designId": d})
-    ask(10, "Does it pass Launch Canada?", ["check_requirements"])
+    ask(12, "Does it pass Launch Canada?", ["check_requirements"])
     w(f"> **{req['summary']}** Every check cites its rule, and there is a checklist of "
       f"{len(req.get('manualChecks', []))} things to verify by hand (electronics, radio, structures, operations).")
     w()
@@ -315,7 +333,7 @@ def main():
 
     sim = call("run_simulation", {"designId": d, "plotPath": os.path.join(IMG, "flight-profile.svg")})
     f = sim["flight"]
-    ask(11, "Simulate the flight and plot it.", ["run_simulation"])
+    ask(13, "Simulate the flight and plot it.", ["run_simulation"])
     w(f"> Apogee **{f['apogee']}** at {f['timeToApogee']}. Top speed {f['maxVelocity']} (Mach {f['maxMach']}), "
       f"{f['maxAcceleration'].split(' = ')[-1]} peak, {f['railExitVelocity']} off the rail.")
     w()
@@ -324,8 +342,10 @@ def main():
 
     mc = call("monte_carlo", {"designId": d, "runs": 200, "windSpeed": "15 km/h", "windDirection": "270 deg",
                               "massSd": 0.03, "dragSd": 0.1, "thrustSd": 0.03, "chuteCdSd": 0.1,
-                              "plotPath": os.path.join(IMG, "landing.svg")})
-    ask(12, "Where will it land in a 15 km/h west wind? Include our build and motor uncertainty.", ["monte_carlo"])
+                              "plotPath": os.path.join(IMG, "landing.svg"), "kmlPath": os.path.join(IMG, "landing.kml"),
+                              "siteLatitude": 48.47, "siteLongitude": -81.33})
+    ask(14, "Where will it land in a 15 km/h west wind? Include our build and motor uncertainty, and give us a map for "
+            "Google Earth.", ["monte_carlo"])
     land = next(iter(mc["landing"].values()))
     ap = mc["apogee"]
     w(f"> Over 200 simulated flights the median landing is {land['distanceFromPad']['median']} from the pad and 95% land "
@@ -333,6 +353,9 @@ def main():
       f"tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee {ap['mean']} ± {ap['sd']}.")
     w()
     w("![200 simulated landings around the pad with the 2-sigma ellipse](examples/landing.svg)")
+    w()
+    w("[`landing.kml`](examples/landing.kml) puts the pad, every landing and the ellipse on the map in Google Earth (desktop, "
+      "web or phone), so the recovery team and the RSO see the fields, roads and trees it covers.")
     w()
     drv = mc.get("drivers", {})
     if drv:
@@ -351,7 +374,7 @@ def main():
     w("## Design studies")
     w()
     sh = call("compare_shapes", {"designId": d})
-    ask(13, "Would a different nose cone or fin shape fly higher?", ["compare_shapes"])
+    ask(15, "Would a different nose cone or fin shape fly higher?", ["compare_shapes"])
     w(f"> Best that keeps the stability: **{sh.get('bestMeetingStability', '')}**. Every nose profile and fin edge was "
       f"flown; CD at the design Mach ({sh['designMach'].split(' ')[0]}) shows where the gain comes from.")
     w()
@@ -374,7 +397,7 @@ def main():
     fea = call("fin_fea", {"designId": d, "outDir": os.path.join(tmp, "fea"), "youngsModulus": "45 GPa",
                            "poissonRatio": 0.3, "plotPath": os.path.join(IMG, "fin-stress.svg")})
     loads = call("structural_loads", {"designId": d, "csvPath": os.path.join(tmp, "joint-loads.csv")})
-    ask(14, "Check the fins in FEA: our quasi-isotropic laminate has E = 45 GPa and Poisson's ratio 0.3. And give us the "
+    ask(16, "Check the fins in FEA: our quasi-isotropic laminate has E = 45 GPa and Poisson's ratio 0.3. And give us the "
             "joint loads for the airframe FEA.", ["fin_fea", "structural_loads"])
     fe, ld = fea["fea"], fea["load"]
     if isinstance(fe, dict):
@@ -399,7 +422,7 @@ def main():
 
     geo = call("export_geometry", {"designId": d, "outDir": os.path.join(tmp, "cfd")})
     shutil.copy(os.path.join(tmp, "cfd", "preview.svg"), os.path.join(IMG, "cfd-model.svg"))
-    ask(15, "Export it for CFD, and tell us which cases to run.", ["export_geometry"])
+    ask(17, "Export it for CFD, and tell us which cases to run.", ["export_geometry"])
     w(f"> The rocket as STL ({geo['files']['stl'].split('(')[1].split(';')[0]}, one region per part so the solver reports "
       "the force on each), the fin cutting pattern as DXF for the waterjet or laser, and a run matrix taken from the simulated flight: each Mach "
       "number at the altitude where the rocket reaches it. When the CFD results are in, `import_aero_table` reads them "
@@ -414,10 +437,22 @@ def main():
     # 13. Review -------------------------------------------------------------------------------------------------------
     w("## Reviews")
     w()
+    stat = call("design_status", {"designId": d})
+    ask(18, "Where do we stand? What's left before CDR?", ["design_status"])
+    w(f"> **{stat['readiness']}.** {stat.get('ruleCheck', '')}")
+    w()
+    rows = [{"area": i["area"], "status": i["status"], "finding": i["finding"]} for i in stat["items"]][:8]
+    if rows:
+        table(rows, ["area", "status", "finding"], ["Area", "Status", "Finding"])
+    w("Next steps, in order:")
+    w()
+    for n_, step in enumerate(stat["nextSteps"], 1):
+        w(f"{n_}. {step}")
+    w()
     rep_dir = os.path.join(tmp, "report")
     call("generate_report", {"designId": d, "outputDir": rep_dir, "title": "Maple 10K design review"})
     shutil.copy(os.path.join(rep_dir, "stability-ascent.svg"), os.path.join(IMG, "stability-ascent.svg"))
-    ask(16, "Make the design review package.", ["generate_report"])
+    ask(19, "Make the design review package.", ["generate_report"])
     w("Claude writes a folder with `report.md` (requirement checks, vehicle, flight, stability, recovery, wind table, "
       "methods), the stability-vs-time plots Launch Canada asks for (DTEG R10.3.2), the drawing, the flight profile and a CSV "
       "of the flight data.")
@@ -427,7 +462,7 @@ def main():
 
     call("save_design", {"designId": d, "path": os.path.join(IMG, "maple-10k.ork")})
     diff = call("compare_designs", {"designId": d, "baselinePath": os.path.join(tmp, "maple-pdr.ork")})
-    ask(17, "What changed since the version we showed at PDR?", ["compare_designs"])
+    ask(20, "What changed since the version we showed at PDR?", ["compare_designs"])
     for line in diff["summary"]:
         w(f"- {line}")
     w()
@@ -440,7 +475,7 @@ def main():
     w("## Launch day")
     w()
     sample = open(os.path.join(ROOT, "src", "test", "resources", "open-meteo-sample.json")).read()
-    ask(18, "We launch at 48.47, -81.33 on August 21 at 3 pm. What will the winds do, and make us the flight card.",
+    ask(21, "We launch at 48.47, -81.33 on August 21 at 3 pm. What will the winds do, and make us the flight card.",
         ["weather_forecast", "flight_card"])
     wx = call("weather_forecast", {"designId": d, "forecastJson": sample, "time": "2027-08-21T15:00"})
     g = wx["ground"]

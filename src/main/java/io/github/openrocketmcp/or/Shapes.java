@@ -237,6 +237,7 @@ public final class Shapes {
 		for (Option o : opts) {
 			sims.add(Variants.of(base, doc, o.edit(), null));
 		}
+		io.github.openrocketmcp.mcp.CallContext.current().expect(sims.size(), "shapes flown");
 		List<Variants.Run> runs = Variants.runAll(sims);
 		List<Row> rows = new ArrayList<>();
 		for (int i = 0; i < runs.size(); i++) {

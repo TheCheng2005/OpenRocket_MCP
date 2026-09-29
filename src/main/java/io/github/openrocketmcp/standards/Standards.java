@@ -144,11 +144,19 @@ public final class Standards {
 	}
 
 	/** Returns a new Standards with {@code patch} merged in. */
-	public Standards patched(JsonObject patch) {
+	/** Changed in this session with update_standards (possibly not saved to a file yet). */
+	private boolean edited;
+
+	public boolean edited() {
+		return edited;
+	}
+
+		public Standards patched(JsonObject patch) {
 		JsonObject copy = data.deepCopy();
 		deepMerge(copy, patch);
 		JsonObject rulesNow = loadRules(copy.has("ruleset") ? copy.get("ruleset").getAsString() : null, source);
 		Standards s = new Standards(copy, rulesNow, source);
+		s.edited = true;
 		if (copy.has("units")) {
 			Units.setSystem(UnitSystem.parse(copy.get("units").getAsString()));
 		}
