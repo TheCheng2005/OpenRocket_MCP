@@ -562,6 +562,18 @@ def scenario_user_experience(s, d, tmp):
           f"{time.time() - t0:.1f} s")
     st = s.call("design_status", {"designId": d})
     check(sc, "design_status gives readiness and next steps", st["readiness"] and len(st["nextSteps"]) >= 1, str(st)[:300])
+    tpl = s.call("mass_budget", {"designId": d, "csvPath": os.path.join(tmp, "mb.csv")})
+    rows = open(tpl["template"]).read().splitlines()
+    check(sc, "mass budget template from the model", rows[0].startswith("part,component_id,mass (g)") and len(rows) > 5)
+    design = lambda: {k: v for k, v in s.call("get_design", {"designId": d}).items() if k != "simulations"}
+    launch0 = design()
+    mb = s.call("mass_budget", {"designId": d, "csv": "part,mass (g),status\nFins,900,measured\nNose cone,700,measured\n"
+                                "Camera,60,measured\n", "targetLaunchMass": "8 kg", "apply": True})
+    check(sc, "weigh-ins compared, totals against the target, applied with the new stability",
+          "margin" in mb["totals"] and "->" in mb["change"]["launchMass"] and len(mb["applied"]) == 2, str(mb)[:400])
+    check(sc, "an unmatched line without a parent is reported, not guessed", "Camera" in mb.get("unmatched", ""))
+    s.call("undo", {"designId": d})
+    check(sc, "undo reverts the weigh-in (components, masses, stability)", design() == launch0)
     before = s.call("describe_component", {"designId": d, "component": "Fins"})
     s.call("edit_components", {"designId": d, "changes": [{"component": "Fins", "properties": {"thickness": "1 mm"}}]})
     s.call("undo", {"designId": d})

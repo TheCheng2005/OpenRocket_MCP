@@ -150,7 +150,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 |---|---|---|---|
 | WARN | Launch site altitude | 0 m (0 ft) used by this simulation |  |
 | WARN | Ascent stability (maximum, over-stability) | 5.693 cal | R10.3.1, R10.4.1 |
-| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.692 cal | R10.3.1, R10.4.1 |
+| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.693 cal | R10.3.1, R10.4.1 |
 | WARN | Maximum Mach number | 1.175 |  |
 | PASS | Simulated launch angle | 6 deg | R10.1.1 |
 | PASS | Rail departure velocity | 41.63 m/s (136.6 ft/s) | R10.2.1 |
@@ -173,7 +173,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 <sub>Tools Claude uses: `monte_carlo`</sub>
 
-> Over 200 simulated flights the median landing is 200.6 m (658.3 ft) from the pad and 95% land within 487.1 m (1598 ft); the landings centre 495 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 201.2 m (660.2 ft).
+> Over 200 simulated flights the median landing is 201.1 m (659.8 ft) from the pad and 95% land within 487.5 m (1599 ft); the landings centre 495 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 201.1 m (659.9 ft).
 
 ![200 simulated landings around the pad with the 2-sigma ellipse](examples/landing.svg)
 
@@ -183,12 +183,12 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 
 | Uncertain input | Apogee | Min stability | Landing distance |
 |---|---|---|---|
-| windSpeed | -0.13 | -0.9653 | -0.678 |
-| launchAngle | -0.1496 | -0.006994 | 0.3152 |
-| structureMass | -0.0506 | 0.1309 | 0.09416 |
-| airframeDrag | -0.9259 | 0.04255 | -0.1735 |
-| motorThrust | 0.3179 | 0.08091 | -0.02008 |
-| parachuteCd | -0.03481 | 0.03086 | -0.07641 |
+| windSpeed | -0.1304 | -0.9653 | -0.6773 |
+| launchAngle | -0.1499 | -0.006994 | 0.3153 |
+| structureMass | -0.04945 | 0.1309 | 0.09732 |
+| airframeDrag | -0.9258 | 0.04255 | -0.1746 |
+| motorThrust | 0.3177 | 0.08091 | -0.01908 |
+| parachuteCd | -0.03427 | 0.03086 | -0.07401 |
 
 <sub>Correlation from -1 to 1: the closer to ±1, the more that input drives the result.</sub>
 
@@ -206,9 +206,9 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 | Von Karman (Haack LD) | airfoil | 3705 m (12156 ft) | 24.01% | 1.075 | 3.614 cal |
 | tangent ogive (current) | rounded | 3575 m (11730 ft) | 19.66% | 1.144 | 3.528 cal |
 | Von Karman (Haack LD) | square (current) | 3002 m (9850 ft) | 0.4851% | 1.341 | 3.525 cal |
-| 1/2 power | square (current) | 3001 m (9847 ft) | 0.4484% | 1.34 | 3.537 cal |
-| LV-Haack | square (current) | 2993 m (9821 ft) | 0.189% | 1.356 | 3.533 cal |
-| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02337% | 1.36 | 3.513 cal |
+| 1/2 power | square (current) | 3001 m (9847 ft) | 0.4485% | 1.34 | 3.537 cal |
+| LV-Haack | square (current) | 2993 m (9821 ft) | 0.1891% | 1.356 | 3.533 cal |
+| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02344% | 1.36 | 3.513 cal |
 | tangent ogive (current) | square (current) | 2988 m (9803 ft) | 0% | 1.351 | 3.522 cal |
 
 <details><summary>Claude's shape guidance (from the tool)</summary>
@@ -257,9 +257,46 @@ Joint loads for the airframe: 3 joints, the highest wall stress at Switch band /
 | M1.20 | 1.2 | 981.1 m (3219 ft) | 403.8 m/s (1325 ft/s) | 5.72e+07 | 1.334 |
 | max_q | 1.174 | 942.1 m (3091 ft) | 395.2 m/s (1297 ft/s) | 5.61e+07 | 1.352 |
 
+## Build
+
+### 18. "We weighed the parts we've built. Here is our weigh-in sheet; how does it compare with the model? Our launch mass target is 12 kg."
+
+<sub>Tools Claude uses: `mass_budget`</sub>
+
+<details><summary>Weigh-in sheet (sample numbers)</summary>
+
+```csv
+part,mass (g),status,section,parent
+Nose cone,491,measured,no,
+Upper airframe,830,measured,no,
+Lower airframe,1398,measured,no,
+Fins,1091,measured,no,
+Fin fillets and tip-to-tip epoxy,140,measured,no,Lower airframe
+Paint and primer,90,estimated,no,Upper airframe
+```
+
+</details>
+
+| Part | Weigh-in | Model | Difference |  |
+|---|---|---|---|---|
+| Fins | 1.091 kg (2.405 lb) (measured) | 948.9 g (2.092 lb) | +142.1 g (5.013 oz) (+15%) | CHECK |
+| Lower airframe | 1.398 kg (3.082 lb) (measured) | 1.271 kg (2.802 lb) | +127.1 g (4.482 oz) (+10%) | ok |
+| Upper airframe | 830 g (1.83 lb) (measured) | 768.5 g (1.694 lb) | +61.53 g (2.17 oz) (+8%) | ok |
+| Nose cone | 491 g (1.082 lb) (measured) | 438.8 g (15.48 oz) | +52.17 g (1.84 oz) (+12%) | CHECK |
+| Fin fillets and tip-to-tip epoxy | 140 g (4.938 oz) (measured) |  |  |  |
+| Paint and primer | 90 g (3.175 oz) (estimated) |  |  |  |
+
+> Projected launch mass **11.43 kg (25.2 lb)**, including 5.645 kg (12.44 lb) of motor and 10% contingency on everything not weighed yet: +569 g (1.254 lb) under the target of 12 kg. 2 part(s) differ from the model by more than 10% (flagged). The sheet leaves out 1.579 kg of parts the model has (heaviest: Nose ballast 390 g (13.76 oz), Main 242.8 g (8.564 oz), Motor mount 186.8 g (6.589 oz)), which stay at the model's values.
+
+### 19. "Put the weigh-ins into the design."
+
+<sub>Tools Claude uses: `mass_budget`</sub>
+
+> Done: 6 changes (mass overrides on the weighed parts, the fillets and paint added as mass components). Launch mass 10.65 kg (23.48 lb) -> 11.26 kg (24.83 lb), CG 1574 mm (61.99 in) -> 1568 mm (61.74 in), stability 3.968 -> 4.03 cal. Every later step flies the rocket as built; `undo` takes it back in one step.
+
 ## Reviews
 
-### 18. "Where do we stand? What's left before CDR?"
+### 20. "Where do we stand? What's left before CDR?"
 
 <sub>Tools Claude uses: `design_status`</sub>
 
@@ -268,11 +305,11 @@ Joint loads for the airframe: 3 joints, the highest wall stress at Switch band /
 | Area | Status | Finding |
 |---|---|---|
 | Launch site | WARN | Launch site altitude: 0 m (0 ft) used by this simulation |
-| Stability | WARN | Ascent stability (maximum, over-stability): 5.693 cal (R10.3.1, R10.4.1) |
-| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.692 cal (R10.3.1, R10.4.1) |
-| Rules | WARN | Maximum Mach number: 1.175 |
+| Stability | WARN | Ascent stability (maximum, over-stability): 5.683 cal (R10.3.1, R10.4.1) |
+| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.682 cal (R10.3.1, R10.4.1) |
+| Rules | WARN | Maximum Mach number: 1.144 |
 | Standards | TODO | The team standards were changed in this session but are not saved to a file, so the next session and the rest of the team will not have them. |
-| File | TODO | Unsaved changes (21 edit(s) this session, undo available). |
+| File | TODO | Unsaved changes (22 edit(s) this session, undo available). |
 
 Next steps, in order:
 
@@ -282,7 +319,7 @@ Next steps, in order:
 4. update_standards with saveTo (e.g. openrocket-mcp.json), then commit the file.
 5. save_design once the team agrees (history shows what changed).
 
-### 19. "Make the design review package."
+### 21. "Make the design review package."
 
 <sub>Tools Claude uses: `generate_report`</sub>
 
@@ -290,30 +327,31 @@ Claude writes a folder with `report.md` (requirement checks, vehicle, flight, st
 
 ![Stability margin during the ascent with the rule minimum](examples/stability-ascent.svg)
 
-### 20. "What changed since the version we showed at PDR?"
+### 22. "What changed since the version we showed at PDR?"
 
 <sub>Tools Claude uses: `compare_designs`</sub>
 
-- launch mass: 9.652 kg (21.28 lb) -> 10.65 kg (23.48 lb) (+999.7 g (2.204 lb) (+10.36%))
-- static stability at launch: 2.508 cal -> 3.968 cal (+1.46 cal)
-- apogee: 3083 m (10116 ft) -> 2988 m (9803 ft) (-95.64 m (313.8 ft) (-3.102%))
-- max Mach: 1.165 -> 1.175 (+0.01032)
-- rail exit velocity: 39.48 m/s (129.5 ft/s) -> 41.63 m/s (136.6 ft/s) (+2.149 m/s (7.049 ft/s) (+5.442%))
-- min stability in flight: 1.921 cal -> 3.522 cal (+1.601 cal)
+- launch mass: 9.652 kg (21.28 lb) -> 11.26 kg (24.83 lb) (+1.613 kg (3.555 lb) (+16.71%))
+- static stability at launch: 2.508 cal -> 4.03 cal (+1.522 cal)
+- apogee: 3083 m (10116 ft) -> 2998 m (9838 ft) (-84.99 m (278.8 ft) (-2.756%))
+- max Mach: 1.165 -> 1.144 (-0.02131)
+- rail exit velocity: 39.48 m/s (129.5 ft/s) -> 40.59 m/s (133.2 ft/s) (+1.108 m/s (3.635 ft/s) (+2.806%))
+- min stability in flight: 1.921 cal -> 3.576 cal (+1.654 cal)
 - 9 rule check(s) changed status, 2 got worse
-- 4 component(s) added, removed or edited
+- 9 component(s) added, removed or edited
 
+- **Nose cone (Nose Cone)**: massOverridden false -> true; overrideMass 438.8 g (15.48 oz) -> 491 g (1.082 lb)
+- **Upper airframe (Body Tube)**: massOverridden false -> true; overrideMass 768.5 g (1.694 lb) -> 830 g (1.83 lb)
 - **Main (Parachute)**: area 1.824 m2 (19.63 ft2) -> 3.575 m2 (38.48 ft2); cD 0.8 -> 0.85; diameter 1524 mm (60 in) -> 2134 mm (84 in)
-- **Fins (Trapezoidal Fin Set)**: height 127 mm (5 in) -> 178.6 mm (7.033 in); material Fiberglass -> Carbon fiber; rootChord 228.6 mm (9 in) -> 135.5 mm (5.334 in); sweep 127 mm (5 in) -> 28.52 mm (1.123 in); sweepAngle 45 deg -> 9.072 deg; tabOffset 0 mm (0 in) -> 46.56 mm (1.833 in); thickness 3.2 mm (0.126 in) -> 6.35 mm (0.25 in); tipChord 76.2 mm (3 in) -> 99.5 mm (3.917 in)
-- **Drogue (Parachute)**: area 0.1642 m2 (1.767 ft2) -> 0.2235 m2 (2.405 ft2); diameter 457.2 mm (18 in) -> 533.4 mm (21 in)
+- **Lower airframe (Body Tube)**: massOverridden false -> true; overrideMass 1.271 kg (2.802 lb) -> 1.398 kg (3.082 lb)
 
 ## Launch day
 
-### 21. "We launch at 48.47, -81.33 on August 21 at 3 pm. What will the winds do, and make us the flight card."
+### 23. "We launch at 48.47, -81.33 on August 21 at 3 pm. What will the winds do, and make us the flight card."
 
 <sub>Tools Claude uses: `weather_forecast`, `flight_card`</sub>
 
-> Ground wind 6.75 m/s (22.15 ft/s) (24.3 km/h) from 250 deg, gusts 12 m/s (39.37 ft/s) (43.2 km/h) (mean wind within 30 km/h limit; gusts exceed it). Flown in the forecast winds aloft: apogee 3018 m (9903 ft), landing 123 m (403.4 ft) from the pad.
+> Ground wind 6.75 m/s (22.15 ft/s) (24.3 km/h) from 250 deg, gusts 12 m/s (39.37 ft/s) (43.2 km/h) (mean wind within 30 km/h limit; gusts exceed it). Flown in the forecast winds aloft: apogee 3023 m (9918 ft), landing 99.93 m (327.9 ft) from the pad.
 
 <sub>(A recorded forecast is used here so the page is reproducible; with internet access Claude fetches the live one from Open-Meteo.)</sub>
 
@@ -332,13 +370,13 @@ From the one-page flight card (predictions, motor delay, deployment settings, dr
 >
 > | | |
 > |---|---|
-> | Apogee | 3018 m (9903 ft) |
-> | Time to apogee | 20.43 s |
-> | Max velocity | 403.5 m/s (1324 ft/s) |
-> | Max Mach | 1.183 |
-> | Max acceleration | 153.6 m/s2 (504 ft/s2) = 15.66 G |
-> | Rail exit velocity | 41.62 m/s (136.5 ft/s) |
-> | Thrust-to-weight | 13.56 |
+> | Apogee | 3023 m (9918 ft) |
+> | Time to apogee | 20.8 s |
+> | Max velocity | 392.3 m/s (1287 ft/s) |
+> | Max Mach | 1.15 |
+> | Max acceleration | 144.9 m/s2 (475.5 ft/s2) = 14.78 G |
+> | Rail exit velocity | 40.58 m/s (133.1 ft/s) |
+> | Thrust-to-weight | 12.89 |
 
 ## After the flight
 

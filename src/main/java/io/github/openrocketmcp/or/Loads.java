@@ -63,7 +63,18 @@ public final class Loads {
 				out.put(c, new double[] { e.totalCM.weight, e.totalCM.x });
 			}
 		}
+		// A weighed section (mass override of a component and everything in it): OpenRocket puts the whole override on
+		// the section's own entry and leaves the parts inside at their own masses. Spread the override over the section
+		// component and its parts in proportion to their own masses, so the section totals the override exactly once.
 		Map<RocketComponent, double[]> groups = new LinkedHashMap<>();
+		Map<RocketComponent, Double> ownerRaw = new LinkedHashMap<>();
+		for (RocketComponent c : out.keySet()) {
+			if (c.isMassOverridden() && c.isSubcomponentsOverriddenMass() && overrider(c) == null) {
+				double raw = c.getComponentMass() * Math.max(1, c.getInstanceCount());
+				ownerRaw.put(c, raw);
+				groups.computeIfAbsent(c, k -> new double[1])[0] += raw;
+			}
+		}
 		for (RocketComponent c : out.keySet()) {
 			RocketComponent o = overrider(c);
 			if (o != null) {
@@ -71,10 +82,14 @@ public final class Loads {
 			}
 		}
 		for (Map.Entry<RocketComponent, double[]> e : out.entrySet()) {
-			RocketComponent o = overrider(e.getKey());
-			if (o != null && groups.get(o)[0] > 0) {
-				e.getValue()[0] *= o.getOverrideMass() / groups.get(o)[0];
+			RocketComponent c = e.getKey();
+			RocketComponent o = ownerRaw.containsKey(c) ? c : overrider(c);
+			if (o == null || !groups.containsKey(o)) {
+				continue;
 			}
+			double total = groups.get(o)[0];
+			double base = o == c ? ownerRaw.get(c) : e.getValue()[0];
+			e.getValue()[0] = total > 0 ? base * o.getOverrideMass() / total : (o == c ? o.getOverrideMass() : 0);
 		}
 		if (motorOut != null) {
 			motorOut[0] = mm;

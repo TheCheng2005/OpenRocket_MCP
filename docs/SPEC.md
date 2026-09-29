@@ -243,6 +243,14 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
 - `design_status`; `undo` / `redo` / `history` (rocket copies around every editing tool, kept when OpenRocket's
   modification id changes); KML landing zones from `monte_carlo`.
 
+### Mass tracking (v0.15.0)
+
+- `mass_budget` (`or.MassBudget`): flexible CSV parsing, component matching (id, exact name, unique partial, word
+  overlap; duplicate names reported as ambiguous), comparison and totals, apply as OpenRocket overrides.
+- Fix: per-component masses with a weighed section (mass override of a component and its subcomponents) counted the
+  section twice (OpenRocket keeps the override on the section's own entry); now spread over the section in proportion
+  to the parts' own masses, so they add up to OpenRocket's structure mass. Affects `structural_loads` too.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

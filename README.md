@@ -42,6 +42,10 @@ the answers, and the plots. Everything on that page is real output.
   buildable shapes are tried.
 - "Which nose cone and fin shape should we build?" — every common shape flown and compared.
 - Pick real parts from OpenRocket's catalogue (tubes, nose cones, couplers, rail buttons, parachutes).
+- "Here's our mass budget" or "here are today's weigh-ins" — part-by-part comparison with the model, the parts your
+  budget forgets, projected launch mass against your target with contingency, and (when you say so) the numbers written
+  into the design as mass and CG overrides so every simulation flies the rocket as built. Undo reverts it. With no
+  budget yet, Claude writes the model's breakdown as a spreadsheet to fill in.
 - "Lay out the avionics bay": two independent altimeters, each with its own battery and switch, a GPS tracker, the
   ejection charges and static ports, placed by the Launch Canada electronics rules, with the parachutes packed against
   it and a warning if a bay is too short.

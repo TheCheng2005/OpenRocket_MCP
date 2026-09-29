@@ -35,7 +35,7 @@ import io.github.openrocketmcp.tools.StructureTools;
 
 /** Entry point: stdio MCP server for OpenRocket. */
 public final class Main {
-	public static final String VERSION = "0.14.0";
+	public static final String VERSION = "0.15.0";
 
 	static final String INSTRUCTIONS = """
 			OpenRocket MCP: design, simulate and check high-power / competition rockets with OpenRocket's physics.
@@ -83,6 +83,7 @@ public final class Main {
 		StandardsTools.register(server, ctx);
 		io.github.openrocketmcp.tools.StatusTools.register(server, ctx);
 		io.github.openrocketmcp.tools.HistoryTools.register(server, ctx);
+		io.github.openrocketmcp.tools.MassTools.register(server, ctx);
 		Prompts.register(server, ctx);
 		server.wrapTools(t -> io.github.openrocketmcp.tools.HistoryTools.recording(ctx, t));
 		return server;

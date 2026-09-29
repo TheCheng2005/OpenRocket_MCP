@@ -28,6 +28,8 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
    - Drag / apogee shortfall -> `aero_analysis` (drag breakdown per component, CD vs Mach) before changing shapes.
    - Launch-day winds -> `wind_profile` (forecast levels, or power_law from the ground wind) then `monte_carlo`.
    - Real parts -> `search_parts` + `apply_preset` (tubes, nose cones, couplers, rail buttons, chutes).
+   - Mass budget / weigh-ins -> `mass_budget` (compare first; `apply` once the team confirms the numbers; no budget yet ->
+     it writes a template), then `check_requirements` again.
    - Electronics -> `add_avionics_bay` (one altimeter per circuit, own battery and switch each, tracker on its own
      battery); fix any "not enough room" warning before trusting stability, since it moves mass.
    - Show the vehicle -> `draw_rocket` (a cut-away: check the chutes, electronics and motor sit where the team expects).
