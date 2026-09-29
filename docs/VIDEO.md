@@ -1,6 +1,6 @@
 # Recording the demo video
 
-A 90-second screen recording of the real Claude Desktop app: install, then five questions about the *Maple 10K* rocket
+A 100-second screen recording of the real Claude Desktop app: install, then six questions about the *Maple 10K* rocket
 from [EXAMPLES.md](EXAMPLES.md). Record it once in about 10 minutes; speed up the waits when editing.
 
 ## Before recording
@@ -25,6 +25,7 @@ from [EXAMPLES.md](EXAMPLES.md). Record it once in about 10 minutes; speed up th
 | 4 | The fix | `We'll make the fins from 1/4 in quasi-isotropic carbon; our coupon test gave a shear modulus of 16 GPa. Save that to our standards, then make the fins as small as possible while meeting the stability rules and staying clear of flutter, and pick the motor for 10,000 ft again.` | Claude updates the standards, runs the optimizer and motor ranking; fin span and root chord, a motor, about 10,000 ft, flutter PASS | 20 s |
 | 5 | Where it lands | `Where will it land in a 15 km/h west wind? Include our build and motor uncertainty, and draw the landing map.` | 200 simulated flights, distances, and the landing map | 15 s |
 | 6 | Does it pass | `Does it pass Launch Canada? Then make us the launch-day flight card.` | "No failures", the warnings with rule numbers, and the flight card | 15 s |
+| 7 | Show it off | `Animate the flight for our team's social media.` | The key-moment stills in the chat; the GIF (and MP4 with ffmpeg) saved in the rocket folder. Play the GIF over the end of the clip | 10 s |
 | — | End card | — | Title + "github.com/TheCheng2005/OpenRocket_MCP" | 5 s |
 
 Tip: if an answer is long, scroll to the one line that matters (FAIL / PASS, the apogee, "No failures") and hold for

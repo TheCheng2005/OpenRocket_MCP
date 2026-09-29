@@ -56,10 +56,25 @@ class View3dTest {
 		List<Model3d.Part> parts = Model3d.build(d.doc.getRocket().getSelectedConfiguration(), 24);
 		View3d.layOut(parts, 0.1, 0.03, 0.001, new ArrayList<>());
 		for (Model3d.Part p : parts) {
-			assertEquals(p.piece * 0.1, p.shift[0], 1e-12, p.name);
+			assertEquals(View3d.slot(p) * 0.1, p.shift[0], 1e-12, p.name);
 			if (p.internal) {
 				assertTrue(p.shift[2] < -0.03, p.name + " sits below the airframe");
 			}
+		}
+	}
+
+	/** Stages sit apart in an exploded view and every part is listed with its stage. */
+	@Test
+	void explodedStagesSitApart() throws Exception {
+		Designs.Design d = new Designs().openExample("Two stage high power");
+		FlightConfiguration fc = d.doc.getRocket().getSelectedConfiguration();
+		View3d.Result r = View3d.render(fc, "Two stage", View3d.Mode.EXPLODED, 25, 22, 1200);
+		assertTrue(r.parts().stream().allMatch(p -> p.containsKey("stage")), "stage of every part");
+		assertTrue(r.parts().stream().anyMatch(p -> "Booster".equals(p.get("stage"))));
+		List<Model3d.Part> parts = Model3d.build(fc, 24);
+		View3d.layOut(parts, 0.1, 0.05, 0.001, new ArrayList<>());
+		for (Model3d.Part p : parts) {
+			assertEquals((p.piece + View3d.STAGE_GAP * p.axialStage) * 0.1, p.shift[0], 1e-12, p.name);
 		}
 	}
 

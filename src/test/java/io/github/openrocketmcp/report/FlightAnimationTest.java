@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -101,6 +102,29 @@ class FlightAnimationTest {
 		BufferedImage sheet = a.contactSheet(900);
 		assertTrue(sheet.getHeight() > 200 && a.keyMoments().size() >= 4);
 		assertTrue(Files.size(gif) > 1000);
+	}
+
+	/** A two-stage flight: each stage's events are named, the booster's own recovery is captioned, stills differ. */
+	@Test
+	void twoStageFlightIsToldStageByStage() throws Exception {
+		Designs.Design d = new Designs().openExample("Two stage high power");
+		Simulation s = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults());
+		Sims.run(s);
+		FlightTrack.Flight fl = FlightTrack.of(s);
+		List<String> titles = fl.events().stream().map(FlightTrack.Event::title).toList();
+		for (String t : new String[] { "Booster burnout", "Booster separation", "Sustainer ignition", "Sustainer burnout",
+				"Booster Chute out", "Booster touchdown", "Sustainer touchdown" }) {
+			assertTrue(titles.contains(t), t + " in " + titles);
+		}
+		assertTrue(fl.events().stream().anyMatch(e -> e.kind().equals("landing") && e.branch() == 1), "booster landing on its track");
+		FlightTrack.Track booster = fl.tracks().get(1);
+		assertTrue(booster.at(booster.cg, booster.separation + 1) > booster.at(booster.cg, 0), "booster CG is aft of the vehicle's");
+		FlightAnimation a = new FlightAnimation(fl, s.getActiveConfiguration(), 3, new FlightAnimation.Options(480, 5, 15, "t", ""));
+		List<double[]> km = a.keyMoments();
+		for (int i = 1; i < km.size(); i++) {
+			assertTrue(km.get(i)[0] - km.get(i - 1)[0] > 0.2, "no two stills of the same instant");
+		}
+		assertEquals(480, a.render(booster.separation + 3, 0).getWidth(), "frame with the booster camera inset");
 	}
 
 	/** Staged and clustered rockets: a dropped booster flies its own track; every view renders. */

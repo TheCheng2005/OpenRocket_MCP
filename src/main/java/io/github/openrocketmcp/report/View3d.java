@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import io.github.openrocketmcp.units.Dim;
@@ -75,7 +76,11 @@ public final class View3d {
 		if (mode == Mode.EXPLODED) {
 			double gap = Math.max(3 * maxR, 0.06 * length);
 			finOut = 1.2 * maxR;
-			double metresPerPixel = (length + pieces * gap) / (width - 2.0 * PAD);
+			int stages = 0;
+			for (Model3d.Part p : parts) {
+				stages = Math.max(stages, p.axialStage);
+			}
+			double metresPerPixel = (length + (pieces + STAGE_GAP * stages) * gap) / (width - 2.0 * PAD);
 			layOut(parts, gap, maxR, metresPerPixel, guides);
 		}
 		// Camera: looking at the rocket's side (nose to the left), turned toward the nose and down from above.
@@ -99,7 +104,7 @@ public final class View3d {
 		double[] b = cam.bounds(all);
 		int listRows = (int) Math.ceil(parts.size() / (double) columns(width));
 		int bottom = PAD + 20 + 22 * listRows + 28;
-		int top = TITLE + 46;
+		int top = TITLE + (staged(parts) ? 76 : 46); // room for the stage brackets
 		double scale = (width - 2.0 * PAD) / Math.max(1e-9, b[1] - b[0]);
 		// Height follows the picture, up to 2.5 widths (a view down the axis would otherwise be very tall); frame() then
 		// scales the picture down to fit.
@@ -123,6 +128,7 @@ public final class View3d {
 			double[] a = r.project(new double[] { gl[0], gl[1], gl[2] }), c = r.project(new double[] { gl[3], gl[4], gl[5] });
 			g.drawLine((int) a[0], (int) a[1], (int) c[0], (int) c[1]);
 		}
+		stageBrackets(g, r, parts, finOut);
 		List<Map<String, Object>> list = balloons(g, r, parts, finOut, mode, top);
 		g.setColor(new Color(0x1a1a19));
 		g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
@@ -141,8 +147,16 @@ public final class View3d {
 		return new Result(img, list);
 	}
 
+	/** Extra gap, in piece gaps, between one stage and the next in an exploded view. */
+	static final double STAGE_GAP = 1.5;
+
+	/** How many gaps a part moves aft: one per airframe piece ahead of it, more for each stage boundary. */
+	static double slot(Model3d.Part p) {
+		return p.piece + STAGE_GAP * p.axialStage;
+	}
+
 	/**
-	 * Exploded layout: piece k moves aft by k gaps; each internal part drops below the airframe into a lane (structure,
+	 * Exploded layout: piece k moves aft by k gaps (and 1.5 more at each stage boundary); each internal part drops below the airframe into a lane (structure,
 	 * then recovery and electronics, then motors), stacking into sub-lanes where parts would overlap along the axis.
 	 */
 	static void layOut(List<Model3d.Part> parts, double gap, double maxR, double metresPerPixel, List<double[]> guides) {
@@ -156,11 +170,11 @@ public final class View3d {
 					in.add(p);
 				}
 			}
-			in.sort((a, b) -> Double.compare(a.x0 + a.piece * gap, b.x0 + b.piece * gap));
+			in.sort((a, b) -> Double.compare(a.x0 + slot(a) * gap, b.x0 + slot(b) * gap));
 			List<List<Model3d.Part>> lanes = new ArrayList<>();
 			List<Double> laneEnd = new ArrayList<>();
 			for (Model3d.Part p : in) {
-				double x0 = p.x0 + p.piece * gap, x1 = p.x1 + p.piece * gap;
+				double x0 = p.x0 + slot(p) * gap, x1 = p.x1 + slot(p) * gap;
 				int lane = 0;
 				while (lane < lanes.size() && laneEnd.get(lane) + margin > x0) {
 					lane++;
@@ -180,15 +194,15 @@ public final class View3d {
 				double centre = top - r;
 				for (Model3d.Part p : lane) {
 					double[] c = centre(p);
-					p.shift = new double[] { p.piece * gap, -c[1], centre - c[2] };
-					guides.add(new double[] { c[0] + p.piece * gap, 0, c[2], c[0] + p.piece * gap, 0, centre + halfHeight(p) });
+					p.shift = new double[] { slot(p) * gap, -c[1], centre - c[2] };
+					guides.add(new double[] { c[0] + slot(p) * gap, 0, c[2], c[0] + slot(p) * gap, 0, centre + halfHeight(p) });
 				}
 				top = centre - r - Math.max(0.4 * maxR, 18 * metresPerPixel);
 			}
 		}
 		for (Model3d.Part p : parts) {
 			if (!p.internal) {
-				p.shift = new double[] { p.piece * gap, 0, 0 };
+				p.shift = new double[] { slot(p) * gap, 0, 0 };
 			}
 		}
 	}
@@ -295,11 +309,58 @@ public final class View3d {
 			row.put("n", n);
 			row.put("name", p.name);
 			row.put("kind", KINDS.getOrDefault(p.kind, p.kind));
+			if (staged(parts)) {
+				row.put("stage", p.stageName);
+			}
 			row.put("mass", Units.fmt(p.mass, Dim.MASS));
 			row.put("rgb", p.rgb());
 			list.add(row);
 		}
 		return list;
+	}
+
+	static boolean staged(List<Model3d.Part> parts) {
+		return parts.stream().anyMatch(p -> p.axialStage > 0);
+	}
+
+	/** For a staged rocket: a bracket over each stage with its name and total mass (motor included). */
+	private static void stageBrackets(Graphics2D g, Raster3d r, List<Model3d.Part> parts, double finOut) {
+		if (!staged(parts)) {
+			return;
+		}
+		Map<Integer, double[]> span = new TreeMap<>(); // stage -> {min x, max x, mass}
+		Map<Integer, String> names = new LinkedHashMap<>();
+		for (Model3d.Part p : parts) {
+			double[] box = screenBox(r, p.placed(finOut));
+			if (box == null) {
+				continue;
+			}
+			double[] s = span.computeIfAbsent(p.axialStage, k -> new double[] { Double.MAX_VALUE, -Double.MAX_VALUE, 0 });
+			s[0] = Math.min(s[0], box[0]);
+			s[1] = Math.max(s[1], box[2]);
+			s[2] += p.mass;
+			if (p.stage == p.axialStage && !p.stageName.isEmpty()) { // the in-line stage itself, not a side booster
+				names.putIfAbsent(p.axialStage, p.stageName);
+			}
+		}
+		int y = TITLE + 30;
+		g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+		FontMetrics fm = g.getFontMetrics();
+		for (Map.Entry<Integer, double[]> e : span.entrySet()) {
+			double[] s = e.getValue();
+			g.setColor(new Color(0x2d5d9f));
+			g.setStroke(new BasicStroke(1.5f));
+			g.drawLine((int) s[0], y, (int) s[1], y);
+			g.drawLine((int) s[0], y, (int) s[0], y + 8);
+			g.drawLine((int) s[1], y, (int) s[1], y + 8);
+			String label = names.getOrDefault(e.getKey(), "Stage " + (e.getKey() + 1)) + "  \u00b7  " + Units.fmt(s[2], Dim.MASS);
+			int lw = fm.stringWidth(label);
+			int lx = (int) ((s[0] + s[1]) / 2 - lw / 2.0);
+			g.setColor(new Color(0xf7f8fa));
+			g.fillRect(lx - 6, y - 10, lw + 12, 16);
+			g.setColor(new Color(0x2d5d9f));
+			g.drawString(label, lx, y + 4);
+		}
 	}
 
 	private static boolean clash(List<double[]> placed, double x, double y) {

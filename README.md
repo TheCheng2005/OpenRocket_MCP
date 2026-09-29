@@ -58,7 +58,8 @@ the answers, and the plots. Everything on that page is real output.
 - Get a cut-away drawing: parachutes, shock cords, electronics, batteries, charges, motor, rings and bulkheads where
   they really sit, where the airframe separates, and the CG and CP.
 - "Show me an exploded view" — the rocket in 3-D, pulled apart, with every part inside laid out where it goes and a
-  numbered parts list with masses. Also as a cut-away or assembled view.
+  numbered parts list with masses. On a two-stage rocket each stage is bracketed with its mass. Also available as a
+  cut-away or assembled view.
 
 **Motors**
 - "Find a motor for 10,000 ft on an L2 certification" — candidates are flown, not just filtered.
@@ -75,6 +76,11 @@ the answers, and the plots. Everything on that page is real output.
   opening, and a live readout of time, altitude, speed, Mach and distance from the pad. Captions call out burnout,
   apogee and each deployment. You get a GIF for chat and slides, an MP4 when ffmpeg is installed, and stills of the key
   moments.
+- Two-stage rockets, end to end:
+  - staging is simulated: booster burnout, separation and sustainer ignition;
+  - the air-start rules are checked: tilt and altitude at ignition, and thrust-to-weight per stage;
+  - each stage's recovery and landing zone is covered;
+  - the animation names each stage's events, and a booster camera follows the booster down under its own chute.
 
 **Recovery**
 - Choose parachutes for a target descent rate.

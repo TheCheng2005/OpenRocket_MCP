@@ -8,6 +8,7 @@ import java.util.Locale;
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.rocketcomponent.Parachute;
 import info.openrocket.core.rocketcomponent.RecoveryDevice;
+import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.rocketcomponent.Streamer;
 import info.openrocket.core.simulation.FlightData;
 import info.openrocket.core.simulation.FlightDataBranch;
@@ -124,8 +125,15 @@ public final class FlightTrack {
 		}
 	}
 
-	/** Something to caption; {@code size} is a parachute's diameter or a streamer's length (m). */
-	public record Event(double time, String kind, String title, String detail, String device, double size, boolean streamer) {
+	/**
+	 * Something to caption; {@code size} is a parachute's diameter or a streamer's length (m); {@code branch} is the
+	 * track it belongs to (0 = the sustainer / whole vehicle, else a dropped stage).
+	 */
+	public record Event(double time, String kind, String title, String detail, String device, double size, boolean streamer,
+			int branch) {
+		public Event(double time, String kind, String title, String detail) {
+			this(time, kind, title, detail, null, 0, false, 0);
+		}
 	}
 
 	public record Flight(List<Track> tracks, List<Event> events, double maxThrust, double burnout, double apogeeTime,
@@ -153,45 +161,56 @@ public final class FlightTrack {
 				maxThrust = Math.max(maxThrust, f);
 			}
 		}
+		boolean staged = data.getBranchCount() > 1;
 		for (FlightEvent e : b0.getEvents()) {
 			double t = e.getTime();
 			double[] p = m.position(t);
 			String at = "at " + Units.fmt(p[2], Dim.DISTANCE);
+			// Burnout and ignition come from a motor mount, separation from the stage: name the stage when there are several.
+			String stage = staged && e.getSource() != null && !(e.getSource() instanceof Rocket) ? e.getSource().getStage().getName() : null;
 			switch (e.getType()) {
-				case LIFTOFF -> ev.add(new Event(t, "liftoff", "Liftoff", "", null, 0, false));
-				case LAUNCHROD -> ev.add(new Event(t, "rail", "Rail clear", Units.fmt(m.at(m.speed, t), Dim.VELOCITY), null, 0, false));
+				case LIFTOFF -> ev.add(new Event(t, "liftoff", "Liftoff", ""));
+				case LAUNCHROD -> ev.add(new Event(t, "rail", "Rail clear", Units.fmt(m.at(m.speed, t), Dim.VELOCITY)));
 				case IGNITION -> {
 					if (t > 0.05) {
-						ev.add(new Event(t, "ignition", "Ignition", at, null, 0, false));
+						ev.add(new Event(t, "ignition", stage != null ? stage + " ignition" : "Ignition", at + ", "
+								+ Units.fmt(m.at(m.speed, t), Dim.VELOCITY)));
 					}
 				}
 				case BURNOUT -> {
-					if (ev.stream().noneMatch(x -> x.kind().equals("burnout") && Math.abs(x.time() - t) < 0.1)) {
-						ev.add(new Event(t, "burnout", "Motor burnout", at + ", " + Units.fmt(m.at(m.speed, t), Dim.VELOCITY), null, 0,
-								false));
+					String title = stage != null ? stage + " burnout" : "Motor burnout";
+					if (ev.stream().noneMatch(x -> x.title().equals(title) && Math.abs(x.time() - t) < 0.1)) {
+						ev.add(new Event(t, "burnout", title, at + ", " + Units.fmt(m.at(m.speed, t), Dim.VELOCITY)));
 					}
 					burnout = Math.max(burnout, t);
 				}
-				case STAGE_SEPARATION -> ev.add(new Event(t, "separation", "Stage separation", at, null, 0, false));
+				case STAGE_SEPARATION -> ev.add(new Event(t, "separation", stage != null ? stage + " separation" : "Stage separation", at));
 				case APOGEE -> {
 					apogee = t;
-					ev.add(new Event(t, "apogee", "Apogee", Units.fmt(p[2], Dim.DISTANCE) + " AGL", null, 0, false));
+					ev.add(new Event(t, "apogee", "Apogee", Units.fmt(p[2], Dim.DISTANCE) + " AGL"));
 				}
 				case RECOVERY_DEVICE_DEPLOYMENT -> {
 					if (e.getSource() instanceof RecoveryDevice rd) {
-						boolean streamer = rd instanceof Streamer;
-						double size = rd instanceof Parachute pc ? pc.getDiameter() : rd instanceof Streamer s ? s.getStripLength() : 0;
-						ev.add(new Event(t, "deploy", rd.getName() + " out", at + ", " + Units.fmt(m.at(m.speed, t), Dim.VELOCITY), rd.getName(),
-								size, streamer));
+						ev.add(deploy(rd, t, m, 0));
 					}
 				}
 				case GROUND_HIT -> {
 					landing = t;
-					ev.add(new Event(t, "landing", "Touchdown", Units.fmt(Math.abs(m.at(m.vz, t - 0.05)), Dim.VELOCITY) + ", "
-							+ Units.fmt(Math.hypot(p[0], p[1]), Dim.DISTANCE) + " from the pad", null, 0, false));
+					ev.add(landing(t, m, staged ? m.name + " touchdown" : "Touchdown", 0));
 				}
 				default -> {
 					// not captioned
+				}
+			}
+		}
+		// Dropped stages: their own recovery and landing.
+		for (int k = 1; k < tracks.size(); k++) {
+			Track b = tracks.get(k);
+			for (FlightEvent e : data.getBranch(k).getEvents()) {
+				if (e.getType() == FlightEvent.Type.RECOVERY_DEVICE_DEPLOYMENT && e.getSource() instanceof RecoveryDevice rd) {
+					ev.add(deploy(rd, e.getTime(), b, k));
+				} else if (e.getType() == FlightEvent.Type.GROUND_HIT) {
+					ev.add(landing(e.getTime(), b, b.name + " touchdown", k));
 				}
 			}
 		}
@@ -204,13 +223,13 @@ public final class FlightTrack {
 		}
 		for (int i = 0; i < m.t.length && i <= iMax; i++) {
 			if (m.mach[i] >= 1) {
-				ev.add(new Event(m.t[i], "mach1", "Mach 1", "supersonic", null, 0, false));
+				ev.add(new Event(m.t[i], "mach1", "Mach 1", "supersonic"));
 				break;
 			}
 		}
 		if (m.t.length > 0) {
 			ev.add(new Event(m.t[iMax], "maxv", "Max velocity", Units.fmt(m.speed[iMax], Dim.VELOCITY)
-					+ (Double.isNaN(m.mach[iMax]) ? "" : ", Mach " + String.format(Locale.ROOT, "%.2f", m.mach[iMax])), null, 0, false));
+					+ (Double.isNaN(m.mach[iMax]) ? "" : ", Mach " + String.format(Locale.ROOT, "%.2f", m.mach[iMax]))));
 		}
 		ev.sort((x, y) -> Double.compare(x.time(), y.time()));
 		if (Double.isNaN(apogee)) { // no apogee event (e.g. the run was cut short): the highest point
@@ -223,5 +242,18 @@ public final class FlightTrack {
 			apogee = m.t.length == 0 ? 0 : m.t[iTop];
 		}
 		return new Flight(tracks, ev, maxThrust, burnout, apogee, landing, sim.getOptions().getLaunchAltitude());
+	}
+
+	private static Event deploy(RecoveryDevice rd, double t, Track tr, int branch) {
+		boolean streamer = rd instanceof Streamer;
+		double size = rd instanceof Parachute pc ? pc.getDiameter() : rd instanceof Streamer s ? s.getStripLength() : 0;
+		return new Event(t, "deploy", rd.getName() + " out", "at " + Units.fmt(tr.position(t)[2], Dim.DISTANCE) + ", "
+				+ Units.fmt(tr.at(tr.speed, t), Dim.VELOCITY), rd.getName(), size, streamer, branch);
+	}
+
+	private static Event landing(double t, Track tr, String title, int branch) {
+		double[] p = tr.position(t);
+		return new Event(t, "landing", title, Units.fmt(Math.abs(tr.at(tr.vz, t - 0.05)), Dim.VELOCITY) + ", "
+				+ Units.fmt(Math.hypot(p[0], p[1]), Dim.DISTANCE) + " from the pad", null, 0, false, branch);
 	}
 }

@@ -216,6 +216,18 @@ def scenario_two_stage(s):
     check(sc, "air-start altitude inhibit given", any("altitude inhibit" in i for i in items))
     check(sc, "booster and sustainer thrust-to-weight checked", any("Booster thrust-to-weight" in i for i in items)
           and any("Upper-stage thrust-to-weight" in i for i in items))
+    run = s.call("run_simulation", {"designId": d})
+    check(sc, "each stage lands on its own", {b["branch"] for b in run["branches"]} == {"Sustainer", "Booster"},
+          [b["branch"] for b in run["branches"]])
+    check(sc, "booster chute deployment analysed", any(x["branch"] == "Booster" for x in run["deployments"]))
+    tmp = tempfile.mkdtemp()
+    view = s.call("render_3d", {"designId": d, "path": os.path.join(tmp, "x.png"), "width": 900})
+    check(sc, "exploded view lists parts per stage", {p.get("stage") for p in view["parts"]} == {"Sustainer", "Booster"})
+    anim = s.call("animate_flight", {"designId": d, "path": os.path.join(tmp, "f.gif"), "duration": 10, "fps": 4,
+                                     "width": 480, "mp4": False, "stills": False})
+    events = [e["event"] for e in anim["timeline"]]
+    check(sc, "animation names each stage's events",
+          all(e in events for e in ("Booster separation", "Sustainer ignition", "Booster touchdown")), events)
 
 
 def scenario_custom_engine(s, tmp):

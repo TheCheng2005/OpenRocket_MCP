@@ -290,6 +290,20 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   - parallel frames are capped by free memory, and very large stills skip supersampling;
   - a cancelled render stops ffmpeg and removes the partial files.
 
+### Two-stage rockets in the 3-D views and animation (v0.16.1)
+
+- `FlightTrack`: events name their stage when there are several (booster burnout / separation, sustainer ignition /
+  burnout). Dropped stages' deployments and landings are events of their own track (`Event.branch`).
+- `FlightAnimation`:
+  - a dropped stage pivots on its own simulated CG and hangs under its own chute;
+  - a booster camera inset follows it from separation to touchdown;
+  - the chase camera pulls back at staging;
+  - smoke is drawn only while a motor burns (no trail through a coast between stages);
+  - the trajectory inset and flight summary include every stage;
+  - key-moment stills are distinct instants chosen by priority.
+- `View3d`: extra gap between stages in exploded views, stage brackets with names and masses, and `stage` in the parts
+  list.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.
