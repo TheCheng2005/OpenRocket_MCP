@@ -1,16 +1,23 @@
 package io.github.openrocketmcp;
 
-import java.io.FileOutputStream;
 import java.io.FileDescriptor;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
+import java.net.BindException;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.function.UnaryOperator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import io.github.openrocketmcp.mcp.HttpTransport;
 import io.github.openrocketmcp.mcp.Log;
@@ -20,22 +27,29 @@ import io.github.openrocketmcp.standards.Standards;
 import io.github.openrocketmcp.tools.AdvancedTools;
 import io.github.openrocketmcp.tools.AeroTools;
 import io.github.openrocketmcp.tools.AnalysisTools;
+import io.github.openrocketmcp.tools.AvionicsTools;
 import io.github.openrocketmcp.tools.Context;
 import io.github.openrocketmcp.tools.DesignLocks;
 import io.github.openrocketmcp.tools.DesignTools;
 import io.github.openrocketmcp.tools.FileTools;
+import io.github.openrocketmcp.tools.FinTools;
+import io.github.openrocketmcp.tools.HistoryTools;
+import io.github.openrocketmcp.tools.IntegrationTools;
+import io.github.openrocketmcp.tools.LaunchTools;
+import io.github.openrocketmcp.tools.MassTools;
 import io.github.openrocketmcp.tools.MotorTools;
 import io.github.openrocketmcp.tools.RecoveryTools;
 import io.github.openrocketmcp.tools.ReportTools;
 import io.github.openrocketmcp.tools.SimTools;
 import io.github.openrocketmcp.tools.StandardsTools;
-import io.github.openrocketmcp.tools.StudyTools;
-import io.github.openrocketmcp.tools.LaunchTools;
+import io.github.openrocketmcp.tools.StatusTools;
 import io.github.openrocketmcp.tools.StructureTools;
+import io.github.openrocketmcp.tools.StudyTools;
+import io.github.openrocketmcp.tools.ViewTools;
 
 /** Entry point: stdio MCP server for OpenRocket. */
 public final class Main {
-	public static final String VERSION = "0.15.0";
+	public static final String VERSION = "0.16.0";
 
 	static final String INSTRUCTIONS = """
 			OpenRocket MCP: design, simulate and check high-power / competition rockets with OpenRocket's physics.
@@ -46,6 +60,8 @@ public final class Main {
 			  types), then flight_card.
 			- Use OpenRocket's data: search_parts / apply_preset for real catalog parts, wind_profile for winds aloft,
 			  draw_rocket to show the design. What-if tools never modify the design. Deployment airspeed comes from the simulation and includes horizontal velocity and wind.
+			- Pictures and video: render_3d for exploded / cut-away 3-D views with a parts list, animate_flight for a 3-D
+			  animation of the simulated flight (GIF, MP4 with ffmpeg, key-moment stills).
 			- Inputs accept units ("20 ft/s", "4 in", "15 psi"); bare numbers are SI. Output uses the team's unit setting.
 			- Team standards (safety factors, pin ratings, launch site) and the competition rule set (default Launch Canada
 			  2027: DTEG R4 + 2027 edicts) drive checks; see get_standards. Ask the team to set launchSite.altitudeMsl.
@@ -67,25 +83,26 @@ public final class Main {
 		McpServer server = new McpServer("openrocket-mcp", VERSION, ctx.sandboxed() ? INSTRUCTIONS + TEAM : INSTRUCTIONS);
 		DesignTools.register(server, ctx);
 		FileTools.register(server, ctx);
-		io.github.openrocketmcp.tools.AvionicsTools.register(server, ctx);
+		AvionicsTools.register(server, ctx);
 		MotorTools.register(server, ctx);
 		SimTools.register(server, ctx);
 		RecoveryTools.register(server, ctx);
 		AnalysisTools.register(server, ctx);
 		ReportTools.register(server, ctx);
 		StructureTools.register(server, ctx);
-		io.github.openrocketmcp.tools.FinTools.register(server, ctx);
-		io.github.openrocketmcp.tools.IntegrationTools.register(server, ctx);
+		FinTools.register(server, ctx);
+		IntegrationTools.register(server, ctx);
+		ViewTools.register(server, ctx);
 		AeroTools.register(server, ctx);
 		StudyTools.register(server, ctx);
 		LaunchTools.register(server, ctx);
 		AdvancedTools.register(server, ctx);
 		StandardsTools.register(server, ctx);
-		io.github.openrocketmcp.tools.StatusTools.register(server, ctx);
-		io.github.openrocketmcp.tools.HistoryTools.register(server, ctx);
-		io.github.openrocketmcp.tools.MassTools.register(server, ctx);
+		StatusTools.register(server, ctx);
+		HistoryTools.register(server, ctx);
+		MassTools.register(server, ctx);
 		Prompts.register(server, ctx);
-		server.wrapTools(t -> io.github.openrocketmcp.tools.HistoryTools.recording(ctx, t));
+		server.wrapTools(t -> HistoryTools.recording(ctx, t));
 		return server;
 	}
 
@@ -121,13 +138,13 @@ public final class Main {
 			HttpTransport t;
 			try {
 				t = http(a);
-			} catch (IllegalArgumentException | java.net.BindException e) {
+			} catch (IllegalArgumentException | BindException e) {
 				System.err.println("openrocket-mcp: " + e.getMessage());
 				System.exit(2);
 				return;
 			}
 			Runtime.getRuntime().addShutdownHook(new Thread(t::stop));
-			new java.util.concurrent.CountDownLatch(1).await(); // serve until the process is stopped
+			new CountDownLatch(1).await(); // serve until the process is stopped
 			return;
 		}
 		// Claude Desktop extensions start the server in an arbitrary folder: OPENROCKET_MCP_WORKSPACE is the rocket folder.
@@ -169,7 +186,7 @@ public final class Main {
 	}
 
 	/** Token: --token, $OPENROCKET_MCP_TOKEN, else one generated on first start and kept in the workspace. */
-	static String token(List<String> a, Path workspace) throws java.io.IOException {
+	static String token(List<String> a, Path workspace) throws IOException {
 		String t = opt(a, "--token", System.getenv("OPENROCKET_MCP_TOKEN"));
 		if (t != null && !t.isBlank()) {
 			if (t.length() < 16) {
@@ -186,7 +203,7 @@ public final class Main {
 		t = HexFormat.of().formatHex(b);
 		Files.writeString(f, t + "\n");
 		try {
-			Files.setPosixFilePermissions(f, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+			Files.setPosixFilePermissions(f, PosixFilePermissions.fromString("rw-------"));
 		} catch (UnsupportedOperationException ignored) {
 			// not a POSIX file system
 		}
@@ -194,25 +211,25 @@ public final class Main {
 	}
 
 	/** Shows workspace files as relative paths ("designs/rocket.ork"), as people know them from the files page. */
-	static java.util.function.UnaryOperator<String> relativePaths(Path workspace) {
+	static UnaryOperator<String> relativePaths(Path workspace) {
 		if (workspace.getParent() == null) {
-			return java.util.function.UnaryOperator.identity(); // the file system root: nothing sensible to strip
+			return UnaryOperator.identity(); // the file system root: nothing sensible to strip
 		}
 		return relativePaths(workspace.toString(), workspace.getFileSystem().getSeparator());
 	}
 
-	static java.util.function.UnaryOperator<String> relativePaths(String workspace, String sep) {
+	static UnaryOperator<String> relativePaths(String workspace, String sep) {
 		String raw = workspace + sep;
 		String json = raw.replace("\\", "\\\\");
 		if (!sep.equals("\\")) {
 			return text -> text.replace(raw, "");
 		}
 		// Windows: in JSON output each backslash is doubled; show the rest of the path with "/" like the files page.
-		java.util.regex.Pattern jsonPath = java.util.regex.Pattern.compile(java.util.regex.Pattern.quote(json) + "([^\"\\s]*)");
-		java.util.regex.Pattern rawPath = java.util.regex.Pattern.compile(java.util.regex.Pattern.quote(raw) + "([^\"\\s]*)");
+		Pattern jsonPath = Pattern.compile(Pattern.quote(json) + "([^\"\\s]*)");
+		Pattern rawPath = Pattern.compile(Pattern.quote(raw) + "([^\"\\s]*)");
 		return text -> {
-			String t = jsonPath.matcher(text).replaceAll(m -> java.util.regex.Matcher.quoteReplacement(m.group(1).replace("\\\\", "/")));
-			return rawPath.matcher(t).replaceAll(m -> java.util.regex.Matcher.quoteReplacement(m.group(1).replace("\\", "/")));
+			String t = jsonPath.matcher(text).replaceAll(m -> Matcher.quoteReplacement(m.group(1).replace("\\\\", "/")));
+			return rawPath.matcher(t).replaceAll(m -> Matcher.quoteReplacement(m.group(1).replace("\\", "/")));
 		};
 	}
 

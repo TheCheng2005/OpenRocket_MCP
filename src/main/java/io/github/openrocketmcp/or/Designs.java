@@ -8,12 +8,14 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import info.openrocket.core.document.OpenRocketDocument;
 import info.openrocket.core.document.OpenRocketDocumentFactory;
 import info.openrocket.core.file.GeneralRocketLoader;
 import info.openrocket.core.file.GeneralRocketSaver;
+import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import io.github.openrocketmcp.mcp.ToolException;
 
 /**
@@ -67,7 +69,7 @@ public final class Designs {
 		OrRuntime.init();
 		String match = null;
 		for (String e : EXAMPLES) {
-			if (e.equalsIgnoreCase(name) || e.toLowerCase().contains(name.toLowerCase())) {
+			if (e.equalsIgnoreCase(name) || e.toLowerCase(Locale.ROOT).contains(name.toLowerCase(Locale.ROOT))) {
 				match = e;
 				break;
 			}
@@ -99,7 +101,7 @@ public final class Designs {
 	private Design register(OpenRocketDocument doc, Path path, String origin) {
 		String id = "d" + (++counter);
 		Design d = new Design(id, doc, path, origin);
-		for (info.openrocket.core.rocketcomponent.FlightConfiguration fc : doc.getRocket().getFlightConfigurations()) {
+		for (FlightConfiguration fc : doc.getRocket().getFlightConfigurations()) {
 			Analysis.settle(fc);
 		}
 		designs.put(id, d);
@@ -146,8 +148,14 @@ public final class Designs {
 	}
 
 	public synchronized void close(String id) {
-		if (designs.remove(id) == null) {
+		Design d = designs.remove(id);
+		if (d == null) {
 			throw new ToolException("Unknown designId '" + id + "'.");
+		}
+		// Its imported aero table is kept by rocket id: drop it unless another open copy of the file still uses it.
+		String rid = d.doc.getRocket().getID().toString();
+		if (designs.values().stream().noneMatch(o -> o.doc.getRocket().getID().toString().equals(rid))) {
+			AeroTable.clear(d.doc.getRocket());
 		}
 	}
 
@@ -156,7 +164,7 @@ public final class Designs {
 		if (p == null) {
 			throw new ToolException("This design has no file yet; pass a path ending in .ork.");
 		}
-		if (!p.toString().toLowerCase().endsWith(".ork")) {
+		if (!p.toString().toLowerCase(Locale.ROOT).endsWith(".ork")) {
 			throw new ToolException("Save path must end in .ork");
 		}
 		if (p.getParent() != null) {

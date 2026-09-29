@@ -1,5 +1,6 @@
 package io.github.openrocketmcp.or;
 
+import java.lang.ref.WeakReference;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -26,12 +27,12 @@ final class Branch {
 	 * its key would keep every simulated flight alive for the life of the server (it did: a long session, or the test
 	 * suite, eventually spent all its time in garbage collection).
 	 */
-	private final java.lang.ref.WeakReference<FlightDataBranch> raw;
+	private final WeakReference<FlightDataBranch> raw;
 	final double[] time;
 	private final Map<FlightDataType, double[]> columns = new ConcurrentHashMap<>();
 
 	private Branch(FlightDataBranch raw) {
-		this.raw = new java.lang.ref.WeakReference<>(raw);
+		this.raw = new WeakReference<>(raw);
 		this.time = toArray(raw.get(FlightDataType.TYPE_TIME));
 	}
 

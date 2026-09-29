@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import info.openrocket.core.document.Simulation;
 import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.report.SvgTest;
 import io.github.openrocketmcp.standards.Standards;
 
 class FlightLogTest {
@@ -22,10 +24,10 @@ class FlightLogTest {
 		double[][] tr = FlightLog.simTrack(sim);
 		StringBuilder sb = new StringBuilder("Time (s),Altitude (ft),Velocity (ft/s)\n");
 		for (double t = -2; t < 0; t += 0.05) {
-			sb.append(String.format(java.util.Locale.ROOT, "%.2f,%.1f,0%n", t + 2, 300.0));
+			sb.append(String.format(Locale.ROOT, "%.2f,%.1f,0%n", t + 2, 300.0));
 		}
 		for (int i = 0; i < tr[0].length; i++) {
-			sb.append(String.format(java.util.Locale.ROOT, "%.3f,%.2f,0%n", tr[0][i] + 2, 300 + tr[1][i] / 0.3048));
+			sb.append(String.format(Locale.ROOT, "%.3f,%.2f,0%n", tr[0][i] + 2, 300 + tr[1][i] / 0.3048));
 		}
 		return sb.toString();
 	}
@@ -43,6 +45,7 @@ class FlightLogTest {
 	}
 
 	@Test
+	@SuppressWarnings("unchecked")
 	void closedLoopRecoversTheDragFactor(@TempDir Path tmp) throws Exception {
 		Designs.Design d = new Designs().openExample("Dual parachute");
 		Simulation base = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults(), false);
@@ -56,7 +59,7 @@ class FlightLogTest {
 		assertEquals(1.3, f, 0.05, fit);
 		String svg = Files.readString(tmp.resolve("overlay.svg"));
 		assertTrue(svg.contains("series2") && svg.contains("measured"));
-		io.github.openrocketmcp.report.SvgTest.wellFormed(svg);
+		SvgTest.wellFormed(svg);
 		// Same vehicle: apogee difference ~0 and factor ~1
 		Simulation same = Variants.of(base, d.doc, null, null);
 		Variants.runAll(List.of(same));

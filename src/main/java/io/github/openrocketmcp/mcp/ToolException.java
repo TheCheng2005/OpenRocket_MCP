@@ -5,6 +5,8 @@ package io.github.openrocketmcp.mcp;
  * result with {@code isError: true} rather than as a protocol error, so the model sees the message.
  */
 public class ToolException extends RuntimeException {
+	private static final long serialVersionUID = 1L;
+
 	public ToolException(String message) {
 		super(message);
 	}

@@ -12,6 +12,7 @@ import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.rocketcomponent.SymmetricComponent;
 import info.openrocket.core.rocketcomponent.TrapezoidFinSet;
 import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.report.Xml;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
@@ -191,7 +192,7 @@ public final class FinDesign {
 		s.append(String.format(Locale.ROOT, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"%.0f\" height=\"%.0f\" viewBox=\"0 0 %.0f %.0f\" "
 				+ "font-family=\"sans-serif\">%n", w, h, w, h));
 		s.append("<rect width=\"100%\" height=\"100%\" fill=\"#fcfcfb\"/>\n");
-		s.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"24\" font-size=\"15\" font-weight=\"600\">%s</text>%n", pad, esc(title)));
+		s.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"24\" font-size=\"15\" font-weight=\"600\">%s</text>%n", pad, Xml.esc(title)));
 		s.append(String.format(Locale.ROOT, "<line x1=\"%.0f\" x2=\"%.0f\" y1=\"%.1f\" y2=\"%.1f\" stroke=\"#555\" stroke-width=\"1.5\"/>%n",
 				pad - 20, w - pad + 20, y0, y0));
 		s.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"%.1f\" font-size=\"11\" fill=\"#555\">body tube, flow left to right "
@@ -199,11 +200,11 @@ public final class FinDesign {
 		s.append(poly(current, pad + (oc - minX) * sc, y0, sc, "#9aa4b2", "none", "6 4"));
 		s.append(poly(best, pad + (ob - minX) * sc, y0, sc, "#2a6fdb", "rgba(42,111,219,0.15)", null));
 		s.append(String.format(Locale.ROOT, "<rect x=\"%.0f\" y=\"36\" width=\"14\" height=\"3\" fill=\"#9aa4b2\"/><text x=\"%.0f\" y=\"41\" "
-				+ "font-size=\"12\">current: root %s, tip %s, span %s, %s thick</text>%n", pad, pad + 20, esc(len(current.root())),
-				esc(len(current.tip())), esc(len(current.span())), esc(len(current.thickness()))));
+				+ "font-size=\"12\">current: root %s, tip %s, span %s, %s thick</text>%n", pad, pad + 20, Xml.esc(len(current.root())),
+				Xml.esc(len(current.tip())), Xml.esc(len(current.span())), Xml.esc(len(current.thickness()))));
 		s.append(String.format(Locale.ROOT, "<rect x=\"%.0f\" y=\"54\" width=\"14\" height=\"3\" fill=\"#2a6fdb\"/><text x=\"%.0f\" y=\"59\" "
-				+ "font-size=\"12\">optimized: root %s, tip %s, span %s, %s thick</text>%n", pad, pad + 20, esc(len(best.root())),
-				esc(len(best.tip())), esc(len(best.span())), esc(len(best.thickness()))));
+				+ "font-size=\"12\">optimized: root %s, tip %s, span %s, %s thick</text>%n", pad, pad + 20, Xml.esc(len(best.root())),
+				Xml.esc(len(best.tip())), Xml.esc(len(best.span())), Xml.esc(len(best.thickness()))));
 		s.append("</svg>\n");
 		return s.toString();
 	}
@@ -220,9 +221,5 @@ public final class FinDesign {
 		}
 		return String.format(Locale.ROOT, "<polygon points=\"%s\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\"%s/>%n", b.toString().trim(),
 				fill, stroke, dash == null ? "" : " stroke-dasharray=\"" + dash + "\"");
-	}
-
-	private static String esc(String s) {
-		return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
 	}
 }

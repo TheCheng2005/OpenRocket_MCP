@@ -61,7 +61,7 @@ public final class Structures {
 		double k = std.q("structures.flutterConstant", Dim.DIMENSIONLESS, Flutter.NACA_CONSTANT);
 		FlightConfiguration fc = sim.getRocket().getFlightConfiguration(sim.getFlightConfigurationId());
 		List<FlutterResult> out = new ArrayList<>();
-		for (RocketComponent c : fc.getActiveComponents()) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
 			if (!(c instanceof FinSet f)) {
 				continue;
 			}

@@ -1,14 +1,21 @@
 package io.github.openrocketmcp.or;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.BiFunction;
 
 import info.openrocket.core.document.Simulation;
+import info.openrocket.core.rocketcomponent.BodyTube;
 import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import info.openrocket.core.rocketcomponent.InternalComponent;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.SymmetricComponent;
 import info.openrocket.core.simulation.FlightDataType;
@@ -59,7 +66,7 @@ public final class Geometry {
 		List<Solid> out = new ArrayList<>();
 		// Group body pieces by the axis they sit on (the main stack, or each pod), in axial order.
 		Map<String, List<Object[]>> axes = new LinkedHashMap<>();
-		for (RocketComponent c : fc.getActiveComponents()) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
 			if (c instanceof SymmetricComponent sc && sc.getLength() > 0 && !isInternal(c)) {
 				for (Coordinate a : c.toAbsolute(Coordinate.NUL)) {
 					String key = Math.round(a.y * 1e4) + ":" + Math.round(a.z * 1e4);
@@ -76,7 +83,7 @@ public final class Geometry {
 				SymmetricComponent sc = (SymmetricComponent) p[0];
 				Coordinate a = (Coordinate) p[1];
 				Solid s = new Solid(safe(sc.getName()) + suffix);
-				int n = sc instanceof info.openrocket.core.rocketcomponent.BodyTube ? 1 : 48;
+				int n = sc instanceof BodyTube ? 1 : 48;
 				double[] xs = new double[n + 1];
 				for (int i = 0; i <= n; i++) {
 					double u = (double) i / n;
@@ -103,7 +110,7 @@ public final class Geometry {
 			}
 			axisNo++;
 		}
-		for (RocketComponent c : fc.getActiveComponents()) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
 			if (c instanceof FinSet f) {
 				out.add(fins(f));
 			}
@@ -112,7 +119,7 @@ public final class Geometry {
 	}
 
 	private static boolean isInternal(RocketComponent c) {
-		return c instanceof info.openrocket.core.rocketcomponent.InternalComponent;
+		return c instanceof InternalComponent;
 	}
 
 	public static String safe(String name) {
@@ -171,7 +178,7 @@ public final class Geometry {
 			poly.add(new double[] { p.x, p.y < 1e-9 ? -sink : p.y });
 		}
 		if (area(poly) < 0) {
-			java.util.Collections.reverse(poly);
+			Collections.reverse(poly);
 		}
 		List<int[]> faces = triangulate(poly);
 		int n = f.getFinCount();
@@ -179,7 +186,7 @@ public final class Geometry {
 			for (int k = 0; k < n; k++) {
 				double th = f.getBaseRotation() + 2 * Math.PI * k / n;
 				double cy = Math.cos(th), cz = Math.sin(th), ty = -Math.sin(th), tz = Math.cos(th);
-				java.util.function.BiFunction<double[], Double, double[]> at = (q, side) -> new double[] { fx + q[0],
+				BiFunction<double[], Double, double[]> at = (q, side) -> new double[] { fx + q[0],
 						axis.y + (rBody + q[1]) * cy + side * ty, axis.z + (rBody + q[1]) * cz + side * tz };
 				for (int[] t : faces) { // the two faces
 					s.tri(at.apply(poly.get(t[0]), half), at.apply(poly.get(t[1]), half), at.apply(poly.get(t[2]), half));
@@ -198,7 +205,7 @@ public final class Geometry {
 
 	private static List<Coordinate> uniqueAxes(Coordinate[] cs) {
 		List<Coordinate> out = new ArrayList<>();
-		java.util.Set<String> seen = new java.util.HashSet<>();
+		Set<String> seen = new HashSet<>();
 		for (Coordinate c : cs) {
 			if (seen.add(Math.round(c.y * 1e4) + ":" + Math.round(c.z * 1e4))) {
 				out.add(c);
@@ -207,7 +214,7 @@ public final class Geometry {
 		return out;
 	}
 
-	static double area(List<double[]> p) {
+	public static double area(List<double[]> p) {
 		double a = 0;
 		for (int i = 0; i < p.size(); i++) {
 			double[] u = p.get(i), v = p.get((i + 1) % p.size());
@@ -217,7 +224,7 @@ public final class Geometry {
 	}
 
 	/** Ear clipping of a simple counter-clockwise polygon (fin outlines can be concave). */
-	static List<int[]> triangulate(List<double[]> p) {
+	public static List<int[]> triangulate(List<double[]> p) {
 		List<Integer> idx = new ArrayList<>();
 		for (int i = 0; i < p.size(); i++) {
 			idx.add(i);
@@ -461,7 +468,7 @@ public final class Geometry {
 	/** The file CFD results go back in through import_aero_table (CP in metres from the nose tip). */
 	public static String resultsTemplate(List<Case> cases) {
 		StringBuilder b = new StringBuilder("Mach,Alpha,CD Power-Off,CD Power-On,CP\n");
-		java.util.TreeSet<Double> machs = new java.util.TreeSet<>();
+		TreeSet<Double> machs = new TreeSet<>();
 		for (Case c : cases) {
 			if (c.name().startsWith("M")) {
 				machs.add(c.mach());

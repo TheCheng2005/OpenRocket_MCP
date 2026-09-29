@@ -7,8 +7,10 @@ import java.util.Locale;
 import java.util.Map;
 
 import info.openrocket.core.document.Simulation;
+import info.openrocket.core.rocketcomponent.DeploymentConfiguration;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.MassComponent;
+import info.openrocket.core.rocketcomponent.NoseCone;
 import info.openrocket.core.rocketcomponent.RecoveryDevice;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.Transition;
@@ -21,6 +23,7 @@ import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sims;
+import io.github.openrocketmcp.or.Winds;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
@@ -81,11 +84,11 @@ public final class StatusTools {
 		// Recovery set-up.
 		int devices = 0, deploying = 0;
 		boolean electronics = false;
-		for (RocketComponent c : fc.getActiveComponents()) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
 			if (c instanceof RecoveryDevice rd) {
 				devices++;
 				var dc = rd.getDeploymentConfigurations().get(fc.getId());
-				if (dc != null && dc.getDeployEvent() != null && dc.getDeployEvent() != info.openrocket.core.rocketcomponent.DeploymentConfiguration.DeployEvent.NEVER) {
+				if (dc != null && dc.getDeployEvent() != null && dc.getDeployEvent() != DeploymentConfiguration.DeployEvent.NEVER) {
 					deploying++;
 				}
 			}
@@ -117,7 +120,7 @@ public final class StatusTools {
 				double maxWind = std.rule("maxGroundWind.value", Dim.VELOCITY);
 				if (!Double.isNaN(maxWind)) {
 					wind = sim.copy();
-					io.github.openrocketmcp.or.Winds.setGround(wind.getOptions(), maxWind, Double.NaN);
+					Winds.setGround(wind.getOptions(), maxWind, Double.NaN);
 					Sims.run(wind);
 				}
 				rules = Requirements.check(sim, wind, std).render(std.rulesName());
@@ -140,8 +143,8 @@ public final class StatusTools {
 
 		// Aero data where Launch Canada expects it.
 		boolean diameterChange = false;
-		for (RocketComponent c : fc.getActiveComponents()) {
-			if (c instanceof Transition t && !(c instanceof info.openrocket.core.rocketcomponent.NoseCone)
+		for (RocketComponent c : fc.getAllActiveComponents()) {
+			if (c instanceof Transition t && !(c instanceof NoseCone)
 					&& Math.abs(t.getForeRadius() - t.getAftRadius()) > 1e-4) {
 				diameterChange = true;
 			}
@@ -167,7 +170,7 @@ public final class StatusTools {
 		}
 
 		// Mass overrides that hide edits.
-		for (RocketComponent c : fc.getActiveComponents()) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
 			String w = Components.overrideWarning(c);
 			if (w != null && c.isMassOverridden() && c.isSubcomponentsOverriddenMass()) {
 				items.add(new Item("Mass", "INFO", w, "Update the override after weighing, or remove it while designing.", 7));

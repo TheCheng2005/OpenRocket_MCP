@@ -8,15 +8,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.jupiter.api.Test;
-
 import com.google.gson.JsonParser;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import info.openrocket.core.document.Simulation;
+import info.openrocket.core.masscalc.MassCalculator;
 import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.NoseCone;
 import info.openrocket.core.rocketcomponent.RocketComponent;
+import info.openrocket.core.rocketcomponent.TrapezoidFinSet;
+import info.openrocket.core.simulation.FlightEvent;
 import io.github.openrocketmcp.calc.Flutter;
 import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.standards.Standards;
@@ -42,7 +47,7 @@ class StructuresTest {
 		Designs.Design d = new Designs().openExample("Dual parachute");
 		FinSet f = first(d, FinSet.class);
 		Flutter.Fin g = Structures.geometry(f, Double.NaN);
-		if (f instanceof info.openrocket.core.rocketcomponent.TrapezoidFinSet t) {
+		if (f instanceof TrapezoidFinSet t) {
 			assertEquals(t.getRootChord(), g.rootChord(), 1e-9);
 			assertEquals(t.getTipChord(), g.tipChord(), 1e-9);
 			assertEquals(t.getHeight(), g.span(), 1e-9);
@@ -70,7 +75,7 @@ class StructuresTest {
 		// Booster fins are only checked until the booster separates
 		double sep = Double.NaN;
 		for (var e : sim.getSimulatedData().getBranch(0).getEvents()) {
-			if (e.getType() == info.openrocket.core.simulation.FlightEvent.Type.STAGE_SEPARATION) {
+			if (e.getType() == FlightEvent.Type.STAGE_SEPARATION) {
 				sep = e.getTime();
 			}
 		}
@@ -127,15 +132,15 @@ class StructuresTest {
 				stage = c;
 			}
 		}
-		org.junit.jupiter.api.Assertions.assertNotNull(stage, "example has a weighed-mass override");
+		Assertions.assertNotNull(stage, "example has a weighed-mass override");
 		FlightConfiguration fc = d.doc.getRocket().getSelectedConfiguration();
-		double before = info.openrocket.core.masscalc.MassCalculator.calculateLaunch(fc).getMass();
-		double cgBefore = info.openrocket.core.masscalc.MassCalculator.calculateLaunch(fc).getCM().x;
+		double before = MassCalculator.calculateLaunch(fc).getMass();
+		double cgBefore = MassCalculator.calculateLaunch(fc).getCM().x;
 		NoseCone nose = first(d, NoseCone.class);
 		Structures.addBallast(nose, 0.1, 0.2);
 		fc = d.doc.getRocket().getSelectedConfiguration();
-		assertEquals(before + 0.2, info.openrocket.core.masscalc.MassCalculator.calculateLaunch(fc).getMass(), 1e-9);
-		assertTrue(info.openrocket.core.masscalc.MassCalculator.calculateLaunch(fc).getCM().x < cgBefore, "CG moves forward");
+		assertEquals(before + 0.2, MassCalculator.calculateLaunch(fc).getMass(), 1e-9);
+		assertTrue(MassCalculator.calculateLaunch(fc).getCM().x < cgBefore, "CG moves forward");
 	}
 
 	@Test
@@ -158,8 +163,8 @@ class StructuresTest {
 		}
 	}
 
-	@org.junit.jupiter.params.ParameterizedTest
-	@org.junit.jupiter.params.provider.CsvSource({ "Two stage high power,1.9", "Two stage high power,2.2", "Two stage high power,2.6",
+	@ParameterizedTest
+	@CsvSource({ "Two stage high power,1.9", "Two stage high power,2.2", "Two stage high power,2.6",
 			"Dual parachute,4.5", "Dual parachute,5.2" })
 	void ballastSolveConvergesForManyTargets(String example, double target) throws Exception {
 		Designs.Design d = new Designs().openExample(example);

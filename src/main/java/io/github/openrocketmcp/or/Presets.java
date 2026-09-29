@@ -1,6 +1,7 @@
 package io.github.openrocketmcp.or;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -34,7 +35,7 @@ public final class Presets {
 		try {
 			return ComponentPreset.Type.valueOf(n);
 		} catch (IllegalArgumentException e) {
-			throw new ToolException("Unknown part type '" + name + "'. Types: " + java.util.Arrays.toString(ComponentPreset.Type.values()));
+			throw new ToolException("Unknown part type '" + name + "'. Types: " + Arrays.toString(ComponentPreset.Type.values()));
 		}
 	}
 

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import info.openrocket.core.simulation.FlightEvent;
 import io.github.openrocketmcp.calc.Advanced;
 import io.github.openrocketmcp.standards.Standards;
 
@@ -62,7 +63,7 @@ class DynamicsTest {
 		Designs.Design d = new Designs().openExample("Two stage high power");
 		Simulation sim = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults());
 		Sims.run(sim);
-		double sep = Sims.eventTime(sim.getSimulatedData().getBranch(0), info.openrocket.core.simulation.FlightEvent.Type.STAGE_SEPARATION);
+		double sep = Sims.eventTime(sim.getSimulatedData().getBranch(0), FlightEvent.Type.STAGE_SEPARATION);
 		FlightConfiguration sustainer = Dynamics.stack(sim.getRocket().getSelectedConfiguration(), 1);
 		double pctPerCal = Analysis.maxDiameter(sustainer) / sustainer.getLengthAerodynamic() * 100;
 		boolean checked = false;

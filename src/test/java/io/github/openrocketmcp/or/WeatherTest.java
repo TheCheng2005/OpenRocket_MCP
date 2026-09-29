@@ -13,15 +13,15 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.sun.net.httpserver.HttpServer;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import info.openrocket.core.document.Simulation;
 import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.report.FlightCard;
 import io.github.openrocketmcp.standards.Standards;
 
 class WeatherTest {
@@ -111,7 +111,7 @@ class WeatherTest {
 
 			// Flight card from the forecast conditions
 			Path card = tmp.resolve("card.md");
-			Map<String, Object> out = io.github.openrocketmcp.report.FlightCard.write(d, sim, Standards.defaults(), card, "test site");
+			Map<String, Object> out = FlightCard.write(d, sim, Standards.defaults(), card, "test site");
 			String md = Files.readString(card);
 			for (String h : new String[] { "# Flight card", "## Vehicle", "## Motors", "optimumDelay", "## Recovery settings",
 					"### Sections", "## Drift vs ground wind", "## Rule check", "## Sign-off" }) {

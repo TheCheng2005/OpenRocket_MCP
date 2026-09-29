@@ -1,5 +1,7 @@
 package io.github.openrocketmcp.tools;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import io.github.openrocketmcp.mcp.ToolException;
@@ -75,12 +77,12 @@ public final class Context {
 		try {
 			Path root = workspace.toRealPath();
 			for (Path p = r; p != null; p = p.getParent()) {
-				if (java.nio.file.Files.exists(p)) {
+				if (Files.exists(p)) {
 					return p.toRealPath().startsWith(root);
 				}
 			}
 			return false;
-		} catch (java.io.IOException e) {
+		} catch (IOException e) {
 			return false;
 		}
 	}

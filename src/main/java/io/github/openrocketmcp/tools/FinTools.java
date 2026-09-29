@@ -6,23 +6,28 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.TrapezoidFinSet;
+import info.openrocket.core.rocketcomponent.position.AxialMethod;
 import io.github.openrocketmcp.mcp.Args;
+import io.github.openrocketmcp.mcp.CallContext;
 import io.github.openrocketmcp.mcp.McpServer;
 import io.github.openrocketmcp.mcp.Schema;
 import io.github.openrocketmcp.mcp.ToolDef;
 import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.or.AeroTable;
 import io.github.openrocketmcp.or.Analysis;
 import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.FinDesign;
 import io.github.openrocketmcp.or.Optimizer;
 import io.github.openrocketmcp.or.Sims;
+import io.github.openrocketmcp.report.Png;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
@@ -79,7 +84,7 @@ public final class FinTools {
 					+ "Freeform and elliptical fins can be tuned with optimize (e.g. \"height\" or \"length\").");
 		}
 		List<TrapezoidFinSet> found = new ArrayList<>();
-		for (RocketComponent c : d.doc.getRocket().getSelectedConfiguration().getActiveComponents()) {
+		for (RocketComponent c : d.doc.getRocket().getSelectedConfiguration().getAllActiveComponents()) {
 			if (c instanceof TrapezoidFinSet t) {
 				found.add(t);
 			}
@@ -94,7 +99,7 @@ public final class FinTools {
 	private static Object optimize(Context ctx, Args a) {
 		Designs.Design d = ctx.designs.get(a.str("designId", null));
 		TrapezoidFinSet fin = trapezoid(d, a);
-		Optimizer.Objective obj = Optimizer.Objective.valueOf(a.str("objective", "max_apogee").toUpperCase());
+		Optimizer.Objective obj = Optimizer.Objective.valueOf(a.str("objective", "max_apogee").toUpperCase(Locale.ROOT));
 		double target = obj == Optimizer.Objective.TARGET_APOGEE ? a.qty("targetApogee", Dim.DISTANCE) : Double.NaN;
 		FinDesign.Limits lim = FinDesign.defaults(fin, a.qtyOrNaN("minRootChord", Dim.LENGTH), a.qtyOrNaN("maxRootChord", Dim.LENGTH),
 				a.qtyOrNaN("minSpan", Dim.LENGTH), a.qtyOrNaN("maxSpan", Dim.LENGTH), a.qtyOrNaN("minTipChord", Dim.LENGTH),
@@ -112,7 +117,7 @@ public final class FinTools {
 		double windCase = a.bool("checkDesignWind", true) && !Double.isNaN(maxWind) ? maxWind : Double.NaN;
 		int budget = Math.max(16, Math.min(300, a.integer("maxEvaluations", 48)));
 		long t0 = System.nanoTime();
-		io.github.openrocketmcp.mcp.CallContext.current().expect((thick.size() * budget + 1) * (Double.isNaN(windCase) ? 1 : 2), "simulations");
+		CallContext.current().expect((thick.size() * budget + 1) * (Double.isNaN(windCase) ? 1 : 2), "simulations");
 		List<FinDesign.Run> runs = FinDesign.optimize(base, d.doc, fin, lim, thick, obj, target, c, budget, windCase);
 
 		// Best over all thicknesses (feasibility first, then the objective).
@@ -153,7 +158,7 @@ public final class FinTools {
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("finSet", fin.getName() + " [" + Components.shortId(fin) + "], " + fin.getFinCount() + " fins, "
 				+ fin.getMaterial().getName());
-		out.put("objective", obj.name().toLowerCase() + (Double.isNaN(target) ? "" : " " + Units.fmt(target, Dim.DISTANCE)));
+		out.put("objective", obj.name().toLowerCase(Locale.ROOT) + (Double.isNaN(target) ? "" : " " + Units.fmt(target, Dim.DISTANCE)));
 		Map<String, Object> cons = AnalysisTools.describe(c, windCase, basis[0]);
 		cons.put("shape", "root " + Units.fmt(lim.rootMin(), Dim.LENGTH) + " to " + Units.fmt(lim.rootMax(), Dim.LENGTH) + ", span "
 				+ Units.fmt(lim.spanMin(), Dim.LENGTH) + " to " + Units.fmt(lim.spanMax(), Dim.LENGTH) + ", tip chord >= "
@@ -196,7 +201,7 @@ public final class FinTools {
 					+ "Widen the bounds (maxSpan, maxRootChord), add nose ballast, or relax a constraint.");
 		}
 		List<String> notes = new ArrayList<>();
-		var table = io.github.openrocketmcp.or.AeroTable.of(d.doc.getRocket());
+		var table = AeroTable.of(d.doc.getRocket());
 		notes.add("Aerodynamics are OpenRocket's (Barrowman with its transonic and supersonic extensions), because they follow the "
 				+ "fin shape" + (table != null ? "; the imported aero table (" + table.source() + ") describes the current fins only and "
 						+ "was not used. Re-run CFD / RASAero on the chosen fins (export_geometry) and import it again" : "")
@@ -213,8 +218,8 @@ public final class FinTools {
 					Files.createDirectories(p.getParent());
 				}
 				Files.writeString(p, FinDesign.svg(d.name() + ": " + fin.getName() + " planform", now, bestShape,
-						fin.getAxialMethod() == info.openrocket.core.rocketcomponent.position.AxialMethod.BOTTOM));
-				io.github.openrocketmcp.report.Png.attachFile(p, "Current and optimized fin planforms");
+						fin.getAxialMethod() == AxialMethod.BOTTOM));
+				Png.attachFile(p, "Current and optimized fin planforms");
 			} catch (IOException e) {
 				throw new ToolException("Could not write " + p + ": " + e.getMessage());
 			}

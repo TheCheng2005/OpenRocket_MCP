@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -44,7 +45,7 @@ public class SvgTest {
 	void ticksCoverRange() {
 		for (double[] r : new double[][] { { 0, 1 }, { -3.2, 7.9 }, { 1.49, 1.51 }, { 0, 12000 } }) {
 			double[] t = Svg.ticks(r[0], r[1]);
-			assertTrue(t.length >= 2 && t.length <= 12, java.util.Arrays.toString(t));
+			assertTrue(t.length >= 2 && t.length <= 12, Arrays.toString(t));
 			for (int i = 1; i < t.length; i++) {
 				assertTrue(t[i] > t[i - 1]);
 			}

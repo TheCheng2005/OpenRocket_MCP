@@ -2,25 +2,33 @@ package io.github.openrocketmcp.tools;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.motor.IgnitionEvent;
 import info.openrocket.core.motor.MotorConfiguration;
 import info.openrocket.core.motor.ThrustCurveMotor;
+import info.openrocket.core.rocketcomponent.DeploymentConfiguration;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import info.openrocket.core.rocketcomponent.FlightConfigurationId;
 import info.openrocket.core.rocketcomponent.MotorMount;
+import info.openrocket.core.rocketcomponent.RecoveryDevice;
 import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.simulation.FlightData;
 import info.openrocket.core.simulation.FlightDataType;
 import io.github.openrocketmcp.calc.Atmosphere;
 import io.github.openrocketmcp.mcp.Args;
+import io.github.openrocketmcp.mcp.CallContext;
 import io.github.openrocketmcp.mcp.McpServer;
 import io.github.openrocketmcp.mcp.Schema;
 import io.github.openrocketmcp.mcp.ToolDef;
@@ -28,6 +36,7 @@ import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.Motors;
+import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sims;
 import io.github.openrocketmcp.or.Variants;
 import io.github.openrocketmcp.units.Dim;
@@ -108,7 +117,7 @@ public final class MotorTools {
 					FlightConfiguration fc;
 					if (rocket.getIds().isEmpty() || (!a.has("configuration") && !rocket.getSelectedConfiguration().hasMotors()
 							&& rocket.getConfigurationCount() == 0)) {
-						fc = rocket.createFlightConfiguration(new info.openrocket.core.rocketcomponent.FlightConfigurationId());
+						fc = rocket.createFlightConfiguration(new FlightConfigurationId());
 						rocket.setSelectedConfiguration(fc.getId());
 					} else {
 						fc = Components.config(rocket, a.str("configuration", null));
@@ -122,7 +131,7 @@ public final class MotorTools {
 						mc.setEjectionDelay(Motors.defaultDelay(motor));
 					}
 					if (a.has("ignitionEvent")) {
-						mc.setIgnitionEvent(IgnitionEvent.valueOf(a.str("ignitionEvent").toUpperCase()));
+						mc.setIgnitionEvent(IgnitionEvent.valueOf(a.str("ignitionEvent").toUpperCase(Locale.ROOT)));
 					}
 					if (a.has("ignitionDelay")) {
 						mc.setIgnitionDelay(a.qty("ignitionDelay", Dim.TIME));
@@ -217,13 +226,13 @@ public final class MotorTools {
 				}));
 	}
 
-	private static com.google.gson.JsonObject thrustCurveSchema() {
-		com.google.gson.JsonObject point = new com.google.gson.JsonObject();
+	private static JsonObject thrustCurveSchema() {
+		JsonObject point = new JsonObject();
 		point.addProperty("type", "array");
 		point.add("items", Schema.type("number", null));
 		point.addProperty("minItems", 2);
 		point.addProperty("maxItems", 2);
-		com.google.gson.JsonObject s = Schema.type("array", "Thrust curve as [[time_s, thrust_N], ...], starting near t=0.");
+		JsonObject s = Schema.type("array", "Thrust curve as [[time_s, thrust_N], ...], starting near t=0.");
 		s.add("items", point);
 		return s;
 	}
@@ -261,11 +270,11 @@ public final class MotorTools {
 	}
 
 	private static double minTwrRule(Context ctx) {
-		com.google.gson.JsonObject rules = ctx.standards().rules();
+		JsonObject rules = ctx.standards().rules();
 		if (!rules.has("thrustToWeight")) {
 			return Double.NaN;
 		}
-		com.google.gson.JsonObject byYear = rules.getAsJsonObject("thrustToWeight").getAsJsonObject("minByYear");
+		JsonObject byYear = rules.getAsJsonObject("thrustToWeight").getAsJsonObject("minByYear");
 		String year = ctx.standards().str("competitionYear", "2026");
 		return byYear != null && byYear.has(year) ? byYear.get(year).getAsDouble() : Double.NaN;
 	}
@@ -281,7 +290,7 @@ public final class MotorTools {
 		FlightConfiguration fc;
 		if (rocket.getIds().isEmpty()) {
 			// A new design has no flight configuration yet: create one so candidates have somewhere to go.
-			fc = rocket.createFlightConfiguration(new info.openrocket.core.rocketcomponent.FlightConfigurationId());
+			fc = rocket.createFlightConfiguration(new FlightConfigurationId());
 			rocket.setSelectedConfiguration(fc.getId());
 			d.doc.setSaved(false);
 			res.put("createdConfiguration", fc.getId().toString().substring(0, 8));
@@ -299,7 +308,7 @@ public final class MotorTools {
 		}
 		Map<String, ThrustCurveMotor> unique = new LinkedHashMap<>();
 		for (ThrustCurveMotor m : Motors.search(f)) {
-			unique.putIfAbsent(m.getManufacturer().getSimpleName() + "|" + m.getDesignation().toUpperCase(), m);
+			unique.putIfAbsent(m.getManufacturer().getSimpleName() + "|" + m.getDesignation().toUpperCase(Locale.ROOT), m);
 		}
 		List<ThrustCurveMotor> candidates = new ArrayList<>(unique.values());
 		if (candidates.isEmpty()) {
@@ -321,7 +330,7 @@ public final class MotorTools {
 		double twrRule = minTwrRule(ctx);
 		double stabRule = ctx.standards().rule("stability.minCalibers", Dim.DIMENSIONLESS);
 
-		java.util.function.Function<List<ThrustCurveMotor>, List<Ranked>> simulate = batch -> {
+		Function<List<ThrustCurveMotor>, List<Ranked>> simulate = batch -> {
 			List<Simulation> variants = new ArrayList<>();
 			for (ThrustCurveMotor m : batch) {
 				variants.add(Variants.of(base, d.doc, r -> {
@@ -367,7 +376,7 @@ public final class MotorTools {
 						issues.add(dep.device().getName() + " deploys " + Units.num(-dep.timeAfterApogee()) + " s before apogee");
 					}
 				}
-				issues.addAll(io.github.openrocketmcp.or.Requirements.lateFirstDeployments(sim));
+				issues.addAll(Requirements.lateFirstDeployments(sim));
 				out.add(new Ranked(m, data.getMaxAltitude(), data.getLaunchRodVelocity(), twr, data.getMaxMachNumber(),
 						data.getOptimumDelay(), minStab, issues));
 			}
@@ -376,7 +385,7 @@ public final class MotorTools {
 
 		// Pass 1: spread over the impulse range. Pass 2: concentrate on the region the objective points to.
 		candidates.sort((x, y) -> Double.compare(x.getTotalImpulseEstimate(), y.getTotalImpulseEstimate()));
-		io.github.openrocketmcp.mcp.CallContext.current().expect(Math.min(budget, candidates.size()), "motors flown");
+		CallContext.current().expect(Math.min(budget, candidates.size()), "motors flown");
 		List<ThrustCurveMotor> first = spread(candidates, candidates.size() <= budget ? candidates.size() : budget / 2);
 		List<Ranked> results = new ArrayList<>(simulate.apply(first));
 		if (candidates.size() > first.size()) {
@@ -388,12 +397,12 @@ public final class MotorTools {
 			results.addAll(simulate.apply(rest.subList(0, Math.min(budget - first.size(), rest.size()))));
 		}
 
-		java.util.Comparator<Ranked> byObjective = switch (objective) {
-			case "target_apogee" -> java.util.Comparator.comparingDouble(r -> Math.abs(r.apogee() - target));
-			case "min_impulse_meeting_rules" -> java.util.Comparator.comparingDouble(r -> r.motor().getTotalImpulseEstimate());
-			default -> java.util.Comparator.comparingDouble(r -> -r.apogee());
+		Comparator<Ranked> byObjective = switch (objective) {
+			case "target_apogee" -> Comparator.comparingDouble(r -> Math.abs(r.apogee() - target));
+			case "min_impulse_meeting_rules" -> Comparator.comparingDouble(r -> r.motor().getTotalImpulseEstimate());
+			default -> Comparator.comparingDouble(r -> -r.apogee());
 		};
-		results.sort(java.util.Comparator.comparing((Ranked r) -> !r.compliant()).thenComparing(byObjective));
+		results.sort(Comparator.comparing((Ranked r) -> !r.compliant()).thenComparing(byObjective));
 
 		List<Map<String, Object>> rows = new ArrayList<>();
 		int shown = Math.min(a.integer("limit", 12), results.size());
@@ -422,8 +431,8 @@ public final class MotorTools {
 		res.put("ranking", rows);
 		List<String> onEjection = new ArrayList<>();
 		for (RocketComponent rc : rocket) {
-			if (rc instanceof info.openrocket.core.rocketcomponent.RecoveryDevice rd && rd.getDeploymentConfigurations().get(fc.getId())
-					.getDeployEvent() == info.openrocket.core.rocketcomponent.DeploymentConfiguration.DeployEvent.EJECTION) {
+			if (rc instanceof RecoveryDevice rd && rd.getDeploymentConfigurations().get(fc.getId())
+					.getDeployEvent() == DeploymentConfiguration.DeployEvent.EJECTION) {
 				onEjection.add(rd.getName());
 			}
 		}
@@ -460,7 +469,7 @@ public final class MotorTools {
 		}
 		switch (objective) {
 			case "target_apogee" -> {
-				Ranked best = s.stream().min(java.util.Comparator.comparingDouble(x -> Math.abs(x.apogee() - target))).get();
+				Ranked best = s.stream().min(Comparator.comparingDouble(x -> Math.abs(x.apogee() - target))).get();
 				for (int i = 0; i + 1 < s.size(); i++) {
 					double a0 = s.get(i).apogee(), a1 = s.get(i + 1).apogee();
 					if ((a0 - target) * (a1 - target) <= 0 && a1 != a0) {

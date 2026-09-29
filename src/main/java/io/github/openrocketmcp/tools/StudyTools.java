@@ -1,10 +1,14 @@
 package io.github.openrocketmcp.tools;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import info.openrocket.core.document.Simulation;
+import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.NoseCone;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import io.github.openrocketmcp.mcp.McpServer;
@@ -13,8 +17,11 @@ import io.github.openrocketmcp.mcp.ToolDef;
 import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
+import io.github.openrocketmcp.or.Diff;
+import io.github.openrocketmcp.or.Heating;
 import io.github.openrocketmcp.or.Loads;
 import io.github.openrocketmcp.or.Requirements;
+import io.github.openrocketmcp.or.Roll;
 import io.github.openrocketmcp.or.Sections;
 import io.github.openrocketmcp.or.Shapes;
 import io.github.openrocketmcp.or.Sims;
@@ -102,11 +109,11 @@ public final class StudyTools {
 					StringBuilder csv = a.has("csvPath") ? new StringBuilder() : null;
 					Map<String, Object> out = Loads.analyze(sim, gust, sf, a.qtyOrNaN("allowableStress", Dim.PRESSURE), csv);
 					if (csv != null) {
-						java.nio.file.Path p = ctx.path(a.str("csvPath"));
+						Path p = ctx.path(a.str("csvPath"));
 						if (p.getParent() != null) {
-							java.nio.file.Files.createDirectories(p.getParent());
+							Files.createDirectories(p.getParent());
 						}
-						java.nio.file.Files.writeString(p, csv.toString());
+						Files.writeString(p, csv.toString());
 						out.put("csv", p.toAbsolutePath().toString());
 					}
 					return out;
@@ -140,18 +147,18 @@ public final class StudyTools {
 						base = ctx.designs.get(a.str("baselineDesignId"));
 						label = base.id;
 					} else if (a.has("baselinePath")) {
-						java.nio.file.Path p = ctx.path(a.str("baselinePath"));
-						base = io.github.openrocketmcp.or.Diff.load(p, "file");
+						Path p = ctx.path(a.str("baselinePath"));
+						base = Diff.load(p, "file");
 						label = p.getFileName().toString();
 					} else {
-						base = io.github.openrocketmcp.or.Diff.loadRevision(d, a.str("revision"));
+						base = Diff.loadRevision(d, a.str("revision"));
 						label = a.str("revision");
 					}
 					String current = d.path != null ? d.path.getFileName().toString() : d.id;
 					if (current.equals(label)) {
 						current = "current";
 					}
-					return io.github.openrocketmcp.or.Diff.compare(base, d, label, current, a.str("simulation", null),
+					return Diff.compare(base, d, label, current, a.str("simulation", null),
 							a.str("configuration", null), a.bool("sameConditions", true), ctx.standards(),
 							a.has("path") ? ctx.path(a.str("path")) : null);
 				}));
@@ -165,7 +172,7 @@ public final class StudyTools {
 						.qty("noseTipRadius", "Nose tip radius for the heat flux (default 5 mm).", false).build(),
 				true, a -> {
 					Simulation sim = SimTools.runSelected(ctx, a);
-					return io.github.openrocketmcp.or.Heating.analyze(sim, ctx.standards(), a.qty("noseTipRadius", Dim.LENGTH, 0.005));
+					return Heating.analyze(sim, ctx.standards(), a.qty("noseTipRadius", Dim.LENGTH, 0.005));
 				}));
 
 		s.tool(new ToolDef("roll_analysis", "Roll from fin misalignment",
@@ -181,23 +188,23 @@ public final class StudyTools {
 					Designs.Design d = ctx.designs.get(a.str("designId", null));
 					Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
 							ctx.standards(), false);
-					java.util.List<Double> cants = a.has("cantAngles") ? a.qtyList("cantAngles", Dim.ANGLE)
-							: java.util.List.of(0.0, Math.toRadians(0.1), Math.toRadians(0.25), Math.toRadians(0.5), Math.toRadians(1),
+					List<Double> cants = a.has("cantAngles") ? a.qtyList("cantAngles", Dim.ANGLE)
+							: List.of(0.0, Math.toRadians(0.1), Math.toRadians(0.25), Math.toRadians(0.5), Math.toRadians(1),
 									Math.toRadians(2));
 					String finId = null;
 					int finCount = 4;
 					if (a.has("finSet")) {
-						var f = Components.find(base.getRocket(), a.str("finSet"), info.openrocket.core.rocketcomponent.FinSet.class, "fin set");
+						var f = Components.find(base.getRocket(), a.str("finSet"), FinSet.class, "fin set");
 						finId = f.getID().toString();
 						finCount = f.getFinCount();
 					} else {
 						for (RocketComponent c : base.getRocket()) {
-							if (c instanceof info.openrocket.core.rocketcomponent.FinSet f) {
+							if (c instanceof FinSet f) {
 								finCount = f.getFinCount();
 							}
 						}
 					}
-					return io.github.openrocketmcp.or.Roll.render(io.github.openrocketmcp.or.Roll.sweep(base, d.doc, finId, cants),
+					return Roll.render(Roll.sweep(base, d.doc, finId, cants),
 							a.num("maxRollRate", 2), finCount);
 				}));
 	}

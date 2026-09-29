@@ -1,6 +1,5 @@
 package io.github.openrocketmcp.tools;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -99,7 +98,7 @@ public final class LaunchTools {
 						Weather.apply(sim.getOptions(), f, top, lat, lon);
 						d.doc.setSaved(false);
 						Sims.run(sim);
-						Map<String, Object> fl = new LinkedHashMap<>(io.github.openrocketmcp.or.Sims.flightMetrics(sim.getSimulatedData()));
+						Map<String, Object> fl = new LinkedHashMap<>(Sims.flightMetrics(sim.getSimulatedData()));
 						out.put("flightInForecast", fl);
 						out.put("applied", "wind profile, site altitude, temperature and pressure set on '" + sim.getName()
 								+ "'; every tool now flies this forecast. Next: monte_carlo for the landing area, check_requirements, flight_card.");

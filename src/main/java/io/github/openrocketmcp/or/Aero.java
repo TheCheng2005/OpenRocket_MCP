@@ -14,6 +14,7 @@ import info.openrocket.core.masscalc.MassCalculator;
 import info.openrocket.core.masscalc.RigidBody;
 import info.openrocket.core.rocketcomponent.ComponentAssembly;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.util.Coordinate;
 import io.github.openrocketmcp.units.Dim;
@@ -83,7 +84,7 @@ public final class Aero {
 		List<Object[]> rows = new ArrayList<>();
 		for (Map.Entry<RocketComponent, AerodynamicForces> e : map.entrySet()) {
 			AerodynamicForces f = e.getValue();
-			if (e.getKey() instanceof info.openrocket.core.rocketcomponent.Rocket) {
+			if (e.getKey() instanceof Rocket) {
 				total = nz(f.getFrictionCD()) + nz(f.getPressureCD()) + nz(f.getBaseCD());
 			}
 			if (e.getKey() instanceof ComponentAssembly) {
@@ -132,8 +133,10 @@ public final class Aero {
 		WarningSet w = new WarningSet();
 		BarrowmanCalculator calc = new BarrowmanCalculator();
 		calc.getAerodynamicForces(fc, conditions(fc, mach), w);
-		for (RocketComponent c : fc.getActiveComponents()) {
-			calc.checkGeometry(fc, c, w);
+		for (RocketComponent c : fc.getAllActiveComponents()) {
+			if (!(c instanceof Rocket)) {
+				calc.checkGeometry(fc, c, w);
+			}
 		}
 		List<String> out = new ArrayList<>();
 		for (Warning x : w) {

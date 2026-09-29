@@ -12,9 +12,11 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import info.openrocket.core.document.Simulation;
+import info.openrocket.core.masscalc.MassCalculator;
 import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.NoseCone;
+import info.openrocket.core.rocketcomponent.RecoveryDevice;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.simulation.FlightDataBranch;
 import info.openrocket.core.simulation.FlightDataType;
@@ -113,7 +115,7 @@ class StudiesTest {
 				RocketComponent inner = s.pieces().get(i);
 				boolean bay = false;
 				for (RocketComponent c : inner) {
-					bay |= c instanceof info.openrocket.core.rocketcomponent.RecoveryDevice;
+					bay |= c instanceof RecoveryDevice;
 				}
 				assertFalse(bay, "a bay starts a new section: " + inner.getName());
 			}
@@ -150,7 +152,7 @@ class StudiesTest {
 		FlightConfiguration fc = d.doc.getRocket().getSelectedConfiguration();
 		double[] motor = new double[2];
 		List<Loads.Point> pts = Loads.structure(fc, motor);
-		double launch = info.openrocket.core.masscalc.MassCalculator.calculateLaunch(fc).getMass();
+		double launch = MassCalculator.calculateLaunch(fc).getMass();
 		assertEquals(launch, pts.stream().mapToDouble(Loads.Point::m).sum() + motor[0], 1e-6 * launch);
 		Loads.Aero a = Loads.aero(fc, 0.5);
 		double tail = fc.getLength() + 0.1;

@@ -1,0 +1,142 @@
+package io.github.openrocketmcp.report;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.awt.image.BufferedImage;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import info.openrocket.core.document.Simulation;
+import io.github.openrocketmcp.or.Designs;
+import io.github.openrocketmcp.or.FlightTrack;
+import io.github.openrocketmcp.or.Sims;
+import io.github.openrocketmcp.standards.Standards;
+
+class FlightAnimationTest {
+	static Simulation sim;
+	static FlightTrack.Flight flight;
+
+	@BeforeAll
+	static void fly() throws Exception {
+		Designs.Design d = new Designs().openExample("Dual parachute");
+		sim = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults());
+		Sims.run(sim);
+		flight = FlightTrack.of(sim);
+	}
+
+	static FlightAnimation anim(double duration, double fps, int width) {
+		return new FlightAnimation(flight, sim.getActiveConfiguration(), sim.getOptions().getLaunchRodLength(),
+				new FlightAnimation.Options(width, fps, duration, "Test", "sub"));
+	}
+
+	/** OpenRocket's attitude (theta = elevation, phi = heading from east) points along the flight path in the coast. */
+	@Test
+	void attitudeFollowsTheFlightPath() {
+		FlightTrack.Track m = flight.main();
+		double t = 0.5 * (flight.burnout() + flight.apogeeTime());
+		double[] ax = m.axis(t), a = m.position(t - 0.05), b = m.position(t + 0.05);
+		double[] v = { b[0] - a[0], b[1] - a[1], b[2] - a[2] };
+		double l = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+		assertTrue((ax[0] * v[0] + ax[1] * v[1] + ax[2] * v[2]) / l > 0.95, "nose along the velocity");
+	}
+
+	@Test
+	void eventsAreInOrderAndComplete() {
+		double last = -1;
+		StringBuilder kinds = new StringBuilder();
+		for (FlightTrack.Event e : flight.events()) {
+			assertTrue(e.time() >= last);
+			last = e.time();
+			kinds.append(e.kind()).append(' ');
+		}
+		for (String k : new String[] { "liftoff", "burnout", "apogee", "deploy", "landing", "maxv" }) {
+			assertTrue(kinds.toString().contains(k), k + " in " + kinds);
+		}
+	}
+
+	@Test
+	void playbackIsRealTimeInTheBurnAndFitsTheLength() {
+		FlightAnimation a = anim(20, 10, 480);
+		assertEquals(1, a.rate(0.5 * flight.burnout()), 1e-9, "real time while the motor burns");
+		double fastest = 0;
+		for (double t = flight.apogeeTime(); t < flight.landingTime(); t += 0.5) {
+			fastest = Math.max(fastest, a.rate(t));
+		}
+		assertTrue(fastest > 2, "descent sped up: " + fastest);
+		double prev = -10;
+		for (int i = 0; i < a.frames; i++) {
+			double t = a.timeOf(i);
+			assertTrue(t >= prev - 1e-9, "time runs forward");
+			prev = t;
+		}
+		assertEquals(flight.main().end(), a.timeOf(a.frames - 1), 1e-6, "ends on the landing");
+		assertTrue(a.seconds() > 12 && a.seconds() < 32, "about the length asked for: " + a.seconds());
+		assertEquals(a.animOf(flight.apogeeTime()), a.animOf(flight.apogeeTime()), 0);
+	}
+
+	@Test
+	void writesALoopingGifAndStills(@TempDir Path tmp) throws Exception {
+		FlightAnimation a = anim(10, 4, 480);
+		BufferedImage f = a.frame(a.frames / 2);
+		assertEquals(480, f.getWidth());
+		assertEquals(270, f.getHeight());
+		Path gif = tmp.resolve("f.gif");
+		Video.Written v = Video.write(a, gif, 320, null);
+		assertEquals(a.frames, v.frames());
+		try (ImageInputStream in = ImageIO.createImageInputStream(gif.toFile())) {
+			ImageReader r = ImageIO.getImageReaders(in).next();
+			r.setInput(in);
+			assertEquals(a.frames, r.getNumImages(true));
+			assertEquals(320, r.getWidth(0));
+		}
+		BufferedImage sheet = a.contactSheet(900);
+		assertTrue(sheet.getHeight() > 200 && a.keyMoments().size() >= 4);
+		assertTrue(Files.size(gif) > 1000);
+	}
+
+	/** Staged and clustered rockets: a dropped booster flies its own track; every view renders. */
+	@Test
+	void stagedAndPodRockets() throws Exception {
+		for (String example : new String[] { "Two stage high power", "Parallel booster" }) {
+			Designs.Design d = new Designs().openExample(example);
+			Simulation s = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults());
+			Sims.run(s);
+			FlightTrack.Flight fl = FlightTrack.of(s);
+			for (int i = 1; i < fl.tracks().size(); i++) {
+				// OpenRocket's branch for a dropped stage starts at liftoff; it comes off at its separation event.
+				assertTrue(fl.tracks().get(i).separation > 0.1, example + " " + fl.tracks().get(i).name);
+			}
+			FlightAnimation a = new FlightAnimation(fl, s.getActiveConfiguration(), 2, new FlightAnimation.Options(480, 5, 12, example, ""));
+			for (FlightTrack.Event e : fl.events()) {
+				assertEquals(480, a.render(e.time() + 0.5, 0).getWidth(), example + " " + e.title());
+			}
+			assertTrue(a.parallelism() >= 1);
+			if (System.getenv("RENDER_SCRATCH") != null) {
+				Files.createDirectories(Path.of("build/scratch"));
+				ImageIO.write(new FlightAnimation(fl, s.getActiveConfiguration(), 2, new FlightAnimation.Options(1280, 5, 12, example, ""))
+						.render(0.3, 0), "png", Path.of("build/scratch/" + example.replace(' ', '_') + "-early.png").toFile());
+			}
+			for (View3d.Mode m : View3d.Mode.values()) {
+				assertTrue(View3d.render(s.getActiveConfiguration(), example, m, 25, 22, 900).parts().size() > 3);
+			}
+			if (System.getenv("RENDER_SCRATCH") != null) {
+				Files.createDirectories(Path.of("build/scratch"));
+				for (FlightTrack.Event e : fl.events()) {
+					ImageIO.write(new FlightAnimation(fl, s.getActiveConfiguration(), 2, new FlightAnimation.Options(1280, 5, 12, example, ""))
+							.render(e.time() + 0.6, 0), "png", Path.of("build/scratch/" + example.replace(' ', '_') + "-" + e.kind() + ".png").toFile());
+				}
+				ImageIO.write(View3d.render(s.getActiveConfiguration(), example, View3d.Mode.EXPLODED, 25, 22, 1400).image(), "png",
+						Path.of("build/scratch/" + example.replace(' ', '_') + "-exploded.png").toFile());
+			}
+		}
+	}
+}

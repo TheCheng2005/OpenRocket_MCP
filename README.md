@@ -12,14 +12,20 @@ Claude: A 36 in chute lands the 2.84 lb section at 19.9 ft/s. The drogue opens a
         so four pins hold with plenty of margin — even if the drogue fires up to 4 s late.
 ```
 
+**Contents:** [See it in action](#see-it-in-action) · [What you can ask](#what-you-can-ask) ·
+[Getting started](#getting-started) · [Make it your team's](#make-it-your-teams) · [Good to know](#good-to-know)
+
 ## See it in action
 
 [**Examples**](docs/EXAMPLES.md) follows one 10,000 ft rocket from a blank page to launch day: the prompts a team types,
 the answers, and the plots. Everything on that page is real output.
 
 <p>
+<img src="docs/examples/flight.gif" alt="3-D animation of the simulated flight: liftoff, burnout, apogee, drogue and main, touchdown" width="100%">
+</p>
+<p>
+<img src="docs/examples/exploded.png" alt="Exploded 3-D view with every part and its mass" width="48%">
 <img src="docs/examples/landing.svg" alt="200 simulated landings around the pad with the 2-sigma ellipse" width="48%">
-<img src="docs/examples/flight-profile.svg" alt="Altitude against time with burnout, apogee and deployments" width="48%">
 </p>
 
 ## What you can ask
@@ -42,15 +48,17 @@ the answers, and the plots. Everything on that page is real output.
   buildable shapes are tried.
 - "Which nose cone and fin shape should we build?" — every common shape flown and compared.
 - Pick real parts from OpenRocket's catalogue (tubes, nose cones, couplers, rail buttons, parachutes).
-- "Here's our mass budget" or "here are today's weigh-ins" — part-by-part comparison with the model, the parts your
-  budget forgets, projected launch mass against your target with contingency, and (when you say so) the numbers written
-  into the design as mass and CG overrides so every simulation flies the rocket as built. Undo reverts it. With no
-  budget yet, Claude writes the model's breakdown as a spreadsheet to fill in.
+- "Here's our mass budget" or "here are today's weigh-ins": Claude compares every part with the model, lists the parts
+  your budget forgets, and projects the launch mass against your target, with contingency. When you say so, it writes
+  the weighed numbers into the design so every simulation flies the rocket as built (and `undo` takes them back). No
+  budget yet? Claude writes the model's breakdown as a spreadsheet to fill in.
 - "Lay out the avionics bay": two independent altimeters, each with its own battery and switch, a GPS tracker, the
   ejection charges and static ports, placed by the Launch Canada electronics rules, with the parachutes packed against
   it and a warning if a bay is too short.
 - Get a cut-away drawing: parachutes, shock cords, electronics, batteries, charges, motor, rings and bulkheads where
   they really sit, where the airframe separates, and the CG and CP.
+- "Show me an exploded view" — the rocket in 3-D, pulled apart, with every part inside laid out where it goes and a
+  numbered parts list with masses. Also as a cut-away or assembled view.
 
 **Motors**
 - "Find a motor for 10,000 ft on an L2 certification" — candidates are flown, not just filtered.
@@ -63,6 +71,10 @@ the answers, and the plots. Everything on that page is real output.
 - A landing map for Google Earth: the pad, every simulated landing and the landing ellipse on the real terrain.
 - Use a wind forecast with winds at altitude, not just the ground wind.
 - "Where does our drag come from?" — drag of every part, and how it changes with speed.
+- "Animate the flight" — a short 3-D video of the simulated flight. It shows the flame and smoke, both parachutes
+  opening, and a live readout of time, altitude, speed, Mach and distance from the pad. Captions call out burnout,
+  apogee and each deployment. You get a GIF for chat and slides, an MP4 when ffmpeg is installed, and stills of the key
+  moments.
 
 **Recovery**
 - Choose parachutes for a target descent rate.
@@ -118,7 +130,9 @@ docker build -t openrocket-mcp . && docker run -p 8765:8765 -v "$PWD/rockets:/wo
 ```
 
 It prints a private link. Put it in claude.ai under Settings → Connectors → Add custom connector (the same connector
-then shows up in Claude Desktop), and everyone on the team can use it. The server also prints a files page where people drop their `.ork` files and download reports.
+then shows up in Claude Desktop), and everyone on the team can use it. The server also prints a files page where people
+drop their `.ork` files and download reports.
+
 claude.ai needs an `https://` address: host it somewhere with a certificate, or put a tunnel such as
 `cloudflared tunnel --url http://localhost:8765` in front of it. Keep the link private — anyone with it can use the
 server.

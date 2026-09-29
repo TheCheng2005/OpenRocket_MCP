@@ -2,6 +2,7 @@ package io.github.openrocketmcp.tools;
 
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import com.google.gson.JsonObject;
@@ -68,9 +69,9 @@ public final class StandardsTools {
 					} catch (IllegalArgumentException e) {
 						throw new ToolException(e.getMessage());
 					}
-					ctx.setStandards(ctx.standards().patched(JsonParser.parseString("{\"units\":\"" + us.name().toLowerCase() + "\"}").getAsJsonObject()));
+					ctx.setStandards(ctx.standards().patched(JsonParser.parseString("{\"units\":\"" + us.name().toLowerCase(Locale.ROOT) + "\"}").getAsJsonObject()));
 					Units.setSystem(us);
-					return Map.of("units", us.name().toLowerCase());
+					return Map.of("units", us.name().toLowerCase(Locale.ROOT));
 				}));
 	}
 }

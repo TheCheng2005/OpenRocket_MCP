@@ -1,8 +1,18 @@
 package io.github.openrocketmcp.report;
 
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.StringReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Base64;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.imageio.ImageIO;
 
 import org.apache.batik.transcoder.TranscoderInput;
 import org.apache.batik.transcoder.TranscoderOutput;
@@ -58,17 +68,42 @@ public final class Png {
 		}
 	}
 
-	/** Attaches an SVG file the tool has just written. */
-	public static boolean attachFile(java.nio.file.Path svg, String alt) {
+	/** Shows a rendered picture in the chat (scaled down to at most 1400 px wide); returns whether it was attached. */
+	public static boolean attach(BufferedImage img, String alt) {
+		if (!enabled() || img == null) {
+			return false;
+		}
 		try {
-			return attach(java.nio.file.Files.readString(svg), alt);
-		} catch (java.io.IOException e) {
+			BufferedImage out = img;
+			if (img.getWidth() > 1400) {
+				int h = (int) Math.round(img.getHeight() * 1400.0 / img.getWidth());
+				out = new BufferedImage(1400, h, BufferedImage.TYPE_INT_RGB);
+				Graphics2D g = out.createGraphics();
+				g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+				g.drawImage(img, 0, 0, 1400, h, null);
+				g.dispose();
+			}
+			ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+			ImageIO.write(out, "png", bytes);
+			CallContext.current().attach(new CallContext.Image("image/png", Base64.getEncoder().encodeToString(bytes.toByteArray()), alt));
+			return true;
+		} catch (Throwable e) {
+			Log.info("Could not attach an image for the chat (" + e.getClass().getSimpleName() + ": " + e.getMessage() + ").");
+			return false;
+		}
+	}
+
+	/** Attaches an SVG file the tool has just written. */
+	public static boolean attachFile(Path svg, String alt) {
+		try {
+			return attach(Files.readString(svg), alt);
+		} catch (IOException e) {
 			return false;
 		}
 	}
 
 	static int widthOf(String svg) {
-		java.util.regex.Matcher m = java.util.regex.Pattern.compile("<svg[^>]*\\swidth=\"([0-9.]+)").matcher(svg);
+		Matcher m = Pattern.compile("<svg[^>]*\\swidth=\"([0-9.]+)").matcher(svg);
 		return m.find() ? (int) Math.round(Double.parseDouble(m.group(1))) : 900;
 	}
 }

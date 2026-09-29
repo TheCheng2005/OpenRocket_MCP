@@ -5,9 +5,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import info.openrocket.core.aerodynamics.AerodynamicForces;
@@ -22,6 +25,7 @@ import info.openrocket.core.rocketcomponent.TrapezoidFinSet;
 import info.openrocket.core.simulation.FlightDataType;
 import info.openrocket.core.util.Coordinate;
 import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.report.Xml;
 
 /**
  * Finite-element check of one fin with CalculiX (free, Abaqus-style input): the fin as a plate of 8-node shells
@@ -267,7 +271,7 @@ public final class FinFea {
 	static Result parse(String dat, String frd, Deck deck) {
 		String[] lines = dat.split("\\R");
 		// Displacement blocks: the first is the static step, then one per mode.
-		java.util.Set<Integer> edge = new java.util.HashSet<>();
+		Set<Integer> edge = new HashSet<>();
 		for (int n : deck.leadingEdge()) {
 			edge.add(n);
 		}
@@ -278,7 +282,7 @@ public final class FinFea {
 		List<Double> maxU = new ArrayList<>();
 		for (int i = 0; i < lines.length; i++) {
 			if (lines[i].strip().startsWith("displacements")) {
-				Map<Integer, Double> uz = new java.util.HashMap<>();
+				Map<Integer, Double> uz = new HashMap<>();
 				double mu = 0;
 				for (int j = i + 1; j < lines.length; j++) {
 					String l = lines[j].strip();
@@ -399,7 +403,7 @@ public final class FinFea {
 		Plate p = deck.plate();
 		double vm = 0, pr = 0, vmAway = 0, prAway = 0;
 		boolean in = false, seen = false, coords = false;
-		Map<Integer, double[]> xyz = new java.util.HashMap<>();
+		Map<Integer, double[]> xyz = new HashMap<>();
 		double keep = 0.1 * p.root();
 		for (String l : frd.split("\\R")) {
 			if (l.startsWith("    2C")) {
@@ -505,7 +509,7 @@ public final class FinFea {
 		StringBuilder s = new StringBuilder();
 		s.append(String.format(Locale.ROOT, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"%.0f\" height=\"%.0f\" viewBox=\"0 0 %.0f %.0f\" "
 				+ "font-family=\"sans-serif\">%n<rect width=\"100%%\" height=\"100%%\" fill=\"#fcfcfb\"/>%n", w, h, w, h));
-		s.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"24\" font-size=\"15\" font-weight=\"600\">%s</text>%n", pad, esc(title)));
+		s.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"24\" font-size=\"15\" font-weight=\"600\">%s</text>%n", pad, Xml.esc(title)));
 		for (int i = 0; i < d.nc(); i++) {
 			for (int j = 0; j < d.ns(); j++) {
 				StringBuilder pts = new StringBuilder();
@@ -530,7 +534,7 @@ public final class FinFea {
 					ly + lh * k / 50.0, lh / 50.0 + 0.5, color(1 - k / 49.0)));
 		}
 		s.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"%.0f\" font-size=\"11\" text-anchor=\"end\">%s</text>%n", lx + 36, ly - 8,
-				esc(measure)));
+				Xml.esc(measure)));
 		s.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"%.0f\" font-size=\"11\" text-anchor=\"end\">%.3g MPa</text>%n", lx - 4,
 				ly + 8, top / 1e6));
 		s.append(String.format(Locale.ROOT, "<text x=\"%.0f\" y=\"%.0f\" font-size=\"11\" text-anchor=\"end\">0</text>%n", lx - 4, ly + lh));
@@ -554,10 +558,6 @@ public final class FinFea {
 			c[i] = (int) Math.round(255 * (stops[k][i] + (stops[k + 1][i] - stops[k][i]) * f));
 		}
 		return String.format("#%02x%02x%02x", c[0], c[1], c[2]);
-	}
-
-	private static String esc(String t) {
-		return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
 	}
 
 	private static double num(String l, int k) {

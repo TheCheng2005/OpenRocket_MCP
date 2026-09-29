@@ -10,8 +10,15 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -34,7 +41,7 @@ public final class McpServer {
 	 */
 	@FunctionalInterface
 	public interface Guard {
-		java.util.concurrent.locks.Lock lockFor(ToolDef tool, Args args);
+		Lock lockFor(ToolDef tool, Args args);
 	}
 
 	public record Resource(String uri, String name, String description, String mimeType, Supplier<String> reader) {
@@ -44,7 +51,7 @@ public final class McpServer {
 	}
 
 	public record Prompt(String name, String description, List<PromptArg> arguments,
-			java.util.function.Function<Map<String, String>, String> render) {
+			Function<Map<String, String>, String> render) {
 	}
 
 	private final Gson gson = new GsonBuilder().disableHtmlEscaping().setPrettyPrinting()
@@ -57,9 +64,9 @@ public final class McpServer {
 	private final String version;
 	private final String instructions;
 	private volatile Guard guard;
-	private volatile java.util.function.UnaryOperator<String> outputFilter = java.util.function.UnaryOperator.identity();
+	private volatile UnaryOperator<String> outputFilter = UnaryOperator.identity();
 	/** Tool calls in flight, by request id (as JSON text), so notifications/cancelled can reach them. */
-	private final Map<String, CallContext> running = new java.util.concurrent.ConcurrentHashMap<>();
+	private final Map<String, CallContext> running = new ConcurrentHashMap<>();
 	/** Marks a result that must not be sent: the client cancelled the request. */
 	private static final JsonObject CANCELLED = new JsonObject();
 
@@ -74,7 +81,7 @@ public final class McpServer {
 	}
 
 	/** Rewrites every tool result's text (the team server shows workspace-relative paths). */
-	public void outputFilter(java.util.function.UnaryOperator<String> f) {
+	public void outputFilter(UnaryOperator<String> f) {
 		this.outputFilter = f;
 	}
 
@@ -93,7 +100,7 @@ public final class McpServer {
 	}
 
 	/** Replaces every registered tool with {@code f(tool)} (e.g. to add undo snapshots around editing tools). */
-	public void wrapTools(java.util.function.UnaryOperator<ToolDef> f) {
+	public void wrapTools(UnaryOperator<ToolDef> f) {
 		tools.replaceAll((n, t) -> f.apply(t));
 	}
 
@@ -110,7 +117,7 @@ public final class McpServer {
 	 */
 	public void serve(InputStream in, PrintStream out) throws IOException {
 		BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-		java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+		ExecutorService pool = Executors.newSingleThreadExecutor(r -> {
 			Thread t = new Thread(r, "mcp-request");
 			t.setDaemon(true);
 			return t;
@@ -129,7 +136,8 @@ public final class McpServer {
 					continue;
 				}
 				String l = line;
-				if (l.contains("notifications/cancelled") || l.contains("\"ping\"")) {
+				String m = methodOf(l);
+				if ("notifications/cancelled".equals(m) || "ping".equals(m)) {
 					JsonObject response = handle(l, write); // at once: the call it cancels is still running
 					if (response != null) {
 						write.accept(response);
@@ -146,11 +154,25 @@ public final class McpServer {
 		} finally {
 			pool.shutdown();
 			try {
-				pool.awaitTermination(1, java.util.concurrent.TimeUnit.HOURS);
+				pool.awaitTermination(1, TimeUnit.HOURS);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 			}
 		}
+	}
+
+	/** The JSON-RPC method of a message, or null (not JSON, a batch, or a response). */
+	static String methodOf(String line) {
+		try {
+			JsonElement e = JsonParser.parseString(line);
+			JsonElement m = e.isJsonObject() ? e.getAsJsonObject().get("method") : null;
+			if (m != null && m.isJsonPrimitive()) {
+				return m.getAsString();
+			}
+		} catch (RuntimeException ignored) {
+			// handled (and reported) by the worker
+		}
+		return null;
 	}
 
 	/** Handles one JSON-RPC message; returns the response, or null for notifications. */
@@ -303,7 +325,7 @@ public final class McpServer {
 
 	private JsonObject runTool(ToolDef tool, String toolName, Args args, CallContext ctx) {
 		Guard g = guard;
-		java.util.concurrent.locks.Lock lock = null;
+		Lock lock = null;
 		try {
 			lock = g == null ? null : g.lockFor(tool, args);
 		} catch (ToolException e) {
@@ -457,6 +479,7 @@ public final class McpServer {
 	}
 
 	private static final class RpcException extends RuntimeException {
+		private static final long serialVersionUID = 1L;
 		final int code;
 
 		RpcException(int code, String message) {

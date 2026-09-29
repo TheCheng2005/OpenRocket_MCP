@@ -1,18 +1,24 @@
 package io.github.openrocketmcp.or;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
 import info.openrocket.core.document.OpenRocketDocument;
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.file.GeneralRocketLoader;
+import info.openrocket.core.models.wind.WindModel;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.MotorMount;
 import info.openrocket.core.rocketcomponent.Rocket;
@@ -146,7 +152,7 @@ public final class Diff {
 			sa.getOptions().copyConditionsFrom(sb.getOptions());
 			if (Winds.isMultiLevel(sb.getOptions())) {
 				Winds.setProfile(sa.getOptions(), Winds.levels(sb.getOptions()), sb.getOptions().getMultiLevelWindModel()
-						.getAltitudeReference() == info.openrocket.core.models.wind.WindModel.AltitudeReference.AGL);
+						.getAltitudeReference() == WindModel.AltitudeReference.AGL);
 			}
 		}
 		List<Variants.Run> runs = Variants.runAll(List.of(sa, sb));
@@ -305,7 +311,7 @@ public final class Diff {
 			nb.putIfAbsent(key(c), c);
 		}
 		List<Map<String, Object>> out = new ArrayList<>();
-		java.util.Set<RocketComponent> matched = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+		Set<RocketComponent> matched = Collections.newSetFromMap(new IdentityHashMap<>());
 		for (RocketComponent ca : a) {
 			RocketComponent cb = ib.get(ca.getID().toString());
 			if (cb == null || cb.getClass() != ca.getClass()) {
@@ -427,7 +433,7 @@ public final class Diff {
 	}
 
 	@SuppressWarnings("unchecked")
-	static Path write(Map<String, Object> out, Path file, String labelA, String labelB) throws java.io.IOException {
+	static Path write(Map<String, Object> out, Path file, String labelA, String labelB) throws IOException {
 		StringBuilder md = new StringBuilder("# Design changes: ").append(labelA).append(" -> ").append(labelB).append("\n\n");
 		md.append("- **").append(labelA).append(":** ").append(out.get("a")).append('\n');
 		md.append("- **").append(labelB).append(":** ").append(out.get("b")).append('\n');
@@ -451,7 +457,7 @@ public final class Diff {
 		if (p.getParent() != null) {
 			Files.createDirectories(p.getParent());
 		}
-		Files.writeString(p, md.toString(), java.nio.charset.StandardCharsets.UTF_8);
+		Files.writeString(p, md.toString(), StandardCharsets.UTF_8);
 		return p;
 	}
 }

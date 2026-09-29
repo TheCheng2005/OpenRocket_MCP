@@ -3,9 +3,9 @@ package io.github.openrocketmcp.or;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -18,6 +18,7 @@ import info.openrocket.core.models.wind.PinkNoiseWindModel;
 import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.simulation.SimulationOptions;
 import info.openrocket.core.simulation.listeners.SimulationListener;
+import io.github.openrocketmcp.mcp.CallContext;
 import io.github.openrocketmcp.mcp.ToolException;
 
 /**
@@ -34,7 +35,8 @@ public final class Variants {
 	});
 
 	/** Simulation listeners to attach when a variant runs (e.g. Monte Carlo drag / thrust scaling). */
-	private static final Map<Simulation, SimulationListener[]> LISTENERS = Collections.synchronizedMap(new IdentityHashMap<>());
+	/** Listeners for a simulation's next run; weak (Simulation uses identity equality), so unflown variants are freed. */
+	private static final Map<Simulation, SimulationListener[]> LISTENERS = Collections.synchronizedMap(new WeakHashMap<>());
 
 	private Variants() {
 	}
@@ -98,7 +100,7 @@ public final class Variants {
 	/** Simulates all variants in parallel, preserving order. Failed runs are reported, not thrown. */
 	public static List<Run> runAll(List<Simulation> sims) {
 		// The tool call this runs for: progress is counted per finished flight, and a cancelled call stops here.
-		io.github.openrocketmcp.mcp.CallContext call = io.github.openrocketmcp.mcp.CallContext.current();
+		CallContext call = CallContext.current();
 		call.checkCancelled();
 		List<Future<Run>> futures = new ArrayList<>();
 		for (Simulation s : sims) {

@@ -5,6 +5,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import info.openrocket.core.document.Simulation;
@@ -19,9 +20,10 @@ import io.github.openrocketmcp.mcp.ToolDef;
 import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.or.Analysis;
 import io.github.openrocketmcp.or.Components;
-import io.github.openrocketmcp.or.FinFea;
 import io.github.openrocketmcp.or.Designs;
+import io.github.openrocketmcp.or.FinFea;
 import io.github.openrocketmcp.or.Geometry;
+import io.github.openrocketmcp.report.Png;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
@@ -102,11 +104,11 @@ public final class IntegrationTools {
 		Path preview = dir.resolve("preview.svg");
 		Files.writeString(preview, Geometry.previewSvg(Geometry.solids(fc, 36), d.name() + ": CFD model (STL regions)"));
 		files.put("preview", preview.toAbsolutePath() + " (3-D view of the regions)");
-		io.github.openrocketmcp.report.Png.attachFile(preview, "CFD model regions");
+		Png.attachFile(preview, "CFD model regions");
 		files.put("stl", stl.toAbsolutePath() + " (" + tris + " triangles, " + units + "; regions: " + String.join(", ", regions) + ")");
 
 		List<String> dxfs = new ArrayList<>();
-		for (RocketComponent c : fc.getActiveComponents()) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
 			if (c instanceof FinSet f) {
 				Path p = dir.resolve("fin-" + Geometry.safe(f.getName()) + ".dxf");
 				Files.writeString(p, Geometry.dxf(f, scale));
@@ -149,7 +151,7 @@ public final class IntegrationTools {
 			r.put("mach", Units.num(c.mach()));
 			r.put("altitude", Units.fmt(c.altitude(), Dim.DISTANCE));
 			r.put("velocity", Units.fmt(c.velocity(), Dim.VELOCITY));
-			r.put("reynolds", String.format(java.util.Locale.ROOT, "%.3g", c.reynolds()));
+			r.put("reynolds", String.format(Locale.ROOT, "%.3g", c.reynolds()));
 			r.put("openrocketCd", Units.num(c.orCd()));
 			rows.add(r);
 		}
@@ -178,7 +180,7 @@ public final class IntegrationTools {
 		Simulation sim = SimTools.runSelected(ctx, a);
 		FlightConfiguration fc = sim.getRocket().getFlightConfiguration(sim.getFlightConfigurationId());
 		FinSet fin = null;
-		for (RocketComponent c : fc.getActiveComponents()) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
 			if (c instanceof FinSet f && (!a.has("finSet") || f == Components.find(sim.getRocket(), a.str("finSet")))) {
 				fin = f;
 				break;
@@ -221,7 +223,7 @@ public final class IntegrationTools {
 				sources.add("strength from standards (" + v[1] + ")");
 			}
 		}
-		boolean metal = matName.toLowerCase(java.util.Locale.ROOT).matches(".*(alumin|steel|titanium|6061|7075).*");
+		boolean metal = matName.toLowerCase(Locale.ROOT).matches(".*(alumin|steel|titanium|6061|7075).*");
 		double sf = a.num("safetyFactor", std.q("structures.loadSafetyFactor", Dim.DIMENSIONLESS, 2));
 		FinFea.Material m = new FinFea.Material(e, g, nu, fin.getMaterial().getDensity(), strength, metal);
 		FinFea.Plate plate = FinFea.plate(fin, a.qtyOrNaN("thickness", Dim.LENGTH));
@@ -335,7 +337,7 @@ public final class IntegrationTools {
 				Files.writeString(pp, FinFea.stressSvg(deck, metal ? r.vonMisesGrid() : r.principalGrid(), d.name() + ": " + fin.getName()
 						+ " under the design load", metal ? "von Mises" : "largest principal", Double.isNaN(strength) ? Double.NaN : strength / sf));
 				files.put("stressPlot", pp.toAbsolutePath().toString());
-				io.github.openrocketmcp.report.Png.attachFile(pp, "Fin stress under the design load");
+				Png.attachFile(pp, "Fin stress under the design load");
 			}
 			out.put("fea", fe);
 		} else {

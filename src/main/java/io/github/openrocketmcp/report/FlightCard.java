@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import info.openrocket.core.document.Simulation;
@@ -20,6 +21,7 @@ import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.simulation.FlightData;
 import info.openrocket.core.simulation.FlightDataBranch;
 import info.openrocket.core.simulation.FlightEvent;
+import info.openrocket.core.simulation.SimulationOptions;
 import io.github.openrocketmcp.or.Analysis;
 import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.Requirements;
@@ -74,7 +76,7 @@ public final class FlightCard {
 	}
 
 	/** One-line wind summary: the single wind, or the profile's levels up to ~3 km. */
-	static String windLine(info.openrocket.core.simulation.SimulationOptions o) {
+	static String windLine(SimulationOptions o) {
 		if (!Winds.isMultiLevel(o)) {
 			return Units.fmt(Winds.speed(o), Dim.VELOCITY) + " from " + Units.num(Math.toDegrees(Winds.direction(o))) + " deg";
 		}
@@ -151,13 +153,13 @@ public final class FlightCard {
 
 		md.append("## Recovery settings\n\n");
 		List<Map<String, Object>> rec = new ArrayList<>();
-		for (RocketComponent c : fc.getActiveComponents()) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
 			if (c instanceof RecoveryDevice rd) {
 				DeploymentConfiguration dc = rd.getDeploymentConfigurations().get(fc.getId());
 				Map<String, Object> r = new LinkedHashMap<>();
 				r.put("device", rd.getName());
 				r.put("stage", rd.getStage().getName());
-				r.put("event", dc.getDeployEvent().name().toLowerCase());
+				r.put("event", dc.getDeployEvent().name().toLowerCase(Locale.ROOT));
 				if (dc.getDeployEvent() == DeploymentConfiguration.DeployEvent.ALTITUDE) {
 					r.put("altitude", Units.fmt(dc.getDeployAltitude(), Dim.DISTANCE));
 				}

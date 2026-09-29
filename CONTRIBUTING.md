@@ -50,8 +50,9 @@ CI runs the tests on Linux, Windows and macOS, and the benchmark, examples, Code
 2. Keep what-if tools read-only: work on copies (`Variants.of`) and leave the design alone unless the user asks to apply.
 3. Test it: calculations in `src/test/java/.../calc`, OpenRocket-backed behaviour in `.../or`, and a scenario in
    `scripts/benchmark.py` if a team would use it in a workflow.
-4. Document it: a row in `docs/REFERENCE.md`, and a line in the README's "What you can ask" if users will notice it.
-   The Claude Desktop manifest picks up new tools automatically.
+4. Document it: a bullet under its area in `docs/REFERENCE.md`, and a line in the README's "What you can ask" if users will notice it.
+   The Claude Desktop manifest picks up new tools automatically, and `undo` records any change a tool makes to a
+   design without extra code.
 
 ## Physics and engineering changes
 
@@ -64,6 +65,12 @@ CI runs the tests on Linux, Windows and macOS, and the benchmark, examples, Code
 
 Match the surrounding code: tabs, short methods, comments that explain *why*. User-facing text is plain language, the
 way you would explain it to a new team member.
+
+- Imports at the top, in groups: `java.*`, then `com.*` / `org.*`, then `info.openrocket` and `io.github` together.
+  No fully-qualified class names in the code.
+- `Locale.ROOT` for `String.format`, `toUpperCase` and `toLowerCase`; numbers shown to users go through `Units`.
+- Escape any name written into SVG, KML or HTML with `Xml.esc`.
+- New files a tool writes go through the workspace sandbox (`ctx.path`).
 
 ## The skill files
 

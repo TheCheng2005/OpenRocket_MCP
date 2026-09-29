@@ -17,7 +17,7 @@ class DrawingTest {
 		Designs.Design d = new Designs().openExample("Two stage high power");
 		FlightConfiguration fc = d.doc.getRocket().getSelectedConfiguration();
 		int bodies = 0, fins = 0;
-		for (RocketComponent c : fc.getActiveComponents()) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
 			if (c instanceof SymmetricComponent s && s.getLength() > 0) {
 				bodies++;
 			} else if (c instanceof FinSet) {

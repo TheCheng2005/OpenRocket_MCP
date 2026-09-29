@@ -5,8 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -22,7 +24,7 @@ class PlotsTest {
 	Path tmp;
 
 	static int count(String s, String part) {
-		return s.split(java.util.regex.Pattern.quote(part), -1).length - 1;
+		return s.split(Pattern.quote(part), -1).length - 1;
 	}
 
 	@Test
@@ -48,7 +50,7 @@ class PlotsTest {
 	@Test
 	void ellipseMatchesAKnownSpread() {
 		// Points on a line along +45 deg: the major axis is at 45 deg and the minor axis is zero.
-		List<double[]> pts = new java.util.ArrayList<>();
+		List<double[]> pts = new ArrayList<>();
 		for (int i = -10; i <= 10; i++) {
 			pts.add(new double[] { i, i });
 		}

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -18,16 +19,18 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Function;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-
+import io.github.openrocketmcp.mcp.Args;
 import io.github.openrocketmcp.mcp.HttpTransport;
 import io.github.openrocketmcp.mcp.McpServer;
+import io.github.openrocketmcp.mcp.ToolDef;
 import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.standards.Standards;
 import io.github.openrocketmcp.tools.Context;
@@ -89,7 +92,7 @@ class TeamServerTest {
 				+ "\"monte_carlo\",\"arguments\":{\"designId\":\"" + id + "\",\"runs\":8},\"_meta\":{\"progressToken\":\"p9\"}}}");
 		assertEquals(200, r.statusCode());
 		assertTrue(r.headers().firstValue("Content-Type").orElse("").startsWith("text/event-stream"));
-		List<JsonObject> events = new java.util.ArrayList<>();
+		List<JsonObject> events = new ArrayList<>();
 		for (String line : r.body().split("\n")) {
 			if (line.startsWith("data: ")) {
 				events.add(JsonParser.parseString(line.substring(6)).getAsJsonObject());
@@ -204,8 +207,8 @@ class TeamServerTest {
 	void locksPerDesign() throws Exception {
 		Context c = new Context(Standards.defaults(), ws, true);
 		DesignLocks locks = new DesignLocks(c);
-		io.github.openrocketmcp.mcp.ToolDef t = Main.build(c).tools().get("run_simulation");
-		java.util.function.Function<String, io.github.openrocketmcp.mcp.Args> args = j -> new io.github.openrocketmcp.mcp.Args(
+		ToolDef t = Main.build(c).tools().get("run_simulation");
+		Function<String, Args> args = j -> new Args(
 				JsonParser.parseString(j).getAsJsonObject());
 		assertEquals(null, locks.lockFor(t, args.apply("{}")), "no design open: nothing to lock");
 		var d1 = c.designs.openExample("A simple model rocket");
@@ -239,7 +242,7 @@ class TeamServerTest {
 		Path link = ws.resolve("escape");
 		try {
 			Files.createSymbolicLink(link, Path.of(System.getProperty("java.io.tmpdir")));
-		} catch (UnsupportedOperationException | java.io.IOException e) {
+		} catch (UnsupportedOperationException | IOException e) {
 			return; // no symbolic links on this file system (Windows without the privilege)
 		}
 		assertThrows(ToolException.class, () -> c.path("escape/secret.ork"));

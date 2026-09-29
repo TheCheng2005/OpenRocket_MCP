@@ -2,24 +2,33 @@ package io.github.openrocketmcp.tools;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
 import info.openrocket.core.document.Simulation;
+import info.openrocket.core.rocketcomponent.FinSet;
+import info.openrocket.core.rocketcomponent.InternalComponent;
 import info.openrocket.core.rocketcomponent.RocketComponent;
+import info.openrocket.core.rocketcomponent.SymmetricComponent;
 import io.github.openrocketmcp.mcp.Args;
+import io.github.openrocketmcp.mcp.CallContext;
 import io.github.openrocketmcp.mcp.McpServer;
 import io.github.openrocketmcp.mcp.Schema;
 import io.github.openrocketmcp.mcp.ToolDef;
 import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.or.AeroTable;
 import io.github.openrocketmcp.or.Analysis;
 import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.MonteCarlo;
 import io.github.openrocketmcp.or.Optimizer;
+import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sims;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
@@ -131,7 +140,7 @@ public final class AnalysisTools {
 		if (meetRules) {
 			// Stability floor from the rule set: max(minimum calibers, % of body length x L:D); ceiling: over-stability.
 			var std = ctx.standards();
-			double[] fl = io.github.openrocketmcp.or.Requirements.stabilityFloor(std, d.doc.getRocket().getSelectedConfiguration());
+			double[] fl = Requirements.stabilityFloor(std, d.doc.getRocket().getSelectedConfiguration());
 			double floor = fl[0];
 			if (Double.isNaN(minStab) && floor > 0) {
 				minStab = floor;
@@ -140,7 +149,7 @@ public final class AnalysisTools {
 			if (Double.isNaN(maxStab) && !Double.isNaN(over)) {
 				maxStab = over;
 			}
-			basis[0] = "minStability " + io.github.openrocketmcp.or.Requirements.floorText(fl) + "; maxStability "
+			basis[0] = "minStability " + Requirements.floorText(fl) + "; maxStability "
 					+ Units.num(maxStab) + " cal (over-stable)";
 		}
 		// Fin flutter: a constraint when asked for or with meetRules (the team's structures.flutterMinMargin); always reported.
@@ -192,7 +201,7 @@ public final class AnalysisTools {
 	private static Object optimize(Context ctx, Args a) {
 		Designs.Design d = ctx.designs.get(a.str("designId", null));
 		List<Optimizer.Variable> vars = new ArrayList<>();
-		java.util.Set<String> hidden = new java.util.LinkedHashSet<>();
+		Set<String> hidden = new LinkedHashSet<>();
 		for (Args v : a.objList("variables")) {
 			RocketComponent c = Components.find(d.doc.getRocket(), v.str("component"));
 			String prop = v.str("property");
@@ -205,17 +214,17 @@ public final class AnalysisTools {
 				throw new ToolException(c.getName() + "." + prop + " is not a continuous (number) property.");
 			}
 			Dim dim = Components.dimOf(prop);
-			var table = io.github.openrocketmcp.or.AeroTable.of(d.doc.getRocket());
-			if (table != null && table.useDrag() && (c instanceof info.openrocket.core.rocketcomponent.FinSet
-					|| c instanceof info.openrocket.core.rocketcomponent.SymmetricComponent
-							&& !(c instanceof info.openrocket.core.rocketcomponent.InternalComponent))) {
+			var table = AeroTable.of(d.doc.getRocket());
+			if (table != null && table.useDrag() && (c instanceof FinSet
+					|| c instanceof SymmetricComponent
+							&& !(c instanceof InternalComponent))) {
 				hidden.add("The imported aero table (" + table.source() + ") sets the drag of every candidate, so changing "
 						+ c.getName() + "'s shape does not change drag here. For shape changes use optimize_fins (OpenRocket's "
 						+ "shape-aware drag), or clear the table first.");
 			}
 			vars.add(new Optimizer.Variable(c.getID().toString(), c.getName(), prop, v.qty("min", dim), v.qty("max", dim)));
 		}
-		Optimizer.Objective obj = Optimizer.Objective.valueOf(a.str("objective").toUpperCase());
+		Optimizer.Objective obj = Optimizer.Objective.valueOf(a.str("objective").toUpperCase(Locale.ROOT));
 		double target = switch (obj) {
 			case TARGET_APOGEE -> a.qty("targetApogee", Dim.DISTANCE);
 			case TARGET_STABILITY -> a.num("targetStability");
@@ -231,11 +240,11 @@ public final class AnalysisTools {
 		boolean stabilityConstrained = !Double.isNaN(c.minStability()) || !Double.isNaN(c.maxStability());
 		double windCase = a.bool("checkDesignWind", stabilityConstrained) && !Double.isNaN(maxWind) ? maxWind : Double.NaN;
 		int budget = Math.max(4, Math.min(200, a.integer("maxEvaluations", 40)));
-		io.github.openrocketmcp.mcp.CallContext.current().expect((budget + 1) * (Double.isNaN(windCase) ? 1 : 2), "simulations");
+		CallContext.current().expect((budget + 1) * (Double.isNaN(windCase) ? 1 : 2), "simulations");
 		Optimizer.Result r = Optimizer.run(base, d.doc, vars, obj, target, c, budget, 1,
 				windCase);
 		Map<String, Object> out = new LinkedHashMap<>();
-		out.put("objective", obj.name().toLowerCase() + (Double.isNaN(target) ? ""
+		out.put("objective", obj.name().toLowerCase(Locale.ROOT) + (Double.isNaN(target) ? ""
 				: " " + (obj == Optimizer.Objective.TARGET_APOGEE ? Units.fmt(target, Dim.DISTANCE) : Units.num(target) + " cal")));
 		Map<String, Object> cons = describe(c, windCase, ruleBasis);
 		out.put("constraints", cons);

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.ref.WeakReference;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
@@ -17,7 +18,7 @@ class BranchCacheTest {
 	static WeakReference<FlightDataBranch> simulateAndDrop() throws Exception {
 		Designs.Design d = new Designs().openExample("Dual parachute");
 		Simulation sim = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults(), false);
-		Variants.runAll(java.util.List.of(Variants.of(sim, d.doc, null, null)));
+		Variants.runAll(List.of(Variants.of(sim, d.doc, null, null)));
 		Sims.run(sim);
 		FlightDataBranch b = sim.getSimulatedData().getBranch(0);
 		assertTrue(Branch.of(b).col(FlightDataType.TYPE_ALTITUDE).length > 10, "cached and readable");

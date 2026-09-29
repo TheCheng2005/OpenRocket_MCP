@@ -1,11 +1,13 @@
 package io.github.openrocketmcp.or;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -75,7 +77,7 @@ public final class Weather {
 						+ r.body().substring(0, Math.min(300, r.body().length())));
 			}
 			return JsonParser.parseString(r.body()).getAsJsonObject();
-		} catch (java.io.IOException e) {
+		} catch (IOException e) {
 			throw new ToolException("Could not reach the weather service (" + e.getMessage() + "). Without internet access, "
 					+ "paste the forecast JSON from " + u.substring(0, Math.min(80, u.length())) + "... as forecastJson, or enter "
 					+ "the winds by hand with wind_profile.");
@@ -101,7 +103,7 @@ public final class Weather {
 		int offset = json.has("utc_offset_seconds") ? json.get("utc_offset_seconds").getAsInt() : 0;
 		String tz = json.has("timezone") ? json.get("timezone").getAsString() : "UTC";
 		LocalDateTime want = time == null || time.isBlank()
-				? LocalDateTime.now(java.time.ZoneOffset.ofTotalSeconds(offset))
+				? LocalDateTime.now(ZoneOffset.ofTotalSeconds(offset))
 				: LocalDateTime.parse(time.length() == 13 ? time + ":00" : time.length() == 10 ? time + "T12:00" : time);
 		DateTimeFormatter f = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 		int best = -1;

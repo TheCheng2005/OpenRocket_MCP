@@ -1,14 +1,22 @@
 package io.github.openrocketmcp.or;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import info.openrocket.core.aerodynamics.AerodynamicForces;
 import info.openrocket.core.aerodynamics.FlightConditions;
@@ -54,7 +62,8 @@ public final class AeroTable {
 	}
 
 	private static final Map<String, Table> TABLES = new ConcurrentHashMap<>();
-	private static final Set<Simulation> WITHOUT = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+	/** Simulations to fly on OpenRocket's own drag; weak, so candidates that are never flown do not pile up. */
+	private static final Set<Simulation> WITHOUT = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
 
 	public static void set(Rocket r, Table t) {
 		TABLES.put(r.getID().toString(), t);
@@ -74,7 +83,7 @@ public final class AeroTable {
 	static final String FORMAT = "openrocket-mcp aero table 1";
 
 	/** The file an imported table is kept in next to a design: rocket.ork -> rocket.aero.json. */
-	public static java.nio.file.Path sidecar(java.nio.file.Path ork) {
+	public static Path sidecar(Path ork) {
 		String n = ork.getFileName().toString();
 		String stem = n.toLowerCase(Locale.ROOT).endsWith(".ork") ? n.substring(0, n.length() - 4) : n;
 		return ork.resolveSibling(stem + ".aero.json");
@@ -82,37 +91,37 @@ public final class AeroTable {
 
 	/** SI JSON (Mach, CD power off / on, CP in m from the nose tip or null), readable and diffable. */
 	public static String toJson(Table t) {
-		com.google.gson.JsonObject o = new com.google.gson.JsonObject();
+		JsonObject o = new JsonObject();
 		o.addProperty("format", FORMAT);
 		o.addProperty("source", t.source());
 		o.addProperty("useDrag", t.useDrag());
-		com.google.gson.JsonArray rows = new com.google.gson.JsonArray();
+		JsonArray rows = new JsonArray();
 		for (int i = 0; i < t.mach().length; i++) {
-			com.google.gson.JsonObject r = new com.google.gson.JsonObject();
+			JsonObject r = new JsonObject();
 			r.addProperty("mach", t.mach()[i]);
 			r.addProperty("cdPowerOff", t.cdOff()[i]);
 			r.addProperty("cdPowerOn", t.cdOn()[i]);
 			if (Double.isNaN(t.cp()[i])) {
-				r.add("cpFromNoseTip_m", com.google.gson.JsonNull.INSTANCE);
+				r.add("cpFromNoseTip_m", JsonNull.INSTANCE);
 			} else {
 				r.addProperty("cpFromNoseTip_m", t.cp()[i]);
 			}
 			rows.add(r);
 		}
 		o.add("rows", rows);
-		return new com.google.gson.GsonBuilder().setPrettyPrinting().serializeNulls().create().toJson(o);
+		return new GsonBuilder().setPrettyPrinting().serializeNulls().create().toJson(o);
 	}
 
 	public static Table fromJson(String json) {
-		com.google.gson.JsonObject o = com.google.gson.JsonParser.parseString(json).getAsJsonObject();
+		JsonObject o = JsonParser.parseString(json).getAsJsonObject();
 		if (!o.has("format") || !FORMAT.equals(o.get("format").getAsString())) {
 			throw new ToolException("Not an aero table saved by openrocket-mcp.");
 		}
-		com.google.gson.JsonArray rows = o.getAsJsonArray("rows");
+		JsonArray rows = o.getAsJsonArray("rows");
 		int n = rows.size();
 		double[] mach = new double[n], off = new double[n], on = new double[n], cp = new double[n];
 		for (int i = 0; i < n; i++) {
-			com.google.gson.JsonObject r = rows.get(i).getAsJsonObject();
+			JsonObject r = rows.get(i).getAsJsonObject();
 			mach[i] = r.get("mach").getAsDouble();
 			off[i] = r.get("cdPowerOff").getAsDouble();
 			on[i] = r.get("cdPowerOn").getAsDouble();
@@ -195,7 +204,7 @@ public final class AeroTable {
 		if (v >= x[n - 1]) {
 			return y[n - 1];
 		}
-		int i = java.util.Arrays.binarySearch(x, v);
+		int i = Arrays.binarySearch(x, v);
 		if (i >= 0) {
 			return y[i];
 		}

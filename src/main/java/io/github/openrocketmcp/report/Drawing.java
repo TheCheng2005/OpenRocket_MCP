@@ -1,16 +1,17 @@
 package io.github.openrocketmcp.report;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
-
-import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.DoubleUnaryOperator;
 
 import info.openrocket.core.motor.MotorConfiguration;
 import info.openrocket.core.rocketcomponent.FinSet;
+import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.InnerTube;
 import info.openrocket.core.rocketcomponent.InternalComponent;
 import info.openrocket.core.rocketcomponent.LaunchLug;
@@ -19,12 +20,11 @@ import info.openrocket.core.rocketcomponent.Parachute;
 import info.openrocket.core.rocketcomponent.RailButton;
 import info.openrocket.core.rocketcomponent.RecoveryDevice;
 import info.openrocket.core.rocketcomponent.RingComponent;
+import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.ShockCord;
+import info.openrocket.core.rocketcomponent.SymmetricComponent;
 import info.openrocket.core.rocketcomponent.Transition;
 import info.openrocket.core.rocketcomponent.TubeCoupler;
-import info.openrocket.core.rocketcomponent.FlightConfiguration;
-import info.openrocket.core.rocketcomponent.RocketComponent;
-import info.openrocket.core.rocketcomponent.SymmetricComponent;
 import info.openrocket.core.util.Coordinate;
 import io.github.openrocketmcp.or.Analysis;
 import io.github.openrocketmcp.or.Sections;
@@ -86,7 +86,7 @@ public final class Drawing {
 	/** Everything inside the airframe, at its instances' positions, drawn under the translucent outer shell. */
 	static List<Part> internals(FlightConfiguration fc) {
 		List<Part> out = new ArrayList<>();
-		for (RocketComponent c : fc.getActiveComponents()) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
 			if (c instanceof SymmetricComponent sc && sc.getLength() > 0) {
 				// Nose cone / transition shoulders sit inside the next tube.
 				double sl = 0, sr = 0, sx = 0;
@@ -196,7 +196,7 @@ public final class Drawing {
 	/** Outlines in rocket coordinates (x aft from the nose tip, y up), one closed polygon per body / fin instance. */
 	static List<Shape> outlines(FlightConfiguration fc) {
 		List<Shape> out = new ArrayList<>();
-		for (RocketComponent c : fc.getActiveComponents()) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
 			if (c instanceof SymmetricComponent sc && sc.getLength() > 0) {
 				for (Coordinate a : unique(c.toAbsolute(Coordinate.NUL))) {
 					int n = 40;
@@ -263,7 +263,7 @@ public final class Drawing {
 		}
 		double scale = (W - 2 * PAD) / (xmax - xmin);
 		final double x0 = xmin;
-		java.util.function.DoubleUnaryOperator sx = x -> PAD + (x - x0) * scale;
+		DoubleUnaryOperator sx = x -> PAD + (x - x0) * scale;
 
 		// Labels for internal parts sit above the rocket in rows, so they never overlap.
 		List<Part> labelled = new ArrayList<>();
@@ -305,13 +305,13 @@ public final class Drawing {
 		// Below the body: CG / CP labels (50 px), the legend, then two lines of figures.
 		int h = top + Math.max(bodyH, 20) + 58 + legendRows * 18 + 44;
 		double cy = top + Math.max(bodyH, 20) / 2.0;
-		java.util.function.DoubleUnaryOperator sy = y -> cy - y * scale;
+		DoubleUnaryOperator sy = y -> cy - y * scale;
 
 		Analysis.Stability st = Analysis.stability(fc, 0.3);
 		StringBuilder s = new StringBuilder();
 		s.append(String.format(Locale.ROOT,
 				"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 %d %d\" width=\"%d\" height=\"%d\" role=\"img\" aria-label=\"%s\">%n",
-				W, h, W, h, esc(title)));
+				W, h, W, h, Xml.esc(title)));
 		s.append("<style>.bg{fill:#fcfcfb}.bodyfill{fill:#eef2f8;stroke:none}.body{fill:none;stroke:#2a4a78;stroke-width:1.2}")
 				.append(".fin{fill:#c9d7ec;stroke:#2a4a78;stroke-width:1.2}")
 				.append(".axis{stroke:#b8b7ae;stroke-width:1;stroke-dasharray:4 4}.t1{fill:#1a1a19;font:600 15px system-ui,sans-serif}")
@@ -329,7 +329,7 @@ public final class Drawing {
 				.append(".t1{fill:#fff}.t2{fill:#c3c2b7}.t3{fill:#eee}.cg{fill:#fff}.cgb{fill:#aab}.axis{stroke:#5f5e57}.lead{stroke:#77766c}")
 				.append(".shoulder{stroke:#9db8e0}.motor{fill:#777;stroke:#bbb}}</style>\n");
 		s.append(String.format(Locale.ROOT, "<rect class=\"bg\" width=\"%d\" height=\"%d\"/>%n", W, h));
-		s.append(String.format(Locale.ROOT, "<text class=\"t1\" x=\"%d\" y=\"26\">%s</text>%n", PAD, esc(title)));
+		s.append(String.format(Locale.ROOT, "<text class=\"t1\" x=\"%d\" y=\"26\">%s</text>%n", PAD, Xml.esc(title)));
 		// The shell's fill behind everything, the inside over it, then the shell's outline and the fins on top.
 		for (Shape sh : shapes) {
 			if (!sh.fin()) {
@@ -373,7 +373,7 @@ public final class Drawing {
 			s.append(String.format(Locale.ROOT, "<line class=\"lead\" x1=\"%.1f\" x2=\"%.1f\" y1=\"%.1f\" y2=\"%.1f\"/>%n", cx, cx,
 					ly + 3, partTop));
 			s.append(String.format(Locale.ROOT, "<text class=\"t3\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>%n", cx, ly,
-					esc(p.label())));
+					Xml.esc(p.label())));
 		}
 		marker(s, "cg", sx.applyAsDouble(st.cgLaunchX()), cy, "CG " + Units.fmt(st.cgLaunchX(), Dim.LENGTH), cy + Math.max(bodyH, 20) / 2.0 + 24);
 		marker(s, "cgb", sx.applyAsDouble(st.cgBurnoutX()), cy, null, 0);
@@ -382,20 +382,20 @@ public final class Drawing {
 		for (int i = 0; i < legend.size(); i++) {
 			int lx = PAD + (i % 4) * 260, yy = ly + (i / 4) * 18;
 			s.append(String.format(Locale.ROOT, "<rect class=\"%s\" x=\"%d\" y=\"%d\" width=\"14\" height=\"9\"/>"
-					+ "<text class=\"t2\" x=\"%d\" y=\"%d\">%s</text>%n", legend.get(i), lx, yy - 8, lx + 20, yy, esc(LEGEND.get(legend.get(i)))));
+					+ "<text class=\"t2\" x=\"%d\" y=\"%d\">%s</text>%n", legend.get(i), lx, yy - 8, lx + 20, yy, Xml.esc(LEGEND.get(legend.get(i)))));
 		}
 		String sepNote = separations(fc).isEmpty() ? "" : " Red dashes: where the airframe separates.";
 		s.append(String.format(Locale.ROOT, "<text class=\"t2\" x=\"%d\" y=\"%d\">Length %s, max diameter %s, launch mass %s.%s</text>%n"
 				+ "<text class=\"t2\" x=\"%d\" y=\"%d\">Stability %s cal at launch, %s cal at burnout (Mach 0.3). Grey marker: burnout CG.</text>%n",
 				PAD, h - 24,
-				esc(Units.fmt(st.length(), Dim.LENGTH)), esc(Units.fmt(st.referenceDiameter(), Dim.LENGTH)),
-				esc(Units.fmt(st.launchMass(), Dim.MASS)), sepNote, PAD, h - 8, Units.num(st.marginCalibers()),
+				Xml.esc(Units.fmt(st.length(), Dim.LENGTH)), Xml.esc(Units.fmt(st.referenceDiameter(), Dim.LENGTH)),
+				Xml.esc(Units.fmt(st.launchMass(), Dim.MASS)), sepNote, PAD, h - 8, Units.num(st.marginCalibers()),
 				Units.num(st.burnoutMarginCalibers())));
 		s.append("</svg>\n");
 		return s.toString();
 	}
 
-	private static String poly(Shape sh, String cls, java.util.function.DoubleUnaryOperator sx, java.util.function.DoubleUnaryOperator sy) {
+	private static String poly(Shape sh, String cls, DoubleUnaryOperator sx, DoubleUnaryOperator sy) {
 		StringBuilder p = new StringBuilder();
 		for (double[] pt : sh.pts()) {
 			p.append(String.format(Locale.ROOT, "%.1f,%.1f ", sx.applyAsDouble(pt[0]), sy.applyAsDouble(pt[1])));
@@ -419,11 +419,7 @@ public final class Drawing {
 		if (label != null) {
 			s.append(String.format(Locale.ROOT, "<line class=\"axis\" x1=\"%.1f\" x2=\"%.1f\" y1=\"%.1f\" y2=\"%.1f\"/>%n", x, x, cy + 9, labelY - 12));
 			s.append(String.format(Locale.ROOT, "<text class=\"t2\" x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\">%s</text>%n", x, labelY,
-					esc(label)));
+					Xml.esc(label)));
 		}
-	}
-
-	private static String esc(String s) {
-		return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
 	}
 }
