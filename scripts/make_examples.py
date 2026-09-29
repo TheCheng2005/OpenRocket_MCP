@@ -434,11 +434,54 @@ def main():
     table(cases, ["case", "mach", "altitude", "velocity", "reynolds", "openrocketCd"],
           ["Case", "Mach", "Altitude", "Velocity", "Reynolds", "OpenRocket CD"])
 
+    # Weigh-in ---------------------------------------------------------------------------------------------------------
+    w("## Build")
+    w()
+    tpl = call("mass_budget", {"designId": d, "csvPath": os.path.join(tmp, "budget-template.csv")})
+    import csv as _csv
+    rows = list(_csv.DictReader(open(tpl["template"])))
+    model = {r["part"]: float(r["mass (g)"]) for r in rows}
+    # Sample weigh-in: the finished parts come out heavier than the model (resin, hardware), plus parts the model lacks.
+    sheet = [("Nose cone", 1.12, "measured", "no", ""), ("Upper airframe", 1.08, "measured", "no", ""),
+             ("Lower airframe", 1.10, "measured", "no", ""), ("Fins", 1.15, "measured", "no", ""),
+             ("Av-bay coupler", 1.05, "measured", "no", "")]
+    lines = ["part,mass (g),status,section,parent"]
+    for part, k, st_, sec, par in sheet:
+        if model.get(part, 0) >= 1:
+            lines.append(f"{part},{model[part] * k:.0f},{st_},{sec},{par}")
+    lines += ["Fin fillets and tip-to-tip epoxy,140,measured,no,Lower airframe", "Paint and primer,90,estimated,no,Upper airframe"]
+    weigh = "\n".join(lines) + "\n"
+    mb = call("mass_budget", {"designId": d, "csv": weigh, "targetLaunchMass": "12 kg", "contingency": 0.1})
+    ask(18, "We weighed the parts we've built. Here is our weigh-in sheet; how does it compare with the model? Our launch mass "
+           "target is 12 kg.", ["mass_budget"])
+    w("<details><summary>Weigh-in sheet (sample numbers)</summary>")
+    w()
+    w("```csv")
+    w(weigh.strip())
+    w("```")
+    w()
+    w("</details>")
+    w()
+    table(mb["items"][:7], ["part", "budget", "model", "difference", "flag"], ["Part", "Weigh-in", "Model", "Difference", ""])
+    t_ = mb["totals"]
+    w(f"> Projected launch mass **{t_['projectedLaunch'].split(' (with')[0]}**, including {t_['motor']} of motor and 10% "
+      f"contingency on everything not weighed yet: {t_.get('margin', '')} of 12 kg. {sum(1 for i in mb['items'] if i.get('flag') == 'CHECK')} "
+      f"part(s) differ from the model by more than 10% (flagged). The sheet leaves out {t_['notInBudget'].split(' (')[0]} of parts the model has (heaviest: "
+      f"{', '.join(mb.get('heaviestNotInBudget', [])[:3])}), which stay at the model's values.")
+    w()
+    ap_ = call("mass_budget", {"designId": d, "csv": weigh, "apply": True})
+    ask(19, "Put the weigh-ins into the design.", ["mass_budget"])
+    ch = ap_["change"]
+    w(f"> Done: {len(ap_['applied'])} changes (mass overrides on the weighed parts, the fillets and paint added as mass "
+      f"components). Launch mass {ch['launchMass']}, CG {ch['cgAtLaunch']}, stability {ch['stabilityAtLaunch']}. Every later "
+      "step flies the rocket as built; `undo` takes it back in one step.")
+    w()
+
     # 13. Review -------------------------------------------------------------------------------------------------------
     w("## Reviews")
     w()
     stat = call("design_status", {"designId": d})
-    ask(18, "Where do we stand? What's left before CDR?", ["design_status"])
+    ask(20, "Where do we stand? What's left before CDR?", ["design_status"])
     w(f"> **{stat['readiness']}.** {stat.get('ruleCheck', '')}")
     w()
     rows = [{"area": i["area"], "status": i["status"], "finding": i["finding"]} for i in stat["items"]][:8]
@@ -452,7 +495,7 @@ def main():
     rep_dir = os.path.join(tmp, "report")
     call("generate_report", {"designId": d, "outputDir": rep_dir, "title": "Maple 10K design review"})
     shutil.copy(os.path.join(rep_dir, "stability-ascent.svg"), os.path.join(IMG, "stability-ascent.svg"))
-    ask(19, "Make the design review package.", ["generate_report"])
+    ask(21, "Make the design review package.", ["generate_report"])
     w("Claude writes a folder with `report.md` (requirement checks, vehicle, flight, stability, recovery, wind table, "
       "methods), the stability-vs-time plots Launch Canada asks for (DTEG R10.3.2), the drawing, the flight profile and a CSV "
       "of the flight data.")
@@ -462,7 +505,7 @@ def main():
 
     call("save_design", {"designId": d, "path": os.path.join(IMG, "maple-10k.ork")})
     diff = call("compare_designs", {"designId": d, "baselinePath": os.path.join(tmp, "maple-pdr.ork")})
-    ask(20, "What changed since the version we showed at PDR?", ["compare_designs"])
+    ask(22, "What changed since the version we showed at PDR?", ["compare_designs"])
     for line in diff["summary"]:
         w(f"- {line}")
     w()
@@ -475,7 +518,7 @@ def main():
     w("## Launch day")
     w()
     sample = open(os.path.join(ROOT, "src", "test", "resources", "open-meteo-sample.json")).read()
-    ask(21, "We launch at 48.47, -81.33 on August 21 at 3 pm. What will the winds do, and make us the flight card.",
+    ask(23, "We launch at 48.47, -81.33 on August 21 at 3 pm. What will the winds do, and make us the flight card.",
         ["weather_forecast", "flight_card"])
     wx = call("weather_forecast", {"designId": d, "forecastJson": sample, "time": "2027-08-21T15:00"})
     g = wx["ground"]
