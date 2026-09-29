@@ -53,7 +53,7 @@ public final class Loads {
 	 * under a subcomponent mass override (a weighed section) scaled so the section totals the override. Motors (launch
 	 * mass) are returned in {@code motorOut} = {mass, x}.
 	 */
-	static Map<RocketComponent, double[]> componentMasses(FlightConfiguration fc, double[] motorOut) {
+	public static Map<RocketComponent, double[]> componentMasses(FlightConfiguration fc, double[] motorOut) {
 		Map<Integer, CMAnalysisEntry> map = MassCalculator.getCMAnalysis(fc);
 		Map<RocketComponent, double[]> out = new LinkedHashMap<>();
 		double mm = 0, mmx = 0;

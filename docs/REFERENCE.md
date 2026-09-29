@@ -6,7 +6,7 @@ plain-language overview.
 
 ## Tools
 
-The 67 tools, grouped by what a team is doing. Bold marks the main job of each tool.
+The 69 tools, grouped by what a team is doing. Bold marks the main job of each tool.
 
 ### Session
 
@@ -31,6 +31,30 @@ The 67 tools, grouped by what a team is doing. Bold marks the main job of each t
 - `draw_rocket`: a **cut-away** SVG from OpenRocket's geometry. It draws the outside profile and fins over the internals,
   colour-coded by kind: parachutes and shock cords, altimeters, batteries, trackers, ejection charges, switches,
   ballast, motor, couplers, rings and bulkheads. It also marks separation points, CG and CP. The report includes it.
+- `render_3d`: a **shaded 3-D picture** (PNG) of the rocket.
+  - `exploded` (the default): the airframe pieces pull apart along the axis and the fins slide out. Every internal part
+    sits below the piece it goes in, with a dashed line to where it fits.
+  - `cutaway`: the near half of the airframe, couplers and motor mount is removed, so the parts show in place.
+  - `assembled`: the outside only.
+
+  Numbered balloons key each part to a **parts list with OpenRocket's masses**, as on an assembly drawing. Good for
+  design reviews, build guides and posters.
+
+### Flight animation
+
+- `animate_flight`: a **3-D animation of the simulated flight**, written as a looping GIF, an MP4 (when ffmpeg is
+  installed) and a sheet of stills at the key moments, which is shown in the chat.
+  - **Camera:** a chase camera follows the rocket, built from the design's geometry and rolling as simulated. While
+    the motor burns there is an exhaust flame, and a smoke trail stays in the sky.
+  - **Recovery:** at each deployment the airframe comes apart at its separation joints and hangs under the canopy as
+    it inflates. Drogue and main have their own colours. Dropped stages fall on their own simulated track.
+  - **On screen:** the flight clock, altitude, velocity, vertical speed, Mach, acceleration, distance from the pad and
+    wind at the rocket's altitude.
+  - **Captions:** liftoff, rail clear, Mach 1, maximum velocity, burnout, stage separation and ignition, apogee, each
+    deployment and touchdown. Insets show a 3-D trajectory and the altitude trace. A timeline marks every event, and a
+    flight summary closes the animation.
+  - **Timing:** playback is real time through the burn and slows around apogee and each deployment. The coast and
+    descent are sped up to fit `duration` (25 s by default), and the playback rate is always on screen.
 
 ### Motors
 
@@ -295,6 +319,10 @@ See `openrocket://methods` for equations and sources. In short:
   covered by tests) so profiles persist and static margins are stable.
 - **Mass overrides**: if a section's mass is overridden for its subcomponents (a weighed section), OpenRocket ignores
   mass added inside it. The tools warn about this, and `ballast` adds its mass to the override.
+- **3-D views and animation** use a built-in software renderer (depth buffer, 2x2 supersampling), so they need no
+  graphics card or extra install. Geometry and masses are OpenRocket's; rail buttons and lugs are not drawn. In the
+  animation, position, attitude, roll, thrust and every number shown come from the simulation. The hanging pose under
+  the canopy, the canopy's inflation and the smoke are illustrative.
 - **Cd reference area**: OpenRocket uses the nominal canopy area. Vendor Cd values quoted on projected area (e.g. 2.2)
   must be paired with projected area.
 
@@ -310,7 +338,8 @@ RSO.
   `generate_report` includes the flight profile. Plots follow the team's unit setting (imperial for an imperial team,
   else metric) and light or dark themes.
 - **Images in the chat:** tools that draw also return the picture as a PNG in the result, so clients that show images
-  (Claude Desktop, claude.ai) display it in the chat. These are `draw_rocket` and `export_geometry`, plus
+  (Claude Desktop, claude.ai) display it in the chat. These are `draw_rocket`, `render_3d`, `animate_flight` (its
+  key-moment stills) and `export_geometry`, plus
   `run_simulation`, `monte_carlo`, `compare_flight`, `optimize_fins` and `fin_fea` when given a plot path. Set
   `OPENROCKET_MCP_INLINE_IMAGES=0` to send text only.
 - **Progress:** long tools send MCP progress notifications (simulations flown out of the total) when the client passes a
@@ -319,6 +348,9 @@ RSO.
 - **Ordering:** over stdio, requests are handled one at a time in the order they arrive; `ping` and cancellation are
   answered straight away. On the team server, calls on the same design take turns and different designs run in
   parallel.
+- **Video:** `animate_flight` writes the GIF at `gifWidth` (720 px by default; GIFs grow quickly with size). The MP4 is
+  H.264 at `width` (1280 px by default), made by ffmpeg when it is on the PATH (or set `OPENROCKET_MCP_FFMPEG`). Frames
+  render in parallel and stream to both encoders; a 25 s animation takes about half a minute.
 - **Google Earth:** `monte_carlo` `kmlPath` writes the pad, every landing and each stage's 2-sigma ellipse, placed at
   the team's launch site (`launchSite.latitude` / `longitude`) or at `siteLatitude` / `siteLongitude`.
 

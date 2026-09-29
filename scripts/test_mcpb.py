@@ -29,15 +29,22 @@ msgs = [
     {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "save_design", "arguments": {"path": "dual.ork"}}},
     {"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "check_requirements", "arguments": {}}},
     {"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "draw_rocket", "arguments": {"path": "dual.svg"}}},
+    {"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "render_3d", "arguments": {"width": 800}}},
+    {"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {"name": "animate_flight", "arguments": {
+        "duration": 10, "fps": 5, "width": 480, "path": "dual.gif"}}},
 ]
 p = subprocess.run(cmd, input="\n".join(json.dumps(x) for x in msgs) + "\n", capture_output=True, text=True, env=env, timeout=600)
 out = {r["id"]: r for r in map(json.loads, p.stdout.splitlines())}
-assert len(out) == 6, p.stdout + p.stderr
+assert len(out) == len(msgs), p.stdout + p.stderr
 names = {t["name"] for t in out[2]["result"]["tools"]}
 assert names == {t["name"] for t in m["tools"]}, "manifest tool list is out of date"
-for i in (3, 4, 5, 6):
+for i in (3, 4, 5, 6, 7, 8):
     assert not out[i]["result"]["isError"], out[i]
 assert os.path.exists(os.path.join(rockets, "dual.ork")), "designs are saved in the rocket folder"
 images = [c for c in out[6]["result"]["content"] if c["type"] == "image"]
 assert images and images[0]["mimeType"] == "image/png", "the drawing is shown in the chat: " + str(out[6])[:500]
-print(f"OK: {os.path.basename(path)} starts on its bundled Java, {len(names)} tools, simulation, rule check and chat image work")
+assert os.path.getsize(os.path.join(rockets, "dual.gif")) > 10_000, "the flight animation is written"
+for i in (7, 8):
+    assert any(c["type"] == "image" for c in out[i]["result"]["content"]), "3-D view / stills shown: " + str(out[i])[:500]
+print(f"OK: {os.path.basename(path)} starts on its bundled Java, {len(names)} tools, simulation, rule check, chat images, "
+      "3-D view and flight animation work")

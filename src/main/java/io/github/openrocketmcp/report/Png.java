@@ -1,5 +1,8 @@
 package io.github.openrocketmcp.report;
 
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.StringReader;
@@ -8,6 +11,8 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import javax.imageio.ImageIO;
 
 import org.apache.batik.transcoder.TranscoderInput;
 import org.apache.batik.transcoder.TranscoderOutput;
@@ -59,6 +64,31 @@ public final class Png {
 		} catch (Throwable e) { // a missing font or graphics library must not fail the analysis
 			Log.info("Could not render an image for the chat (" + e.getClass().getSimpleName() + ": " + e.getMessage()
 					+ "); the SVG file is still written.");
+			return false;
+		}
+	}
+
+	/** Shows a rendered picture in the chat (scaled down to at most 1400 px wide); returns whether it was attached. */
+	public static boolean attach(BufferedImage img, String alt) {
+		if (!enabled() || img == null) {
+			return false;
+		}
+		try {
+			BufferedImage out = img;
+			if (img.getWidth() > 1400) {
+				int h = (int) Math.round(img.getHeight() * 1400.0 / img.getWidth());
+				out = new BufferedImage(1400, h, BufferedImage.TYPE_INT_RGB);
+				Graphics2D g = out.createGraphics();
+				g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+				g.drawImage(img, 0, 0, 1400, h, null);
+				g.dispose();
+			}
+			ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+			ImageIO.write(out, "png", bytes);
+			CallContext.current().attach(new CallContext.Image("image/png", Base64.getEncoder().encodeToString(bytes.toByteArray()), alt));
+			return true;
+		} catch (Throwable e) {
+			Log.info("Could not attach an image for the chat (" + e.getClass().getSimpleName() + ": " + e.getMessage() + ").");
 			return false;
 		}
 	}

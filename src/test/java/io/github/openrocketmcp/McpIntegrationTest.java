@@ -344,6 +344,16 @@ class McpIntegrationTest {
 		String svg = tmp.resolve("r.svg").toString().replace("\\", "/");
 		call("draw_rocket", "{\"designId\":\"" + id + "\",\"path\":\"" + svg + "\"}");
 		assertTrue(Files.readString(tmp.resolve("r.svg")).contains("CP "));
+
+		String png = tmp.resolve("x.png").toString().replace("\\", "/");
+		JsonObject view = JsonParser.parseString(call("render_3d", "{\"designId\":\"" + id + "\",\"path\":\"" + png
+				+ "\",\"width\":900}")).getAsJsonObject();
+		assertTrue(Files.size(tmp.resolve("x.png")) > 10_000 && view.getAsJsonArray("parts").size() > 3, view.toString());
+		String gif = tmp.resolve("f.gif").toString().replace("\\", "/");
+		JsonObject anim = JsonParser.parseString(call("animate_flight", "{\"designId\":\"" + id + "\",\"path\":\"" + gif
+				+ "\",\"duration\":10,\"fps\":5,\"width\":480,\"mp4\":false}")).getAsJsonObject();
+		assertTrue(Files.size(tmp.resolve("f.gif")) > 10_000 && Files.exists(tmp.resolve("f-keyframes.png")), anim.toString());
+		assertTrue(anim.get("timeline").toString().contains("Apogee"), anim.toString());
 	}
 
 	@Test

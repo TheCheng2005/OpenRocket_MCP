@@ -8,7 +8,7 @@ appear right in the chat, and long runs (optimizers, Monte Carlo) show their pro
 
 **Steps:** [Design](#design) · [Recovery](#recovery) · [Flight and rules](#flight-and-rules) ·
 [Design studies](#design-studies) · [Structures and CFD](#structures-and-cfd) · [Build](#build) · [Reviews](#reviews) ·
-[Launch day](#launch-day) · [After the flight](#after-the-flight)
+[Launch day](#launch-day) · [Show it off](#show-it-off) · [After the flight](#after-the-flight)
 
 The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch
 Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before
@@ -107,7 +107,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 <sub>Tools Claude uses: `edit_components`, `fin_flutter`</sub>
 
-> Claude makes the change and checks it: flutter **FAIL**, margin 0.7306 (flutter speed / airspeed; the team wants 1.5). Thinner fins would need 5.129 mm to be safe.
+> Claude makes the change and checks it: flutter **FAIL**, margin 0.7305 (flutter speed / airspeed; the team wants 1.5). Thinner fins would need 5.129 mm to be safe.
 
 ### 9. "Undo that."
 
@@ -178,7 +178,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 <sub>Tools Claude uses: `monte_carlo`</sub>
 
-> Over 200 simulated flights the median landing is 200 m (656.2 ft) from the pad and 95% land within 487.2 m (1598 ft); the landings centre 495 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2972 m (9752 ft) ± 201 m (659.5 ft).
+> Over 200 simulated flights the median landing is 200.1 m (656.5 ft) from the pad and 95% land within 489.3 m (1605 ft); the landings centre 495 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 201.1 m (659.8 ft).
 
 ![200 simulated landings around the pad with the 2-sigma ellipse](examples/landing.svg)
 
@@ -188,12 +188,12 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 
 | Uncertain input | Apogee | Min stability | Landing distance |
 |---|---|---|---|
-| windSpeed | -0.1295 | -0.9653 | -0.6787 |
-| launchAngle | -0.1494 | -0.006994 | 0.3159 |
-| structureMass | -0.05125 | 0.1309 | 0.09678 |
-| airframeDrag | -0.9259 | 0.04255 | -0.1756 |
-| motorThrust | 0.3184 | 0.08091 | -0.02089 |
-| parachuteCd | -0.03366 | 0.03086 | -0.07497 |
+| windSpeed | -0.13 | -0.9653 | -0.6785 |
+| launchAngle | -0.1489 | -0.006994 | 0.3162 |
+| structureMass | -0.05072 | 0.1309 | 0.09698 |
+| airframeDrag | -0.9256 | 0.04255 | -0.1741 |
+| motorThrust | 0.3185 | 0.08091 | -0.02056 |
+| parachuteCd | -0.03381 | 0.03086 | -0.07424 |
 
 <sub>Correlation from -1 to 1: the closer to ±1, the more that input drives the result.</sub>
 
@@ -212,8 +212,8 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 | tangent ogive (current) | rounded | 3575 m (11730 ft) | 19.66% | 1.144 | 3.528 cal |
 | Von Karman (Haack LD) | square (current) | 3002 m (9850 ft) | 0.4851% | 1.341 | 3.525 cal |
 | 1/2 power | square (current) | 3001 m (9847 ft) | 0.4484% | 1.34 | 3.537 cal |
-| LV-Haack | square (current) | 2993 m (9821 ft) | 0.1891% | 1.356 | 3.533 cal |
-| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02328% | 1.36 | 3.513 cal |
+| LV-Haack | square (current) | 2993 m (9821 ft) | 0.189% | 1.356 | 3.533 cal |
+| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02345% | 1.36 | 3.513 cal |
 | tangent ogive (current) | square (current) | 2988 m (9803 ft) | 0% | 1.351 | 3.522 cal |
 
 <details><summary>Claude's shape guidance (from the tool)</summary>
@@ -311,7 +311,7 @@ Paint and primer,90,estimated,no,Upper airframe
 |---|---|---|
 | Launch site | WARN | Launch site altitude: 0 m (0 ft) used by this simulation |
 | Stability | WARN | Ascent stability (maximum, over-stability): 5.683 cal (R10.3.1, R10.4.1) |
-| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.681 cal (R10.3.1, R10.4.1) |
+| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.68 cal (R10.3.1, R10.4.1) |
 | Rules | WARN | Maximum Mach number: 1.144 |
 | Standards | TODO | The team standards were changed in this session but are not saved to a file, so the next session and the rest of the team will not have them. |
 | File | TODO | Unsaved changes (22 edit(s) this session, undo available). |
@@ -382,6 +382,40 @@ From the one-page flight card (predictions, motor delay, deployment settings, dr
 > | Max acceleration | 144.9 m/s2 (475.5 ft/s2) = 14.78 G |
 > | Rail exit velocity | 40.58 m/s (133.1 ft/s) |
 > | Thrust-to-weight | 12.89 |
+
+## Show it off
+
+### 24. "Make an exploded view for our design review poster, with the parts list."
+
+<sub>Tools Claude uses: `render_3d`</sub>
+
+![Exploded 3-D view of Maple 10K: airframe pieces pulled apart, fins slid out, every internal part laid out below the piece it goes in, with numbered balloons and a parts list with masses](examples/exploded.png)
+
+36 parts, each with OpenRocket's mass (the weighed values from the mass budget). The heaviest: M1315W (5.645 kg), Lower airframe (1.398 kg), Fins (1.091 kg). Ask for `cutaway` to see them in place instead.
+
+### 25. "Animate the flight for our social media post."
+
+<sub>Tools Claude uses: `animate_flight`</sub>
+
+![3-D animation of the simulated flight with the flight clock, altitude, speed, Mach and distance from the pad, captions at burnout, apogee and each deployment](examples/flight.gif)
+
+A 19.8 s loop (GIF; an MP4 too when ffmpeg is installed), and a sheet of stills that Claude shows in the chat:
+
+![Key moments: liftoff, burnout, apogee, drogue, main, touchdown](examples/flight-keyframes.png)
+
+Real time through the burn, slowed down around apogee and each deployment; the coast and the long descent are sped up, with the rate on screen. Events on the timeline:
+
+| Event | Flight time | In the video |
+|---|---|---|
+| Liftoff | 0.06 s | 1.3 s |
+| Rail clear | 0.345 s | 1.6 s |
+| Mach 1 | 2.832 s | 4.0 s |
+| Max velocity | 4.049 s | 5.3 s |
+| Motor burnout | 5.949 s | 7.2 s |
+| Apogee | 20.8 s | 10.6 s |
+| Drogue out | 20.8 s | 10.6 s |
+| Main out | 115.3 s | 14.1 s |
+| Touchdown | 161.1 s | 16.3 s |
 
 ## After the flight
 

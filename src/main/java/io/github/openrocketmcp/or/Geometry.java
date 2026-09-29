@@ -214,7 +214,7 @@ public final class Geometry {
 		return out;
 	}
 
-	static double area(List<double[]> p) {
+	public static double area(List<double[]> p) {
 		double a = 0;
 		for (int i = 0; i < p.size(); i++) {
 			double[] u = p.get(i), v = p.get((i + 1) % p.size());
@@ -224,7 +224,7 @@ public final class Geometry {
 	}
 
 	/** Ear clipping of a simple counter-clockwise polygon (fin outlines can be concave). */
-	static List<int[]> triangulate(List<double[]> p) {
+	public static List<int[]> triangulate(List<double[]> p) {
 		List<Integer> idx = new ArrayList<>();
 		for (int i = 0; i < p.size(); i++) {
 			idx.add(i);

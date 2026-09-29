@@ -86,7 +86,7 @@ def main():
     w()
     w("**Steps:** [Design](#design) · [Recovery](#recovery) · [Flight and rules](#flight-and-rules) ·")
     w("[Design studies](#design-studies) · [Structures and CFD](#structures-and-cfd) · [Build](#build) · [Reviews](#reviews) ·")
-    w("[Launch day](#launch-day) · [After the flight](#after-the-flight)")
+    w("[Launch day](#launch-day) · [Show it off](#show-it-off) · [After the flight](#after-the-flight)")
     w()
     w("The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch")
     w("Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before")
@@ -553,6 +553,35 @@ def main():
         if not line.startswith("| Wind |"):
             w("> " + line)
     w()
+
+    # Show it off ------------------------------------------------------------------------------------------------------
+    w("## Show it off")
+    w()
+    ex = call("render_3d", {"designId": d, "view": "exploded", "path": os.path.join(IMG, "exploded.png")})
+    ask(24, "Make an exploded view for our design review poster, with the parts list.", ["render_3d"])
+    w("![Exploded 3-D view of Maple 10K: airframe pieces pulled apart, fins slid out, every internal part laid out below "
+      "the piece it goes in, with numbered balloons and a parts list with masses](examples/exploded.png)")
+    w()
+    heavy = sorted(ex["parts"], key=lambda p: -float(re.sub(r"[^\d.]", "", lead(p["mass"])) or 0)
+                   * (1000 if lead(p["mass"]).endswith("kg") else 1))[:3]
+    w(f"{len(ex['parts'])} parts, each with OpenRocket's mass (the weighed values from the mass budget). The heaviest: "
+      + ", ".join(f"{p['name']} ({lead(p['mass'])})" for p in heavy) + ". Ask for `cutaway` to see them in place instead.")
+    w()
+    an = call("animate_flight", {"designId": d, "path": os.path.join(IMG, "flight.gif"), "duration": 22, "fps": 10,
+                                 "gifWidth": 560, "mp4": False})
+    ask(25, "Animate the flight for our social media post.", ["animate_flight"])
+    w("![3-D animation of the simulated flight with the flight clock, altitude, speed, Mach and distance from the pad, "
+      "captions at burnout, apogee and each deployment](examples/flight.gif)")
+    w()
+    w(f"A {an['length'].split(',')[0]} loop (GIF; an MP4 too when ffmpeg is installed), and a sheet of stills that Claude "
+      "shows in the chat:")
+    w()
+    w("![Key moments: liftoff, burnout, apogee, drogue, main, touchdown](examples/flight-keyframes.png)")
+    w()
+    w("Real time through the burn, slowed down around apogee and each deployment; the coast and the long descent are "
+      "sped up, with the rate on screen. Events on the timeline:")
+    w()
+    table(an["timeline"], ["event", "flightTime", "videoTime"], ["Event", "Flight time", "In the video"])
 
     w("## After the flight")
     w()

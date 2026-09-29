@@ -38,7 +38,9 @@ Claude / Codex  ──stdio or HTTP JSON-RPC──▶  McpServer (tools, prompts
                                    info.openrocket:core 24.12 (headless)
 ```
 
-- `report/` — Markdown report, flight card, SVG plots and drawings, PNG for the chat, KML.
+- `report/` — Markdown report, flight card, SVG plots and drawings, PNG for the chat, KML; the software 3-D renderer
+  (`Raster3d`), the part model (`Model3d`), exploded / cut-away views (`View3d`) and the flight animation
+  (`FlightAnimation`, written by `Video` as GIF and, through ffmpeg, MP4).
 - `units/` — parsing ("20 ft/s") and display in metric / imperial / both.
 - `standards/` — team standards merged over defaults + rule set.
 - Designs are held in memory; `save_design` writes .ork files usable in the OpenRocket app.
@@ -265,6 +267,17 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   - OpenRocket's deprecated `getActiveComponents()` replaced.
 - Cleanup: one `Xml.esc` for SVG / KML / HTML text; imports instead of fully-qualified names; `serialVersionUID`s.
 - Docs: the tool reference split into one section per area, with one bullet per tool.
+
+### 3-D views and flight animation (v0.16.0)
+
+- `render_3d` (`report.View3d`, `report.Model3d`, `report.Raster3d`): exploded, cut-away and assembled views from
+  OpenRocket's geometry, with numbered balloons and a parts list with masses. Rendering is pure Java (depth buffer,
+  Gouraud shading with a crease angle, 2x2 supersampling), so it runs headless in the desktop extension.
+- `animate_flight` (`or.FlightTrack`, `report.FlightAnimation`, `report.Video`, `report.Gif`): position, attitude
+  (orientation theta / phi, checked against the flight path in the tests), accumulated roll, events and HUD numbers from
+  the simulation. A time warp is real time in the burn and slowed around apogee and deployments. Frames are
+  deterministic, so they render in parallel and stream to a GIF (one median-cut palette) and to ffmpeg for the MP4. A
+  key-moment stills sheet is attached in the chat.
 
 ### Phase 3 — next
 

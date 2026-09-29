@@ -21,8 +21,11 @@ Claude: A 36 in chute lands the 2.84 lb section at 19.9 ft/s. The drogue opens a
 the answers, and the plots. Everything on that page is real output.
 
 <p>
+<img src="docs/examples/flight.gif" alt="3-D animation of the simulated flight: liftoff, burnout, apogee, drogue and main, touchdown" width="100%">
+</p>
+<p>
+<img src="docs/examples/exploded.png" alt="Exploded 3-D view with every part and its mass" width="48%">
 <img src="docs/examples/landing.svg" alt="200 simulated landings around the pad with the 2-sigma ellipse" width="48%">
-<img src="docs/examples/flight-profile.svg" alt="Altitude against time with burnout, apogee and deployments" width="48%">
 </p>
 
 ## What you can ask
@@ -54,6 +57,8 @@ the answers, and the plots. Everything on that page is real output.
   it and a warning if a bay is too short.
 - Get a cut-away drawing: parachutes, shock cords, electronics, batteries, charges, motor, rings and bulkheads where
   they really sit, where the airframe separates, and the CG and CP.
+- "Show me an exploded view" — the rocket in 3-D, pulled apart, with every part inside laid out where it goes and a
+  numbered parts list with masses. Also as a cut-away or assembled view.
 
 **Motors**
 - "Find a motor for 10,000 ft on an L2 certification" — candidates are flown, not just filtered.
@@ -66,6 +71,10 @@ the answers, and the plots. Everything on that page is real output.
 - A landing map for Google Earth: the pad, every simulated landing and the landing ellipse on the real terrain.
 - Use a wind forecast with winds at altitude, not just the ground wind.
 - "Where does our drag come from?" — drag of every part, and how it changes with speed.
+- "Animate the flight" — a short 3-D video of the simulated flight. It shows the flame and smoke, both parachutes
+  opening, and a live readout of time, altitude, speed, Mach and distance from the pad. Captions call out burnout,
+  apogee and each deployment. You get a GIF for chat and slides, an MP4 when ffmpeg is installed, and stills of the key
+  moments.
 
 **Recovery**
 - Choose parachutes for a target descent rate.
