@@ -12,15 +12,20 @@ import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 
+import info.openrocket.core.motor.MotorConfiguration;
 import info.openrocket.core.rocketcomponent.AxialStage;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import info.openrocket.core.rocketcomponent.ParallelStage;
 import info.openrocket.core.rocketcomponent.RocketComponent;
+import info.openrocket.core.util.Coordinate;
 import io.github.openrocketmcp.or.FlightTrack;
 import io.github.openrocketmcp.or.FlightTrack.Event;
 import io.github.openrocketmcp.or.FlightTrack.Flight;
@@ -61,7 +66,9 @@ public final class FlightAnimation {
 	private final Map<Integer, Integer> trackStage = new HashMap<>(); // track index -> stage number
 	private final List<double[]> sections = new ArrayList<>(); // {x start, x end} of each main-stack section
 	private final double length, maxR, cg0, lift, railLength;
-	private final Map<Integer, double[]> nozzles = new HashMap<>(); // stage -> {aft end of its motors, nozzle radius}
+	/** Stage -> its nozzles {x, y, z, radius} in the rocket frame, one per motor instance. */
+	private final Map<Integer, List<double[]>> nozzles = new HashMap<>();
+	private final Set<Integer> sideBoosters = new HashSet<>(); // parallel stages (they burn with the core)
 	private final double[] drift, side, axis0;
 	private final List<Event> deploys = new ArrayList<>();
 	private final Raster3d.Mesh pad, rail, flameOuter, flameInner;
@@ -131,10 +138,20 @@ public final class FlightAnimation {
 		double r = 0;
 		for (Model3d.Part p : parts) {
 			r = Math.max(r, p.kind.equals("fins") ? 0 : p.rMax);
-			if (p.kind.equals("motor")) {
-				double[] nz = nozzles.computeIfAbsent(p.stage, x -> new double[] { 0, 0.02 });
-				nz[0] = Math.max(nz[0], p.x1);
-				nz[1] = Math.max(nz[1], 0.4 * p.rMax);
+		}
+		for (MotorConfiguration mc : fc.getActiveMotors()) {
+			if (mc.getMotor() == null) {
+				continue;
+			}
+			RocketComponent mount = (RocketComponent) mc.getMount();
+			int st = mount.getStage().getStageNumber();
+			if (mount.getStage() instanceof ParallelStage) {
+				sideBoosters.add(st);
+			}
+			for (Coordinate a : mount.toAbsolute(Coordinate.NUL)) {
+				double aft = a.x + mount.getLength() + mc.getMount().getMotorOverhang();
+				nozzles.computeIfAbsent(st, x -> new ArrayList<>()).add(new double[] { aft, a.y, a.z,
+						Math.max(0.005, 0.25 * mc.getMotor().getDiameter()) });
 			}
 		}
 		length = Math.max(0.1, fc.getLength());
@@ -210,7 +227,11 @@ public final class FlightAnimation {
 		axis0 = m.axis(0);
 		double cg = m.at(m.cg, 0);
 		cg0 = Double.isNaN(cg) ? length / 2 : cg;
-		lift = 0.25 + (stack1 - cg0) * Math.max(0, axis0[2]);
+		double aft = 0;
+		for (Model3d.Part p : parts) {
+			aft = Math.max(aft, p.x1); // the aft end of the whole vehicle, boosters included
+		}
+		lift = 0.25 + (aft - cg0) * Math.max(0, axis0[2]);
 		double[] land = m.position(tEnd), top = m.position(apogee);
 		double[] d2 = Math.hypot(land[0], land[1]) > 5 ? land : Math.hypot(top[0], top[1]) > 2 ? top : new double[] { 1, 0, 0 };
 		double dl = Math.hypot(d2[0], d2[1]);
@@ -292,6 +313,17 @@ public final class FlightAnimation {
 		double t = timeOf(i);
 		boolean hold = a > PRE + animEnd;
 		return render(t, hold ? a - PRE - animEnd : 0);
+	}
+
+	/**
+	 * How many frames to render at once: one per core, but no more than a third of the free heap allows (each frame
+	 * needs about 40 bytes per pixel for its supersampled colour and depth buffers).
+	 */
+	public int parallelism() {
+		Runtime rt = Runtime.getRuntime();
+		long free = rt.maxMemory() - (rt.totalMemory() - rt.freeMemory());
+		long perFrame = 40L * w * h;
+		return (int) Math.max(1, Math.min(rt.availableProcessors(), free / 3 / perFrame));
 	}
 
 	/** Frames {@code from} (inclusive) to {@code to} (exclusive), rendered in parallel, in order. */
@@ -384,17 +416,21 @@ public final class FlightAnimation {
 				r.draw(new Raster3d.Placed(mesh, rs, os));
 			}
 		}
-		// Dropped stages on their own tracks.
+		// Stages that drop off: on the vehicle until they separate, then on their own track.
 		for (Map.Entry<Integer, Integer> e : trackStage.entrySet()) {
-			Track b = f.tracks().get(e.getKey());
-			if (tc < b.start()) {
+			Raster3d.Mesh[] stage = stageMeshes.get(e.getValue());
+			if (stage == null) {
 				continue;
 			}
-			double[] bp = b.position(tc);
-			bp[2] += maxR;
-			double[] br = Raster3d.alongAxis(neg(b.axis(tc)), b.at(b.roll, tc));
-			double[] bo = sub(bp, mul(br, new double[] { stagePivot.get(e.getValue())[0], 0, 0 }));
-			for (Raster3d.Mesh mesh : stageMeshes.get(e.getValue())) {
+			Track b = f.tracks().get(e.getKey());
+			double[] br = rot, bo = flightOrigin;
+			if (tc >= b.separation) {
+				double[] bp = b.position(tc);
+				bp[2] += maxR;
+				br = Raster3d.alongAxis(neg(b.axis(tc)), b.at(b.roll, tc));
+				bo = sub(bp, mul(br, new double[] { stagePivot.get(e.getValue())[0], 0, 0 }));
+			}
+			for (Raster3d.Mesh mesh : stage) {
 				r.draw(new Raster3d.Placed(mesh, br, bo));
 			}
 		}
@@ -402,11 +438,12 @@ public final class FlightAnimation {
 		double thrust = t < 0 ? 0 : m.at(m.thrust, tc);
 		if (thrust > 0.01 * f.maxThrust() && kHang == 0) {
 			double flick = 1 + 0.08 * Math.sin(tc * 97.0) + 0.05 * Math.sin(tc * 41.0);
-			double[] nz = nozzle(tc);
-			double fl = nz[1] * 2 * (3 + 7 * thrust / Math.max(1, f.maxThrust())) * flick;
-			double[] at = add(flightOrigin, mul(rot, new double[] { nz[0], 0, 0 }));
-			r.draw(new Raster3d.Placed(flameOuter, scaled(rot, fl, nz[1] * 1.1, nz[1] * 1.1), at));
-			r.draw(new Raster3d.Placed(flameInner, scaled(rot, fl, nz[1] * 1.1, nz[1] * 1.1), at));
+			for (double[] nz : burning(tc)) {
+				double fl = nz[3] * 2 * (3 + 7 * thrust / Math.max(1, f.maxThrust())) * flick;
+				double[] at = add(flightOrigin, mul(rot, new double[] { nz[0], nz[1], nz[2] }));
+				r.draw(new Raster3d.Placed(flameOuter, scaled(rot, fl, nz[3] * 1.1, nz[3] * 1.1), at));
+				r.draw(new Raster3d.Placed(flameInner, scaled(rot, fl, nz[3] * 1.1, nz[3] * 1.1), at));
+			}
 		}
 		// Canopies: the newest above the harness, earlier ones (a drogue that stays attached) beside it.
 		double beside = 0;
@@ -462,19 +499,34 @@ public final class FlightAnimation {
 		return img;
 	}
 
-	/** {x, radius} of the nozzle at the bottom of what is still attached at time t (the lowest stage not yet dropped). */
-	private double[] nozzle(double t) {
-		int best = -1;
+	/**
+	 * Nozzles that burn while the vehicle has thrust at time t: those of the lowest stage still attached (the booster,
+	 * then the sustainer once the booster drops) and of any side boosters still attached.
+	 */
+	private List<double[]> burning(double t) {
+		int lowest = -1;
+		List<double[]> out = new ArrayList<>();
 		for (int st : nozzles.keySet()) {
-			boolean dropped = false;
-			for (Map.Entry<Integer, Integer> e : trackStage.entrySet()) {
-				dropped |= e.getValue() == st && t >= f.tracks().get(e.getKey()).start();
-			}
-			if (!dropped && st > best) {
-				best = st;
+			if (!dropped(st, t) && !sideBoosters.contains(st)) {
+				lowest = Math.max(lowest, st);
 			}
 		}
-		return best < 0 ? new double[] { length, 0.02 } : nozzles.get(best);
+		for (Map.Entry<Integer, List<double[]>> e : nozzles.entrySet()) {
+			int st = e.getKey();
+			if (!dropped(st, t) && (st == lowest || sideBoosters.contains(st))) {
+				out.addAll(e.getValue());
+			}
+		}
+		return out;
+	}
+
+	private boolean dropped(int stage, double t) {
+		for (Map.Entry<Integer, Integer> e : trackStage.entrySet()) {
+			if (e.getValue() == stage && t >= f.tracks().get(e.getKey()).separation) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// ------------------------------------------------------------------------------------------- world
@@ -532,17 +584,23 @@ public final class FlightAnimation {
 	}
 
 	private void drawSmoke(Graphics2D g, Raster3d r, double t) {
-		double diam = Math.max(0.05, 2.2 * nozzle(0)[1]);
+		double diam = 0.05;
+		for (double[] nz : burning(0)) {
+			diam = Math.max(diam, 4.4 * nz[3]);
+		}
 		double[] prev = null;
 		for (double[] s : smoke) {
 			if (s[0] > t) {
 				break;
 			}
 			double age = t - s[0];
-			double[] p = r.projectSs(new double[] { s[1], s[2], s[3] });
+			float alpha = (float) (0.8 - age * 0.02); // spreads and thins out over about 40 s
+			double[] p = alpha > 0.02 ? r.projectSs(new double[] { s[1], s[2], s[3] }) : null;
+			if (p != null && p[2] < 0.5) {
+				p = null; // at the camera: skip rather than cover the frame
+			}
 			if (p != null && prev != null) {
-				double width = (diam + age * 0.9) * r.focal() * 2 / p[2];
-				float alpha = (float) Math.max(0.12, 0.8 - age * 0.018);
+				double width = (diam + age * 0.6) * r.focal() * 2 / p[2];
 				g.setColor(new Color(1f, 1f, 1f, alpha * 0.85f));
 				g.setStroke(new BasicStroke((float) Math.max(1, Math.min(width, 4000)), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 				g.drawLine((int) prev[0], (int) prev[1], (int) p[0], (int) p[1]);
@@ -553,7 +611,7 @@ public final class FlightAnimation {
 
 	private static void line(Graphics2D g, Raster3d r, double[] a, double[] b, Color c, double widthM) {
 		double[] p = r.projectSs(a), q = r.projectSs(b);
-		if (p == null || q == null) {
+		if (p == null || q == null || p[2] < 0.3 || q[2] < 0.3) {
 			return;
 		}
 		double px = Math.max(1.2, widthM * r.focal() * 2 / Math.max(1e-3, (p[2] + q[2]) / 2));
@@ -897,7 +955,7 @@ public final class FlightAnimation {
 		g.setFont(font(Font.BOLD, 12));
 		g.drawString("TRAJECTORY", (float) (x0 + 12 * k), (float) (y0 + 20 * k));
 		g.setFont(font(Font.PLAIN, 11));
-		String lab = "■ pad   ✕ landing";
+		String lab = "\u25a0 pad   \u00d7 landing";
 		g.drawString(lab, (float) (x0 + iw - 12 * k - g.getFontMetrics().stringWidth(lab)), (float) (y0 + 20 * k));
 	}
 
@@ -1097,7 +1155,11 @@ public final class FlightAnimation {
 		g.setColor(new Color(0x1a1a19));
 		g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 20));
 		g.drawString(o.title() + ": key moments", gap, 34);
-		List<BufferedImage> stills = IntStream.range(0, moments.size()).parallel().mapToObj(i -> render(moments.get(i)[0], 0)).toList();
+		List<BufferedImage> stills = new ArrayList<>();
+		for (int from = 0, par = parallelism(); from < moments.size(); from += par) {
+			stills.addAll(IntStream.range(from, Math.min(moments.size(), from + par)).parallel()
+					.mapToObj(i -> render(moments.get(i)[0], 0)).toList());
+		}
 		for (int i = 0; i < moments.size(); i++) {
 			int x = gap + (i % cols) * (tw + gap), y = 56 + (i / cols) * (th + cap + gap);
 			g.drawImage(stills.get(i), x, y, tw, th, null);

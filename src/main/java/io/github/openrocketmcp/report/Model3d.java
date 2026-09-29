@@ -75,6 +75,8 @@ public final class Model3d {
 		/** Index of the airframe piece it belongs to (0 = the nose), in axial order; -1 before layout. */
 		int piece = -1;
 		final int stage;
+		/** The component whose airframe piece this part travels with (a motor's mount; else the component). */
+		RocketComponent owner;
 		final List<double[]> tris = new ArrayList<>();
 		double x0 = Double.MAX_VALUE, x1 = -Double.MAX_VALUE, rMax;
 		double mass;
@@ -90,6 +92,7 @@ public final class Model3d {
 			this.kind = kind;
 			this.internal = internal;
 			this.stage = stage;
+			this.owner = c;
 		}
 
 		public int rgb() {
@@ -168,6 +171,7 @@ public final class Model3d {
 			}
 			RocketComponent mount = (RocketComponent) mc.getMount();
 			Part p = new Part(null, mc.getMotor().getDesignation(), "motor", true, mount.getStage().getStageNumber());
+			p.owner = mount;
 			double ml = mc.getMotor().getLength(), mr = mc.getMotor().getDiameter() / 2;
 			for (Coordinate a : mount.toAbsolute(Coordinate.NUL)) {
 				double aft = a.x + mount.getLength() + mc.getMount().getMotorOverhang();
@@ -183,16 +187,7 @@ public final class Model3d {
 		List<RocketComponent> order = new ArrayList<>(pieces.keySet());
 		order.sort((a, b) -> Double.compare(a.toAbsolute(Coordinate.NUL)[0].x, b.toAbsolute(Coordinate.NUL)[0].x));
 		for (Part p : out) {
-			RocketComponent owner = p.component != null ? pieceOf(p.component) : null;
-			if (p.component == null) { // motor: the piece holding its mount
-				for (MotorConfiguration mc : fc.getActiveMotors()) {
-					if (mc.getMotor() != null && mc.getMotor().getDesignation().equals(p.name)) {
-						owner = pieceOf((RocketComponent) mc.getMount());
-						break;
-					}
-				}
-			}
-			p.piece = Math.max(0, order.indexOf(owner));
+			p.piece = Math.max(0, order.indexOf(pieceOf(p.owner)));
 		}
 		out.sort((a, b) -> a.internal != b.internal ? (a.internal ? 1 : -1) : Integer.compare(a.piece, b.piece));
 		return out;

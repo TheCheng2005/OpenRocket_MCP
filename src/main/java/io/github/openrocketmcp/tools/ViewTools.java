@@ -92,7 +92,8 @@ public final class ViewTools {
 		if (p.getParent() != null) {
 			Files.createDirectories(p.getParent());
 		}
-		View3d.Result r = View3d.render(fc, Drawing.title(d.name(), fc), mode, a.num("azimuth", 25), a.num("elevation", 22), width);
+		View3d.Result r = View3d.render(fc, Drawing.title(d.name(), fc), mode, Math.max(-180, Math.min(180, a.num("azimuth", 25))),
+				Math.max(-85, Math.min(85, a.num("elevation", 22))), width);
 		ImageIO.write(r.image(), "png", p.toFile());
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("file", p.toString());

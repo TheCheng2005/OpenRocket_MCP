@@ -101,10 +101,13 @@ public final class View3d {
 		int bottom = PAD + 20 + 22 * listRows + 28;
 		int top = TITLE + 46;
 		double scale = (width - 2.0 * PAD) / Math.max(1e-9, b[1] - b[0]);
-		int height = (int) Math.ceil((b[3] - b[2]) * scale) + top + bottom + 30;
+		// Height follows the picture, up to 2.5 widths (a view down the axis would otherwise be very tall); frame() then
+		// scales the picture down to fit.
+		int height = (int) Math.min(Math.ceil((b[3] - b[2]) * scale), 2.5 * width) + top + bottom + 30;
 		cam.frame(b, width, height, PAD, PAD, top, bottom + 30);
 
-		Raster3d r = new Raster3d(width, height, 2, cam, new double[] { -0.35, -0.75, 0.6 });
+		// 2 x 2 supersampling costs 32 bytes per pixel: large posters render without it rather than run out of memory.
+		Raster3d r = new Raster3d(width, height, (long) width * height > 6_000_000 ? 1 : 2, cam, new double[] { -0.35, -0.75, 0.6 });
 		r.clear(0xf7f8fa);
 		for (Raster3d.Mesh m : meshes) {
 			r.draw(new Raster3d.Placed(m, Raster3d.Placed.IDENTITY, new double[] { 0, 0, 0 }));

@@ -76,40 +76,43 @@ public final class Video {
 			note = "ffmpeg not found: install it (or set OPENROCKET_MCP_FFMPEG) for an MP4; the GIF is written.";
 		}
 		Path ffLog = null;
-		if (exe != null) {
-			ffLog = Files.createTempFile("ffmpeg", ".log");
-			ProcessBuilder pb = new ProcessBuilder(exe, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s",
-					a.w + "x" + a.h, "-r", Double.toString(a.fps()), "-i", "-", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20",
-					"-preset", "medium", "-movflags", "+faststart", mp4.toAbsolutePath().toString());
-			pb.redirectErrorStream(true).redirectOutput(ffLog.toFile());
-			ff = pb.start();
-			ffIn = ff.getOutputStream();
-		}
-		ctx.expect(n, "frames");
-		int batch = Math.max(4, 2 * Runtime.getRuntime().availableProcessors());
-		byte[] rgb = new byte[a.w * a.h * 3];
-		try (Gif g = new Gif(gif, a.fps(), samples)) {
-			for (int from = 0; from < n; from += batch) {
-				ctx.checkCancelled();
-				for (BufferedImage img : a.frames(from, Math.min(n, from + batch))) {
-					g.add(scale(img, gifWidth));
-					if (ffIn != null) {
-						int[] px = ((DataBufferInt) img.getRaster().getDataBuffer()).getData();
-						for (int i = 0; i < px.length; i++) {
-							rgb[3 * i] = (byte) (px[i] >> 16);
-							rgb[3 * i + 1] = (byte) (px[i] >> 8);
-							rgb[3 * i + 2] = (byte) px[i];
+		boolean done = false;
+		long mp4Bytes = 0;
+		try {
+			if (exe != null) {
+				ffLog = Files.createTempFile("ffmpeg", ".log");
+				ProcessBuilder pb = new ProcessBuilder(exe, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s",
+						a.w + "x" + a.h, "-r", Double.toString(a.fps()), "-i", "-", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf",
+						"20", "-preset", "medium", "-movflags", "+faststart", mp4.toAbsolutePath().toString());
+				pb.redirectErrorStream(true).redirectOutput(ffLog.toFile());
+				ff = pb.start();
+				ffIn = ff.getOutputStream();
+			}
+			ctx.expect(n, "frames");
+			int batch = a.parallelism();
+			byte[] rgb = new byte[a.w * a.h * 3];
+			try (Gif g = new Gif(gif, a.fps(), samples)) {
+				for (int from = 0; from < n; from += batch) {
+					ctx.checkCancelled();
+					for (BufferedImage img : a.frames(from, Math.min(n, from + batch))) {
+						g.add(scale(img, gifWidth));
+						if (ffIn != null) {
+							int[] px = ((DataBufferInt) img.getRaster().getDataBuffer()).getData();
+							for (int i = 0; i < px.length; i++) {
+								rgb[3 * i] = (byte) (px[i] >> 16);
+								rgb[3 * i + 1] = (byte) (px[i] >> 8);
+								rgb[3 * i + 2] = (byte) px[i];
+							}
+							try {
+								ffIn.write(rgb);
+							} catch (IOException e) {
+								ffIn = null; // ffmpeg quit (e.g. no libx264); reported below
+							}
 						}
-						try {
-							ffIn.write(rgb);
-						} catch (IOException e) {
-							ffIn = null; // ffmpeg quit (e.g. no libx264); report below
-						}
+						ctx.advance();
 					}
-					ctx.advance();
 				}
 			}
-		} finally {
 			if (ff != null) {
 				try {
 					if (ffIn != null) {
@@ -118,20 +121,29 @@ public final class Video {
 				} catch (IOException ignored) {
 					// already gone
 				}
-				if (!ff.waitFor(120, TimeUnit.SECONDS)) {
-					ff.destroyForcibly();
+				boolean exited = ff.waitFor(120, TimeUnit.SECONDS);
+				if (exited && ff.exitValue() == 0 && Files.isRegularFile(mp4)) {
+					mp4Bytes = Files.size(mp4);
+				} else {
+					String log = Files.readString(ffLog, StandardCharsets.UTF_8).strip();
+					note = (exited ? "ffmpeg failed" : "ffmpeg did not finish") + (log.isEmpty() ? "" : ": "
+							+ log.lines().reduce((x, y) -> y).orElse("")) + "; the GIF is written.";
 				}
 			}
-		}
-		long mp4Bytes = 0;
-		if (ff != null) {
-			if (ff.exitValue() == 0 && Files.isRegularFile(mp4)) {
-				mp4Bytes = Files.size(mp4);
-			} else {
-				String log = Files.readString(ffLog, StandardCharsets.UTF_8).strip();
-				note = "ffmpeg failed" + (log.isEmpty() ? "" : ": " + log.lines().reduce((x, y) -> y).orElse("")) + "; the GIF is written.";
+			done = true;
+		} finally {
+			if (ff != null && ff.isAlive()) {
+				ff.destroyForcibly();
 			}
-			Files.deleteIfExists(ffLog);
+			if (ffLog != null) {
+				Files.deleteIfExists(ffLog);
+			}
+			if (!done) { // cancelled or failed: no half-written files
+				Files.deleteIfExists(gif);
+				if (mp4 != null && ff != null) {
+					Files.deleteIfExists(mp4);
+				}
+			}
 		}
 		return new Written(gif, mp4Bytes > 0 ? mp4 : null, n, a.seconds(), Files.size(gif), mp4Bytes, note);
 	}

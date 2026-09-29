@@ -111,9 +111,19 @@ class FlightAnimationTest {
 			Simulation s = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults());
 			Sims.run(s);
 			FlightTrack.Flight fl = FlightTrack.of(s);
+			for (int i = 1; i < fl.tracks().size(); i++) {
+				// OpenRocket's branch for a dropped stage starts at liftoff; it comes off at its separation event.
+				assertTrue(fl.tracks().get(i).separation > 0.1, example + " " + fl.tracks().get(i).name);
+			}
 			FlightAnimation a = new FlightAnimation(fl, s.getActiveConfiguration(), 2, new FlightAnimation.Options(480, 5, 12, example, ""));
 			for (FlightTrack.Event e : fl.events()) {
 				assertEquals(480, a.render(e.time() + 0.5, 0).getWidth(), example + " " + e.title());
+			}
+			assertTrue(a.parallelism() >= 1);
+			if (System.getenv("RENDER_SCRATCH") != null) {
+				Files.createDirectories(Path.of("build/scratch"));
+				ImageIO.write(new FlightAnimation(fl, s.getActiveConfiguration(), 2, new FlightAnimation.Options(1280, 5, 12, example, ""))
+						.render(0.3, 0), "png", Path.of("build/scratch/" + example.replace(' ', '_') + "-early.png").toFile());
 			}
 			for (View3d.Mode m : View3d.Mode.values()) {
 				assertTrue(View3d.render(s.getActiveConfiguration(), example, m, 25, 22, 900).parts().size() > 3);

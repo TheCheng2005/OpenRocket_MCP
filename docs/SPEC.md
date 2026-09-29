@@ -278,6 +278,17 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   the simulation. A time warp is real time in the burn and slowed around apogee and deployments. Frames are
   deterministic, so they render in parallel and stream to a GIF (one median-cut palette) and to ffmpeg for the MP4. A
   key-moment stills sheet is attached in the chat.
+- Review fixes before release:
+  - dropped stages (OpenRocket starts their branch at liftoff) come off at their separation event and are drawn on the
+    vehicle until then;
+  - flames burn at every nozzle of the lowest attached stage and of attached side boosters;
+  - the pad height allows for the booster;
+  - smoke thins out instead of filling the frame;
+  - apogee without an event is the highest point;
+  - motors are placed by their own mount;
+  - vertex normals are shared safely between render threads;
+  - parallel frames are capped by free memory, and very large stills skip supersampling;
+  - a cancelled render stops ffmpeg and removes the partial files.
 
 ### Phase 3 — next
 

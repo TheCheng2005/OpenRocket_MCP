@@ -26,7 +26,8 @@ public final class Raster3d {
 		final List<double[]> tris; // 9 numbers each
 		final int rgb;
 		final boolean emissive;
-		private float[] normals; // 9 per triangle, computed on first use
+		// 9 per triangle, computed on first use; volatile because frames render on several threads at once
+		private volatile float[] normals;
 
 		public Mesh(List<double[]> tris, int rgb, boolean emissive) {
 			this.tris = tris;

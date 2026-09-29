@@ -28,6 +28,11 @@ public final class FlightTrack {
 	public static final class Track {
 		public final String name;
 		public final double[] t, east, north, alt, speed, vz, acc, mach, theta, phi, roll, thrust, cg, horiz, windSpeed, windDir;
+		/**
+		 * When this stage comes off (its stage-separation event). OpenRocket starts a dropped stage's branch at liftoff,
+		 * sharing the vehicle's data until then; for branch 0 this is its start.
+		 */
+		public final double separation;
 
 		Track(FlightDataBranch b) {
 			Branch br = Branch.of(b);
@@ -48,6 +53,8 @@ public final class FlightTrack {
 			windSpeed = br.col(FlightDataType.TYPE_WIND_VELOCITY);
 			windDir = br.col(FlightDataType.TYPE_WIND_DIRECTION);
 			double[] rate = br.col(FlightDataType.TYPE_ROLL_RATE);
+			FlightEvent sep = b.getFirstEvent(FlightEvent.Type.STAGE_SEPARATION);
+			separation = sep != null ? sep.getTime() : t.length == 0 ? 0 : t[0];
 			roll = new double[t.length];
 			for (int i = 1; i < t.length; i++) {
 				double r0 = Double.isNaN(rate[i - 1]) ? 0 : rate[i - 1], r1 = Double.isNaN(rate[i]) ? 0 : rate[i];
@@ -206,8 +213,14 @@ public final class FlightTrack {
 					+ (Double.isNaN(m.mach[iMax]) ? "" : ", Mach " + String.format(Locale.ROOT, "%.2f", m.mach[iMax])), null, 0, false));
 		}
 		ev.sort((x, y) -> Double.compare(x.time(), y.time()));
-		if (Double.isNaN(apogee)) {
-			apogee = m.t.length == 0 ? 0 : m.t[iMax];
+		if (Double.isNaN(apogee)) { // no apogee event (e.g. the run was cut short): the highest point
+			int iTop = 0;
+			for (int i = 0; i < m.t.length; i++) {
+				if (m.alt[i] > m.alt[iTop] || Double.isNaN(m.alt[iTop])) {
+					iTop = i;
+				}
+			}
+			apogee = m.t.length == 0 ? 0 : m.t[iTop];
 		}
 		return new Flight(tracks, ev, maxThrust, burnout, apogee, landing, sim.getOptions().getLaunchAltitude());
 	}
