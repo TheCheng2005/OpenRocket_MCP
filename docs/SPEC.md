@@ -27,7 +27,7 @@ Let a student competition team state **goals** and have Claude reach them with r
 ## Architecture
 
 ```
-Claude (Code / Desktop)  ──stdio JSON-RPC──▶  McpServer (tools, prompts, resources)
+Claude / Codex  ──stdio or HTTP JSON-RPC──▶  McpServer (tools, prompts, resources)
                                                  │
                          ┌───────────────────────┼─────────────────────────┐
                     tools/*Tools            or/* (OpenRocket)          calc/* (pure math)
@@ -38,6 +38,7 @@ Claude (Code / Desktop)  ──stdio JSON-RPC──▶  McpServer (tools, prompt
                                    info.openrocket:core 24.12 (headless)
 ```
 
+- `report/` — Markdown report, flight card, SVG plots and drawings, PNG for the chat, KML.
 - `units/` — parsing ("20 ft/s") and display in metric / imperial / both.
 - `standards/` — team standards merged over defaults + rule set.
 - Designs are held in memory; `save_design` writes .ork files usable in the OpenRocket app.
@@ -237,7 +238,8 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
 ### Working with Claude (v0.14.0)
 
 - MCP: per-call context (progress notifications from `Variants.runAll`, cancellation checkpoints, image content);
-  stdio requests run concurrently with per-design locks; Streamable HTTP answers a tool call with a progress token as
+  stdio requests run one at a time in order on a worker thread, while the reader answers `ping` and cancellation at
+  once; Streamable HTTP answers a tool call with a progress token as
   server-sent events.
 - Images: our SVGs rasterized with Apache Batik (`report.Png`), best effort (no image, same text, if it fails).
 - `design_status`; `undo` / `redo` / `history` (rocket copies around every editing tool, kept when OpenRocket's
@@ -250,6 +252,19 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
 - Fix: per-component masses with a weighed section (mass override of a component and its subcomponents) counted the
   section twice (OpenRocket keeps the override on the section's own entry); now spread over the section in proportion
   to the parts' own masses, so they add up to OpenRocket's structure mass. Affects `structural_loads` too.
+
+### Review and cleanup (v0.15.1)
+
+- Fixes:
+  - stdio: `ping` and cancellation are recognised by parsing the request, not by searching its text;
+  - simulations that were never flown no longer stay in static maps (weak maps), and closing a design frees its
+    aero table unless another open copy of the same rocket uses it;
+  - `mass_budget`: several lines for one part are summed (CG mass-weighted), and a part the design lacks is added when
+    the line names a parent;
+  - enum and unit names parse the same in every system locale (`Locale.ROOT`, e.g. Turkish);
+  - OpenRocket's deprecated `getActiveComponents()` replaced.
+- Cleanup: one `Xml.esc` for SVG / KML / HTML text; imports instead of fully-qualified names; `serialVersionUID`s.
+- Docs: the tool reference split into one section per area, with one bullet per tool.
 
 ### Phase 3 — next
 

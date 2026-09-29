@@ -1,13 +1,16 @@
 package io.github.openrocketmcp.or;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.function.DoublePredicate;
 
 import info.openrocket.core.aerodynamics.AerodynamicForces;
 import info.openrocket.core.document.OpenRocketDocument;
@@ -22,6 +25,11 @@ import info.openrocket.core.simulation.FlightEvent;
 import info.openrocket.core.simulation.SimulationOptions;
 import info.openrocket.core.simulation.SimulationStatus;
 import info.openrocket.core.simulation.listeners.AbstractSimulationListener;
+import io.github.openrocketmcp.mcp.CallContext;
+import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.report.Kml;
+import io.github.openrocketmcp.report.Png;
+import io.github.openrocketmcp.report.Svg;
 import io.github.openrocketmcp.standards.Standards;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
@@ -184,7 +192,7 @@ public final class MonteCarlo {
 			o.setTimeStep(Math.max(o.getTimeStep(), 0.1));
 			sims.add(v);
 		}
-		io.github.openrocketmcp.mcp.CallContext.current().expect(sims.size(), "flights simulated");
+		CallContext.current().expect(sims.size(), "flights simulated");
 		List<Variants.Run> runs = Variants.runAll(sims);
 
 		List<Double> apogees = new ArrayList<>();
@@ -297,9 +305,9 @@ public final class MonteCarlo {
 				}
 				Files.writeString(pp, landingSvg(landings, base.getRocket().getName() + ": " + okOutputs.size() + " simulated landings"));
 				out.put("plot", pp.toString());
-				io.github.openrocketmcp.report.Png.attachFile(pp, "Landing map");
-			} catch (java.io.IOException ex) {
-				throw new io.github.openrocketmcp.mcp.ToolException("Could not write the plot: " + ex.getMessage());
+				Png.attachFile(pp, "Landing map");
+			} catch (IOException ex) {
+				throw new ToolException("Could not write the plot: " + ex.getMessage());
 			}
 		}
 		if (kml != null && !landings.isEmpty()) {
@@ -316,17 +324,17 @@ public final class MonteCarlo {
 				if (kp.getParent() != null) {
 					Files.createDirectories(kp.getParent());
 				}
-				Files.writeString(kp, io.github.openrocketmcp.report.Kml.landings(base.getRocket().getName() + " landing zones", lat, lon,
+				Files.writeString(kp, Kml.landings(base.getRocket().getName() + " landing zones", lat, lon,
 						landings, ellipses, okOutputs.size() + " simulated flights, wind " + Units.fmt(windMean, Dim.VELOCITY)
 								+ ". Ellipses hold about 86% of landings (2 sigma)."));
-				out.put("kml", kp + " (open in Google Earth; pad at " + String.format(java.util.Locale.ROOT, "%.5f, %.5f", lat, lon) + ")");
+				out.put("kml", kp + " (open in Google Earth; pad at " + String.format(Locale.ROOT, "%.5f, %.5f", lat, lon) + ")");
 				if (site == null && Double.isNaN(std.q("launchSite.latitude", Dim.DIMENSIONLESS, Double.NaN))) {
 					out.put("kmlNote", "The pad position is the simulation's launch site; OpenRocket's default is Cape Canaveral. Set "
 							+ "launchSite.latitude / longitude in the team standards, or pass siteLatitude / siteLongitude, so the "
 							+ "map sits on your field.");
 				}
-			} catch (java.io.IOException ex) {
-				throw new io.github.openrocketmcp.mcp.ToolException("Could not write the KML: " + ex.getMessage());
+			} catch (IOException ex) {
+				throw new ToolException("Could not write the KML: " + ex.getMessage());
 			}
 		}
 		List<Map<String, Object>> deps = new ArrayList<>();
@@ -419,7 +427,7 @@ public final class MonteCarlo {
 		return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
 	}
 
-	static int count(double[] v, java.util.function.DoublePredicate p) {
+	static int count(double[] v, DoublePredicate p) {
 		int n = 0;
 		for (double x : v) {
 			if (p.test(x)) {
@@ -475,7 +483,7 @@ public final class MonteCarlo {
 	public static String landingSvg(Map<String, List<double[]>> landings, String title) {
 		String unit = Units.plotUnit(Dim.DISTANCE);
 		double k = Units.fromSi(1, unit);
-		List<io.github.openrocketmcp.report.Svg.Cloud> clouds = new ArrayList<>();
+		List<Svg.Cloud> clouds = new ArrayList<>();
 		for (Map.Entry<String, List<double[]>> e : landings.entrySet()) {
 			List<double[]> pts = e.getValue();
 			double[] x = new double[pts.size()], y = new double[pts.size()];
@@ -484,9 +492,9 @@ public final class MonteCarlo {
 				y[i] = pts.get(i)[1] * k;
 			}
 			double[] el = ellipse(pts);
-			clouds.add(new io.github.openrocketmcp.report.Svg.Cloud(e.getKey(), x, y, el[0] * k, el[1] * k, el[2] * k, el[3] * k, el[4]));
+			clouds.add(new Svg.Cloud(e.getKey(), x, y, el[0] * k, el[1] * k, el[2] * k, el[3] * k, el[4]));
 		}
-		return io.github.openrocketmcp.report.Svg.landingMap(title, unit, clouds);
+		return Svg.landingMap(title, unit, clouds);
 	}
 
 	/** Landing statistics: mean point, distances, and the 2-sigma covariance ellipse. */

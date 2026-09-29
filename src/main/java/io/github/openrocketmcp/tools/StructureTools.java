@@ -95,7 +95,7 @@ public final class StructureTools {
 						holder = Components.find(base.getRocket(), a.str("component"));
 					} else {
 						holder = null;
-						for (RocketComponent c : fc.getActiveComponents()) {
+						for (RocketComponent c : fc.getAllActiveComponents()) {
 							if (c instanceof NoseCone) {
 								holder = c;
 								break;

@@ -3,10 +3,9 @@ package io.github.openrocketmcp;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.junit.jupiter.api.Test;
-
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import org.junit.jupiter.api.Test;
 
 import io.github.openrocketmcp.mcp.McpServer;
 import io.github.openrocketmcp.standards.Standards;

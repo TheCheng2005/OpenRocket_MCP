@@ -1,17 +1,24 @@
 package io.github.openrocketmcp.or;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import com.google.gson.JsonElement;
 
 import info.openrocket.core.document.Simulation;
+import info.openrocket.core.motor.Motor;
 import info.openrocket.core.motor.MotorConfiguration;
 import info.openrocket.core.motor.ThrustCurveMotor;
+import info.openrocket.core.rocketcomponent.AxialStage;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import info.openrocket.core.rocketcomponent.MassComponent;
 import info.openrocket.core.rocketcomponent.MotorMount;
+import info.openrocket.core.rocketcomponent.RailButton;
 import info.openrocket.core.rocketcomponent.RecoveryDevice;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.simulation.FlightData;
@@ -20,6 +27,7 @@ import info.openrocket.core.simulation.FlightDataType;
 import info.openrocket.core.simulation.FlightEvent;
 import info.openrocket.core.simulation.SimulationOptions;
 import io.github.openrocketmcp.calc.Atmosphere;
+import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.standards.Standards;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
@@ -98,7 +106,7 @@ public final class Requirements {
 		Report r = new Report();
 		if (std.rules().has("manualChecks")) {
 			r.manual = new ArrayList<>();
-			for (com.google.gson.JsonElement e : std.rules().getAsJsonArray("manualChecks")) {
+			for (JsonElement e : std.rules().getAsJsonArray("manualChecks")) {
 				r.manual.add(e.getAsString());
 			}
 		}
@@ -318,8 +326,8 @@ public final class Requirements {
 		}
 		if (std.rules().has("railButtons")) {
 			for (RocketComponent c : fc.getRocket()) {
-				if (c instanceof info.openrocket.core.rocketcomponent.RailButton rb && fc.isComponentActive(c)) {
-					String mat = rb.getMaterial().getName().toLowerCase(java.util.Locale.ROOT);
+				if (c instanceof RailButton rb && fc.isComponentActive(c)) {
+					String mat = rb.getMaterial().getName().toLowerCase(Locale.ROOT);
 					boolean metal = mat.contains("aluminum") || mat.contains("aluminium") || mat.contains("steel")
 							|| mat.contains("brass") || mat.contains("titanium") || mat.contains("copper");
 					r.add(metal ? Status.FAIL : Status.PASS, "Rail button material (" + c.getName() + ")",
@@ -336,12 +344,12 @@ public final class Requirements {
 		electronics(r, fc);
 		double ispMin = std.rule("srad.minStaticFireIsp", Dim.TIME);
 		if (!Double.isNaN(ispMin)) {
-			for (info.openrocket.core.motor.MotorConfiguration mc : fc.getActiveMotors()) {
-				if (mc.getMotor() instanceof info.openrocket.core.motor.ThrustCurveMotor m
-						&& (m.getMotorType() == info.openrocket.core.motor.Motor.Type.HYBRID
-								|| m.getMotorType() == info.openrocket.core.motor.Motor.Type.UNKNOWN)) {
+			for (MotorConfiguration mc : fc.getActiveMotors()) {
+				if (mc.getMotor() instanceof ThrustCurveMotor m
+						&& (m.getMotorType() == Motor.Type.HYBRID
+								|| m.getMotorType() == Motor.Type.UNKNOWN)) {
 					double prop = m.getLaunchMass() - m.getBurnoutMass();
-					double isp = prop > 0 ? m.getTotalImpulseEstimate() / (prop * io.github.openrocketmcp.calc.Atmosphere.G0) : Double.NaN;
+					double isp = prop > 0 ? m.getTotalImpulseEstimate() / (prop * Atmosphere.G0) : Double.NaN;
 					r.add(isp >= ispMin ? Status.PASS : Status.FAIL, "SRAD/hybrid/liquid engine Isp (" + m.getDesignation() + ")",
 							">= " + Units.num(ispMin) + " s in static fires to come to competition (higher by probation level; "
 									+ "see advanced_probation)",
@@ -356,7 +364,7 @@ public final class Requirements {
 					tests.add("pop test: " + c.getName() + " bay");
 				}
 			}
-			for (info.openrocket.core.rocketcomponent.AxialStage st : fc.getActiveStages()) {
+			for (AxialStage st : fc.getActiveStages()) {
 				if (st.getStageNumber() > 0) {
 					tests.add("separation test: " + st.getName());
 				}
@@ -394,7 +402,7 @@ public final class Requirements {
 		List<Structures.FlutterResult> res;
 		try {
 			res = Structures.flutter(sim, std, null, Double.NaN);
-		} catch (io.github.openrocketmcp.mcp.ToolException e) {
+		} catch (ToolException e) {
 			r.add(Status.INFO, "Fin flutter", "flutter speed >= " + Units.num(need) + " x airspeed (team standard)",
 					"not evaluated: " + e.getMessage(), null);
 			return;
@@ -421,7 +429,7 @@ public final class Requirements {
 				r.add(Status.FAIL, d.branch() + ": " + d.device().getName() + " deploys before apogee",
 						"recovery devices must not open during ascent (check the deployment event: new parachutes in "
 								+ "OpenRocket default to the motor ejection charge; use set_deployment)",
-						Units.num(-d.timeAfterApogee()) + " s before apogee at " + Units.fmt(d.airspeed(), io.github.openrocketmcp.units.Dim.VELOCITY),
+						Units.num(-d.timeAfterApogee()) + " s before apogee at " + Units.fmt(d.airspeed(), Dim.VELOCITY),
 						"R4.2.1");
 			}
 		}
@@ -435,8 +443,8 @@ public final class Requirements {
 	 */
 	static void electronics(Report r, FlightConfiguration fc) {
 		int alt = 0, trk = 0, bat = 0;
-		for (info.openrocket.core.rocketcomponent.RocketComponent c : fc.getActiveComponents()) {
-			if (c instanceof info.openrocket.core.rocketcomponent.MassComponent m) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
+			if (c instanceof MassComponent m) {
 				switch (m.getMassComponentType()) {
 					case ALTIMETER, FLIGHTCOMPUTER -> alt++;
 					case TRACKER -> trk++;
@@ -461,7 +469,7 @@ public final class Requirements {
 
 	public static List<String> lateFirstDeployments(Simulation sim) {
 		List<String> out = new ArrayList<>();
-		java.util.Set<String> seen = new java.util.HashSet<>();
+		Set<String> seen = new HashSet<>();
 		for (Sims.Deployment d : Sims.deployments(sim)) {
 			if (!seen.add(d.branch())) {
 				continue;

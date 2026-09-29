@@ -1,5 +1,8 @@
 package io.github.openrocketmcp.bench;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.junit.jupiter.api.Test;
 
 import info.openrocket.core.document.Simulation;
@@ -39,6 +42,6 @@ class StepBenchTest {
 						fd.getMaxAltitude(), b.getLength(), b.getLast(FlightDataType.TYPE_POSITION_XY), fd.getLaunchRodVelocity()));
 			}
 		}
-		java.nio.file.Files.writeString(java.nio.file.Path.of("build/step-bench.txt"), out.toString());
+		Files.writeString(Path.of("build/step-bench.txt"), out.toString());
 	}
 }

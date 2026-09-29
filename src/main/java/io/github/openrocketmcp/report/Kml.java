@@ -33,8 +33,8 @@ public final class Kml {
 			Map<String, double[]> ellipses, String description) {
 		StringBuilder b = new StringBuilder();
 		b.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document>\n");
-		b.append("<name>").append(esc(title)).append("</name>\n");
-		b.append("<description>").append(esc(description)).append("</description>\n");
+		b.append("<name>").append(Xml.esc(title)).append("</name>\n");
+		b.append("<description>").append(Xml.esc(description)).append("</description>\n");
 		for (int k = 0; k < LINE.length; k++) {
 			b.append(String.format(Locale.ROOT, "<Style id=\"s%d\"><IconStyle><color>%s</color><scale>0.5</scale><Icon><href>"
 					+ "http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png</href></Icon></IconStyle><LabelStyle><scale>0</scale>"
@@ -48,15 +48,15 @@ public final class Kml {
 		int k = 0;
 		for (Map.Entry<String, List<double[]>> e : landings.entrySet()) {
 			String st = "#s" + (k % LINE.length);
-			b.append("<Folder><name>").append(esc(e.getKey())).append(" (").append(e.getValue().size()).append(" landings)</name>\n");
+			b.append("<Folder><name>").append(Xml.esc(e.getKey())).append(" (").append(e.getValue().size()).append(" landings)</name>\n");
 			double[] el = ellipses.get(e.getKey());
 			if (el != null) {
 				double[] m = offset(lat, lon, el[0], el[1]);
 				double dist = Math.hypot(el[0], el[1]);
 				b.append(String.format(Locale.ROOT, "<Placemark><name>%s mean landing</name><description>%.0f m from the pad; 2-sigma "
 						+ "ellipse %.0f x %.0f m</description><Point><coordinates>%.7f,%.7f,0</coordinates></Point></Placemark>%n",
-						esc(e.getKey()), dist, 2 * el[2], 2 * el[3], m[1], m[0]));
-				b.append("<Placemark><name>").append(esc(e.getKey())).append(" 2-sigma ellipse</name><styleUrl>").append(st)
+						Xml.esc(e.getKey()), dist, 2 * el[2], 2 * el[3], m[1], m[0]));
+				b.append("<Placemark><name>").append(Xml.esc(e.getKey())).append(" 2-sigma ellipse</name><styleUrl>").append(st)
 						.append("</styleUrl><Polygon><tessellate>1</tessellate><outerBoundaryIs><LinearRing><coordinates>\n");
 				for (int i = 0; i <= 72; i++) {
 					double t = 2 * Math.PI * i / 72;
@@ -79,9 +79,5 @@ public final class Kml {
 		}
 		b.append("</Document>\n</kml>\n");
 		return b.toString();
-	}
-
-	private static String esc(String s) {
-		return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
 	}
 }

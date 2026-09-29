@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
@@ -15,10 +16,9 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.jupiter.api.Test;
-
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import org.junit.jupiter.api.Test;
 
 /** Progress notifications, cancellation, concurrent stdio requests and image results. */
 class CallContextTest {
@@ -127,7 +127,7 @@ class CallContextTest {
 			in.append(call(i, i % 2 == 0 ? "picture" : "count", false)).append('\n');
 		}
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
-		s.serve(new java.io.ByteArrayInputStream(in.toString().getBytes(StandardCharsets.UTF_8)),
+		s.serve(new ByteArrayInputStream(in.toString().getBytes(StandardCharsets.UTF_8)),
 				new PrintStream(out, true, StandardCharsets.UTF_8));
 		String[] lines = out.toString(StandardCharsets.UTF_8).strip().split("\n");
 		assertEquals(6, lines.length);

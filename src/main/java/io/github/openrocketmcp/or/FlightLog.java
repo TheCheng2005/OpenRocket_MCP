@@ -1,7 +1,9 @@
 package io.github.openrocketmcp.or;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -12,7 +14,10 @@ import info.openrocket.core.document.Simulation;
 import info.openrocket.core.simulation.FlightDataBranch;
 import info.openrocket.core.simulation.FlightDataType;
 import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.report.Png;
+import io.github.openrocketmcp.report.Svg;
 import io.github.openrocketmcp.units.Dim;
+import io.github.openrocketmcp.units.UnitSystem;
 import io.github.openrocketmcp.units.Units;
 
 /**
@@ -166,7 +171,7 @@ public final class FlightLog {
 
 	/** Compares the log with the simulation and fits a drag multiplier to the measured apogee. */
 	public static Map<String, Object> compare(Simulation base, OpenRocketDocument doc, Log log, String svgPath,
-			String title) throws java.io.IOException {
+			String title) throws IOException {
 		double[] factors = { 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.35, 1.5, 1.75, 2.0 };
 		List<Simulation> sims = new ArrayList<>();
 		for (double f : factors) {
@@ -229,23 +234,23 @@ public final class FlightLog {
 		out.put("notes", notes);
 
 		if (svgPath != null) {
-			java.nio.file.Path p = java.nio.file.Path.of(svgPath).toAbsolutePath();
+			Path p = Path.of(svgPath).toAbsolutePath();
 			if (p.getParent() != null) {
-				java.nio.file.Files.createDirectories(p.getParent());
+				Files.createDirectories(p.getParent());
 			}
 			double shift = m.launch() - s.launch(); // align launches
 			double[] lt = new double[log.t().length];
 			for (int i = 0; i < lt.length; i++) {
 				lt[i] = log.t()[i] - shift;
 			}
-			boolean imperial = Units.system() == io.github.openrocketmcp.units.UnitSystem.IMPERIAL;
+			boolean imperial = Units.system() == UnitSystem.IMPERIAL;
 			double k = imperial ? 1 / 0.3048 : 1;
-			java.nio.file.Files.writeString(p, io.github.openrocketmcp.report.Svg.lines(title, "Time (s)",
+			Files.writeString(p, Svg.lines(title, "Time (s)",
 					"Altitude (" + (imperial ? "ft" : "m") + ")",
-					List.of(new io.github.openrocketmcp.report.Svg.Series("simulated", st[0], scale(st[1], k)),
-							new io.github.openrocketmcp.report.Svg.Series("measured", lt, scale(log.alt(), k))),
+					List.of(new Svg.Series("simulated", st[0], scale(st[1], k)),
+							new Svg.Series("measured", lt, scale(log.alt(), k))),
 					Double.NaN, null, List.of()));
-			io.github.openrocketmcp.report.Png.attachFile(p, "Simulated and measured altitude");
+			Png.attachFile(p, "Simulated and measured altitude");
 			out.put("plot", p.toString());
 		}
 		return out;

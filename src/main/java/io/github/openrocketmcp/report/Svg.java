@@ -65,7 +65,7 @@ public final class Svg {
 		StringBuilder s = new StringBuilder();
 		s.append(String.format(Locale.ROOT,
 				"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 %d %d\" width=\"%d\" height=\"%d\" role=\"img\" aria-label=\"%s\">%n",
-				W, H, W, H, esc(title)));
+				W, H, W, H, Xml.esc(title)));
 		s.append("<style>\n")
 				.append(".bg{fill:#fcfcfb}.grid{stroke:#e4e3de;stroke-width:1}.axis{stroke:#b8b7ae;stroke-width:1}")
 				.append(".t1{fill:#1a1a19;font:600 15px system-ui,sans-serif}.t2{fill:#5f5e57;font:12px system-ui,sans-serif}")
@@ -76,7 +76,7 @@ public final class Svg {
 				.append(".t1{fill:#ffffff}.t2{fill:#c3c2b7}.series{stroke:#3987e5}.series2{stroke:#f08c4f}.ref{stroke:#c3c2b7}.mark{stroke:#5f5e57}}\n")
 				.append("</style>\n");
 		s.append(String.format(Locale.ROOT, "<rect class=\"bg\" width=\"%d\" height=\"%d\"/>%n", W, H));
-		s.append(String.format(Locale.ROOT, "<text class=\"t1\" x=\"%d\" y=\"26\">%s</text>%n", L, esc(title)));
+		s.append(String.format(Locale.ROOT, "<text class=\"t1\" x=\"%d\" y=\"26\">%s</text>%n", L, Xml.esc(title)));
 		for (double v : yt) {
 			double py = sy.applyAsDouble(v);
 			s.append(String.format(Locale.ROOT, "<line class=\"grid\" x1=\"%d\" x2=\"%d\" y1=\"%.1f\" y2=\"%.1f\"/>%n", L, W - R, py, py));
@@ -88,16 +88,16 @@ public final class Svg {
 		}
 		s.append(String.format(Locale.ROOT, "<line class=\"axis\" x1=\"%d\" x2=\"%d\" y1=\"%d\" y2=\"%d\"/>%n", L, W - R, H - B, H - B));
 		s.append(String.format(Locale.ROOT, "<text class=\"t2\" x=\"%d\" y=\"%d\" text-anchor=\"middle\">%s</text>%n",
-				(L + W - R) / 2, H - 12, esc(xLabel)));
+				(L + W - R) / 2, H - 12, Xml.esc(xLabel)));
 		s.append(String.format(Locale.ROOT, "<text class=\"t2\" transform=\"translate(16 %d) rotate(-90)\" text-anchor=\"middle\">%s</text>%n",
-				(T + H - B) / 2, esc(yLabel)));
+				(T + H - B) / 2, Xml.esc(yLabel)));
 		if (markers != null) {
 			appendMarkers(s, markers, sx, x0, x1);
 		}
 		if (!Double.isNaN(refY)) {
 			double py = sy.applyAsDouble(refY);
 			s.append(String.format(Locale.ROOT, "<line class=\"ref\" x1=\"%d\" x2=\"%d\" y1=\"%.1f\" y2=\"%.1f\"/>%n", L, W - R, py, py));
-			s.append(String.format(Locale.ROOT, "<text class=\"t2\" x=\"%d\" y=\"%.1f\" text-anchor=\"end\">%s</text>%n", W - R, py - 6, esc(refLabel)));
+			s.append(String.format(Locale.ROOT, "<text class=\"t2\" x=\"%d\" y=\"%.1f\" text-anchor=\"end\">%s</text>%n", W - R, py - 6, Xml.esc(refLabel)));
 		}
 		for (int k = 0; k < series.size() && k < SERIES_CLASSES.length; k++) {
 			double[] x = series.get(k).x(), y = series.get(k).y();
@@ -117,7 +117,7 @@ public final class Svg {
 				int lx = W - R - 220 + 110 * k;
 				s.append(String.format(Locale.ROOT, "<line class=\"%s\" x1=\"%d\" x2=\"%d\" y1=\"%d\" y2=\"%d\"/>"
 						+ "<text class=\"t2\" x=\"%d\" y=\"%d\">%s</text>%n", SERIES_CLASSES[k], lx, lx + 18, ly, ly, lx + 24, ly + 4,
-						esc(series.get(k).name())));
+						Xml.esc(series.get(k).name())));
 			}
 		}
 		s.append("</svg>\n");
@@ -162,7 +162,7 @@ public final class Svg {
 		StringBuilder s = new StringBuilder();
 		s.append(String.format(Locale.ROOT,
 				"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 %d %d\" width=\"%d\" height=\"%d\" role=\"img\" aria-label=\"%s\">%n",
-				w, h, w, h, esc(title)));
+				w, h, w, h, Xml.esc(title)));
 		s.append("<style>\n")
 				.append(".bg{fill:#fcfcfb}.grid{stroke:#e4e3de;stroke-width:1}.axis{stroke:#b8b7ae;stroke-width:1}")
 				.append(".t1{fill:#1a1a19;font:600 15px system-ui,sans-serif}.t2{fill:#5f5e57;font:12px system-ui,sans-serif}")
@@ -173,7 +173,7 @@ public final class Svg {
 				.append(".t1{fill:#ffffff}.t2{fill:#c3c2b7}.p0{fill:#3987e5}.p1{fill:#f08c4f}.e0{stroke:#3987e5}.e1{stroke:#f08c4f}")
 				.append(".pad{fill:#ffffff}}\n</style>\n");
 		s.append(String.format(Locale.ROOT, "<rect class=\"bg\" width=\"%d\" height=\"%d\"/>%n", w, h));
-		s.append(String.format(Locale.ROOT, "<text class=\"t1\" x=\"%d\" y=\"26\">%s</text>%n", l, esc(title)));
+		s.append(String.format(Locale.ROOT, "<text class=\"t1\" x=\"%d\" y=\"26\">%s</text>%n", l, Xml.esc(title)));
 		for (int i = 0; i <= n; i++) {
 			double vx = x0 + i * step, vy = y0 + i * step;
 			double px = sx.applyAsDouble(vx), py = sy.applyAsDouble(vy);
@@ -184,10 +184,10 @@ public final class Svg {
 			s.append(String.format(Locale.ROOT, "<text class=\"t2\" x=\"%d\" y=\"%.1f\" text-anchor=\"end\">%s</text>%n", l - 8, py + 4, fmt(vy)));
 		}
 		s.append(String.format(Locale.ROOT, "<text class=\"t2\" x=\"%.1f\" y=\"%d\" text-anchor=\"middle\">East of the pad (%s)</text>%n",
-				l + pw / 2, h - 12, esc(unit)));
+				l + pw / 2, h - 12, Xml.esc(unit)));
 		s.append(String.format(Locale.ROOT,
 				"<text class=\"t2\" transform=\"translate(16 %.1f) rotate(-90)\" text-anchor=\"middle\">North of the pad (%s)</text>%n",
-				t + pw / 2, esc(unit)));
+				t + pw / 2, Xml.esc(unit)));
 		double scale = pw / size;
 		for (int k = 0; k < clouds.size() && k < 2; k++) {
 			Cloud c = clouds.get(k);
@@ -205,7 +205,7 @@ public final class Svg {
 			int lx = l + 170 * k;
 			s.append(String.format(Locale.ROOT, "<circle class=\"p%d\" cx=\"%d\" cy=\"%d\" r=\"4\"/>"
 					+ "<text class=\"t2\" x=\"%d\" y=\"%d\">%s (%d, 2-sigma ellipse)</text>%n", k, lx + 4, ly, lx + 12, ly + 4,
-					esc(c.name()), c.x().length));
+					Xml.esc(c.name()), c.x().length));
 		}
 		double px = sx.applyAsDouble(0), py = sy.applyAsDouble(0);
 		s.append(String.format(Locale.ROOT, "<path class=\"pad\" d=\"M%.1f %.1f l6 10 h-12 z\"/>%n", px, py - 6));
@@ -240,7 +240,7 @@ public final class Svg {
 			rowEnd[row] = px + 4 + m.label().length() * 6.5;
 			s.append(String.format(Locale.ROOT, "<line class=\"mark\" x1=\"%.1f\" x2=\"%.1f\" y1=\"%d\" y2=\"%d\"/>%n", px, px, T, H - B));
 			s.append(String.format(Locale.ROOT, "<text class=\"t2\" x=\"%.1f\" y=\"%d\" text-anchor=\"start\">%s</text>%n",
-					px + 4, T + 12 + 14 * row, esc(m.label())));
+					px + 4, T + 12 + 14 * row, Xml.esc(m.label())));
 		}
 	}
 
@@ -267,9 +267,5 @@ public final class Svg {
 			return String.valueOf((long) Math.rint(v));
 		}
 		return String.format(Locale.ROOT, "%.2f", v).replaceAll("0+$", "").replaceAll("\\.$", "");
-	}
-
-	private static String esc(String s) {
-		return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
 	}
 }

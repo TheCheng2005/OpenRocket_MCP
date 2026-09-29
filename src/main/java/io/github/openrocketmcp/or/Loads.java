@@ -3,6 +3,7 @@ package io.github.openrocketmcp.or;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import info.openrocket.core.aerodynamics.AerodynamicForces;
@@ -22,6 +23,7 @@ import info.openrocket.core.rocketcomponent.SymmetricComponent;
 import info.openrocket.core.simulation.FlightDataBranch;
 import info.openrocket.core.simulation.FlightDataType;
 import info.openrocket.core.simulation.FlightEvent;
+import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
@@ -369,7 +371,7 @@ public final class Loads {
 			}
 		}
 		if (worst.isEmpty()) {
-			throw new io.github.openrocketmcp.mcp.ToolException("No ascent data or no joints to analyse.");
+			throw new ToolException("No ascent data or no joints to analyse.");
 		}
 		List<Map<String, Object>> rows = new ArrayList<>();
 		String worstName = null;
@@ -380,7 +382,7 @@ public final class Loads {
 		for (JointLoads w : worst.values()) {
 			Joint jt = w.joint;
 			if (csv != null) {
-				csv.append(String.format(java.util.Locale.ROOT, "\"%s\",%.5f,%.5f,%.5f,%.2f,%.3f,%.3f,%.2f,%.3f,%.4f,%.3f,%.3f,%.3f,%.3f%n",
+				csv.append(String.format(Locale.ROOT, "\"%s\",%.5f,%.5f,%.5f,%.2f,%.3f,%.3f,%.2f,%.3f,%.4f,%.3f,%.3f,%.3f,%.3f%n",
 						jt.name().replace("\"", "'"), jt.x(), jt.radius(), jt.thickness(), w.axial == null ? Double.NaN : w.axial.axial(),
 						w.axial == null ? Double.NaN : w.axial.time(), w.gust == null ? Double.NaN : w.gust.moment(),
 						w.gust == null ? Double.NaN : w.gust.axial(), w.gust == null ? Double.NaN : w.gust.time(),

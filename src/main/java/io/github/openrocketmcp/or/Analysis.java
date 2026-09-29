@@ -7,13 +7,14 @@ import java.util.Map;
 
 import info.openrocket.core.aerodynamics.BarrowmanCalculator;
 import info.openrocket.core.aerodynamics.FlightConditions;
-import info.openrocket.core.logging.WarningSet;
 import info.openrocket.core.logging.Warning;
+import info.openrocket.core.logging.WarningSet;
 import info.openrocket.core.masscalc.MassCalculator;
 import info.openrocket.core.masscalc.RigidBody;
 import info.openrocket.core.motor.MotorConfiguration;
 import info.openrocket.core.rocketcomponent.AxialStage;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import info.openrocket.core.rocketcomponent.NoseCone;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.SymmetricComponent;
 import info.openrocket.core.rocketcomponent.Transition;
@@ -52,7 +53,7 @@ public final class Analysis {
 	/** True when the airframe diameter changes (transitions between different diameters). */
 	public static boolean hasDiameterChange(FlightConfiguration config) {
 		for (RocketComponent c : config.getActiveInstances().keySet()) {
-			if (c instanceof Transition t && !(c instanceof info.openrocket.core.rocketcomponent.NoseCone)
+			if (c instanceof Transition t && !(c instanceof NoseCone)
 					&& t.getForeRadius() > 0 && Math.abs(t.getForeRadius() - t.getAftRadius()) > 1e-4) {
 				return true;
 			}

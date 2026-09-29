@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.function.Consumer;
 
 import com.google.gson.JsonPrimitive;
 
@@ -311,7 +312,7 @@ public final class Optimizer {
 		List<Point> statics = new ArrayList<>();
 		for (double[] x : xs) {
 			String[] err = new String[1];
-			java.util.function.Consumer<info.openrocket.core.rocketcomponent.Rocket> edit = r -> {
+			Consumer<Rocket> edit = r -> {
 				try {
 					applier.apply(r, x);
 				} catch (ToolException e) {

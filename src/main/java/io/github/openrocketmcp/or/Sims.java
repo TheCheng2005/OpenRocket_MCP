@@ -3,6 +3,7 @@ package io.github.openrocketmcp.or;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -12,6 +13,7 @@ import info.openrocket.core.document.Simulation;
 import info.openrocket.core.logging.Warning;
 import info.openrocket.core.motor.Motor;
 import info.openrocket.core.motor.MotorConfiguration;
+import info.openrocket.core.motor.ThrustCurveMotor;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.FlightConfigurationId;
 import info.openrocket.core.rocketcomponent.MotorMount;
@@ -23,11 +25,13 @@ import info.openrocket.core.simulation.FlightDataBranch;
 import info.openrocket.core.simulation.FlightDataType;
 import info.openrocket.core.simulation.FlightEvent;
 import info.openrocket.core.simulation.SimulationOptions;
+import info.openrocket.core.simulation.listeners.SimulationListener;
 import info.openrocket.core.unit.UnitGroup;
 import io.github.openrocketmcp.calc.Atmosphere;
 import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.standards.Standards;
 import io.github.openrocketmcp.units.Dim;
+import io.github.openrocketmcp.units.UnitSystem;
 import io.github.openrocketmcp.units.Units;
 
 /**
@@ -175,14 +179,14 @@ public final class Sims {
 		}
 	}
 
-	public static FlightData run(Simulation sim, info.openrocket.core.simulation.listeners.SimulationListener... listeners) {
+	public static FlightData run(Simulation sim, SimulationListener... listeners) {
 		// Turbulence always follows the simulation's random seed, so every tool (run, check, optimize, sweep) sees the
 		// same gusts for the same simulation. See Variants.seed.
 		Variants.seed(sim.getOptions(), sim.getOptions().getRandomSeed());
 		Analysis.settle(sim.getRocket().getFlightConfiguration(sim.getFlightConfigurationId()));
 		var table = AeroTable.listenerFor(sim);
 		int extra = table == null ? 1 : 2;
-		listeners = java.util.Arrays.copyOf(listeners, listeners.length + extra);
+		listeners = Arrays.copyOf(listeners, listeners.length + extra);
 		listeners[listeners.length - 1] = new Watchdog();
 		if (table != null) {
 			listeners[listeners.length - 2] = table;
@@ -354,7 +358,7 @@ public final class Sims {
 			if (motor != null) {
 				int count = mc.getMotorCount();
 				m.put("motor", (count > 1 ? count + " x " : "") + motor.getDesignation());
-				double avgThrust = motor instanceof info.openrocket.core.motor.ThrustCurveMotor tc
+				double avgThrust = motor instanceof ThrustCurveMotor tc
 						? tc.getAverageThrustEstimate() : Double.NaN;
 				m.put("averageThrustToWeight", Units.num(count * avgThrust / (mass * Atmosphere.G0)));
 			}
@@ -614,7 +618,7 @@ public final class Sims {
 			FlightDataType t = types.get(c);
 			Dim d = dimOf(t.getUnitGroup());
 			String unit = d == null ? t.getUnitGroup().getSIUnit().getUnit().replace("\u200b", "").trim()
-					: Units.system() == io.github.openrocketmcp.units.UnitSystem.IMPERIAL ? d.imperial : d.metric;
+					: Units.system() == UnitSystem.IMPERIAL ? d.imperial : d.metric;
 			units[c] = d == null ? null : unit;
 			columns.add(t.getName() + (unit == null || unit.isBlank() ? "" : " [" + unit + "]"));
 		}

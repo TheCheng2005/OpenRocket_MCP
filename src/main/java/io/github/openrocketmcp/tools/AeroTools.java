@@ -1,8 +1,10 @@
 package io.github.openrocketmcp.tools;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,14 +20,16 @@ import io.github.openrocketmcp.mcp.ToolDef;
 import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.or.Aero;
 import io.github.openrocketmcp.or.AeroTable;
-import io.github.openrocketmcp.or.FlightLog;
 import io.github.openrocketmcp.or.Analysis;
 import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
+import io.github.openrocketmcp.or.FlightLog;
 import io.github.openrocketmcp.or.Presets;
 import io.github.openrocketmcp.or.Sims;
+import io.github.openrocketmcp.or.Variants;
 import io.github.openrocketmcp.or.Winds;
 import io.github.openrocketmcp.report.Drawing;
+import io.github.openrocketmcp.report.Png;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
@@ -56,7 +60,7 @@ public final class AeroTools {
 						machs = a.array("machs").asList().stream().mapToDouble(e -> e.getAsDouble()).toArray();
 					} else {
 						double top = a.num("maxMach", 1.2);
-						machs = java.util.Arrays.stream(DEFAULT_MACHS).filter(m -> m <= top + 1e-9).toArray();
+						machs = Arrays.stream(DEFAULT_MACHS).filter(m -> m <= top + 1e-9).toArray();
 					}
 					if (machs.length == 0 || machs.length > 40) {
 						throw new ToolException("Give 1-40 Mach numbers.");
@@ -193,14 +197,14 @@ public final class AeroTools {
 					Files.writeString(p, Drawing.svg(fc, Drawing.title(d.name(), fc)));
 					Map<String, Object> out = new LinkedHashMap<>();
 					out.put("file", p.toString());
-					out.put("shown", io.github.openrocketmcp.report.Png.attachFile(p, "Cut-away drawing of the rocket")
+					out.put("shown", Png.attachFile(p, "Cut-away drawing of the rocket")
 							? "the drawing is attached as an image" : "open the file to see the drawing");
 					out.put("stability", Analysis.render(Analysis.stability(fc, 0.3)));
 					return out;
 				}));
 	}
 
-	static String readText(Context ctx, Args a, String pathKey, String textKey) throws java.io.IOException {
+	static String readText(Context ctx, Args a, String pathKey, String textKey) throws IOException {
 		if (a.has(pathKey)) {
 			return Files.readString(ctx.path(a.str(pathKey)));
 		}
@@ -210,7 +214,7 @@ public final class AeroTools {
 		throw new ToolException("Give " + pathKey + " (a file) or " + textKey + " (the CSV text).");
 	}
 
-	private static Object importAeroTable(Context ctx, Args a) throws java.io.IOException {
+	private static Object importAeroTable(Context ctx, Args a) throws IOException {
 		Designs.Design d = ctx.designs.get(a.str("designId", null));
 		var rocket = d.doc.getRocket();
 		String mode = a.str("mode", "import");
@@ -258,9 +262,9 @@ public final class AeroTools {
 		// Effect on the flight.
 		Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
 				ctx.standards(), false);
-		List<io.github.openrocketmcp.or.Variants.Run> runs = io.github.openrocketmcp.or.Variants.runAll(List.of(
-				AeroTable.without(io.github.openrocketmcp.or.Variants.of(base, d.doc, null, null)),
-				io.github.openrocketmcp.or.Variants.of(base, d.doc, null, null)));
+		List<Variants.Run> runs = Variants.runAll(List.of(
+				AeroTable.without(Variants.of(base, d.doc, null, null)),
+				Variants.of(base, d.doc, null, null)));
 		if (runs.get(0).ok() && runs.get(1).ok()) {
 			Map<String, Object> eff = new LinkedHashMap<>();
 			eff.put("apogeeOpenRocketDrag", Units.fmt(runs.get(0).sim().getSimulatedData().getMaxAltitude(), Dim.DISTANCE));
@@ -270,7 +274,7 @@ public final class AeroTools {
 			if (mImp != null) {
 				eff.put("minAscentStabilityImportedCp", Units.num(mImp.min()) + " cal at Mach " + Units.num(mImp.mach()));
 			}
-			var w = io.github.openrocketmcp.or.Sims.ascentStability(runs.get(0).sim().getSimulatedData().getBranch(0));
+			var w = Sims.ascentStability(runs.get(0).sim().getSimulatedData().getBranch(0));
 			if (w != null) {
 				eff.put("minAscentStabilityOpenRocketCp", Units.num(w.min()) + " cal");
 			}

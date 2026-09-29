@@ -8,6 +8,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import info.openrocket.core.document.Simulation;
+import info.openrocket.core.simulation.FlightDataType;
 import io.github.openrocketmcp.standards.Standards;
 
 class WindsTest {
@@ -54,8 +55,8 @@ class WindsTest {
 		Winds.setProfile(sheared.getOptions(), List.of(new Winds.Level(0, 5, Math.PI / 2, 0.01),
 				new Winds.Level(300, 15, Math.PI / 2, 0.01)), true);
 		List<Variants.Run> r = Variants.runAll(List.of(flat, sheared));
-		double d1 = Branch.of(r.get(0).sim().getSimulatedData().getBranch(0)).last(info.openrocket.core.simulation.FlightDataType.TYPE_POSITION_XY);
-		double d2 = Branch.of(r.get(1).sim().getSimulatedData().getBranch(0)).last(info.openrocket.core.simulation.FlightDataType.TYPE_POSITION_XY);
+		double d1 = Branch.of(r.get(0).sim().getSimulatedData().getBranch(0)).last(FlightDataType.TYPE_POSITION_XY);
+		double d2 = Branch.of(r.get(1).sim().getSimulatedData().getBranch(0)).last(FlightDataType.TYPE_POSITION_XY);
 		assertTrue(d2 > 1.5 * d1, d1 + " vs " + d2);
 	}
 

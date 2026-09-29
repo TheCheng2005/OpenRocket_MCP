@@ -4,18 +4,25 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.io.TempDir;
-
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 import io.github.openrocketmcp.mcp.McpServer;
 import io.github.openrocketmcp.standards.Standards;
@@ -48,9 +55,9 @@ class McpIntegrationTest {
 		if (VERBOSE) {
 			try {
 				Files.writeString(Path.of("build/mcp-transcript.txt"), "=== " + tool + " " + args + "\n" + text + "\n",
-						java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
-			} catch (java.io.IOException e) {
-				throw new java.io.UncheckedIOException(e);
+						StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+			} catch (IOException e) {
+				throw new UncheckedIOException(e);
 			}
 		}
 		assertFalse(result.get("isError").getAsBoolean(), () -> tool + " failed: " + text);
@@ -163,9 +170,9 @@ class McpIntegrationTest {
 		assertTrue(reopened.contains("d2"));
 	}
 
-	static String firstIdOfType(com.google.gson.JsonArray lines, String type) {
-		for (com.google.gson.JsonElement e : lines) {
-			java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\[([0-9a-f]{8})\\] (\\w+):").matcher(e.getAsString());
+	static String firstIdOfType(JsonArray lines, String type) {
+		for (JsonElement e : lines) {
+			Matcher m = Pattern.compile("\\[([0-9a-f]{8})\\] (\\w+):").matcher(e.getAsString());
 			if (m.find() && m.group(2).equals(type)) {
 				return m.group(1);
 			}
@@ -392,7 +399,7 @@ class McpIntegrationTest {
 		assertTrue(ask.contains("GPS coordinates"), "asks for the site's coordinates: " + ask);
 		String sample;
 		try (var in = McpIntegrationTest.class.getResourceAsStream("/open-meteo-sample.json")) {
-			sample = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+			sample = new String(in.readAllBytes(), StandardCharsets.UTF_8);
 		}
 		JsonObject args = new JsonObject();
 		args.addProperty("designId", id);

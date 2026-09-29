@@ -10,14 +10,19 @@ import com.google.gson.JsonPrimitive;
 
 import info.openrocket.core.rocketcomponent.BodyTube;
 import info.openrocket.core.rocketcomponent.Bulkhead;
+import info.openrocket.core.rocketcomponent.CenteringRing;
+import info.openrocket.core.rocketcomponent.EngineBlock;
 import info.openrocket.core.rocketcomponent.ExternalComponent;
+import info.openrocket.core.rocketcomponent.InnerTube;
 import info.openrocket.core.rocketcomponent.MassComponent;
 import info.openrocket.core.rocketcomponent.MassComponent.MassComponentType;
 import info.openrocket.core.rocketcomponent.MassObject;
+import info.openrocket.core.rocketcomponent.MotorMount;
 import info.openrocket.core.rocketcomponent.NoseCone;
 import info.openrocket.core.rocketcomponent.RecoveryDevice;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.ShockCord;
+import info.openrocket.core.rocketcomponent.Transition;
 import info.openrocket.core.rocketcomponent.TubeCoupler;
 import info.openrocket.core.rocketcomponent.position.AxialMethod;
 import info.openrocket.core.util.Coordinate;
@@ -335,21 +340,21 @@ public final class Avionics {
 			double limit = top;
 			RocketComponent parent = tube.getParent();
 			int i = parent.getChildPosition(tube);
-			if (i > 0 && parent.getChild(i - 1) instanceof info.openrocket.core.rocketcomponent.Transition t) {
+			if (i > 0 && parent.getChild(i - 1) instanceof Transition t) {
 				limit = top + t.getAftShoulderLength();
 			}
 			return bottom - limit;
 		}
 		double first = bottom;
 		for (RocketComponent c : tube.getChildren()) {
-			boolean blocks = c instanceof info.openrocket.core.rocketcomponent.InnerTube
-					|| c instanceof info.openrocket.core.rocketcomponent.CenteringRing
-					|| c instanceof info.openrocket.core.rocketcomponent.Bulkhead
-					|| c instanceof info.openrocket.core.rocketcomponent.EngineBlock;
+			boolean blocks = c instanceof InnerTube
+					|| c instanceof CenteringRing
+					|| c instanceof Bulkhead
+					|| c instanceof EngineBlock;
 			if (blocks) {
 				first = Math.min(first, c.toAbsolute(Coordinate.NUL)[0].x);
 			}
-			if (c instanceof info.openrocket.core.rocketcomponent.MotorMount mm && mm.isMotorMount()) {
+			if (c instanceof MotorMount mm && mm.isMotorMount()) {
 				var conf = mm.getMotorConfig(tube.getRocket().getSelectedConfiguration().getId());
 				if (conf != null && conf.getMotor() != null) { // a motor longer than its mount reaches further forward
 					double aft = c.toAbsolute(Coordinate.NUL)[0].x + c.getLength() + mm.getMotorOverhang();

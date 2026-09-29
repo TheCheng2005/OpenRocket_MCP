@@ -91,7 +91,7 @@ public final class Heating {
 		out.put("flight", flight);
 
 		List<Map<String, Object>> surfaces = new ArrayList<>();
-		for (RocketComponent c : fc.getActiveComponents()) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
 			Kind k = c instanceof NoseCone ? Kind.NOSE_TIP : c instanceof FinSet ? Kind.LEADING_EDGE
 					: c instanceof BodyTube || c instanceof Transition ? Kind.BODY : null;
 			if (k == null || !(c instanceof ExternalComponent ext)) {

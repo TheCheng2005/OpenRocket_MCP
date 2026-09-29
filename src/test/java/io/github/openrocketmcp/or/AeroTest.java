@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import info.openrocket.core.masscalc.MassCalculator;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 
 class AeroTest {
@@ -57,9 +58,9 @@ class AeroTest {
 		// OpenRocket's first mass calculations after loading disagree by ~1 mm of CG; Designs settles them on open.
 		Designs.Design d = new Designs().openExample("Dual parachute");
 		FlightConfiguration fc = d.doc.getRocket().getSelectedConfiguration();
-		double first = info.openrocket.core.masscalc.MassCalculator.calculateLaunch(fc).getCM().x;
+		double first = MassCalculator.calculateLaunch(fc).getCM().x;
 		for (int i = 0; i < 3; i++) {
-			assertEquals(first, info.openrocket.core.masscalc.MassCalculator.calculateLaunch(fc).getCM().x, 1e-12);
+			assertEquals(first, MassCalculator.calculateLaunch(fc).getCM().x, 1e-12);
 		}
 	}
 }

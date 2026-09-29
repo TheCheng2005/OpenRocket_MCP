@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.Map;
 import java.util.Optional;
 
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 
 import info.openrocket.core.document.Simulation;
@@ -64,7 +65,7 @@ class RequirementsTest {
 	@Test
 	void ruleSetNoneOnlyChecksTeamStandards() throws Exception {
 		Designs.Design d = new Designs().openExample("Dual parachute");
-		Standards none = Standards.defaults().patched(com.google.gson.JsonParser.parseString("{\"ruleset\":\"none\"}").getAsJsonObject());
+		Standards none = Standards.defaults().patched(JsonParser.parseString("{\"ruleset\":\"none\"}").getAsJsonObject());
 		Simulation sim = Sims.prepare(d, null, null, Sims.Overrides.none(), none, false);
 		Sims.run(sim);
 		Requirements.Report r = Requirements.check(sim, null, none);
@@ -80,7 +81,7 @@ class RequirementsTest {
 		assertEquals(Math.max(f[1], f[2] / 100 * f[3]), f[0], 1e-12);
 		assertEquals(Dynamics.lengthToDiameter(fc), f[3], 1e-12);
 		assertTrue(Requirements.floorText(f).contains("cal"));
-		Standards none = Standards.defaults().patched(com.google.gson.JsonParser.parseString("{\"ruleset\":\"none\"}").getAsJsonObject());
+		Standards none = Standards.defaults().patched(JsonParser.parseString("{\"ruleset\":\"none\"}").getAsJsonObject());
 		assertEquals(0, Requirements.stabilityFloor(none, fc)[0], 0);
 	}
 }

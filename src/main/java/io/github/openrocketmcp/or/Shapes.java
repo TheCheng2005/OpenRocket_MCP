@@ -3,6 +3,7 @@ package io.github.openrocketmcp.or;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -15,6 +16,7 @@ import info.openrocket.core.rocketcomponent.NoseCone;
 import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.Transition;
+import io.github.openrocketmcp.mcp.CallContext;
 import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
@@ -75,13 +77,13 @@ public final class Shapes {
 				return n.label();
 			}
 		}
-		return nc.getShapeType().name().toLowerCase() + (nc.getShapeType().usesParameter() ? " k=" + Units.num(nc.getShapeParameter()) : "");
+		return nc.getShapeType().name().toLowerCase(Locale.ROOT) + (nc.getShapeType().usesParameter() ? " k=" + Units.num(nc.getShapeParameter()) : "");
 	}
 
 	static String finLabel(Rocket r) {
 		for (RocketComponent c : r) {
 			if (c instanceof FinSet f) {
-				return f.getCrossSection().name().toLowerCase();
+				return f.getCrossSection().name().toLowerCase(Locale.ROOT);
 			}
 		}
 		return "none";
@@ -126,7 +128,7 @@ public final class Shapes {
 				if (cs.name().equalsIgnoreCase(curFins)) {
 					continue;
 				}
-				opts.add(new Option(curNose + " (current)", cs.name().toLowerCase(), r -> applyFins(r, cs)));
+				opts.add(new Option(curNose + " (current)", cs.name().toLowerCase(Locale.ROOT), r -> applyFins(r, cs)));
 			}
 		}
 		if (opts.size() > 60) {
@@ -237,7 +239,7 @@ public final class Shapes {
 		for (Option o : opts) {
 			sims.add(Variants.of(base, doc, o.edit(), null));
 		}
-		io.github.openrocketmcp.mcp.CallContext.current().expect(sims.size(), "shapes flown");
+		CallContext.current().expect(sims.size(), "shapes flown");
 		List<Variants.Run> runs = Variants.runAll(sims);
 		List<Row> rows = new ArrayList<>();
 		for (int i = 0; i < runs.size(); i++) {

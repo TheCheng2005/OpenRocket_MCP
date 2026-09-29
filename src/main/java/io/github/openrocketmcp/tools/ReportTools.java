@@ -12,6 +12,7 @@ import io.github.openrocketmcp.mcp.Schema;
 import io.github.openrocketmcp.mcp.ToolDef;
 import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.Sims;
+import io.github.openrocketmcp.or.Winds;
 import io.github.openrocketmcp.report.Reports;
 import io.github.openrocketmcp.units.Dim;
 
@@ -39,7 +40,7 @@ public final class ReportTools {
 					double maxWind = ctx.standards().rule("maxGroundWind.value", Dim.VELOCITY);
 					if (a.bool("includeWindCase", true) && !Double.isNaN(maxWind)) {
 						wind = sim.copy();
-						io.github.openrocketmcp.or.Winds.setGround(wind.getOptions(), maxWind, Double.NaN);
+						Winds.setGround(wind.getOptions(), maxWind, Double.NaN);
 						Sims.run(wind);
 					}
 					String pinName = a.has("pinType") && !a.has("pinStrength") ? a.str("pinType") : null;

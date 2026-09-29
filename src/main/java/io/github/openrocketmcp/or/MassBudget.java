@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import info.openrocket.core.rocketcomponent.ComponentAssembly;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
@@ -114,7 +116,7 @@ public final class MassBudget {
 	}
 
 	static String unitOf(String header, String fallback) {
-		java.util.regex.Matcher m = java.util.regex.Pattern.compile("[(\\[]\\s*([a-z]+)\\s*[)\\]]|[_ ]([a-z]+)$").matcher(header);
+		Matcher m = Pattern.compile("[(\\[]\\s*([a-z]+)\\s*[)\\]]|[_ ]([a-z]+)$").matcher(header);
 		while (m.find()) {
 			String u = m.group(1) != null ? m.group(1) : m.group(2);
 			if (u.matches("g|kg|lb|lbs|oz|gram|grams|mm|cm|m|in|ft")) {
@@ -336,9 +338,10 @@ public final class MassBudget {
 			}
 			if (c == null) {
 				row.put("component", m.how() + (it.parent() != null ? "; will be added in " + it.parent() : ""));
-				unmatched.add(it.part());
 				if (it.parent() != null) {
 					target.put(it, null);
+				} else {
+					unmatched.add(it.part());
 				}
 			} else {
 				matched.add(c);
@@ -406,25 +409,31 @@ public final class MassBudget {
 			out.put("heaviestNotInBudget", top);
 		}
 		if (!unmatched.isEmpty()) {
-			out.put("unmatched", unmatched.size() + " line(s) match no component: " + String.join(", ", unmatched)
+			out.put("unmatched", unmatched.size() + " line(s) match no component and have no parent: " + String.join(", ", unmatched)
 					+ ". Give the component name or id, or a parent to add them in.");
 		}
 
 		if (o.apply()) {
 			List<String> applied = new ArrayList<>();
+			// Several lines for one component (e.g. each fin weighed separately) become one override of their sum.
+			Map<RocketComponent, List<Item>> byComponent = new LinkedHashMap<>();
 			for (Map.Entry<Item, RocketComponent> e : target.entrySet()) {
 				Item it = e.getKey();
 				if (!it.apply()) {
 					continue;
 				}
-				RocketComponent c = e.getValue();
-				if (c == null) {
-					if (o.addMissing() && it.parent() != null) {
+				if (e.getValue() == null) {
+					if (o.addMissing()) {
 						applied.add(add(rocket, it));
 					}
-					continue;
+				} else {
+					byComponent.computeIfAbsent(e.getValue(), k -> new ArrayList<>()).add(it);
 				}
-				applied.add(override(fc, c, it));
+			}
+			for (Map.Entry<RocketComponent, List<Item>> e : byComponent.entrySet()) {
+				List<Item> lines = e.getValue();
+				Item it = lines.size() == 1 ? lines.get(0) : combine(lines);
+				applied.add(override(fc, e.getKey(), it) + (lines.size() > 1 ? " (sum of " + lines.size() + " lines)" : ""));
 			}
 			d.doc.setSaved(false);
 			Analysis.settle(fc);
@@ -441,6 +450,20 @@ public final class MassBudget {
 			out.put("next", "apply=true writes these masses into the design as OpenRocket mass (and CG) overrides; undo reverts them.");
 		}
 		return out;
+	}
+
+	/** One line standing for several lines of the same component: summed mass, mass-weighted CG when all give one. */
+	static Item combine(List<Item> lines) {
+		double m = 0, mx = 0;
+		boolean cg = true, fromNose = lines.get(0).cgFromNose(), section = false;
+		for (Item i : lines) {
+			m += i.mass();
+			cg &= !Double.isNaN(i.cg()) && i.cgFromNose() == fromNose;
+			mx += i.mass() * i.cg();
+			section |= i.section();
+		}
+		Item f = lines.get(0);
+		return new Item(f.part(), m, cg && m > 0 ? mx / m : Double.NaN, fromNose, f.status(), section, f.parent(), true, f.componentId());
 	}
 
 	private static RocketComponent enclosingSection(RocketComponent c, Set<RocketComponent> sections) {

@@ -3,7 +3,12 @@
 One rocket, from a blank page to launch day. Each step shows what a team member types, what Claude answers, and the
 numbers and plots behind the answer. **Everything below is real output from the server** (OpenRocket 24.12), generated
 by [`scripts/make_examples.py`](../scripts/make_examples.py); the one-line answers are written from those numbers.
-Units follow the team setting (here metric with imperial in brackets). In Claude Desktop the plots and drawings appear right in the chat, and long runs (optimizers, Monte Carlo) show their progress and can be stopped.
+Units follow the team setting (here metric with imperial in brackets). In Claude Desktop the plots and drawings
+appear right in the chat, and long runs (optimizers, Monte Carlo) show their progress and can be stopped.
+
+**Steps:** [Design](#design) · [Recovery](#recovery) · [Flight and rules](#flight-and-rules) ·
+[Design studies](#design-studies) · [Structures and CFD](#structures-and-cfd) · [Build](#build) · [Reviews](#reviews) ·
+[Launch day](#launch-day) · [After the flight](#after-the-flight)
 
 The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch
 Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before
@@ -102,7 +107,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 <sub>Tools Claude uses: `edit_components`, `fin_flutter`</sub>
 
-> Claude makes the change and checks it: flutter **FAIL**, margin 0.7305 (flutter speed / airspeed; the team wants 1.5). Thinner fins would need 5.129 mm to be safe.
+> Claude makes the change and checks it: flutter **FAIL**, margin 0.7306 (flutter speed / airspeed; the team wants 1.5). Thinner fins would need 5.129 mm to be safe.
 
 ### 9. "Undo that."
 
@@ -150,7 +155,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 |---|---|---|---|
 | WARN | Launch site altitude | 0 m (0 ft) used by this simulation |  |
 | WARN | Ascent stability (maximum, over-stability) | 5.693 cal | R10.3.1, R10.4.1 |
-| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.693 cal | R10.3.1, R10.4.1 |
+| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.692 cal | R10.3.1, R10.4.1 |
 | WARN | Maximum Mach number | 1.175 |  |
 | PASS | Simulated launch angle | 6 deg | R10.1.1 |
 | PASS | Rail departure velocity | 41.63 m/s (136.6 ft/s) | R10.2.1 |
@@ -173,7 +178,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 <sub>Tools Claude uses: `monte_carlo`</sub>
 
-> Over 200 simulated flights the median landing is 201.1 m (659.8 ft) from the pad and 95% land within 487.5 m (1599 ft); the landings centre 495 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 201.1 m (659.9 ft).
+> Over 200 simulated flights the median landing is 200 m (656.2 ft) from the pad and 95% land within 487.2 m (1598 ft); the landings centre 495 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2972 m (9752 ft) ± 201 m (659.5 ft).
 
 ![200 simulated landings around the pad with the 2-sigma ellipse](examples/landing.svg)
 
@@ -183,12 +188,12 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 
 | Uncertain input | Apogee | Min stability | Landing distance |
 |---|---|---|---|
-| windSpeed | -0.1304 | -0.9653 | -0.6773 |
-| launchAngle | -0.1499 | -0.006994 | 0.3153 |
-| structureMass | -0.04945 | 0.1309 | 0.09732 |
-| airframeDrag | -0.9258 | 0.04255 | -0.1746 |
-| motorThrust | 0.3177 | 0.08091 | -0.01908 |
-| parachuteCd | -0.03427 | 0.03086 | -0.07401 |
+| windSpeed | -0.1295 | -0.9653 | -0.6787 |
+| launchAngle | -0.1494 | -0.006994 | 0.3159 |
+| structureMass | -0.05125 | 0.1309 | 0.09678 |
+| airframeDrag | -0.9259 | 0.04255 | -0.1756 |
+| motorThrust | 0.3184 | 0.08091 | -0.02089 |
+| parachuteCd | -0.03366 | 0.03086 | -0.07497 |
 
 <sub>Correlation from -1 to 1: the closer to ±1, the more that input drives the result.</sub>
 
@@ -206,9 +211,9 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 | Von Karman (Haack LD) | airfoil | 3705 m (12156 ft) | 24.01% | 1.075 | 3.614 cal |
 | tangent ogive (current) | rounded | 3575 m (11730 ft) | 19.66% | 1.144 | 3.528 cal |
 | Von Karman (Haack LD) | square (current) | 3002 m (9850 ft) | 0.4851% | 1.341 | 3.525 cal |
-| 1/2 power | square (current) | 3001 m (9847 ft) | 0.4485% | 1.34 | 3.537 cal |
+| 1/2 power | square (current) | 3001 m (9847 ft) | 0.4484% | 1.34 | 3.537 cal |
 | LV-Haack | square (current) | 2993 m (9821 ft) | 0.1891% | 1.356 | 3.533 cal |
-| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02344% | 1.36 | 3.513 cal |
+| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02328% | 1.36 | 3.513 cal |
 | tangent ogive (current) | square (current) | 2988 m (9803 ft) | 0% | 1.351 | 3.522 cal |
 
 <details><summary>Claude's shape guidance (from the tool)</summary>
@@ -306,7 +311,7 @@ Paint and primer,90,estimated,no,Upper airframe
 |---|---|---|
 | Launch site | WARN | Launch site altitude: 0 m (0 ft) used by this simulation |
 | Stability | WARN | Ascent stability (maximum, over-stability): 5.683 cal (R10.3.1, R10.4.1) |
-| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.682 cal (R10.3.1, R10.4.1) |
+| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.681 cal (R10.3.1, R10.4.1) |
 | Rules | WARN | Maximum Mach number: 1.144 |
 | Standards | TODO | The team standards were changed in this session but are not saved to a file, so the next session and the rest of the team will not have them. |
 | File | TODO | Unsaved changes (22 edit(s) this session, undo available). |

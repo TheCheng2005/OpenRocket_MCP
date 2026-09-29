@@ -10,6 +10,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import info.openrocket.core.masscalc.MassCalculator;
 import info.openrocket.core.rocketcomponent.BodyTube;
 import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
@@ -106,6 +107,23 @@ class MassBudgetTest {
 	}
 
 	@Test
+	void severalLinesForOnePartAreSummed() throws Exception {
+		Designs.Design d = new Designs().openExample("Dual parachute");
+		FlightConfiguration fc = d.doc.getRocket().getSelectedConfiguration();
+		for (RocketComponent c : d.doc.getRocket()) {
+			c.setMassOverridden(false);
+		}
+		NoseCone nose = StudiesTest.first(d, NoseCone.class);
+		Map<String, Object> out = MassBudget.run(d, fc, List.of(
+				new MassBudget.Item(nose.getName(), 0.05, 0.10, false, "measured", false, null, true),
+				new MassBudget.Item(nose.getName(), 0.03, 0.20, false, "measured", false, null, true)),
+				new MassBudget.Options(Double.NaN, 0, true, true));
+		assertEquals(0.08, new MassBudget.ModelMasses(fc).own(nose), 1e-9, "summed, not the last line only");
+		assertEquals((0.05 * 0.10 + 0.03 * 0.20) / 0.08, nose.getOverrideCGX(), 1e-12, "mass-weighted CG");
+		assertTrue(out.get("applied").toString().contains("sum of 2 lines"));
+	}
+
+	@Test
 	void weighedSectionsAreCountedOnce() throws Exception {
 		// Per-component masses (used by the mass budget and structural_loads) must add up to OpenRocket's own structure
 		// mass when a section's mass is overridden for everything in it.
@@ -120,7 +138,7 @@ class MassBudgetTest {
 		tube.setSubcomponentsOverriddenMass(true);
 		MassBudget.ModelMasses mm = new MassBudget.ModelMasses(fc);
 		assertEquals(0.5, mm.subtree(tube), 1e-9, "the section weighs its override");
-		assertEquals(info.openrocket.core.masscalc.MassCalculator.calculateStructure(fc).getMass(), mm.dry(), 1e-9,
+		assertEquals(MassCalculator.calculateStructure(fc).getMass(), mm.dry(), 1e-9,
 				"parts add up to OpenRocket's structure mass");
 	}
 

@@ -18,6 +18,7 @@ import info.openrocket.core.file.motor.GeneralMotorLoader;
 import info.openrocket.core.motor.Motor;
 import info.openrocket.core.motor.ThrustCurveMotor;
 import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.report.Xml;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
@@ -30,7 +31,7 @@ public final class Motors {
 	 * Default ejection delay for a motor: its longest listed delay, or plugged (OpenRocket's PLUGGED_DELAY) when it lists
 	 * none. Some catalogue entries list NaN for "plugged"; a NaN delay makes OpenRocket's simulation fail.
 	 */
-	public static double defaultDelay(info.openrocket.core.motor.Motor m) {
+	public static double defaultDelay(Motor m) {
 		double best = Double.NaN;
 		double[] delays = m instanceof ThrustCurveMotor t ? t.getStandardDelays() : null;
 		if (delays != null) {
@@ -40,7 +41,7 @@ public final class Motors {
 				}
 			}
 		}
-		return Double.isNaN(best) ? info.openrocket.core.motor.Motor.PLUGGED_DELAY : best;
+		return Double.isNaN(best) ? Motor.PLUGGED_DELAY : best;
 	}
 	private Motors() {
 	}
@@ -287,10 +288,10 @@ public final class Motors {
 				"  <engine mfg=\"%s\" code=\"%s\" Type=\"%s\" dia=\"%.3f\" len=\"%.3f\" initWt=\"%.3f\" propWt=\"%.3f\""
 						+ " delays=\"%s\" auto-calc-mass=\"0\" auto-calc-cg=\"0\" avgThrust=\"%.3f\" peakThrust=\"%.3f\""
 						+ " burn-time=\"%.4f\" tot-impulse=\"%.3f\">\n",
-				xmlEscape(c.manufacturer()), xmlEscape(c.designation()), type, c.diameter() * 1000, c.length() * 1000,
+				Xml.esc(c.manufacturer()), Xml.esc(c.designation()), type, c.diameter() * 1000, c.length() * 1000,
 				c.totalMass() * 1000, c.propellantMass() * 1000, delays, total / t[t.length - 1], max(f),
 				t[t.length - 1], total));
-		xml.append("   <comments>").append(xmlEscape(c.comment() == null ? "Created by openrocket-mcp" : c.comment()))
+		xml.append("   <comments>").append(Xml.esc(c.comment() == null ? "Created by openrocket-mcp" : c.comment()))
 				.append("</comments>\n   <data>\n");
 		for (int i = 0; i < t.length; i++) {
 			double prop = c.propellantMass() * (1 - impulse[i] / total);
@@ -317,9 +318,5 @@ public final class Motors {
 			m = Math.max(m, d);
 		}
 		return m;
-	}
-
-	private static String xmlEscape(String s) {
-		return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
 	}
 }

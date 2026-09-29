@@ -9,7 +9,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -278,12 +280,12 @@ public final class Standards {
 		if (table == null || !table.isJsonObject() || material == null) {
 			return null;
 		}
-		String m = material.toLowerCase(java.util.Locale.ROOT);
+		String m = material.toLowerCase(Locale.ROOT);
 		// Team entries are merged after the defaults: search from the end so a team's own key wins over a default one.
 		List<Map.Entry<String, JsonElement>> entries = new ArrayList<>(table.getAsJsonObject().entrySet());
 		Collections.reverse(entries);
 		for (Map.Entry<String, JsonElement> e : entries) {
-			for (String frag : e.getKey().toLowerCase(java.util.Locale.ROOT).split("\\|")) {
+			for (String frag : e.getKey().toLowerCase(Locale.ROOT).split("\\|")) {
 				if (!frag.isBlank() && m.contains(frag.trim())) {
 					JsonElement v = e.getValue().isJsonObject() ? e.getValue().getAsJsonObject().get("value") : e.getValue();
 					double g = v.getAsJsonPrimitive().isNumber() ? v.getAsDouble() : Units.toSi(v.getAsString(), dim);
@@ -294,9 +296,9 @@ public final class Standards {
 		return null;
 	}
 
-	public java.util.Set<String> pinNames() {
+	public Set<String> pinNames() {
 		JsonElement pins = path(data, "recovery.shearPins");
-		return pins == null || !pins.isJsonObject() ? java.util.Set.of() : pins.getAsJsonObject().keySet();
+		return pins == null || !pins.isJsonObject() ? Set.of() : pins.getAsJsonObject().keySet();
 	}
 
 	/** Applies launch-site defaults to options of a newly created simulation. */

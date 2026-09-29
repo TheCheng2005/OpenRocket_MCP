@@ -1,8 +1,13 @@
 package io.github.openrocketmcp.report;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.StringReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Base64;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.batik.transcoder.TranscoderInput;
 import org.apache.batik.transcoder.TranscoderOutput;
@@ -59,16 +64,16 @@ public final class Png {
 	}
 
 	/** Attaches an SVG file the tool has just written. */
-	public static boolean attachFile(java.nio.file.Path svg, String alt) {
+	public static boolean attachFile(Path svg, String alt) {
 		try {
-			return attach(java.nio.file.Files.readString(svg), alt);
-		} catch (java.io.IOException e) {
+			return attach(Files.readString(svg), alt);
+		} catch (IOException e) {
 			return false;
 		}
 	}
 
 	static int widthOf(String svg) {
-		java.util.regex.Matcher m = java.util.regex.Pattern.compile("<svg[^>]*\\swidth=\"([0-9.]+)").matcher(svg);
+		Matcher m = Pattern.compile("<svg[^>]*\\swidth=\"([0-9.]+)").matcher(svg);
 		return m.find() ? (int) Math.round(Double.parseDouble(m.group(1))) : 900;
 	}
 }

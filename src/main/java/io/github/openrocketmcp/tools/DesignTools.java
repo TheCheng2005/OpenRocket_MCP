@@ -3,21 +3,28 @@ package io.github.openrocketmcp.tools;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.UnaryOperator;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.rocketcomponent.AxialStage;
+import info.openrocket.core.rocketcomponent.BodyTube;
 import info.openrocket.core.rocketcomponent.DeploymentConfiguration;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.FlightConfigurationId;
+import info.openrocket.core.rocketcomponent.Parachute;
 import info.openrocket.core.rocketcomponent.RecoveryDevice;
 import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.StageSeparationConfiguration;
+import io.github.openrocketmcp.calc.Packing;
 import io.github.openrocketmcp.mcp.Args;
 import io.github.openrocketmcp.mcp.McpServer;
 import io.github.openrocketmcp.mcp.Schema;
@@ -130,7 +137,7 @@ public final class DesignTools {
 					for (int i = 0; i < list.size(); i++) {
 						Simulation sim = list.get(i);
 						sims.add(i + ": " + sim.getName() + " [" + rocket.getFlightConfiguration(sim.getFlightConfigurationId()).getName()
-								+ ", " + sim.getStatus().name().toLowerCase() + "]");
+								+ ", " + sim.getStatus().name().toLowerCase(Locale.ROOT) + "]");
 					}
 					out.put("simulations", sims);
 					if (Analysis.hasDiameterChange(fc)) {
@@ -174,7 +181,7 @@ public final class DesignTools {
 					Designs.Design d = ctx.designs.get(a.str("designId", null));
 					Rocket rocket = d.doc.getRocket();
 					List<String> done = new ArrayList<>();
-					java.util.Set<String> warnings = new java.util.LinkedHashSet<>();
+					Set<String> warnings = new LinkedHashSet<>();
 					for (Args ch : a.objList("changes")) {
 						RocketComponent c = Components.find(rocket, ch.str("component"));
 						JsonObject props = ch.obj("properties").raw();
@@ -234,16 +241,16 @@ public final class DesignTools {
 						throw e instanceof ToolException te ? new ToolException(te.getMessage() + " Nothing was added.") : e;
 					}
 					// A new parachute without a packed size gets a realistic one (OpenRocket's default is a tiny bundle).
-					var given = a.obj("properties").raw().keySet().stream().map(k -> k.toLowerCase(java.util.Locale.ROOT)).toList();
-					if (c instanceof info.openrocket.core.rocketcomponent.Parachute p && given.stream().noneMatch(k -> k.contains("length")
+					var given = a.obj("properties").raw().keySet().stream().map(k -> k.toLowerCase(Locale.ROOT)).toList();
+					if (c instanceof Parachute p && given.stream().noneMatch(k -> k.contains("length")
 							|| k.contains("radius") || k.contains("packed"))) {
-						double inner = parent instanceof info.openrocket.core.rocketcomponent.BodyTube bt ? bt.getInnerRadius() * 2 : 0.08;
+						double inner = parent instanceof BodyTube bt ? bt.getInnerRadius() * 2 : 0.08;
 						double pd = 0.9 * inner;
-						double vol = io.github.openrocketmcp.calc.Packing.parachuteVolume(p.getDiameter());
+						double vol = Packing.parachuteVolume(p.getDiameter());
 						p.setRadius(pd / 2);
 						p.setLength(Math.max(vol / (Math.PI * pd * pd / 4), 0.5 * pd));
-						done.add("packed size estimated: " + Units.fmt(pd, io.github.openrocketmcp.units.Dim.LENGTH) + " dia x "
-								+ Units.fmt(p.getLength(), io.github.openrocketmcp.units.Dim.LENGTH)
+						done.add("packed size estimated: " + Units.fmt(pd, Dim.LENGTH) + " dia x "
+								+ Units.fmt(p.getLength(), Dim.LENGTH)
 								+ " (typical for the canopy size; set length / radius from your chute's packed size)");
 					}
 					d.doc.setSaved(false);
@@ -284,11 +291,11 @@ public final class DesignTools {
 					Designs.Design d = ctx.designs.get(a.str("designId", null));
 					Rocket rocket = d.doc.getRocket();
 					RecoveryDevice rd = Components.find(rocket, a.str("component"), RecoveryDevice.class, "recovery device");
-					DeploymentConfiguration.DeployEvent ev = DeploymentConfiguration.DeployEvent.valueOf(a.str("event").toUpperCase());
+					DeploymentConfiguration.DeployEvent ev = DeploymentConfiguration.DeployEvent.valueOf(a.str("event").toUpperCase(Locale.ROOT));
 					boolean all = "all".equalsIgnoreCase(a.str("configuration", ""));
 					List<FlightConfigurationId> ids = all ? rocket.getIds()
 							: List.of(Components.config(rocket, a.str("configuration", null)).getId());
-					java.util.function.UnaryOperator<DeploymentConfiguration> edit = dc -> {
+					UnaryOperator<DeploymentConfiguration> edit = dc -> {
 						dc.setDeployEvent(ev);
 						if (a.has("altitude")) {
 							dc.setDeployAltitude(a.qty("altitude", Dim.DISTANCE));
@@ -327,11 +334,11 @@ public final class DesignTools {
 					Designs.Design d = ctx.designs.get(a.str("designId", null));
 					Rocket rocket = d.doc.getRocket();
 					AxialStage stage = Components.find(rocket, a.str("stage"), AxialStage.class, "stage");
-					StageSeparationConfiguration.SeparationEvent ev = StageSeparationConfiguration.SeparationEvent.valueOf(a.str("event").toUpperCase());
+					StageSeparationConfiguration.SeparationEvent ev = StageSeparationConfiguration.SeparationEvent.valueOf(a.str("event").toUpperCase(Locale.ROOT));
 					boolean all = "all".equalsIgnoreCase(a.str("configuration", ""));
 					List<FlightConfigurationId> ids = all ? rocket.getIds()
 							: List.of(Components.config(rocket, a.str("configuration", null)).getId());
-					java.util.function.UnaryOperator<StageSeparationConfiguration> edit = sc -> {
+					UnaryOperator<StageSeparationConfiguration> edit = sc -> {
 						sc.setSeparationEvent(ev);
 						if (a.has("delay")) {
 							sc.setSeparationDelay(a.qty("delay", Dim.TIME));

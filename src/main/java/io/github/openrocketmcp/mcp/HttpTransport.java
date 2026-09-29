@@ -3,6 +3,7 @@ package io.github.openrocketmcp.mcp;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLDecoder;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import com.google.gson.Gson;
@@ -28,6 +30,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+
+import io.github.openrocketmcp.report.Xml;
 
 /**
  * MCP over HTTP ("Streamable HTTP" transport, JSON responses) so a whole team can share one server from claude.ai,
@@ -211,14 +215,14 @@ public final class HttpTransport {
 		ex.getResponseHeaders().add("Content-Type", "text/event-stream");
 		ex.sendResponseHeaders(200, 0);
 		try (OutputStream o = ex.getResponseBody()) {
-			java.util.function.Consumer<JsonObject> event = m -> {
+			Consumer<JsonObject> event = m -> {
 				byte[] b = ("event: message\ndata: " + compactGson.toJson(m) + "\n\n").getBytes(StandardCharsets.UTF_8);
 				synchronized (o) {
 					try {
 						o.write(b);
 						o.flush();
 					} catch (IOException e) {
-						throw new java.io.UncheckedIOException(e);
+						throw new UncheckedIOException(e);
 					}
 				}
 			};
@@ -226,12 +230,12 @@ public final class HttpTransport {
 			if (r != null) {
 				event.accept(r);
 			}
-		} catch (java.io.UncheckedIOException e) {
+		} catch (UncheckedIOException e) {
 			// the client went away
 		}
 	}
 
-	private static final com.google.gson.Gson compactGson = new com.google.gson.GsonBuilder().disableHtmlEscaping()
+	private static final Gson compactGson = new GsonBuilder().disableHtmlEscaping()
 			.serializeSpecialFloatingPointValues().create();
 
 	private static JsonObject rpcError(String message) {
@@ -397,7 +401,7 @@ public final class HttpTransport {
 			String name = q.getFileName().toString();
 			boolean d = Files.isDirectory(q);
 			rows.append("<tr><td><a href=\"").append(base).append(url(here + name)).append(d ? "/" : "").append("\">")
-					.append(esc(name)).append(d ? "/" : "").append("</a></td><td>")
+					.append(Xml.esc(name)).append(d ? "/" : "").append("</a></td><td>")
 					.append(d ? "" : size(Files.size(q))).append("</td><td>")
 					.append(Instant.ofEpochMilli(Files.getLastModifiedTime(q).toMillis()).toString().replace('T', ' ').substring(0, 16))
 					.append("</td></tr>");
@@ -424,7 +428,7 @@ public final class HttpTransport {
 				drop.ondragover=e=>{e.preventDefault();drop.classList.add('on')};drop.ondragleave=()=>drop.classList.remove('on');
 				drop.ondrop=e=>{e.preventDefault();up(e.dataTransfer.files)};
 				</script></body></html>
-				""".replace("{{HERE}}", esc(here)).replace("{{ROWS}}", rows);
+				""".replace("{{HERE}}", Xml.esc(here)).replace("{{ROWS}}", rows);
 	}
 
 	private static String url(String rel) {
@@ -436,10 +440,6 @@ public final class HttpTransport {
 			s.append(URLEncoder.encode(seg, StandardCharsets.UTF_8).replace("+", "%20"));
 		}
 		return s.toString();
-	}
-
-	static String esc(String s) {
-		return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
 	}
 
 	private static String size(long b) {

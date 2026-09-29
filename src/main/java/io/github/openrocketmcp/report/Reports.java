@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -16,12 +17,16 @@ import info.openrocket.core.simulation.FlightData;
 import info.openrocket.core.simulation.FlightDataBranch;
 import info.openrocket.core.simulation.FlightDataType;
 import info.openrocket.core.simulation.FlightEvent;
+import io.github.openrocketmcp.or.Aero;
 import io.github.openrocketmcp.or.Analysis;
 import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.Recovery;
 import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sims;
+import io.github.openrocketmcp.or.Variants;
+import io.github.openrocketmcp.or.Winds;
 import io.github.openrocketmcp.standards.Standards;
+import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
 /**
@@ -100,7 +105,7 @@ public final class Reports {
 	/** Altitude vs time for each stage (up to two) with the flight's events marked. */
 	public static String profileSvg(Simulation sim) {
 		FlightData data = sim.getSimulatedData();
-		String unit = Units.plotUnit(io.github.openrocketmcp.units.Dim.DISTANCE);
+		String unit = Units.plotUnit(Dim.DISTANCE);
 		double k = Units.fromSi(1, unit);
 		List<Svg.Series> series = new ArrayList<>();
 		for (FlightDataBranch b : data.getBranches()) {
@@ -123,7 +128,7 @@ public final class Reports {
 				markers.add(new Svg.Marker(e.getTime(), label));
 			}
 		}
-		return Svg.lines(sim.getRocket().getName() + ": apogee " + Units.fmt(data.getMaxAltitude(), io.github.openrocketmcp.units.Dim.DISTANCE),
+		return Svg.lines(sim.getRocket().getName() + ": apogee " + Units.fmt(data.getMaxAltitude(), Dim.DISTANCE),
 				"Time (s)", "Altitude above the pad (" + unit + ")", series.subList(0, Math.min(2, series.size())), Double.NaN, null, markers);
 	}
 
@@ -135,7 +140,7 @@ public final class Reports {
 		double[] mach = column(b, FlightDataType.TYPE_MACH_NUMBER);
 		var fc = sim.getRocket().getFlightConfiguration(sim.getFlightConfigurationId());
 		double ref = Analysis.maxDiameter(fc);
-		Map<Long, Double> cpCache = new java.util.HashMap<>();
+		Map<Long, Double> cpCache = new HashMap<>();
 		boolean filled = false;
 		List<Double> xs = new ArrayList<>(), ys = new ArrayList<>();
 		for (int i = 0; i < t.length; i++) {
@@ -185,7 +190,7 @@ public final class Reports {
 
 	/** Apogee, rail exit, minimum stability and landing distance per stage at 0 / 10 / 20 / 30 km/h (to the rule maximum). */
 	public static List<Map<String, Object>> windTable(Designs.Design d, Simulation sim, Standards std) {
-		double max = std.rule("maxGroundWind.value", io.github.openrocketmcp.units.Dim.VELOCITY);
+		double max = std.rule("maxGroundWind.value", Dim.VELOCITY);
 		if (Double.isNaN(max)) {
 			max = 30 / 3.6;
 		}
@@ -195,15 +200,15 @@ public final class Reports {
 		}
 		List<Simulation> sims = new ArrayList<>();
 		for (double w : winds) {
-			Simulation v = io.github.openrocketmcp.or.Variants.of(sim, d.doc, null, null);
-			io.github.openrocketmcp.or.Winds.setGround(v.getOptions(), w, Double.NaN);
+			Simulation v = Variants.of(sim, d.doc, null, null);
+			Winds.setGround(v.getOptions(), w, Double.NaN);
 			sims.add(v);
 		}
-		List<io.github.openrocketmcp.or.Variants.Run> runs = io.github.openrocketmcp.or.Variants.runAll(sims);
+		List<Variants.Run> runs = Variants.runAll(sims);
 		List<Map<String, Object>> rows = new ArrayList<>();
 		for (int i = 0; i < runs.size(); i++) {
 			Map<String, Object> r = new LinkedHashMap<>();
-			r.put("wind", Units.fmt(winds.get(i), io.github.openrocketmcp.units.Dim.VELOCITY));
+			r.put("wind", Units.fmt(winds.get(i), Dim.VELOCITY));
 			var run = runs.get(i);
 			if (!run.ok()) {
 				r.put("result", "failed: " + run.error());
@@ -235,7 +240,7 @@ public final class Reports {
 		double apogee = main.getFirstEvent(FlightEvent.Type.APOGEE) == null ? Double.NaN
 				: main.getFirstEvent(FlightEvent.Type.APOGEE).getTime();
 		double minRule = std.rule(Analysis.hasDiameterChange(fc) ? "stability.minCalibersWithDiameterChange" : "stability.minCalibers",
-				io.github.openrocketmcp.units.Dim.DIMENSIONLESS);
+				Dim.DIMENSIONLESS);
 		String ref = std.ruleRef("stability");
 		if (!Double.isNaN(rail)) {
 			Path p = dir.resolve("stability-to-rail-exit.svg");
@@ -292,12 +297,12 @@ public final class Reports {
 		List<Map<String, Object>> aero = new ArrayList<>();
 		for (double m : new double[] { 0.1, 0.3, 0.5, 0.7, 0.9, 1.0, 1.1, 1.3, 1.6, 2.0, 2.5, 3.0 }) {
 			if (m <= topMach) {
-				aero.add(io.github.openrocketmcp.or.Aero.render(io.github.openrocketmcp.or.Aero.sweep(fc, new double[] { m }).get(0)));
+				aero.add(Aero.render(Aero.sweep(fc, new double[] { m }).get(0)));
 			}
 		}
 		md.append("### Aerodynamics vs Mach (OpenRocket, zero AoA)\n\n").append(table(aero)).append('\n');
 		md.append("## 3. Flight simulation\n\n### Conditions\n\n").append(kv((Map<String, Object>) summary.get("conditions")));
-		md.append("\n### Wind model\n\n").append(kv(io.github.openrocketmcp.or.Winds.describe(sim.getOptions())));
+		md.append("\n### Wind model\n\n").append(kv(Winds.describe(sim.getOptions())));
 		md.append("\n### Results\n\n").append(kv((Map<String, Object>) summary.get("flight"))).append('\n');
 		Path profile = dir.resolve("flight-profile.svg");
 		Files.writeString(profile, profileSvg(sim));
@@ -344,19 +349,19 @@ public final class Reports {
 		md.append("- Flight: OpenRocket 24.12 six-degree-of-freedom simulation, Barrowman aerodynamics. ");
 		md.append("Stability margin = (CP - CG) / maximum body diameter.\n");
 		md.append("- Opening load: Knacke (NWC TP 6575) infinite-mass F = Cx q CdA with Cx = ")
-				.append(Units.num(std.q("recovery.openingForceCoefficient", io.github.openrocketmcp.units.Dim.DIMENSIONLESS, 1.4)))
+				.append(Units.num(std.q("recovery.openingForceCoefficient", Dim.DIMENSIONLESS, 1.4)))
 				.append("; finite-mass inflation with fill constant n = ")
-				.append(Units.num(std.q("recovery.canopyFillConstant", io.github.openrocketmcp.units.Dim.DIMENSIONLESS, 4)))
+				.append(Units.num(std.q("recovery.canopyFillConstant", Dim.DIMENSIONLESS, 4)))
 				.append(" and exponent j = ")
-				.append(Units.num(std.q("recovery.inflationExponent", io.github.openrocketmcp.units.Dim.DIMENSIONLESS, 1)))
+				.append(Units.num(std.q("recovery.inflationExponent", Dim.DIMENSIONLESS, 1)))
 				.append(" (assumed; calibrate with test data). Design load is never below steady-descent drag.\n");
 		md.append("- Shear pins: n = ceil(F SF / F_pin), SF = ")
-				.append(Units.num(std.q("recovery.shearPinHoldSafetyFactor", io.github.openrocketmcp.units.Dim.DIMENSIONLESS, 2)))
+				.append(Units.num(std.q("recovery.shearPinHoldSafetyFactor", Dim.DIMENSIONLESS, 2)))
 				.append(pinName == null ? "" : ", pin: " + pinName).append(".\n");
 		md.append("- Fin flutter: NACA TN 4197 screen with K = ")
-				.append(Units.num(std.q("structures.flutterConstant", io.github.openrocketmcp.units.Dim.DIMENSIONLESS, 2.674)))
+				.append(Units.num(std.q("structures.flutterConstant", Dim.DIMENSIONLESS, 2.674)))
 				.append(" (Peak of Flight #615 correction), shear modulus from structures.shearModulus; required margin ")
-				.append(Units.num(std.q("structures.flutterMinMargin", io.github.openrocketmcp.units.Dim.DIMENSIONLESS, 1.5)))
+				.append(Units.num(std.q("structures.flutterMinMargin", Dim.DIMENSIONLESS, 1.5)))
 				.append(" (team standard).\n");
 		md.append("- Values labelled simulated come from OpenRocket; loads and pins are calculated; Cx, n, j and safety factors ");
 		md.append("are team assumptions. Estimates do not replace ground tests, RSO review or mentors.\n");

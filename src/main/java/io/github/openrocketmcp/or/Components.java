@@ -1,10 +1,10 @@
 package io.github.openrocketmcp.or;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -26,6 +26,8 @@ import info.openrocket.core.rocketcomponent.RecoveryDevice;
 import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.SymmetricComponent;
+import info.openrocket.core.rocketcomponent.Transition;
+import info.openrocket.core.util.Coordinate;
 import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
@@ -163,7 +165,7 @@ public final class Components {
 			f.add("mass " + Units.fmt(c.getSectionMass(), Dim.MASS) + " without motors");
 		} else {
 			try {
-				f.add("top " + Units.fmt(c.toAbsolute(info.openrocket.core.util.Coordinate.NUL)[0].x, Dim.LENGTH));
+				f.add("top " + Units.fmt(c.toAbsolute(Coordinate.NUL)[0].x, Dim.LENGTH));
 			} catch (RuntimeException e) {
 				// position not resolvable; skip
 			}
@@ -367,7 +369,7 @@ public final class Components {
 			target.invoke(c, arg);
 		} catch (IllegalArgumentException e) {
 			throw new ToolException("Property '" + canonical + "': " + e.getMessage());
-		} catch (java.lang.reflect.InvocationTargetException e) {
+		} catch (InvocationTargetException e) {
 			Throwable cause = e.getCause() == null ? e : e.getCause();
 			throw new ToolException("OpenRocket rejected " + canonical + " = " + value + ": " + cause.getMessage());
 		} catch (ReflectiveOperationException e) {
@@ -492,11 +494,11 @@ public final class Components {
 	 * whole tube when NaN), nose cones and transitions (integrated wall-offset profile plus the aft shoulder).
 	 */
 	public static double interiorVolume(RocketComponent c, double length) {
-		if (c instanceof info.openrocket.core.rocketcomponent.BodyTube bt) {
+		if (c instanceof BodyTube bt) {
 			double r = bt.getInnerRadius();
 			return Math.PI * r * r * (Double.isNaN(length) ? bt.getLength() : length);
 		}
-		if (c instanceof info.openrocket.core.rocketcomponent.Transition t) {
+		if (c instanceof Transition t) {
 			if (t.isFilled()) {
 				return 0;
 			}

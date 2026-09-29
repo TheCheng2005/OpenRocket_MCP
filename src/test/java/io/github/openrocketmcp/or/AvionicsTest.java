@@ -4,19 +4,23 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import com.google.gson.JsonPrimitive;
 import org.junit.jupiter.api.Test;
 
 import info.openrocket.core.rocketcomponent.AxialStage;
 import info.openrocket.core.rocketcomponent.BodyTube;
+import info.openrocket.core.rocketcomponent.InnerTube;
 import info.openrocket.core.rocketcomponent.MassComponent;
 import info.openrocket.core.rocketcomponent.MassComponent.MassComponentType;
 import info.openrocket.core.rocketcomponent.NoseCone;
 import info.openrocket.core.rocketcomponent.Parachute;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.TubeCoupler;
+import info.openrocket.core.rocketcomponent.position.AxialMethod;
 import info.openrocket.core.util.Coordinate;
 import io.github.openrocketmcp.mcp.ToolException;
 
@@ -34,7 +38,7 @@ class AvionicsTest {
 		nose.setAftShoulderLength(4 * IN);
 		nose.setAftShoulderRadius(1.95 * IN);
 		stage.addChild(nose);
-		Components.set(nose, "material", new com.google.gson.JsonPrimitive("Fiberglass"));
+		Components.set(nose, "material", new JsonPrimitive("Fiberglass"));
 		for (String[] t : new String[][] { { "Upper airframe", "24" }, { "Lower airframe", "40" } }) {
 			BodyTube b = new BodyTube();
 			b.setName(t[0]);
@@ -58,7 +62,7 @@ class AvionicsTest {
 	}
 
 	static List<MassComponent> typed(RocketComponent root, MassComponentType t) {
-		List<MassComponent> out = new java.util.ArrayList<>();
+		List<MassComponent> out = new ArrayList<>();
 		for (RocketComponent c : root) {
 			if (c instanceof MassComponent m && m.getMassComponentType() == t) {
 				out.add(m);
@@ -146,12 +150,12 @@ class AvionicsTest {
 		Designs.Design d = rocket();
 		var rocket = d.doc.getRocket();
 		BodyTube lower = Components.find(rocket, "Lower airframe", BodyTube.class, "tube");
-		var mount = new info.openrocket.core.rocketcomponent.InnerTube();
+		var mount = new InnerTube();
 		mount.setName("Motor mount");
 		mount.setLength(34 * IN); // leaves 6 in above it: less than the coupler, charges and drogue need
 		mount.setOuterRadius(1.5 * IN);
 		lower.addChild(mount);
-		mount.setAxialMethod(info.openrocket.core.rocketcomponent.position.AxialMethod.BOTTOM);
+		mount.setAxialMethod(AxialMethod.BOTTOM);
 		mount.setAxialOffset(0);
 		Map<String, Object> out = Avionics.add(d, Components.find(rocket, "Upper airframe", BodyTube.class, "tube"), lower, spec(1 * IN));
 		String packed = String.valueOf(out.get("recoveryPacked"));

@@ -1,5 +1,8 @@
 package io.github.openrocketmcp.bench;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.junit.jupiter.api.Test;
 
 import info.openrocket.core.document.Simulation;
@@ -29,7 +32,7 @@ class BenchTest {
 			Sims.run(sim.copy());
 		}
 		long t2 = System.nanoTime();
-		java.nio.file.Files.writeString(java.nio.file.Path.of("build/bench.txt"),
+		Files.writeString(Path.of("build/bench.txt"),
 				"summarize ms: " + (t1 - t0) / 20e6 + "\nsimulate ms: " + (t2 - t1) / 10e6 + "\n");
 	}
 }

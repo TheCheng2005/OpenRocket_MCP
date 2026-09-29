@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import info.openrocket.core.rocketcomponent.InternalComponent;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.SymmetricComponent;
 import io.github.openrocketmcp.standards.Standards;
@@ -69,8 +70,8 @@ class GeometryTest {
 		assertTrue(body.stream().anyMatch(s -> s.name.equals("base")));
 		assertClosed(body, "body");
 		double exact = 0;
-		for (RocketComponent c : fc.getActiveComponents()) {
-			if (c instanceof SymmetricComponent sc && !(c instanceof info.openrocket.core.rocketcomponent.InternalComponent)) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
+			if (c instanceof SymmetricComponent sc && !(c instanceof InternalComponent)) {
 				int n = 4000;
 				for (int i = 0; i < n; i++) {
 					double r = sc.getRadius(sc.getLength() * (i + 0.5) / n);
@@ -95,7 +96,7 @@ class GeometryTest {
 	}
 
 	private static boolean isFin(FlightConfiguration fc, String name) {
-		for (RocketComponent c : fc.getActiveComponents()) {
+		for (RocketComponent c : fc.getAllActiveComponents()) {
 			if (c instanceof FinSet f && Geometry.safe(f.getName()).equals(name)) {
 				return true;
 			}

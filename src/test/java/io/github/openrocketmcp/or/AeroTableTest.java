@@ -6,10 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
@@ -39,14 +41,14 @@ class AeroTableTest {
 	}
 
 	@Test
-	void tableIsKeptWithTheDesign(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+	void tableIsKeptWithTheDesign(@TempDir Path dir) throws Exception {
 		Designs designs = new Designs();
 		Designs.Design d = designs.openExample("A simple model rocket");
 		AeroTable.Table t = AeroTable.parse(RASAERO, "rasaero.csv", 0.0254, true);
 		AeroTable.set(d.doc.getRocket(), t);
-		java.nio.file.Path ork = designs.save(d, dir.resolve("rocket.ork"));
-		java.nio.file.Path side = dir.resolve("rocket.aero.json");
-		assertTrue(java.nio.file.Files.exists(side));
+		Path ork = designs.save(d, dir.resolve("rocket.ork"));
+		Path side = dir.resolve("rocket.aero.json");
+		assertTrue(Files.exists(side));
 		AeroTable.clear(d.doc.getRocket());
 		Designs.Design again = designs.open(ork);
 		AeroTable.Table back = AeroTable.of(again.doc.getRocket());
@@ -57,7 +59,7 @@ class AeroTableTest {
 		// Clearing the table and saving removes the file, so it does not come back.
 		AeroTable.clear(again.doc.getRocket());
 		designs.save(again, ork);
-		assertFalse(java.nio.file.Files.exists(side));
+		assertFalse(Files.exists(side));
 	}
 
 	@Test

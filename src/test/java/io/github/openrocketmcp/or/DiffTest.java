@@ -14,6 +14,8 @@ import org.junit.jupiter.api.io.TempDir;
 import info.openrocket.core.rocketcomponent.BodyTube;
 import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.MassComponent;
+import info.openrocket.core.rocketcomponent.TrapezoidFinSet;
+import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.standards.Standards;
 
 /** compare_designs: two revisions of a design. */
@@ -52,7 +54,7 @@ class DiffTest {
 		Designs designs = new Designs();
 		Designs.Design d = designs.openExample("Dual parachute");
 		Path v1 = designs.save(d, tmp.resolve("v1.ork"));
-		var fins = StudiesTest.first(d, info.openrocket.core.rocketcomponent.TrapezoidFinSet.class);
+		var fins = StudiesTest.first(d, TrapezoidFinSet.class);
 		fins.setHeight(fins.getHeight() * 1.3);
 		MassComponent ballast = new MassComponent();
 		ballast.setName("Nose ballast");
@@ -99,7 +101,7 @@ class DiffTest {
 		try {
 			Diff.loadRevision(d, "--output=/tmp/x");
 			throw new AssertionError("option injection accepted");
-		} catch (io.github.openrocketmcp.mcp.ToolException expected) {
+		} catch (ToolException expected) {
 			// refused
 		}
 	}

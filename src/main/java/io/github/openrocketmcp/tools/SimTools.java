@@ -1,19 +1,22 @@
 package io.github.openrocketmcp.tools;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.simulation.FlightData;
-import info.openrocket.core.simulation.FlightDataBranch;
 import info.openrocket.core.simulation.FlightDataType;
-import info.openrocket.core.simulation.FlightEvent;
 import io.github.openrocketmcp.mcp.Args;
+import io.github.openrocketmcp.mcp.CallContext;
 import io.github.openrocketmcp.mcp.McpServer;
 import io.github.openrocketmcp.mcp.Schema;
 import io.github.openrocketmcp.mcp.ToolDef;
@@ -23,6 +26,9 @@ import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sims;
 import io.github.openrocketmcp.or.Variants;
+import io.github.openrocketmcp.or.Winds;
+import io.github.openrocketmcp.report.Png;
+import io.github.openrocketmcp.report.Reports;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
@@ -82,13 +88,13 @@ public final class SimTools {
 					Simulation sim = runSelected(ctx, a);
 					Map<String, Object> out = Sims.summarize(sim);
 					if (a.has("plotPath")) {
-						java.nio.file.Path p = ctx.path(a.str("plotPath"));
+						Path p = ctx.path(a.str("plotPath"));
 						if (p.getParent() != null) {
-							java.nio.file.Files.createDirectories(p.getParent());
+							Files.createDirectories(p.getParent());
 						}
-						java.nio.file.Files.writeString(p, io.github.openrocketmcp.report.Reports.profileSvg(sim));
+						Files.writeString(p, Reports.profileSvg(sim));
 						out.put("plot", p.toString());
-						io.github.openrocketmcp.report.Png.attachFile(p, "Flight profile");
+						Png.attachFile(p, "Flight profile");
 					}
 					return out;
 				}));
@@ -137,7 +143,7 @@ public final class SimTools {
 					double maxWind = ctx.standards().rule("maxGroundWind.value", Dim.VELOCITY);
 					if (a.bool("includeWindCase", true) && !Double.isNaN(maxWind)) {
 						wind = sim.copy();
-						io.github.openrocketmcp.or.Winds.setGround(wind.getOptions(), maxWind, Double.NaN);
+						Winds.setGround(wind.getOptions(), maxWind, Double.NaN);
 						Sims.run(wind);
 					}
 					return Requirements.check(sim, wind, ctx.standards()).render(ctx.standards().rulesName());
@@ -148,7 +154,7 @@ public final class SimTools {
 		Designs.Design d = ctx.designs.get(a.str("designId", null));
 		String param = a.str("parameter");
 		RocketComponent comp = a.has("component") ? Components.find(d.doc.getRocket(), a.str("component")) : null;
-		com.google.gson.JsonArray values = a.array("values");
+		JsonArray values = a.array("values");
 		if (values.isEmpty()) {
 			throw new ToolException("values must not be empty.");
 		}
@@ -166,13 +172,13 @@ public final class SimTools {
 				variants.add(Variants.of(base, d.doc, r -> label[0] = Components.set(Components.find(r, compId), param, v), null));
 				labels.add(label[0]);
 			} else {
-				com.google.gson.JsonObject one = a.raw().deepCopy();
+				JsonObject one = a.raw().deepCopy();
 				one.add(param, v);
 				variants.add(Variants.of(base, d.doc, null, overrides(new Args(one))));
 				labels.add(v.isJsonPrimitive() ? v.getAsString() : v.toString());
 			}
 		}
-		io.github.openrocketmcp.mcp.CallContext.current().expect(variants.size(), "cases flown");
+		CallContext.current().expect(variants.size(), "cases flown");
 		List<Variants.Run> runs = Variants.runAll(variants);
 		List<Map<String, Object>> rows = new ArrayList<>();
 		for (int i = 0; i < runs.size(); i++) {

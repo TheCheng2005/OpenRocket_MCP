@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 import info.openrocket.core.rocketcomponent.Rocket;
+import info.openrocket.core.util.ModID;
 
 /**
  * Undo / redo for one open design: before each editing tool call the rocket is copied, and the copy is kept only if
@@ -27,7 +28,7 @@ public final class History {
 	}
 
 	/** Taken before a call; becomes an entry if the call changed the rocket. */
-	public record Pending(Rocket copy, info.openrocket.core.util.ModID modId) {
+	public record Pending(Rocket copy, ModID modId) {
 	}
 
 	private final Deque<Entry> undo = new ArrayDeque<>(), redo = new ArrayDeque<>();

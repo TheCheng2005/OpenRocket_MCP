@@ -6,9 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.jupiter.api.Test;
-
 import com.google.gson.JsonParser;
+import org.junit.jupiter.api.Test;
 
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.rocketcomponent.FinSet;
