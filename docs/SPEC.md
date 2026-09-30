@@ -304,6 +304,13 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
 - `View3d`: extra gap between stages in exploded views, stage brackets with names and masses, and `stage` in the parts
   list.
 
+### GIF colours (v0.16.2)
+
+- Fix: animation GIFs showed wrong, flashing colours. The JDK's GIF writer stored its own default 216-colour table and
+  remapped the indexed frames, so the palette in the file did not match the pixels. `report.Gif` now writes the file
+  itself: GIF89a with our median-cut palette as the global colour table, and LZW-coded frames. A test decodes the GIF
+  and compares its colours with the rendered frames. The PNG stills and the MP4 were never affected.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

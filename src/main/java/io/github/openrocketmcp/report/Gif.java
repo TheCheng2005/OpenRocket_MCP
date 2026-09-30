@@ -1,38 +1,34 @@
 package io.github.openrocketmcp.report;
 
 import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferByte;
 import java.awt.image.DataBufferInt;
 import java.awt.image.IndexColorModel;
+import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import javax.imageio.IIOImage;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageTypeSpecifier;
-import javax.imageio.ImageWriteParam;
-import javax.imageio.ImageWriter;
-import javax.imageio.metadata.IIOMetadata;
-import javax.imageio.metadata.IIOMetadataNode;
-import javax.imageio.stream.ImageOutputStream;
-
 /**
  * Looping animated GIF written frame by frame, so a long animation never sits in memory. All frames share one
- * 256-colour palette (median cut over sample frames), which keeps colours steady from frame to frame and the file small.
+ * 256-colour palette (median cut over sample frames), stored as the file's global colour table, which keeps colours
+ * steady from frame to frame and the file small.
+ *
+ * <p>The file is written here byte by byte (GIF89a, LZW) rather than through ImageIO: the JDK's GIF writer stores its
+ * own default palette and remaps indexed frames, so the colours came out wrong and changed from frame to frame.
  */
 public final class Gif implements Closeable {
-	private final ImageWriter writer;
-	private final ImageOutputStream out;
+	private final OutputStream out;
 	private final IndexColorModel palette;
 	private final byte[] lut = new byte[1 << 15]; // 5 bits per channel -> palette index
 	private final double fps;
-	private int frames;
-	private boolean started;
+	private final Lzw lzw = new Lzw();
+	private int frames, width, height;
 
 	public Gif(Path file, double fps, List<BufferedImage> samples) throws IOException {
 		this.fps = fps;
@@ -57,68 +53,63 @@ public final class Gif implements Closeable {
 			}
 			lut[c] = (byte) best;
 		}
-		writer = ImageIO.getImageWritersByFormatName("gif").next();
 		Files.deleteIfExists(file);
-		out = ImageIO.createImageOutputStream(file.toFile());
-		writer.setOutput(out);
+		out = new BufferedOutputStream(Files.newOutputStream(file), 1 << 16);
 	}
 
 	public void add(BufferedImage rgb) throws IOException {
 		int w = rgb.getWidth(), h = rgb.getHeight();
-		BufferedImage idx = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED, palette);
-		byte[] dst = ((DataBufferByte) idx.getRaster().getDataBuffer()).getData();
+		if (frames == 0) {
+			width = w;
+			height = h;
+			header(w, h);
+		} else if (w != width || h != height) {
+			throw new IllegalArgumentException("GIF frames must all be " + width + " x " + height);
+		}
 		int[] src = rgb.getType() == BufferedImage.TYPE_INT_RGB ? ((DataBufferInt) rgb.getRaster().getDataBuffer()).getData()
 				: rgb.getRGB(0, 0, w, h, null, 0, w);
+		byte[] idx = new byte[w * h];
 		for (int i = 0; i < src.length; i++) {
 			int c = src[i];
-			dst[i] = lut[(c >> 19 & 31) << 10 | (c >> 11 & 31) << 5 | (c >> 3 & 31)];
-		}
-		if (!started) {
-			writer.prepareWriteSequence(null);
-			started = true;
+			idx[i] = lut[(c >> 19 & 31) << 10 | (c >> 11 & 31) << 5 | (c >> 3 & 31)];
 		}
 		// Frame delays in hundredths of a second, rounded so they add up to the right total.
-		int delay = (int) Math.round((frames + 1) * 100 / fps) - (int) Math.round(frames * 100 / fps);
-		writer.writeToSequence(new IIOImage(idx, null, metadata(idx, delay, frames == 0)), null);
+		int delay = Math.max(2, (int) Math.round((frames + 1) * 100 / fps) - (int) Math.round(frames * 100 / fps));
+		// Graphic control extension: leave the frame in place, the delay, no transparency.
+		out.write(new byte[] { 0x21, (byte) 0xF9, 4, 0x04, (byte) delay, (byte) (delay >> 8), 0, 0 });
+		// Image descriptor: the whole screen, no local colour table (the global one is the palette).
+		out.write(0x2C);
+		short16(0);
+		short16(0);
+		short16(w);
+		short16(h);
+		out.write(0);
+		lzw.encode(idx, out);
 		frames++;
 	}
 
-	private static int clamp(int v) {
-		return v < 0 ? 0 : v > 255 ? 255 : v;
+	/** Header, logical screen with the palette as the global colour table, and the loop-forever extension. */
+	private void header(int w, int h) throws IOException {
+		out.write("GIF89a".getBytes(StandardCharsets.US_ASCII));
+		short16(w);
+		short16(h);
+		out.write(0xF7); // global table present, 8-bit colour resolution, 256 entries
+		out.write(0);
+		out.write(0);
+		int n = palette.getMapSize();
+		for (int i = 0; i < 256; i++) {
+			out.write(i < n ? palette.getRed(i) : 0);
+			out.write(i < n ? palette.getGreen(i) : 0);
+			out.write(i < n ? palette.getBlue(i) : 0);
+		}
+		out.write(new byte[] { 0x21, (byte) 0xFF, 11 });
+		out.write("NETSCAPE2.0".getBytes(StandardCharsets.US_ASCII));
+		out.write(new byte[] { 3, 1, 0, 0, 0 });
 	}
 
-	private IIOMetadata metadata(BufferedImage img, int delay, boolean first) throws IOException {
-		ImageWriteParam p = writer.getDefaultWriteParam();
-		IIOMetadata m = writer.getDefaultImageMetadata(ImageTypeSpecifier.createFromRenderedImage(img), p);
-		String f = m.getNativeMetadataFormatName();
-		IIOMetadataNode root = (IIOMetadataNode) m.getAsTree(f);
-		IIOMetadataNode gce = child(root, "GraphicControlExtension");
-		gce.setAttribute("disposalMethod", "none");
-		gce.setAttribute("userInputFlag", "FALSE");
-		gce.setAttribute("transparentColorFlag", "FALSE");
-		gce.setAttribute("delayTime", Integer.toString(Math.max(2, delay)));
-		gce.setAttribute("transparentColorIndex", "0");
-		if (first) {
-			IIOMetadataNode apps = child(root, "ApplicationExtensions");
-			IIOMetadataNode app = new IIOMetadataNode("ApplicationExtension");
-			app.setAttribute("applicationID", "NETSCAPE");
-			app.setAttribute("authenticationCode", "2.0");
-			app.setUserObject(new byte[] { 1, 0, 0 }); // loop forever
-			apps.appendChild(app);
-		}
-		m.setFromTree(f, root);
-		return m;
-	}
-
-	private static IIOMetadataNode child(IIOMetadataNode root, String name) {
-		for (int i = 0; i < root.getLength(); i++) {
-			if (root.item(i).getNodeName().equalsIgnoreCase(name)) {
-				return (IIOMetadataNode) root.item(i);
-			}
-		}
-		IIOMetadataNode n = new IIOMetadataNode(name);
-		root.appendChild(n);
-		return n;
+	private void short16(int v) throws IOException {
+		out.write(v & 255);
+		out.write(v >> 8 & 255);
 	}
 
 	public int frames() {
@@ -128,12 +119,103 @@ public final class Gif implements Closeable {
 	@Override
 	public void close() throws IOException {
 		try {
-			if (started) {
-				writer.endWriteSequence();
+			if (frames > 0) {
+				out.write(0x3B);
 			}
 		} finally {
 			out.close();
-			writer.dispose();
+		}
+	}
+
+	/**
+	 * GIF's variable-width LZW for 8-bit pixels (after Jef Poskanzer's GIFEncoder): codes grow from 9 to 12 bits; when
+	 * the table is full a clear code starts it again. Output goes in data sub-blocks of up to 255 bytes.
+	 */
+	static final class Lzw {
+		private static final int CLEAR = 256, END = 257, MAX = 4096;
+		private final int[] codes = new int[MAX * 256];
+		private final int[] stamp = new int[MAX * 256]; // entry valid when stamp == generation (no clearing needed)
+		private int generation;
+		private int bits, maxCode, next, acc, accBits;
+		private boolean clearing;
+		private final byte[] block = new byte[255];
+		private int blockLen;
+		private OutputStream out;
+
+		void encode(byte[] px, OutputStream out) throws IOException {
+			this.out = out;
+			out.write(8); // minimum code size
+			generation++;
+			bits = 9;
+			maxCode = (1 << bits) - 1;
+			next = END + 1;
+			acc = 0;
+			accBits = 0;
+			blockLen = 0;
+			clearing = false;
+			code(CLEAR);
+			if (px.length > 0) {
+				int ent = px[0] & 255;
+				for (int i = 1; i < px.length; i++) {
+					int c = px[i] & 255, key = ent << 8 | c;
+					if (stamp[key] == generation) {
+						ent = codes[key];
+						continue;
+					}
+					code(ent);
+					ent = c;
+					if (next < MAX) {
+						stamp[key] = generation;
+						codes[key] = next++;
+					} else { // table full: start again
+						generation++;
+						next = END + 1;
+						clearing = true;
+						code(CLEAR);
+					}
+				}
+				code(ent);
+			}
+			code(END);
+			if (accBits > 0) {
+				put(acc & 255);
+			}
+			if (blockLen > 0) {
+				flushBlock();
+			}
+			out.write(0); // block terminator
+		}
+
+		private void code(int c) throws IOException {
+			acc |= c << accBits;
+			accBits += bits;
+			while (accBits >= 8) {
+				put(acc & 255);
+				acc >>>= 8;
+				accBits -= 8;
+			}
+			// Widen once the table has used every code of this width; narrow again after a clear.
+			if (clearing) {
+				bits = 9;
+				maxCode = (1 << bits) - 1;
+				clearing = false;
+			} else if (next > maxCode && bits < 12) {
+				bits++;
+				maxCode = (1 << bits) - 1;
+			}
+		}
+
+		private void put(int b) throws IOException {
+			block[blockLen++] = (byte) b;
+			if (blockLen == 255) {
+				flushBlock();
+			}
+		}
+
+		private void flushBlock() throws IOException {
+			out.write(blockLen);
+			out.write(block, 0, blockLen);
+			blockLen = 0;
 		}
 	}
 
