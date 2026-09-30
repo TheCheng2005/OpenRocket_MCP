@@ -16,6 +16,7 @@ import info.openrocket.core.rocketcomponent.InnerTube;
 import info.openrocket.core.rocketcomponent.InternalComponent;
 import info.openrocket.core.rocketcomponent.MassComponent;
 import info.openrocket.core.rocketcomponent.NoseCone;
+import info.openrocket.core.rocketcomponent.ParallelStage;
 import info.openrocket.core.rocketcomponent.RecoveryDevice;
 import info.openrocket.core.rocketcomponent.RingComponent;
 import info.openrocket.core.rocketcomponent.Rocket;
@@ -77,6 +78,9 @@ public final class Model3d {
 		final int stage;
 		/** The component whose airframe piece this part travels with (a motor's mount; else the component). */
 		RocketComponent owner;
+		/** The in-line stage it belongs to (side boosters count with the stage they are attached to) and its name. */
+		int axialStage;
+		String stageName = "";
 		final List<double[]> tris = new ArrayList<>();
 		double x0 = Double.MAX_VALUE, x1 = -Double.MAX_VALUE, rMax;
 		double mass;
@@ -188,6 +192,14 @@ public final class Model3d {
 		order.sort((a, b) -> Double.compare(a.toAbsolute(Coordinate.NUL)[0].x, b.toAbsolute(Coordinate.NUL)[0].x));
 		for (Part p : out) {
 			p.piece = Math.max(0, order.indexOf(pieceOf(p.owner)));
+			if (!(p.owner instanceof Rocket)) {
+				AxialStage st = p.owner.getStage();
+				p.stageName = st.getName();
+				while (st instanceof ParallelStage && st.getParent() != null && !(st.getParent() instanceof Rocket)) {
+					st = st.getParent().getStage();
+				}
+				p.axialStage = st.getStageNumber();
+			}
 		}
 		out.sort((a, b) -> a.internal != b.internal ? (a.internal ? 1 : -1) : Integer.compare(a.piece, b.piece));
 		return out;

@@ -583,6 +583,37 @@ def main():
     w()
     table(an["timeline"], ["event", "flightTime", "videoTime"], ["Event", "Flight time", "In the video"])
 
+    # Two stages ------------------------------------------------------------------------------------------------------
+    ts = call("open_design", {"example": "Two stage high power"})["designId"]
+    ask(26, "We're also flying a two-stage rocket. Simulate the staging, show it pulled apart and animate it.",
+        ["run_simulation", "render_3d", "animate_flight"])
+    run = call("run_simulation", {"designId": ts})
+    ign = [i for i in run["ignitions"] if "altitudeAtIgnition" in i]
+    if ign:
+        i = ign[0]
+        w(f"> The {i['stage'].lower()} lights at {i['time']}, {lead(i['altitudeAtIgnition'])} up at "
+          f"{lead(i['velocityAtIgnition'])} and {i['tiltFromVerticalAtIgnition']} off vertical (thrust-to-weight "
+          f"{i['averageThrustToWeight']}); apogee {lead(run['flight']['apogee'])}.")
+    for b in run["branches"]:
+        w(f"> - {b['branch']}: lands {lead(b['landingDistanceFromPad'])} from the pad at {lead(b['groundHitVelocity'])}.")
+    w()
+    call("render_3d", {"designId": ts, "path": os.path.join(IMG, "two-stage-exploded.png"), "width": 1400})
+    w("![Exploded view of a two-stage rocket: the sustainer and booster bracketed with their masses, every part "
+      "numbered](examples/two-stage-exploded.png)")
+    w()
+    call("animate_flight", {"designId": ts, "path": os.path.join(IMG, "two-stage-flight.gif"), "duration": 18,
+                            "fps": 10, "gifWidth": 560, "mp4": False})
+    w("Each stage is followed through the whole flight. The captions name the stage (booster burnout, booster "
+      "separation, sustainer ignition, sustainer burnout). A booster camera in the lower left follows the dropped "
+      "booster down under its own chute. The trajectory inset draws its path in orange, and the flight summary lists "
+      "where each stage lands.")
+    w()
+    w("![Two-stage flight animation with the booster camera](examples/two-stage-flight.gif)")
+    w()
+    w("![Key moments of the two-stage flight: liftoff, booster separation, sustainer burnout, apogee, main, touchdown]"
+      "(examples/two-stage-flight-keyframes.png)")
+    w()
+
     w("## After the flight")
     w()
     w("*\"Here is our altimeter file — how did we do compared with the prediction?\"* Claude lines the log up with the "

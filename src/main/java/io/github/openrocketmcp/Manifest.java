@@ -39,7 +39,8 @@ public final class Manifest {
 		m.addProperty("long_description", """
 				Lets Claude open your OpenRocket (.ork) designs, simulate flights, and check them against Launch Canada rules \
 				and your team's standards: stability, motors, parachutes, deployment loads, shear pins, ejection charges, \
-				fin flutter, ballast, Monte Carlo dispersion, launch-day weather and flight cards, design reviews and more. \
+				fin flutter, ballast, Monte Carlo dispersion, two-stage flights, launch-day weather and flight cards, design \
+				reviews, 3-D exploded views and flight animations, and more. \
 				Java and OpenRocket are included; choose the folder that holds your designs.""");
 		JsonObject author = new JsonObject();
 		author.addProperty("name", "OpenRocket MCP contributors");

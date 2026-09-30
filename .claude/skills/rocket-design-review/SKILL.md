@@ -32,7 +32,9 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
      it writes a template), then `check_requirements` again.
    - Electronics -> `add_avionics_bay` (one altimeter per circuit, own battery and switch each, tracker on its own
      battery); fix any "not enough room" warning before trusting stability, since it moves mass.
-   - Show the vehicle -> `draw_rocket` (a cut-away: check the chutes, electronics and motor sit where the team expects).
+   - Show the vehicle -> `draw_rocket` (a cut-away: check the chutes, electronics and motor sit where the team expects);
+     `render_3d` for a 3-D exploded view with the parts list and masses (per stage on a two-stage rocket);
+     `animate_flight` for a video of the simulated flight (staging and a booster camera on two-stage rockets).
    - Nose cone / fin shape -> `compare_shapes` (fix stability first if it reports none meets the floor).
    - Fin planform -> `optimize_fins` (give the stock thicknesses and any span limit; apply only once agreed), then
      `fin_flutter` and `fin_fea` on the result.

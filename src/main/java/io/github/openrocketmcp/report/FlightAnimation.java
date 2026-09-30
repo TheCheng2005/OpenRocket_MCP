@@ -7,6 +7,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.IntStream;
 
 import info.openrocket.core.motor.MotorConfiguration;
@@ -41,6 +43,10 @@ import io.github.openrocketmcp.units.Units;
  * heads-up display gives the flight clock, altitude, speed, vertical speed, Mach, acceleration and distance from the
  * pad; captions call out liftoff, rail clearance, burnout, Mach 1, maximum velocity, apogee, each deployment and
  * touchdown; insets show the whole trajectory in 3-D and the altitude trace; a timeline marks every event.
+ *
+ * <p>A staged rocket is told stage by stage: the booster rides on the vehicle until its separation event, then flies
+ * its own simulated track (pivoting on its own CG, hanging under its own chute), followed by a small booster camera;
+ * the flame moves to the sustainer when it lights, and captions name each stage's events.
  *
  * <p>Playback runs at real time through the burn and slows back down around apogee and each deployment; the coast and
  * the descent are sped up so the whole flight fits the requested length. The playback rate is always on screen.
@@ -72,7 +78,8 @@ public final class FlightAnimation {
 	private final double[] drift, side, axis0;
 	private final List<Event> deploys = new ArrayList<>();
 	private final Raster3d.Mesh pad, rail, flameOuter, flameInner;
-	private final Raster3d.Mesh[][] canopies; // per deployment: two gore colours
+	private final Map<Event, Raster3d.Mesh[]> canopies = new HashMap<>(); // per deployment: two gore colours
+	private final Map<Integer, List<Event>> stageDeploys = new HashMap<>(); // dropped stage's track -> its deployments
 	private final List<double[]> smoke = new ArrayList<>(); // t, x, y, z
 
 	public FlightAnimation(Flight f, FlightConfiguration fc, double railLength, Options o) {
@@ -90,9 +97,11 @@ public final class FlightAnimation {
 		double boostEnd = Math.min(apogee, Math.max(burn + 0.8, 1.2));
 		List<Double> slow = new ArrayList<>(List.of(apogee));
 		for (Event e : f.events()) {
-			if (e.kind().equals("deploy")) {
+			if (e.kind().equals("deploy") && e.branch() == 0) {
 				deploys.add(e);
 				slow.add(e.time());
+			} else if (e.kind().equals("deploy")) {
+				stageDeploys.computeIfAbsent(e.branch(), x -> new ArrayList<>()).add(e);
 			}
 		}
 		double budget = Math.max(4, o.duration() - PRE - HOLD - boostEnd - 1.6 * slow.size());
@@ -221,7 +230,7 @@ public final class FlightAnimation {
 				b = Math.max(b, ps.get(i).x1);
 			}
 			stageMeshes.put(s, ms);
-			stagePivot.put(s, new double[] { (a + b) / 2 });
+			stagePivot.put(s, new double[] { (a + b) / 2, a, b });
 		});
 
 		axis0 = m.axis(0);
@@ -241,16 +250,27 @@ public final class FlightAnimation {
 		rail = new Raster3d.Mesh(railMesh(), 0x6c717a);
 		flameOuter = new Raster3d.Mesh(cone(1, 1, 16), 0xff8a1f, true);
 		flameInner = new Raster3d.Mesh(cone(0.6, 0.55, 16), 0xfff0a0, true);
-		int[][] gores = { { 0xff7a1a, 0x1f2a3c }, { 0xd7263d, 0xf4f4f4 }, { 0x1f6feb, 0xf4f4f4 }, { 0x2e9e5b, 0xf4f4f4 } };
-		canopies = new Raster3d.Mesh[deploys.size()][];
-		for (int i = 0; i < deploys.size(); i++) {
-			List<double[]>[] dome = dome(12);
-			int[] c = gores[i % gores.length];
-			canopies[i] = new Raster3d.Mesh[] { new Raster3d.Mesh(dome[0], c[0]), new Raster3d.Mesh(dome[1], c[1]) };
+		int[][] gores = { { 0xff7a1a, 0x1f2a3c }, { 0xd7263d, 0xf4f4f4 }, { 0x1f6feb, 0xf4f4f4 } };
+		int ci = 0, si = 0;
+		int[][] stageGores = { { 0x2e9e5b, 0xf4f4f4 }, { 0x8e5cc9, 0xf4f4f4 } };
+		for (Event e : f.events()) {
+			if (e.kind().equals("deploy")) {
+				List<double[]>[] dome = dome(12);
+				int[] c = e.branch() == 0 ? gores[ci++ % gores.length] : stageGores[si++ % stageGores.length];
+				canopies.put(e, new Raster3d.Mesh[] { new Raster3d.Mesh(dome[0], c[0]), new Raster3d.Mesh(dome[1], c[1]) });
+			}
 		}
+		// Smoke only while a motor burns (a NaN row breaks the trail, e.g. between booster burnout and sustainer ignition).
+		boolean on = false;
 		for (double t = 0; t <= f.burnout() + 1e-9 && t <= tEnd; t += 0.04) {
-			double[] p = m.position(t);
-			smoke.add(new double[] { t, p[0], p[1], p[2] + lift });
+			boolean burning = m.at(m.thrust, t) > 0.01 * f.maxThrust();
+			if (burning) {
+				double[] p = m.position(t);
+				smoke.add(new double[] { t, p[0], p[1], p[2] + lift });
+			} else if (on) {
+				smoke.add(new double[] { t, Double.NaN, Double.NaN, Double.NaN });
+			}
+			on = burning;
 		}
 	}
 
@@ -355,7 +375,7 @@ public final class FlightAnimation {
 		double[] target = add(new double[] { m.position(tc)[0], m.position(tc)[1], m.position(tc)[2] + lift * (1 - kHang) },
 				new double[] { 0, 0, kHang * sysH * 0.55 });
 		double el = Math.toRadians(-9 + 22 * smooth((tc - f.apogeeTime() + 1) / 3));
-		double dist = 2.5 * size * (1 + 0.9 * Math.max(0, 1 - tc / 1.5));
+		double dist = 2.5 * size * (1 + 0.9 * Math.max(0, 1 - tc / 1.5)) * (1 + 1.6 * stagingBump(tc));
 		double[] dir = Raster3d.norm(new double[] { side[0] * 0.92 - drift[0] * 0.38, side[1] * 0.92 - drift[1] * 0.38, 0 });
 		double[] eye = { target[0] + dist * Math.cos(el) * dir[0], target[1] + dist * Math.cos(el) * dir[1],
 				target[2] + dist * Math.sin(el) };
@@ -364,7 +384,7 @@ public final class FlightAnimation {
 		// Sun behind the camera, above and to the left, so the side we see is lit.
 		double[] sun = Raster3d.norm(new double[] { -cam.fwd[0] - 0.5 * cam.right[0], -cam.fwd[1] - 0.5 * cam.right[1], 0.9 });
 		Raster3d r = new Raster3d(w, h, 2, cam, sun);
-		r.background(background(cam, r.focal()));
+		r.background(background(cam, r.focal(), w, h));
 
 		// Behind everything: smoke, the flown path, shroud lines and cords.
 		Graphics2D cg = r.canvas().createGraphics();
@@ -425,10 +445,9 @@ public final class FlightAnimation {
 			Track b = f.tracks().get(e.getKey());
 			double[] br = rot, bo = flightOrigin;
 			if (tc >= b.separation) {
-				double[] bp = b.position(tc);
-				bp[2] += maxR;
-				br = Raster3d.alongAxis(neg(b.axis(tc)), b.at(b.roll, tc));
-				bo = sub(bp, mul(br, new double[] { stagePivot.get(e.getValue())[0], 0, 0 }));
+				double[][] pose = dropped(e.getKey(), e.getValue(), tc, holdTime, cg, r);
+				br = pose[0];
+				bo = pose[1];
 			}
 			for (Raster3d.Mesh mesh : stage) {
 				r.draw(new Raster3d.Placed(mesh, br, bo));
@@ -452,34 +471,12 @@ public final class FlightAnimation {
 			if (e.time() > tc || e.size() <= 0) {
 				continue;
 			}
-			double inflate = Math.max(0.06, smooth((tc - e.time() - 0.1) / 0.9));
-			if (holdTime > 0) {
-				inflate *= Math.max(0.15, 1 - holdTime / 1.5); // collapses on the ground
-			}
-			double d = e.size() * inflate;
-			double sway = 0.12 * Math.sin(0.7 * tc + i);
-			double[] up = Raster3d.norm(new double[] { -drift[0] * sway, -drift[1] * sway, 1 });
 			double lines = e.streamer() ? 0 : 0.9 * e.size();
+			double sway = 0.12 * Math.sin(0.7 * tc + i);
 			double off = beside == 0 ? 0 : beside + 0.6 * e.size();
 			double[] base = { harness[0] + drift[0] * (sway * lines + off), harness[1] + drift[1] * (sway * lines + off),
 					harness[2] + 0.4 * length + lines };
-			if (e.streamer()) {
-				double[] tip = add(base, new double[] { 0, 0, d });
-				line(cg, r, harness, base, new Color(0xe8d9b5), 0.012);
-				line(cg, r, base, tip, new Color(0xff7a1a), Math.max(0.03, e.size() * 0.08));
-			} else {
-				double[] cr = scaled(Raster3d.alongAxis(up, 0), d, d, d);
-				double[] conf = sub(base, new double[] { 0, 0, lines });
-				for (int g = 0; g < 8; g++) {
-					double th = 2 * Math.PI * g / 8;
-					double[] rim = add(base, mul(cr, new double[] { 0, 0.5 * Math.cos(th), 0.5 * Math.sin(th) }));
-					line(cg, r, rim, conf, new Color(0xdcdcdc), 0.004);
-				}
-				line(cg, r, conf, harness, new Color(0xe8d9b5), 0.012);
-				for (Raster3d.Mesh mesh : canopies[i]) {
-					r.draw(new Raster3d.Placed(mesh, cr, base));
-				}
-			}
+			double d = canopy(cg, r, e, tc, holdTime, base, harness, i);
 			beside = off + 0.6 * Math.max(d, 0.3);
 		}
 		cg.dispose();
@@ -491,12 +488,154 @@ public final class FlightAnimation {
 		banners(g, t, holdTime);
 		trajectoryInset(g, tc);
 		altitudeInset(g, tc);
+		stageInset(g, tc, holdTime);
 		timeline(g, t, holdTime);
 		if (holdTime > 0.6) {
 			summary(g, Math.min(1, (holdTime - 0.6) / 0.6));
 		}
 		g.dispose();
 		return img;
+	}
+
+	/**
+	 * Places a dropped stage on its own track, pivoting on its own CG (OpenRocket gives it in the whole vehicle's frame);
+	 * under its chute it hangs level, seen side-on, with the canopy above it. Draws its canopies; returns {rotation,
+	 * origin, position}.
+	 */
+	private double[][] dropped(int track, int stage, double tc, double holdTime, Graphics2D cg, Raster3d r) {
+		Track b = f.tracks().get(track);
+		double pivot = b.at(b.cg, tc);
+		double[] span = stagePivot.get(stage);
+		pivot = Double.isNaN(pivot) || pivot < span[1] || pivot > span[2] ? span[0] : pivot;
+		double[] bp = b.position(tc);
+		List<Event> own = stageDeploys.getOrDefault(track, List.of());
+		double kB = own.isEmpty() ? 0 : smooth((tc - own.get(0).time()) / 1.2);
+		double[] tail = Raster3d.norm(lerp(neg(b.axis(tc)), drift, kB)); // level, across the camera's view
+		double half = Math.max(pivot - span[1], span[2] - pivot);
+		bp[2] += maxR + kB * 0.1 * half;
+		double[] br = Raster3d.alongAxis(tail, b.at(b.roll, tc) * (1 - kB));
+		double[] bo = sub(bp, mul(br, new double[] { pivot, 0, 0 }));
+		double[] hook = add(bp, new double[] { 0, 0, maxR });
+		double beside = 0;
+		for (int i = own.size() - 1; i >= 0; i--) {
+			Event d = own.get(i);
+			if (d.time() <= tc && d.size() > 0) {
+				double off = beside == 0 ? 0 : beside + 0.6 * d.size();
+				double[] base = add(hook, new double[] { drift[0] * off, drift[1] * off,
+						0.4 * half + (d.streamer() ? 0 : 0.9 * d.size()) });
+				beside = off + 0.6 * Math.max(canopy(cg, r, d, tc, holdTime, base, hook, i), 0.3);
+			}
+		}
+		return new double[][] { br, bo, bp };
+	}
+
+	/**
+	 * Draws a deployed canopy (or streamer) whose rim is centred on {@code base}: shroud lines to a confluence point
+	 * below it and a cord on to {@code harness}. It inflates over about a second and collapses during the final hold.
+	 * Returns the diameter drawn.
+	 */
+	private double canopy(Graphics2D cg, Raster3d r, Event e, double tc, double holdTime, double[] base, double[] harness, int i) {
+		double inflate = Math.max(0.06, smooth((tc - e.time() - 0.1) / 0.9));
+		if (holdTime > 0) {
+			inflate *= Math.max(0.15, 1 - holdTime / 1.5); // collapses on the ground
+		}
+		double d = e.size() * inflate;
+		if (e.streamer()) {
+			line(cg, r, harness, base, new Color(0xe8d9b5), 0.012);
+			line(cg, r, base, add(base, new double[] { 0, 0, d }), new Color(0xff7a1a), Math.max(0.03, e.size() * 0.08));
+			return d;
+		}
+		double sway = 0.12 * Math.sin(0.7 * tc + i);
+		double[] up = Raster3d.norm(new double[] { -drift[0] * sway, -drift[1] * sway, 1 });
+		double[] cr = scaled(Raster3d.alongAxis(up, 0), d, d, d);
+		double[] conf = sub(base, new double[] { 0, 0, 0.9 * e.size() });
+		for (int g = 0; g < 8; g++) {
+			double th = 2 * Math.PI * g / 8;
+			double[] rim = add(base, mul(cr, new double[] { 0, 0.5 * Math.cos(th), 0.5 * Math.sin(th) }));
+			line(cg, r, rim, conf, new Color(0xdcdcdc), 0.004);
+		}
+		line(cg, r, conf, harness, new Color(0xe8d9b5), 0.012);
+		for (Raster3d.Mesh mesh : canopies.get(e)) {
+			r.draw(new Raster3d.Placed(mesh, cr, base));
+		}
+		return d;
+	}
+
+	/** 0 .. 1 .. 0 over the two seconds after a stage separates: the chase camera pulls back to show it falling away. */
+	private double stagingBump(double t) {
+		double bump = 0;
+		for (int track : trackStage.keySet()) {
+			double sep = f.tracks().get(track).separation;
+			bump = Math.max(bump, smooth((t - sep) / 0.3) * (1 - smooth((t - sep - 1.2) / 1.0)));
+		}
+		return bump;
+	}
+
+	/**
+	 * A small chase view of the first dropped stage still flying (or just landed): its own camera, canopy and numbers,
+	 * over the lower left of the frame.
+	 */
+	private void stageInset(Graphics2D g, double tc, double holdTime) {
+		int track = -1;
+		for (int k2 : new TreeSet<>(trackStage.keySet())) {
+			Track b = f.tracks().get(k2);
+			if (tc >= b.separation && tc <= b.end() + 2.5 && stageMeshes.containsKey(trackStage.get(k2))) {
+				track = k2;
+				break;
+			}
+		}
+		if (track < 0) {
+			return;
+		}
+		Track b = f.tracks().get(track);
+		int stage = trackStage.get(track);
+		int iw = (int) Math.round(300 * k), ih = (int) Math.round(iw * 9 / 16.0);
+		double x0 = 18 * k, y0 = h - 30 * k - 64 * k - ih;
+		double[] span = stagePivot.get(stage);
+		double deployed = 0;
+		for (Event e : stageDeploys.getOrDefault(track, List.of())) {
+			if (e.time() <= tc) {
+				deployed = Math.max(deployed, e.size());
+			}
+		}
+		double len = span[2] - span[1], size = len + (deployed > 0 ? 0.4 * len + 1.4 * deployed : 0);
+		double[] p = b.position(tc);
+		double[] target = { p[0], p[1], p[2] + maxR + (deployed > 0 ? 0.45 * size : 0) };
+		double[] dir = Raster3d.norm(new double[] { side[0] * 0.92 - drift[0] * 0.38, side[1] * 0.92 - drift[1] * 0.38, 0.12 });
+		double dist = 2.6 * size;
+		double[] eye = add(target, new double[] { dir[0] * dist, dir[1] * dist, dir[2] * dist });
+		eye[2] = Math.max(eye[2], 1.2);
+		Raster3d.Camera cam = Raster3d.Camera.lookAt(eye, target, FOV);
+		double[] sun = Raster3d.norm(new double[] { -cam.fwd[0] - 0.5 * cam.right[0], -cam.fwd[1] - 0.5 * cam.right[1], 0.9 });
+		Raster3d r = new Raster3d(iw, ih, 2, cam, sun);
+		r.background(background(cam, r.focal(), iw, ih));
+		Graphics2D cg = r.canvas().createGraphics();
+		cg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		r.draw(Raster3d.Placed.at(pad, 0, 0, 0));
+		double[][] pose = dropped(track, stage, tc, holdTime, cg, r);
+		for (Raster3d.Mesh mesh : stageMeshes.get(stage)) {
+			r.draw(new Raster3d.Placed(mesh, pose[0], pose[1]));
+		}
+		cg.dispose();
+		BufferedImage img = r.image();
+		RoundRectangle2D frame = new RoundRectangle2D.Double(x0, y0, iw, ih, 14 * k, 14 * k);
+		Shape clip = g.getClip();
+		g.setClip(frame);
+		g.drawImage(img, (int) x0, (int) y0, null);
+		g.setClip(clip);
+		g.setColor(new Color(12, 18, 28, 165));
+		g.fill(new RoundRectangle2D.Double(x0, y0, iw, 26 * k, 14 * k, 14 * k));
+		g.setColor(new Color(255, 255, 255, 120));
+		g.setStroke(new BasicStroke((float) k));
+		g.draw(frame);
+		g.setColor(new Color(0xffb86b));
+		g.setFont(font(Font.BOLD, 12));
+		g.drawString(b.name.toUpperCase(Locale.ROOT) + " CAM", (float) (x0 + 12 * k), (float) (y0 + 18 * k));
+		g.setColor(Color.WHITE);
+		g.setFont(font(Font.PLAIN, 12));
+		String nums = tc >= b.end() ? "landed, " + fmt(value(Math.hypot(p[0], p[1]), Dim.DISTANCE, false)) + " from pad"
+				: fmt(value(p[2], Dim.DISTANCE, false)) + "  \u00b7  " + fmt(value(Math.abs(b.at(b.speed, tc)), Dim.VELOCITY, false));
+		g.drawString(nums, (float) (x0 + iw - 12 * k - g.getFontMetrics().stringWidth(nums)), (float) (y0 + 18 * k));
 	}
 
 	/**
@@ -532,7 +671,7 @@ public final class FlightAnimation {
 	// ------------------------------------------------------------------------------------------- world
 
 	/** Sky and ground for this camera: a patchwork of fields with fog toward the horizon, the pad area in gravel. */
-	int[] background(Raster3d.Camera cam, double focal) {
+	int[] background(Raster3d.Camera cam, double focal, int w, int h) {
 		int[] px = new int[w * h];
 		double camAlt = cam.eye[2];
 		double dark = Math.min(1, camAlt / 9000);
@@ -592,6 +731,10 @@ public final class FlightAnimation {
 		for (double[] s : smoke) {
 			if (s[0] > t) {
 				break;
+			}
+			if (Double.isNaN(s[1])) {
+				prev = null;
+				continue;
 			}
 			double age = t - s[0];
 			float alpha = (float) (0.8 - age * 0.02); // spreads and thins out over about 40 s
@@ -801,7 +944,7 @@ public final class FlightAnimation {
 		if (last != null) {
 			return "UNDER " + last.device().toUpperCase(Locale.ROOT);
 		}
-		if (t < f.burnout()) {
+		if (t < f.burnout() && f.main().at(f.main().thrust, t) > 0.01 * f.maxThrust()) {
 			return "POWERED ASCENT";
 		}
 		return t < f.apogeeTime() ? "COASTING" : "FREE FALL";
@@ -818,7 +961,8 @@ public final class FlightAnimation {
 		List<Event> show = new ArrayList<>();
 		for (Event e : f.events()) {
 			double ae = animOf(e.time());
-			if (a >= ae && a < ae + 2.6) {
+			// On screen for 2.6 s of the video, but not long after the event in flight time (the descent is sped up).
+			if (a >= ae && a < ae + 2.6 && (hold > 0 || t - e.time() < 8)) {
 				show.add(e);
 			}
 		}
@@ -826,7 +970,7 @@ public final class FlightAnimation {
 			show.remove(0); // the newest two
 		}
 		if (t < 0 && t > -0.9) {
-			show.add(new Event(0, "ignition", "Ignition", "", null, 0, false));
+			show.add(new Event(0, "ignition", "Ignition", ""));
 		}
 		double y = 22 * k;
 		for (Event e : show) {
@@ -888,7 +1032,14 @@ public final class FlightAnimation {
 		for (int i = 0; i < 4; i++) {
 			ground[i] = proj(corners[i], ex, ed, el);
 		}
-		for (double[] q : concat(pts, ground)) {
+		List<double[]> stagePts = new ArrayList<>();
+		for (int bi = 1; bi < f.tracks().size(); bi++) {
+			Track b = f.tracks().get(bi);
+			for (int i = 0; i <= 40; i++) {
+				stagePts.add(proj(b.position(b.separation + (b.end() - b.separation) * i / 40), ex, ed, el));
+			}
+		}
+		for (double[] q : concat(concat(pts, ground), stagePts.toArray(new double[0][]))) {
 			minX = Math.min(minX, q[0]);
 			maxX = Math.max(maxX, q[0]);
 			minY = Math.min(minY, q[1]);
@@ -934,6 +1085,45 @@ public final class FlightAnimation {
 				g.drawLine((int) prev[0], (int) prev[1], (int) sp[0], (int) sp[1]);
 			}
 			prev = sp;
+		}
+		// Dropped stages: their path from separation, flown part brighter, where they land and where they are now.
+		for (int bi = 1; bi < f.tracks().size(); bi++) {
+			Track b = f.tracks().get(bi);
+			Path2D bp = new Path2D.Double();
+			Path2D bf = new Path2D.Double();
+			boolean started = false;
+			for (int i = 0; i <= 80; i++) {
+				double ti = b.separation + (b.end() - b.separation) * i / 80;
+				double[] q = proj(b.position(ti), ex, ed, el);
+				double px = ox + s * q[0], py = oy - s * q[1];
+				if (i == 0) {
+					bp.moveTo(px, py);
+					bf.moveTo(px, py);
+				} else {
+					bp.lineTo(px, py);
+					if (ti <= t) {
+						bf.lineTo(px, py);
+						started = true;
+					}
+				}
+			}
+			g.setStroke(new BasicStroke((float) (1.2 * k), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+			g.setColor(new Color(255, 190, 120, 70));
+			g.draw(bp);
+			if (started) {
+				g.setColor(new Color(0xffb86b));
+				g.setStroke(new BasicStroke((float) (1.8 * k), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+				g.draw(bf);
+			}
+			double[] bl = proj(b.position(b.end()), ex, ed, el);
+			double bx = ox + s * bl[0], by = oy - s * bl[1];
+			g.setColor(new Color(0xffb86b));
+			g.drawLine((int) (bx - 4 * k), (int) (by - 4 * k), (int) (bx + 4 * k), (int) (by + 4 * k));
+			g.drawLine((int) (bx - 4 * k), (int) (by + 4 * k), (int) (bx + 4 * k), (int) (by - 4 * k));
+			if (t >= b.separation && t < b.end()) {
+				double[] bn = proj(b.position(t), ex, ed, el);
+				g.fillOval((int) (ox + s * bn[0] - 3.5 * k), (int) (oy - s * bn[1] - 3.5 * k), (int) (7 * k), (int) (7 * k));
+			}
 		}
 		// Pad, landing point and the rocket now, with a drop line to the ground.
 		double[] padP = proj(new double[] { 0, 0, 0 }, ex, ed, el);
@@ -1081,16 +1271,14 @@ public final class FlightAnimation {
 		List<String[]> rows = new ArrayList<>();
 		rows.add(new String[] { "Apogee", Units.fmt(top, Dim.DISTANCE) + " at T+" + String.format(Locale.ROOT, "%.1f s", f.apogeeTime()) });
 		rows.add(new String[] { "Max velocity", Units.fmt(vmax, Dim.VELOCITY) + String.format(Locale.ROOT, " (Mach %.2f)", mmax) });
-		rows.add(new String[] { "Motor burnout", String.format(Locale.ROOT, "T+%.1f s", f.burnout()) });
-		for (Event e : deploys) {
-			rows.add(new String[] { e.title(), "T+" + String.format(Locale.ROOT, "%.1f s", e.time()) + ", " + e.detail() });
-		}
+		// Then each burnout, staging, deployment and landing in order (every stage's), as captioned.
 		for (Event e : f.events()) {
-			if (e.kind().equals("landing")) {
-				rows.add(new String[] { "Touchdown", "T+" + String.format(Locale.ROOT, "%.1f s", e.time()) + ", " + e.detail() });
+			if (List.of("burnout", "separation", "ignition", "deploy", "landing").contains(e.kind()) && rows.size() < 12) {
+				rows.add(new String[] { e.title(), "T+" + String.format(Locale.ROOT, "%.1f s", e.time()) + (e.detail().isEmpty() ? ""
+						: ", " + e.detail()) });
 			}
 		}
-		if (rows.stream().noneMatch(r -> r[0].equals("Touchdown"))) {
+		if (f.events().stream().noneMatch(e -> e.kind().equals("landing") && e.branch() == 0)) {
 			rows.add(new String[] { "Landing", Units.fmt(Math.hypot(land[0], land[1]), Dim.DISTANCE) + " from the pad" });
 		}
 		g.setFont(font(Font.BOLD, 15));
@@ -1120,23 +1308,47 @@ public final class FlightAnimation {
 
 	// ------------------------------------------------------------------------------------------- key frames
 
-	/** Moments worth a still: liftoff, burnout, apogee, each deployment, just before touchdown. */
+	/**
+	 * Up to six moments worth a still, in time order: liftoff, stage separation, apogee, the last deployment and
+	 * touchdown first, then sustainer ignition, the first burnout and the other deployments.
+	 */
 	public List<double[]> keyMoments() {
-		List<double[]> out = new ArrayList<>(); // flight time, event index (-1 = none)
 		List<Event> ev = f.events();
-		for (int i = 0; i < ev.size(); i++) {
+		String[] priority = { "liftoff", "separation", "apogee", "lastdeploy", "landing", "ignition", "burnout", "deploy" };
+		Event lastDeploy = null;
+		for (Event e : ev) {
+			if (e.kind().equals("deploy") && e.branch() == 0) {
+				lastDeploy = e;
+			}
+		}
+		List<Integer> picked = new ArrayList<>();
+		for (String want : priority) {
+			for (int i = 0; i < ev.size() && picked.size() < 6; i++) {
+				Event e = ev.get(i);
+				boolean match = want.equals("lastdeploy") ? e == lastDeploy : e.kind().equals(want) && e.branch() == 0;
+				double ti = e.time();
+				boolean sameInstant = picked.stream().anyMatch(j -> Math.abs(ev.get(j).time() - ti) < 0.3);
+				if (match && !picked.contains(i) && !sameInstant) {
+					picked.add(i);
+					if (!want.equals("deploy")) {
+						break; // one of each, except deployments
+					}
+				}
+			}
+		}
+		List<double[]> out = new ArrayList<>(); // flight time, event index
+		for (int i : picked) {
 			Event e = ev.get(i);
 			double t = switch (e.kind()) {
 				case "liftoff" -> e.time() + 0.35;
-				case "burnout", "apogee" -> e.time();
+				case "separation", "ignition" -> e.time() + 0.25;
 				case "deploy" -> e.time() + 1.8;
 				case "landing" -> Math.max(0, e.time() - 1.0);
-				default -> Double.NaN;
+				default -> e.time();
 			};
-			if (!Double.isNaN(t) && out.size() < 6) {
-				out.add(new double[] { Math.min(t, f.main().end()), i });
-			}
+			out.add(new double[] { Math.min(t, f.main().end()), i });
 		}
+		out.sort((x, y) -> Double.compare(x[0], y[0]));
 		return out;
 	}
 

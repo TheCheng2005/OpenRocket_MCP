@@ -18,7 +18,8 @@ The 69 tools, grouped by what a team is doing. Bold marks the main job of each t
 
 ### Designs
 
-- `open_design`: opens a .ork file, a bundled example or a new design.
+- `open_design`: opens a .ork file, a bundled example or a new design; `list_designs` shows what is open and
+  `close_design` frees one.
 - `get_design`: the component tree, motors, and the **stability of every stage stack**.
 - `describe_component`, `edit_components`, `add_component`, `remove_component`: read and change parts.
 - `set_deployment`, `set_stage_separation`, `flight_configuration`: events and configurations.
@@ -40,6 +41,9 @@ The 69 tools, grouped by what a team is doing. Bold marks the main job of each t
   Numbered balloons key each part to a **parts list with OpenRocket's masses**, as on an assembly drawing. Good for
   design reviews, build guides and posters.
 
+  For a staged rocket the stages sit apart. A bracket over each stage gives its name and total mass (motor
+  included), and every part in the list carries its stage. Side boosters count with the stage they are attached to.
+
 ### Flight animation
 
 - `animate_flight`: a **3-D animation of the simulated flight**, written as a looping GIF, an MP4 (when ffmpeg is
@@ -47,12 +51,24 @@ The 69 tools, grouped by what a team is doing. Bold marks the main job of each t
   - **Camera:** a chase camera follows the rocket, built from the design's geometry and rolling as simulated. While
     the motor burns there is an exhaust flame, and a smoke trail stays in the sky.
   - **Recovery:** at each deployment the airframe comes apart at its separation joints and hangs under the canopy as
-    it inflates. Drogue and main have their own colours. Dropped stages fall on their own simulated track.
+    it inflates. Drogue and main have their own colours.
+  - **Staged rockets:** each stage follows its own simulated flight.
+    - The booster rides on the vehicle until its separation event. At staging the camera pulls back to show it
+      falling away.
+    - The flame moves to the sustainer when it lights. Side boosters burn with the core.
+    - A **booster camera** in the lower left follows the dropped stage down under its own chute to touchdown, with
+      its altitude and speed.
+    - The trajectory inset draws each dropped stage's path and landing point in orange.
   - **On screen:** the flight clock, altitude, velocity, vertical speed, Mach, acceleration, distance from the pad and
     wind at the rocket's altitude.
   - **Captions:** liftoff, rail clear, Mach 1, maximum velocity, burnout, stage separation and ignition, apogee, each
-    deployment and touchdown. Insets show a 3-D trajectory and the altitude trace. A timeline marks every event, and a
-    flight summary closes the animation.
+    deployment and touchdown.
+    - On a staged rocket they name the stage: booster burnout, booster separation, sustainer ignition, sustainer
+      burnout, the booster's chute, booster touchdown and sustainer touchdown.
+    - Insets show a 3-D trajectory and the altitude trace. A timeline marks every event, and a flight summary (every
+      stage's burnout, deployments and landing) closes the animation.
+    - The stills sheet picks up to six distinct moments: liftoff, stage separation, apogee, the main, touchdown, then
+      others.
   - **Timing:** playback is real time through the burn and slows around apogee and each deployment. The coast and
     descent are sped up to fit `duration` (25 s by default), and the playback rate is always on screen.
 
@@ -363,15 +379,17 @@ python3 scripts/benchmark.py    # scenario benchmark: realistic team requests, p
 python3 scripts/make_examples.py  # rebuilds docs/EXAMPLES.md, its plots and the demo designs from real runs (also in CI)
 ```
 
-`./gradlew test` runs about 175 tests: calculators against the team's worked examples and hand calculations,
-property tests (scaling laws, inverses), the protocol, standards, SVG output, OpenRocket-backed checks and end-to-end
-MCP calls.
+`./gradlew test` runs about 290 tests: calculators against the team's worked examples and hand calculations,
+property tests (scaling laws, inverses), the protocol, standards, SVG output, OpenRocket-backed checks, the 3-D renderer
+and flight animation (single-stage, two-stage and side boosters), and end-to-end MCP calls.
 
 `scripts/benchmark.py` drives a fresh server over stdio through realistic team requests and checks each answer against
 engineering expectations. It runs in CI. The scenarios:
 
 - design a 10,000 ft rocket from scratch and make it pass Launch Canada;
-- size recovery and check the loads; two-stage checks; a custom liquid engine, pressure vessels and probation;
+- size recovery and check the loads; a custom liquid engine, pressure vessels and probation;
+- a two-stage rocket: the air-start rules, each stage's landing and chute, the stage-bracketed 3-D view and the
+  animation's stage captions;
 - dispersion and a design-review report; fin flutter, ballast and vehicle-uncertainty dispersion;
 - aero analysis, winds aloft, RASAero import and flight-log calibration;
 - shape study, recovery sections and structural loads; fin optimization, CFD export and fin FEA;
