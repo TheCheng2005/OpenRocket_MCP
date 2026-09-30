@@ -46,11 +46,13 @@ public final class DesignTools {
 
 	public static void register(McpServer s, Context ctx) {
 		s.tool(new ToolDef("open_design", "Open or create a rocket design",
-				"Open an OpenRocket .ork file, one of OpenRocket's bundled examples, or a new empty rocket. Returns a designId "
+				"Open an OpenRocket .ork file (any OpenRocket version) or a RockSim .rkt file, one of OpenRocket's bundled "
+						+ "examples, or a new empty rocket. Anything OpenRocket had to change while reading an older or foreign file is "
+						+ "listed as conversionWarnings. Returns a designId "
 						+ "used by every other tool. Edits stay in memory until save_design. Examples: "
 						+ String.join(", ", Designs.EXAMPLES) + ".",
 				Schema.object()
-						.str("path", "Path to an .ork file.", false)
+						.str("path", "Path to an .ork file, or a RockSim .rkt file to import.", false)
 						.str("example", "Name of a bundled OpenRocket example (partial match).", false)
 						.str("newRocketName", "Create a new empty rocket with this name.", false)
 						.build(),
@@ -69,6 +71,15 @@ public final class DesignTools {
 					out.put("designId", d.id);
 					out.put("name", d.name());
 					out.put("file", d.path == null ? null : d.path.toString());
+					if (d.importedFrom != null) {
+						out.put("importedFrom", d.importedFrom.toString());
+						out.put("save", "Imported, not an .ork: save_design with a path ending in .ork (the original is left as it is).");
+					}
+					if (!d.loadWarnings.isEmpty()) {
+						out.put("conversionWarnings", d.loadWarnings);
+						out.put("checkConversion", "OpenRocket changed or dropped the items above while reading this file (an older "
+								+ "version or another program). Check them with get_design before trusting the numbers.");
+					}
 					out.put("next", "Call get_design to see components, stability and simulations.");
 					return out;
 				}));

@@ -15,6 +15,8 @@ import info.openrocket.core.document.OpenRocketDocument;
 import info.openrocket.core.document.OpenRocketDocumentFactory;
 import info.openrocket.core.file.GeneralRocketLoader;
 import info.openrocket.core.file.GeneralRocketSaver;
+import info.openrocket.core.file.RocketLoadException;
+import info.openrocket.core.logging.Warning;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import io.github.openrocketmcp.mcp.ToolException;
 
@@ -26,7 +28,8 @@ public final class Designs {
 	public static final String[] EXAMPLES = {
 			"A simple model rocket", "Two stage high power rocket", "Dual parachute deployment",
 			"Airstart timing", "Clustered motors", "Three stage low power rocket", "Parallel booster staging",
-			"Chute release", "Deployable payload", "ARC payload rocket", "Tube fin rocket" };
+			"Chute release", "Deployable payload", "ARC payload rocket", "Tube fin rocket", "3D printable nose cone and fins",
+			"Base drag hack (short-wide)", "Pods--airframes and winglets", "Pods--powered with recovery deployment" };
 
 	public static final class Design {
 		public final String id;
@@ -35,6 +38,10 @@ public final class Designs {
 		public final String origin;
 		/** Edits made in this session, for undo / redo. */
 		public final History history = new History();
+		/** What OpenRocket reported while reading the file (older versions, RockSim imports); empty for most files. */
+		public final List<String> loadWarnings = new ArrayList<>();
+		/** The file it was imported from when that is not an .ork (a RockSim .rkt); it is saved as .ork elsewhere. */
+		public Path importedFrom;
 
 		Design(String id, OpenRocketDocument doc, Path path, String origin) {
 			this.id = id;
@@ -57,11 +64,30 @@ public final class Designs {
 		if (!Files.exists(p)) {
 			throw new ToolException("File not found: " + p);
 		}
-		OpenRocketDocument doc = new GeneralRocketLoader(p.toFile()).load();
-		doc.setFile(p.toFile());
-		doc.setSaved(true);
-		Design d = register(doc, p, "file");
-		loadAeroTable(d);
+		GeneralRocketLoader loader = new GeneralRocketLoader(p.toFile());
+		OpenRocketDocument doc;
+		try {
+			doc = loader.load();
+		} catch (RocketLoadException e) {
+			throw new ToolException("OpenRocket could not read " + p.getFileName() + ": " + e.getMessage()
+					+ ". It reads .ork files from any OpenRocket version and RockSim .rkt files.", e);
+		}
+		boolean ork = p.toString().toLowerCase(Locale.ROOT).endsWith(".ork");
+		Design d;
+		if (ork) {
+			doc.setFile(p.toFile());
+			doc.setSaved(true);
+			d = register(doc, p, "file");
+			loadAeroTable(d);
+		} else {
+			// An import (RockSim): never written back over the original; save_design writes an .ork beside it.
+			doc.setSaved(false);
+			d = register(doc, null, "import:" + p.getFileName());
+			d.importedFrom = p;
+		}
+		for (Warning w : loader.getWarnings()) {
+			d.loadWarnings.add(w.toString());
+		}
 		return d;
 	}
 
@@ -162,7 +188,10 @@ public final class Designs {
 	public synchronized Path save(Design d, Path target) throws Exception {
 		Path p = target != null ? target.toAbsolutePath().normalize() : d.path;
 		if (p == null) {
-			throw new ToolException("This design has no file yet; pass a path ending in .ork.");
+			throw new ToolException(d.importedFrom != null
+					? "This design was imported from " + d.importedFrom.getFileName() + "; pass a path ending in .ork, e.g. \""
+							+ d.importedFrom.getFileName().toString().replaceAll("\\.[^.]+$", "") + ".ork\"."
+					: "This design has no file yet; pass a path ending in .ork.");
 		}
 		if (!p.toString().toLowerCase(Locale.ROOT).endsWith(".ork")) {
 			throw new ToolException("Save path must end in .ork");

@@ -1,6 +1,7 @@
 package io.github.openrocketmcp.report;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.image.BufferedImage;
@@ -11,6 +12,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.or.Designs;
 
 class View3dTest {
@@ -76,6 +78,14 @@ class View3dTest {
 		for (Model3d.Part p : parts) {
 			assertEquals((p.piece + View3d.STAGE_GAP * p.axialStage) * 0.1, p.shift[0], 1e-12, p.name);
 		}
+	}
+
+	@Test
+	void anEmptyDesignSaysThereIsNothingToDraw() {
+		Designs.Design d = new Designs().create("Empty");
+		ToolException e = assertThrows(ToolException.class,
+				() -> View3d.render(d.doc.getRocket().getSelectedConfiguration(), "Empty", View3d.Mode.EXPLODED, 25, 22, 800));
+		assertTrue(e.getMessage().contains("no airframe"), e.getMessage());
 	}
 
 	@Test

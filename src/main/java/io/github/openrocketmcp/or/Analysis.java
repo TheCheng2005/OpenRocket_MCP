@@ -114,8 +114,8 @@ public final class Analysis {
 		m.put("cgAtLaunch", Units.fmt(s.cgLaunchX(), Dim.LENGTH) + " from nose tip");
 		m.put("cgAtBurnout", Units.fmt(s.cgBurnoutX(), Dim.LENGTH) + " from nose tip");
 		m.put("cp", Units.fmt(s.cpX(), Dim.LENGTH) + " from nose tip");
-		m.put("stabilityAtLaunch", Units.num(s.marginCalibers()) + " cal");
-		m.put("stabilityAtBurnout", Units.num(s.burnoutMarginCalibers()) + " cal");
+		m.put("stabilityAtLaunch", cal(s.marginCalibers()));
+		m.put("stabilityAtBurnout", cal(s.burnoutMarginCalibers()));
 		if (!s.warnings().isEmpty()) {
 			m.put("warnings", s.warnings());
 		}
@@ -173,5 +173,10 @@ public final class Analysis {
 			out.add(m);
 		}
 		return out;
+	}
+
+	/** A stability margin in calibers, or "n/a" when there is no body or fins to give one. */
+	static String cal(double v) {
+		return Double.isNaN(v) || Double.isInfinite(v) ? "n/a (no body or fins yet)" : Units.num(v) + " cal";
 	}
 }

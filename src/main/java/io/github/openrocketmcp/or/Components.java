@@ -360,7 +360,7 @@ public final class Components {
 			} else if (type == Material.class) {
 				Object current = getRaw(c, canonical);
 				Material.Type mt = current instanceof Material m ? m.getType() : Material.Type.BULK;
-				arg = material(mt, value.getAsString());
+				arg = material(c, mt, value.getAsString());
 			} else if (type.isEnum()) {
 				arg = enumValue(type, value.getAsString());
 			} else {
@@ -400,11 +400,21 @@ public final class Components {
 		};
 	}
 
-	/** Material by (case-insensitive, partial) name from OpenRocket's material database. */
-	static Material material(Material.Type t, String name) {
+	/**
+	 * Material by (case-insensitive, partial) name: OpenRocket's material database first, then the materials already
+	 * used in the design (custom materials carried in the file, common in older team designs).
+	 */
+	static Material material(RocketComponent c, Material.Type t, String name) {
 		String n = name.trim().toLowerCase(Locale.ROOT);
 		Material partial = null;
-		for (Material m : materials(t)) {
+		List<Material> known = new ArrayList<>();
+		materials(t).forEach(known::add);
+		for (Material m : used(c.getRoot(), t)) {
+			if (known.stream().noneMatch(k -> k.getName().equalsIgnoreCase(m.getName()))) {
+				known.add(m);
+			}
+		}
+		for (Material m : known) {
 			String mn = m.getName().toLowerCase(Locale.ROOT);
 			if (mn.equals(n)) {
 				return m;
@@ -417,10 +427,28 @@ public final class Components {
 			return partial;
 		}
 		List<String> names = new ArrayList<>();
-		for (Material m : materials(t)) {
+		for (Material m : known) {
 			names.add(m.getName());
 		}
 		throw new IllegalArgumentException("unknown " + t.name().toLowerCase(Locale.ROOT) + " material '" + name + "'. Known: " + names);
+	}
+
+	/** Materials of type t used anywhere in the rocket (component materials, parachute canopies and lines, cords). */
+	static List<Material> used(RocketComponent root, Material.Type t) {
+		List<Material> out = new ArrayList<>();
+		for (RocketComponent c : root) {
+			for (String getter : new String[] { "getMaterial", "getLineMaterial" }) {
+				try {
+					Object m = c.getClass().getMethod(getter).invoke(c);
+					if (m instanceof Material mat && mat.getType() == t && !out.contains(mat)) {
+						out.add(mat);
+					}
+				} catch (ReflectiveOperationException e) {
+					// this component has no such material
+				}
+			}
+		}
+		return out;
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })

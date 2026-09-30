@@ -20,6 +20,11 @@ The 69 tools, grouped by what a team is doing. Bold marks the main job of each t
 
 - `open_design`: opens a .ork file, a bundled example or a new design; `list_designs` shows what is open and
   `close_design` frees one.
+  - **Older designs:** `.ork` files from any OpenRocket version open.
+  - **RockSim:** `.rkt` files open as imports. The original is never overwritten; save to a new `.ork`.
+  - **Conversion warnings:** whatever OpenRocket changed or dropped while reading an older or foreign file is listed
+    as `conversionWarnings`, to check before trusting the numbers.
+  - **Custom materials:** materials carried inside the file can be named in `edit_components`.
 - `get_design`: the component tree, motors, and the **stability of every stage stack**.
 - `describe_component`, `edit_components`, `add_component`, `remove_component`: read and change parts.
 - `set_deployment`, `set_stage_separation`, `flight_configuration`: events and configurations.
@@ -284,8 +289,10 @@ runs from, or point `OPENROCKET_MCP_STANDARDS` at it) and commit it, so everyone
 - `units`, `ruleset` (`launch-canada-r4`, `none`, or a path to your own rules JSON), `competitionYear`
 - `launchSite`: altitude above sea level (**set this** — deployment air density depends on it), lat/lon, rail length,
   launch angle, design wind
-- `structures`: required flutter margin and fin-material shear moduli (typical G10, carbon, aluminum, plywood values
-  built in; put your laminate's measured value here)
+- `structures`: required flutter margin and fin-material stiffness and strength.
+  - Typical values are built in for G10, carbon, aluminium, steel, titanium, plywood and polycarbonate.
+  - Also built in: balsa and basswood (*Wood Handbook*), and 3-D printed PLA, PETG and ABS.
+  - Put your laminate's or print's measured value here: wood and printed parts vary a lot.
 - `recovery`: Cx, opening-load method (`infinite_mass` / `finite_mass` / `max`), canopy fill constant, safety factors
   for shear pins and ejection force, backup-charge factor, packing factor and measured packing factors, shock cord
   cross-section, **shear pin ratings** (e.g. `"4-40 nylon": {"strength": "140 N"}`)

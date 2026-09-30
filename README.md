@@ -39,7 +39,8 @@ the answers, and the plots. Everything on that page is real output.
   written to your `.ork` until you ask Claude to save.
 
 **Design and stability**
-- Build a rocket from scratch, or open your team's `.ork` file and change it.
+- Build a rocket from scratch, or open your team's `.ork` file and change it. Older designs work too: `.ork` files
+  from any OpenRocket version and RockSim `.rkt` files, with a list of anything that didn't carry over.
 - "Is it stable all the way up, including in 30 km/h wind?" — checked at every moment of the flight, for every stage.
 - "How much nose weight do I need?" or "How big should the fins be?" — the smallest fins that meet the stability rules
   without fluttering.

@@ -311,6 +311,23 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   itself: GIF89a with our median-cut palette as the global colour table, and LZW-coded frames. A test decodes the GIF
   and compares its colours with the rendered frames. The PNG stills and the MP4 were never affected.
 
+### Bug sweep and older designs (v0.16.3)
+
+- A sweep ran every tool that needs no extra input on every bundled example through the real server. Fixes:
+  - designs with catalogue parts (the "Deployable payload" example) failed to open: OpenRocket's core module does not
+    bind the `ComponentPresetDao` its loader asks for, so `OrRuntime` binds it;
+  - `add_avionics_bay` and `edit_components` could not use materials carried in the design's file (e.g. a
+    manufacturer's kraft paper): material names now also match materials used in the design, and the bay copies the
+    tube's material object;
+  - `render_3d` on an empty design gave an internal error instead of saying there is nothing to draw, and stability
+    showed "NaN cal".
+- Older designs: RockSim `.rkt` files open as imports, never written back over the original. OpenRocket's conversion
+  warnings are returned by `open_design`. Four more bundled examples are listed (3-D printed fins, base drag, two
+  pod designs).
+- Team standards: stiffness, strength and Poisson's ratio for balsa, basswood (*Wood Handbook*) and printed PLA, PETG
+  and ABS, so flutter and fin FEA run on common student fin materials.
+- `OrRuntime.motors()` no longer uses a deprecated OpenRocket call.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

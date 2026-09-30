@@ -75,6 +75,26 @@
       "polycarbonate": {
         "value": "0.8 GPa",
         "source": "typical"
+      },
+      "balsa": {
+        "value": "0.18 GPa",
+        "source": "G_LR = 0.054 E_L, USDA Forest Products Laboratory Wood Handbook (FPL-GTR-190), 12% moisture; wood varies a lot: test a coupon"
+      },
+      "basswood": {
+        "value": "0.46 GPa",
+        "source": "G_LR = 0.046 E_L, USDA Forest Products Laboratory Wood Handbook (FPL-GTR-190), 12% moisture; wood varies a lot: test a coupon"
+      },
+      "pla - ": {
+        "value": "1.3 GPa",
+        "source": "typical 100% infill print; printed parts are weaker across layers: test a coupon"
+      },
+      "petg - ": {
+        "value": "0.72 GPa",
+        "source": "typical 100% infill print; printed parts are weaker across layers: test a coupon"
+      },
+      "abs - ": {
+        "value": "0.78 GPa",
+        "source": "typical 100% infill print; printed parts are weaker across layers: test a coupon"
       }
     },
     "youngsModulus": {
@@ -105,6 +125,26 @@
       "polycarbonate": {
         "value": "2.4 GPa",
         "source": "typical"
+      },
+      "balsa": {
+        "value": "3.4 GPa",
+        "source": "along the grain, USDA Forest Products Laboratory Wood Handbook (FPL-GTR-190), 12% moisture; wood varies a lot: test a coupon"
+      },
+      "basswood": {
+        "value": "10.1 GPa",
+        "source": "along the grain, USDA Forest Products Laboratory Wood Handbook (FPL-GTR-190), 12% moisture; wood varies a lot: test a coupon"
+      },
+      "pla - ": {
+        "value": "3.5 GPa",
+        "source": "typical 100% infill print; printed parts are weaker across layers: test a coupon"
+      },
+      "petg - ": {
+        "value": "2.0 GPa",
+        "source": "typical 100% infill print; printed parts are weaker across layers: test a coupon"
+      },
+      "abs - ": {
+        "value": "2.1 GPa",
+        "source": "typical 100% infill print; printed parts are weaker across layers: test a coupon"
       }
     },
     "poissonRatio": {
@@ -135,6 +175,26 @@
       "polycarbonate": {
         "value": 0.37,
         "source": "typical"
+      },
+      "balsa": {
+        "value": 0.23,
+        "source": "USDA Forest Products Laboratory Wood Handbook (FPL-GTR-190), 12% moisture; wood varies a lot: test a coupon"
+      },
+      "basswood": {
+        "value": 0.36,
+        "source": "USDA Forest Products Laboratory Wood Handbook (FPL-GTR-190), 12% moisture; wood varies a lot: test a coupon"
+      },
+      "pla - ": {
+        "value": 0.36,
+        "source": "typical 100% infill print; printed parts are weaker across layers: test a coupon"
+      },
+      "petg - ": {
+        "value": 0.38,
+        "source": "typical 100% infill print; printed parts are weaker across layers: test a coupon"
+      },
+      "abs - ": {
+        "value": 0.35,
+        "source": "typical 100% infill print; printed parts are weaker across layers: test a coupon"
       }
     },
     "strength": {
@@ -165,6 +225,26 @@
       "polycarbonate": {
         "value": "60 MPa",
         "source": "typical yield"
+      },
+      "balsa": {
+        "value": "21.6 MPa",
+        "source": "modulus of rupture along the grain, USDA Forest Products Laboratory Wood Handbook (FPL-GTR-190), 12% moisture; wood varies a lot: test a coupon"
+      },
+      "basswood": {
+        "value": "60 MPa",
+        "source": "modulus of rupture along the grain, USDA Forest Products Laboratory Wood Handbook (FPL-GTR-190), 12% moisture; wood varies a lot: test a coupon"
+      },
+      "pla - ": {
+        "value": "50 MPa",
+        "source": "typical 100% infill print; printed parts are weaker across layers: test a coupon"
+      },
+      "petg - ": {
+        "value": "45 MPa",
+        "source": "typical 100% infill print; printed parts are weaker across layers: test a coupon"
+      },
+      "abs - ": {
+        "value": "35 MPa",
+        "source": "typical 100% infill print; printed parts are weaker across layers: test a coupon"
       }
     },
     "finFeaNotes": "Fin FEA (fin_fea) uses youngsModulus, shearModulus and poissonRatio as in-plane engineering constants of a homogeneous plate, and strength as the allowable (yield for metals, a failure stress for laminates) with loadSafetyFactor. Replace the typical values with your laminate's coupon data.",
