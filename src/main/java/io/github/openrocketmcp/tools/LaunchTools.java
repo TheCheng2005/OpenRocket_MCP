@@ -14,6 +14,7 @@ import io.github.openrocketmcp.mcp.Schema;
 import io.github.openrocketmcp.mcp.ToolDef;
 import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.or.Designs;
+import io.github.openrocketmcp.or.RailButtons;
 import io.github.openrocketmcp.or.Sims;
 import io.github.openrocketmcp.or.Weather;
 import io.github.openrocketmcp.or.Winds;
@@ -21,7 +22,7 @@ import io.github.openrocketmcp.report.FlightCard;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
-/** Launch day: weather forecast for the site and the flight card. */
+/** Launch day: weather forecast for the site, rail buttons and the flight card. */
 public final class LaunchTools {
 	private LaunchTools() {
 	}
@@ -105,6 +106,50 @@ public final class LaunchTools {
 					}
 					out.put("source", "Open-Meteo forecast (open-meteo.com); winds aloft at pressure levels by geopotential height. "
 							+ "Forecasts carry uncertainty: re-check on the day and use monte_carlo for dispersion.");
+					return out;
+				}));
+
+		s.tool(new ToolDef("rail_buttons", "Rail button placement",
+				"Lay out the rail buttons for the most rail exit speed and the cleanest departure, or check a layout. The rocket "
+						+ "is guided until the AFT button leaves the rail, so the aft button goes as far aft as a body tube allows "
+						+ "(over a centering ring or bulkhead when one is near): every cm it sits above the aft end is rail the "
+						+ "rocket never uses (OpenRocket counts the whole rail and ignores the buttons). The forward button is "
+						+ "placed where the pointing error at rail exit is least: tip-off while the rocket hangs on the aft button "
+						+ "alone (gravity across the tilted rail plus the crosswind on the CP) grows with the spacing, the slop of "
+						+ "the buttons in the rail slot shrinks with it. Returns both buttons' positions, the effective rail exit "
+						+ "velocity, tip-off rate and angle, slop, side loads on each button, and the change from the current "
+						+ "layout. apply=true moves the design's buttons there (or adds a Delrin pair); undo reverts it.",
+				SimTools.overrides(SimTools.simSelect(Schema.object()))
+						.qty("forward", "Check this forward button position instead of optimising (centre, measured up from the aft end).", false)
+						.qty("aft", "With forward: the aft button position (centre, up from the aft end).", false)
+						.qty("standoff", "Height of the rocket's aft end above the foot of the rail on the pad (default 0).", false)
+						.qty("clearance", "Play of the buttons in the rail slot (default 1 mm).", false)
+						.qty("crosswind", "Crosswind at the rail (default: launchSite.designWindSpeed, else 30 km/h).", false)
+						.qty("minSpacing", "Smallest button spacing to consider (default one airframe diameter).", false)
+						.bool("apply", "Move (or add) the design's rail buttons to the recommended positions (default false).", false)
+						.build(),
+				false, a -> {
+					var std = ctx.standards();
+					Simulation sim = SimTools.runSelected(ctx, a);
+					double wind = a.qty("crosswind", Dim.VELOCITY, std.q("launchSite.designWindSpeed", Dim.VELOCITY, 30 / 3.6));
+					RailButtons.Options o = new RailButtons.Options(a.qty("standoff", Dim.LENGTH, 0), a.qty("clearance", Dim.LENGTH, 0.001),
+							wind, a.qty("minSpacing", Dim.LENGTH, 0), std.rule("railDepartureVelocity.min", Dim.VELOCITY));
+					double[] manual = null;
+					if (a.has("forward") || a.has("aft")) {
+						if (!a.has("forward") || !a.has("aft")) {
+							throw new ToolException("Give both forward and aft (button centres, up from the aft end) to check a layout.");
+						}
+						double tail = sim.getRocket().getFlightConfiguration(sim.getFlightConfigurationId()).getBoundingBoxAerodynamic().max.x;
+						manual = new double[] { tail - a.qty("forward", Dim.LENGTH), tail - a.qty("aft", Dim.LENGTH) };
+					}
+					boolean apply = a.bool("apply", false);
+					Map<String, Object> out = RailButtons.analyse(sim, o, apply, manual);
+					if (apply) {
+						Designs.Design d = ctx.designs.get(a.str("designId", null));
+						d.doc.setSaved(false);
+						Sims.run(sim);
+						out.put("afterApply", Sims.flightMetrics(sim.getSimulatedData()));
+					}
 					return out;
 				}));
 

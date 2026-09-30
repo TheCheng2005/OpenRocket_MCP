@@ -36,6 +36,7 @@ import io.github.openrocketmcp.tools.FinTools;
 import io.github.openrocketmcp.tools.HistoryTools;
 import io.github.openrocketmcp.tools.IntegrationTools;
 import io.github.openrocketmcp.tools.LaunchTools;
+import io.github.openrocketmcp.tools.LibraryTools;
 import io.github.openrocketmcp.tools.MassTools;
 import io.github.openrocketmcp.tools.MotorTools;
 import io.github.openrocketmcp.tools.RecoveryTools;
@@ -49,7 +50,7 @@ import io.github.openrocketmcp.tools.ViewTools;
 
 /** Entry point: stdio MCP server for OpenRocket. */
 public final class Main {
-	public static final String VERSION = "0.16.3";
+	public static final String VERSION = "0.17.0";
 
 	static final String INSTRUCTIONS = """
 			OpenRocket MCP: design, simulate and check high-power / competition rockets with OpenRocket's physics.
@@ -100,6 +101,7 @@ public final class Main {
 		StandardsTools.register(server, ctx);
 		StatusTools.register(server, ctx);
 		HistoryTools.register(server, ctx);
+		LibraryTools.register(server, ctx);
 		MassTools.register(server, ctx);
 		Prompts.register(server, ctx);
 		server.wrapTools(t -> HistoryTools.recording(ctx, t));

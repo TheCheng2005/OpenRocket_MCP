@@ -43,10 +43,13 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
    - Sections and landing energy -> `recovery_sections`; joints and couplers -> `structural_loads`.
    - RASAero data (required for diameter changes) -> `import_aero_table`, then `check_requirements`.
    - Launch day -> ask for the site's GPS coordinates, `weather_forecast` (or `wind_profile` with winds the user gives),
-     then `monte_carlo`, `check_requirements` and `flight_card`.
+     then `monte_carlo`, `check_requirements` and `flight_card`. Rail button layout and real rail exit speed ->
+     `rail_buttons` (apply=true only after the user agrees).
    - Fast vehicles -> `aero_heating`; fin alignment tolerance -> `roll_analysis`.
    - After a flight -> `compare_flight` with the altimeter CSV and the day's conditions; use the drag factor for the
      next prediction.
+   - Past rockets -> ask for the folder of old designs and logs, then `design_library` (search, `similarTo` the current
+     design, predicted vs measured apogee over the years).
 5. Recovery chain -> `recovery_analysis` (pinType from standards), `deployment_delay_sweep` for late drogue deployment,
    `ejection_charge` (pins to break), `recovery_bay_fit`, `descent_energy` per tethered section.
 6. Re-run `check_requirements`. Only `save_design` after the user agrees; prefer saving to a new file.

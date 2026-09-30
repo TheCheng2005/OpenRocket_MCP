@@ -328,6 +328,39 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   and ABS, so flutter and fin FEA run on common student fin materials.
 - `OrRuntime.motors()` no longer uses a deprecated OpenRocket call.
 
+### Design library and rail buttons (v0.17.0)
+
+- `design_library` (`or.Library`): scans a folder (recursively, up to 2000 design files) for .ork and .rkt designs and
+  .csv altimeter logs. Designs are read with OpenRocket's loader without being registered, summarised, and cached by
+  path, size and modification time.
+  - The year comes from the last 19xx/20xx in the relative path, else the file date.
+  - The predicted apogee comes from the saved results of the rocket's selected configuration, else a copy of its first
+    simulation is flown (`simulate`, default true).
+  - A log belongs to the design whose file name appears in the log's name. The rocket name comes second, since several
+    files often share one. Ties go to the nearest folder. Without a name match, a log goes to the only design in its
+    folder. CSVs that are not a climb above 10 m are listed as skipped.
+  - Search by text, diameter (2% slack), impulse class or range, years, stages and "flew". `similarTo` ranks by a
+    log-ratio distance on diameter (weighted 2x), launch mass and total impulse.
+  - The trend gives the prediction error per flight, the mean by year, the overall bias and scatter, and a first-guess
+    scale factor when the bias exceeds 5% over two or more flights.
+- `rail_buttons` (`or.RailButtons`): OpenRocket 24.12 shortens the rail for launch lugs (effective launch rod length)
+  but not for rail buttons, so its rail exit velocity counts rail the rocket never uses.
+  - The tool runs the simulation and maps speed and time against travel along the rail (altitude / cos(launch angle)).
+    It evaluates each layout:
+    - guided travel = rail - standoff - (aft end - aft button);
+    - the single-button time between the two buttons clearing the rail top;
+    - tip-off rate and angle of a rigid rocket pivoting on the aft button under m g sin(theta) at the CG and
+      q S CNα atan(w/v) at the CP;
+    - slop = clearance / spacing;
+    - button side loads as a couple.
+  - Aft button: the aft end of the last main-stack body tube minus an edge margin (max(15 mm, 0.1 D)), over a backing
+    ring within a calibre when there is one. An existing lower button is kept.
+  - Forward button: 5 mm steps over the main-stack body tubes, minimising tip-off angle + slop. It snaps to a
+    ring, bulkhead or coupler within half a calibre if that costs at most 10% more.
+  - `apply` reuses the design's buttons: one component with two instances on a shared tube, else one per tube. With
+    no buttons, it adds a Delrin pair. The result is verified against OpenRocket's instance positions, and undo
+    reverts it.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

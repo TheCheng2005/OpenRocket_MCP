@@ -8,7 +8,8 @@ appear right in the chat, and long runs (optimizers, Monte Carlo) show their pro
 
 **Steps:** [Design](#design) · [Recovery](#recovery) · [Flight and rules](#flight-and-rules) ·
 [Design studies](#design-studies) · [Structures and CFD](#structures-and-cfd) · [Build](#build) · [Reviews](#reviews) ·
-[Launch day](#launch-day) · [Show it off](#show-it-off) · [After the flight](#after-the-flight)
+[Launch day](#launch-day) · [Show it off](#show-it-off) · [After the flight](#after-the-flight) ·
+[Team history](#team-history)
 
 The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch
 Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before
@@ -155,7 +156,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 |---|---|---|---|
 | WARN | Launch site altitude | 0 m (0 ft) used by this simulation |  |
 | WARN | Ascent stability (maximum, over-stability) | 5.693 cal | R10.3.1, R10.4.1 |
-| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.69 cal | R10.3.1, R10.4.1 |
+| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.689 cal | R10.3.1, R10.4.1 |
 | WARN | Maximum Mach number | 1.175 |  |
 | PASS | Simulated launch angle | 6 deg | R10.1.1 |
 | PASS | Rail departure velocity | 41.63 m/s (136.6 ft/s) | R10.2.1 |
@@ -178,7 +179,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 <sub>Tools Claude uses: `monte_carlo`</sub>
 
-> Over 200 simulated flights the median landing is 198.5 m (651.4 ft) from the pad and 95% land within 487 m (1598 ft); the landings centre 494 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9753 ft) ± 200.9 m (659.2 ft).
+> Over 200 simulated flights the median landing is 201.2 m (660.1 ft) from the pad and 95% land within 489.3 m (1605 ft); the landings centre 494 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 201.1 m (659.6 ft).
 
 ![200 simulated landings around the pad with the 2-sigma ellipse](examples/landing.svg)
 
@@ -188,12 +189,12 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 
 | Uncertain input | Apogee | Min stability | Landing distance |
 |---|---|---|---|
-| windSpeed | -0.1308 | -0.9653 | -0.676 |
-| launchAngle | -0.1496 | -0.006994 | 0.3156 |
-| structureMass | -0.05081 | 0.1309 | 0.09651 |
-| airframeDrag | -0.9264 | 0.04255 | -0.1731 |
-| motorThrust | 0.3166 | 0.08091 | -0.02019 |
-| parachuteCd | -0.03423 | 0.03086 | -0.07657 |
+| windSpeed | -0.1303 | -0.9653 | -0.6773 |
+| launchAngle | -0.1489 | -0.006994 | 0.3163 |
+| structureMass | -0.05115 | 0.1309 | 0.09484 |
+| airframeDrag | -0.9259 | 0.04255 | -0.173 |
+| motorThrust | 0.3178 | 0.08091 | -0.01958 |
+| parachuteCd | -0.03381 | 0.03086 | -0.075 |
 
 <sub>Correlation from -1 to 1: the closer to ±1, the more that input drives the result.</sub>
 
@@ -211,9 +212,9 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 | Von Karman (Haack LD) | airfoil | 3705 m (12156 ft) | 24.01% | 1.075 | 3.614 cal |
 | tangent ogive (current) | rounded | 3575 m (11730 ft) | 19.66% | 1.144 | 3.528 cal |
 | Von Karman (Haack LD) | square (current) | 3002 m (9850 ft) | 0.4851% | 1.341 | 3.525 cal |
-| 1/2 power | square (current) | 3001 m (9847 ft) | 0.4485% | 1.34 | 3.537 cal |
-| LV-Haack | square (current) | 2993 m (9821 ft) | 0.1891% | 1.356 | 3.533 cal |
-| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02338% | 1.36 | 3.513 cal |
+| 1/2 power | square (current) | 3001 m (9847 ft) | 0.4484% | 1.34 | 3.537 cal |
+| LV-Haack | square (current) | 2993 m (9821 ft) | 0.189% | 1.356 | 3.533 cal |
+| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02348% | 1.36 | 3.513 cal |
 | tangent ogive (current) | square (current) | 2988 m (9803 ft) | 0% | 1.351 | 3.522 cal |
 
 <details><summary>Claude's shape guidance (from the tool)</summary>
@@ -311,7 +312,7 @@ Paint and primer,90,estimated,no,Upper airframe
 |---|---|---|
 | Launch site | WARN | Launch site altitude: 0 m (0 ft) used by this simulation |
 | Stability | WARN | Ascent stability (maximum, over-stability): 5.683 cal (R10.3.1, R10.4.1) |
-| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.681 cal (R10.3.1, R10.4.1) |
+| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.68 cal (R10.3.1, R10.4.1) |
 | Rules | WARN | Maximum Mach number: 1.144 |
 | Standards | TODO | The team standards were changed in this session but are not saved to a file, so the next session and the rest of the team will not have them. |
 | File | TODO | Unsaved changes (22 edit(s) this session, undo available). |
@@ -383,9 +384,29 @@ From the one-page flight card (predictions, motor delay, deployment settings, dr
 > | Rail exit velocity | 40.58 m/s (133.1 ft/s) |
 > | Thrust-to-weight | 12.89 |
 
+### 24. "Where should the rail buttons go to get the most out of the rail?"
+
+<sub>Tools Claude uses: `rail_buttons`</sub>
+
+> The aft button goes 15 mm above the aft end and the forward one 955.7 mm up, 940.7 mm apart. The rocket leaves the rail at 39.82 m/s instead of 39.69 m/s with today's layout. OpenRocket says 40.58 m/s because it counts the whole rail and ignores where the buttons are.
+
+|  | Current | Recommended |
+|---|---|---|
+| Forward button | 660.4 mm (26 in) above the aft end (1575 mm (62 in) from the nose tip) (no backing: add a block) | 955.7 mm (37.63 in) above the aft end (1280 mm (50.38 in) from the nose tip) (over Av-bay coupler) |
+| Aft button | 50.8 mm (2 in) above the aft end (2184 mm (86 in) from the nose tip) (no backing: add a block) | 15 mm (0.5906 in) above the aft end (2220 mm (87.41 in) from the nose tip) (no backing: add a block) |
+| Rail exit | 39.69 m/s (130.2 ft/s) | 39.82 m/s (130.6 ft/s) |
+| Tip-off | 1.68 deg/s pitch rate, 0.01327 deg, over 15.79 ms on the aft button alone | 2.74 deg/s pitch rate, 0.03379 deg, over 24.67 ms on the aft button alone |
+| Pointing error at rail exit | 0.1073 deg (tip-off + slop) | 0.0947 deg (tip-off + slop) |
+| Side loads | forward 24.11 N (5.42 lbf), aft 23.96 N (5.387 lbf) | forward 17.19 N (3.863 lbf), aft 29.85 N (6.711 lbf) |
+
+- 'Centering ring 1' is 11.83 mm (0.4656 in) aft of the aft button: move it under the button, or glue a block there, so the screw bites into it.
+- Put a backing block or ring under every button without one (glued inside the tube), or the screw only holds in the tube wall.
+
+Say "move them" and Claude applies it to the design (`apply`); `undo` takes it back.
+
 ## Show it off
 
-### 24. "Make an exploded view for our design review poster, with the parts list."
+### 25. "Make an exploded view for our design review poster, with the parts list."
 
 <sub>Tools Claude uses: `render_3d`</sub>
 
@@ -393,7 +414,7 @@ From the one-page flight card (predictions, motor delay, deployment settings, dr
 
 36 parts, each with OpenRocket's mass (the weighed values from the mass budget). The heaviest: M1315W (5.645 kg), Lower airframe (1.398 kg), Fins (1.091 kg). Ask for `cutaway` to see them in place instead.
 
-### 25. "Animate the flight for our social media post."
+### 26. "Animate the flight for our social media post."
 
 <sub>Tools Claude uses: `animate_flight`</sub>
 
@@ -417,13 +438,13 @@ Real time through the burn, slowed down around apogee and each deployment; the c
 | Main out | 115.3 s | 14.1 s |
 | Touchdown | 161.1 s | 16.3 s |
 
-### 26. "We're also flying a two-stage rocket. Simulate the staging, show it pulled apart and animate it."
+### 27. "We're also flying a two-stage rocket. Simulate the staging, show it pulled apart and animate it."
 
 <sub>Tools Claude uses: `run_simulation`, `render_3d`, `animate_flight`</sub>
 
-> The sustainer lights at 1.535 s, 62.84 m up at 67.43 m/s and 4.188 deg off vertical (thrust-to-weight 10.27); apogee 669.8 m.
-> - Sustainer: lands 23.33 m from the pad at 6.244 m/s.
-> - Booster: lands 31.71 m from the pad at 8.464 m/s.
+> The sustainer lights at 1.535 s, 62.8 m up at 67.4 m/s and 4.767 deg off vertical (thrust-to-weight 10.27); apogee 674.5 m.
+> - Sustainer: lands 33.01 m from the pad at 6.286 m/s.
+> - Booster: lands 32.3 m from the pad at 8.493 m/s.
 
 ![Exploded view of a two-stage rocket: the sustainer and booster bracketed with their masses, every part numbered](examples/two-stage-exploded.png)
 
@@ -436,3 +457,30 @@ Each stage is followed through the whole flight. The captions name the stage (bo
 ## After the flight
 
 *"Here is our altimeter file — how did we do compared with the prediction?"* Claude lines the log up with the simulation (`compare_flight`), fits the drag so the next prediction is closer, and plots simulated against measured altitude.
+
+## Team history
+
+### 28. "Here's our folder of past rockets and flight logs. Which 4 in rockets have we flown, and how good were our apogee predictions over the years?"
+
+<sub>Tools Claude uses: `design_library`</sub>
+
+> 4 designs (2023-2026), 2 flight logs. 3 of them are 4 in rockets:
+
+| Rocket | File | Year | Motors | Predicted apogee |
+|---|---|---|---|---|
+| Maple 10K | 2026/maple/maple-10k.ork | 2026 | M1315W (M, 6645 Ns (1494 lbf-s)) | 3026 m (9929 ft) (simulated now ('MCP - [L1250DM-P]')) |
+| Maple 10K | 2025/maple-pdr/maple-pdr.ork | 2025 | L1250DM (L, 4400 Ns (989.2 lbf-s)) | 3142 m (10310 ft) (simulated now in OpenRocket's default conditions (no simulation in the file)) |
+| Two stage high power rocket | 2024/two-stage.ork | 2024 | H148R, H148R (I, 430.4 Ns (96.75 lbf-s)) | 675 m (2214 ft) (saved result of 'Simulation 1') |
+
+Each altimeter log is matched to its design by name or folder:
+
+| Year | Rocket | Predicted | Measured | Error |
+|---|---|---|---|---|
+| 2023 | Dual parachute deployment | 897.5 m (2944 ft) | 790 m (2592 ft) | +13.6% |
+| 2024 | Two stage high power rocket | 675 m (2214 ft) | 609.9 m (2001 ft) | +10.67% |
+
+> Overall, predictions over-estimated apogee by 12.13% on average over 2 flights (scatter 2.071%). Scale this year's predicted apogee by 0.8918 for a first estimate, and calibrate the drag with compare_flight on the closest past rocket's log.
+
+<sub>(The two flight logs are samples made for this page; point Claude at your own folder of `.ork` / `.rkt` files and altimeter CSVs.)</sub>
+
+Ask for `similarTo` to find the past rocket closest to the one you are designing, then open it to reuse its parts.
