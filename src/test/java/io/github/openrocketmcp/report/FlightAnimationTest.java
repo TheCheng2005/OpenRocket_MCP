@@ -98,6 +98,10 @@ class FlightAnimationTest {
 			r.setInput(in);
 			assertEquals(a.frames, r.getNumImages(true));
 			assertEquals(320, r.getWidth(0));
+			// The colours a viewer sees are the rendered colours (the file's palette is the one the pixels index).
+			for (int i : new int[] { 0, a.frames / 2, a.frames - 1 }) {
+				assertTrue(meanColourError(r.read(i), Video.scale(a.frame(i), 320)) < 10, "frame " + i + " colours");
+			}
 		}
 		BufferedImage sheet = a.contactSheet(900);
 		assertTrue(sheet.getHeight() > 200 && a.keyMoments().size() >= 4);
@@ -162,5 +166,18 @@ class FlightAnimationTest {
 						Path.of("build/scratch/" + example.replace(' ', '_') + "-exploded.png").toFile());
 			}
 		}
+	}
+
+	/** Mean absolute difference per colour channel (0-255) between two images of the same size. */
+	static double meanColourError(BufferedImage x, BufferedImage y) {
+		double sum = 0;
+		for (int j = 0; j < x.getHeight(); j++) {
+			for (int i = 0; i < x.getWidth(); i++) {
+				int p = x.getRGB(i, j), q = y.getRGB(i, j);
+				sum += Math.abs((p >> 16 & 255) - (q >> 16 & 255)) + Math.abs((p >> 8 & 255) - (q >> 8 & 255))
+						+ Math.abs((p & 255) - (q & 255));
+			}
+		}
+		return sum / (3.0 * x.getWidth() * x.getHeight());
 	}
 }

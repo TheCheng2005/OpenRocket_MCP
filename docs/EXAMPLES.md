@@ -155,7 +155,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 |---|---|---|---|
 | WARN | Launch site altitude | 0 m (0 ft) used by this simulation |  |
 | WARN | Ascent stability (maximum, over-stability) | 5.693 cal | R10.3.1, R10.4.1 |
-| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.689 cal | R10.3.1, R10.4.1 |
+| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.69 cal | R10.3.1, R10.4.1 |
 | WARN | Maximum Mach number | 1.175 |  |
 | PASS | Simulated launch angle | 6 deg | R10.1.1 |
 | PASS | Rail departure velocity | 41.63 m/s (136.6 ft/s) | R10.2.1 |
@@ -178,7 +178,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 <sub>Tools Claude uses: `monte_carlo`</sub>
 
-> Over 200 simulated flights the median landing is 200.5 m (658 ft) from the pad and 95% land within 489.6 m (1606 ft); the landings centre 494 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 201.1 m (659.7 ft).
+> Over 200 simulated flights the median landing is 198.5 m (651.4 ft) from the pad and 95% land within 487 m (1598 ft); the landings centre 494 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9753 ft) ± 200.9 m (659.2 ft).
 
 ![200 simulated landings around the pad with the 2-sigma ellipse](examples/landing.svg)
 
@@ -188,12 +188,12 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 
 | Uncertain input | Apogee | Min stability | Landing distance |
 |---|---|---|---|
-| windSpeed | -0.1304 | -0.9653 | -0.6776 |
-| launchAngle | -0.1489 | -0.006994 | 0.3161 |
-| structureMass | -0.05107 | 0.1309 | 0.0972 |
-| airframeDrag | -0.9258 | 0.04255 | -0.1717 |
-| motorThrust | 0.3179 | 0.08091 | -0.02045 |
-| parachuteCd | -0.03379 | 0.03086 | -0.07505 |
+| windSpeed | -0.1308 | -0.9653 | -0.676 |
+| launchAngle | -0.1496 | -0.006994 | 0.3156 |
+| structureMass | -0.05081 | 0.1309 | 0.09651 |
+| airframeDrag | -0.9264 | 0.04255 | -0.1731 |
+| motorThrust | 0.3166 | 0.08091 | -0.02019 |
+| parachuteCd | -0.03423 | 0.03086 | -0.07657 |
 
 <sub>Correlation from -1 to 1: the closer to ±1, the more that input drives the result.</sub>
 
@@ -211,9 +211,9 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 | Von Karman (Haack LD) | airfoil | 3705 m (12156 ft) | 24.01% | 1.075 | 3.614 cal |
 | tangent ogive (current) | rounded | 3575 m (11730 ft) | 19.66% | 1.144 | 3.528 cal |
 | Von Karman (Haack LD) | square (current) | 3002 m (9850 ft) | 0.4851% | 1.341 | 3.525 cal |
-| 1/2 power | square (current) | 3001 m (9847 ft) | 0.4484% | 1.34 | 3.537 cal |
-| LV-Haack | square (current) | 2993 m (9821 ft) | 0.189% | 1.356 | 3.533 cal |
-| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02349% | 1.36 | 3.513 cal |
+| 1/2 power | square (current) | 3001 m (9847 ft) | 0.4485% | 1.34 | 3.537 cal |
+| LV-Haack | square (current) | 2993 m (9821 ft) | 0.1891% | 1.356 | 3.533 cal |
+| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02338% | 1.36 | 3.513 cal |
 | tangent ogive (current) | square (current) | 2988 m (9803 ft) | 0% | 1.351 | 3.522 cal |
 
 <details><summary>Claude's shape guidance (from the tool)</summary>
@@ -311,7 +311,7 @@ Paint and primer,90,estimated,no,Upper airframe
 |---|---|---|
 | Launch site | WARN | Launch site altitude: 0 m (0 ft) used by this simulation |
 | Stability | WARN | Ascent stability (maximum, over-stability): 5.683 cal (R10.3.1, R10.4.1) |
-| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.68 cal (R10.3.1, R10.4.1) |
+| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.681 cal (R10.3.1, R10.4.1) |
 | Rules | WARN | Maximum Mach number: 1.144 |
 | Standards | TODO | The team standards were changed in this session but are not saved to a file, so the next session and the rest of the team will not have them. |
 | File | TODO | Unsaved changes (22 edit(s) this session, undo available). |
@@ -421,9 +421,9 @@ Real time through the burn, slowed down around apogee and each deployment; the c
 
 <sub>Tools Claude uses: `run_simulation`, `render_3d`, `animate_flight`</sub>
 
-> The sustainer lights at 1.535 s, 62.85 m up at 67.44 m/s and 4.131 deg off vertical (thrust-to-weight 10.27); apogee 672.9 m.
-> - Sustainer: lands 36.94 m from the pad at 6.176 m/s.
-> - Booster: lands 32.67 m from the pad at 8.492 m/s.
+> The sustainer lights at 1.535 s, 62.84 m up at 67.43 m/s and 4.188 deg off vertical (thrust-to-weight 10.27); apogee 669.8 m.
+> - Sustainer: lands 23.33 m from the pad at 6.244 m/s.
+> - Booster: lands 31.71 m from the pad at 8.464 m/s.
 
 ![Exploded view of a two-stage rocket: the sustainer and booster bracketed with their masses, every part numbered](examples/two-stage-exploded.png)
 
