@@ -111,7 +111,7 @@ public final class Avionics {
 			band.setLength(s.switchBand());
 			band.setOuterRadius(upper.getOuterRadius());
 			band.setThickness(upper.getOuterRadius() - ri);
-			Components.set(band, "material", new JsonPrimitive(material));
+			band.setMaterial(((ExternalComponent) upper).getMaterial()); // the airframe's own material, custom ones too
 			stage.addChild(band, stage.getChildPosition(upper) + 1);
 			couplerParent = band;
 		}
@@ -121,7 +121,7 @@ public final class Avionics {
 		coupler.setLength(lc);
 		coupler.setThickness(Math.min(wall, ri * 0.1));
 		couplerParent.addChild(coupler);
-		Components.set(coupler, "material", new JsonPrimitive(material));
+		coupler.setMaterial(((ExternalComponent) upper).getMaterial());
 		if (s.switchBand() > 0) {
 			at(coupler, AxialMethod.MIDDLE, 0);
 		} else {

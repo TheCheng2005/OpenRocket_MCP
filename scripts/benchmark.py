@@ -453,6 +453,56 @@ def scenario_launch_day(s, d, tmp):
     s.call("wind_profile", {"designId": d, "mode": "average"})
 
 
+def scenario_history_and_rail(s, d, tmp):
+    """'Where should the rail buttons go?' and 'How did our past rockets fly compared with the predictions?'"""
+    sc = "rail buttons and design library"
+    r = s.call("rail_buttons", {"designId": d})
+    rec = r["recommended"]
+    check(sc, "rail buttons: layout with rail exit, tip-off, slop and button loads",
+          all(k in rec for k in ("forwardButton", "aftButton", "railExitVelocity", "tipOff", "slop", "buttonLoads")), json.dumps(rec)[:300])
+    orv = num(r["openRocketRailExit"])
+    check(sc, "real rail exit is below OpenRocket's whole-rail figure", num(rec["railExitVelocity"]) <= orv + 1e-6,
+          f"{rec['railExitVelocity']} vs {orv}")
+    if "current" in r:
+        check(sc, "the recommendation leaves the rail no slower than the current layout",
+              num(rec["railExitVelocity"]) >= num(r["current"]["railExitVelocity"]) - 0.01,
+              f"{rec['railExitVelocity']} vs {r['current']['railExitVelocity']}")
+    before = r.get("current")
+    s.call("rail_buttons", {"designId": d, "apply": True})
+    after = s.call("rail_buttons", {"designId": d})
+    check(sc, "applied buttons sit where recommended", after["current"]["forwardButton"] == rec["forwardButton"]
+          and after["current"]["aftButton"] == rec["aftButton"], json.dumps(after["current"])[:200])
+    s.call("undo", {"designId": d})
+    back = s.call("rail_buttons", {"designId": d}).get("current")
+    check(sc, "undo puts the buttons back", back == before, json.dumps(back)[:200])
+
+    lib = os.path.join(tmp, "library")
+    os.makedirs(os.path.join(lib, "2025", "maple"))
+    os.makedirs(os.path.join(lib, "2022"))
+    s.call("save_design", {"designId": d, "path": os.path.join(lib, "2025", "maple", "maple.ork")})
+    old = s.call("open_design", {"example": "Dual parachute"})["designId"]
+    s.call("save_design", {"designId": old, "path": os.path.join(lib, "2022", "dual.ork")})
+    s.call("close_design", {"designId": old})
+    with open(os.path.join(lib, "2025", "maple", "maple-flight1.csv"), "w") as fh:
+        fh.write("time,altitude (m)\n")
+        for i in range(1200):
+            t = i / 10
+            a = 0 if t < 1 else 2900 * (1 - ((21 - t) / 20) ** 2) if t < 21 else max(0, 2900 - (t - 21) * 25)
+            fh.write(f"{t:.1f},{a:.1f}\n")
+    out = s.call("design_library", {"folder": lib})
+    check(sc, "library reads every design with its year from the folder",
+          out["matches"] == 2 and sorted(x["year"] for x in out["designs"]) == ["2022", "2025"], json.dumps(out)[:300])
+    four_m = s.call("design_library", {"folder": lib, "minDiameter": "3.9 in", "maxDiameter": "4.1 in", "motorClass": "L-N"})
+    check(sc, "search: 4 in rockets on L-N motors", four_m["matches"] == 1 and four_m["designs"][0]["file"] == "2025/maple/maple.ork",
+          json.dumps(four_m["designs"])[:200])
+    pv = out.get("predictedVsMeasured", {})
+    check(sc, "flight log matched to its design; predicted vs measured with the bias",
+          len(pv.get("flights", [])) == 1 and "overall" in pv and pv["flights"][0]["log"] == "2025/maple/maple-flight1.csv",
+          json.dumps(pv)[:300])
+    near = s.call("design_library", {"folder": lib, "similarTo": d})
+    check(sc, "similarTo ranks the other designs", near["matches"] == 1, json.dumps(near)[:200])
+
+
 def scenario_design_review(s, d, tmp):
     """'What changed since our last design review?'"""
     sc = "design review: diff against the last revision"
@@ -655,6 +705,7 @@ def main():
                      ("Post-flight", lambda: scenario_post_flight(s, scratch["d"], tmp)),
                      ("Design studies", lambda: scenario_studies(s, scratch["d"])),
                      ("Launch day", lambda: scenario_launch_day(s, scratch["d"], tmp)),
+                     ("Rail buttons + design library", lambda: scenario_history_and_rail(s, scratch["d"], tmp)),
                      ("Design review", lambda: scenario_design_review(s, scratch["d"], tmp)),
                      ("Avionics bay", lambda: scenario_avionics(s, tmp)),
                      ("Fins, FEA and CFD", lambda: scenario_fins_fea_cfd(s, scratch["d"], tmp)),

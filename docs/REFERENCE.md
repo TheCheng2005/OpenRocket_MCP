@@ -6,7 +6,7 @@ plain-language overview.
 
 ## Tools
 
-The 69 tools, grouped by what a team is doing. Bold marks the main job of each tool.
+The 71 tools, grouped by what a team is doing. Bold marks the main job of each tool.
 
 ### Session
 
@@ -20,6 +20,11 @@ The 69 tools, grouped by what a team is doing. Bold marks the main job of each t
 
 - `open_design`: opens a .ork file, a bundled example or a new design; `list_designs` shows what is open and
   `close_design` frees one.
+  - **Older designs:** `.ork` files from any OpenRocket version open.
+  - **RockSim:** `.rkt` files open as imports. The original is never overwritten; save to a new `.ork`.
+  - **Conversion warnings:** whatever OpenRocket changed or dropped while reading an older or foreign file is listed
+    as `conversionWarnings`, to check before trusting the numbers.
+  - **Custom materials:** materials carried inside the file can be named in `edit_components`.
 - `get_design`: the component tree, motors, and the **stability of every stage stack**.
 - `describe_component`, `edit_components`, `add_component`, `remove_component`: read and change parts.
 - `set_deployment`, `set_stage_separation`, `flight_configuration`: events and configurations.
@@ -214,6 +219,18 @@ The 69 tools, grouped by what a team is doing. Bold marks the main job of each t
 
 ### Launch day
 
+- `rail_buttons`: **rail button placement**. The rocket is guided until the aft button leaves the rail, so every cm the
+  aft button sits above the aft end is rail it never uses. OpenRocket counts the whole rail and ignores rail buttons, so
+  its rail exit velocity is optimistic.
+  - **Aft button:** as far aft as a body tube allows, over a centering ring or bulkhead when one is close. A button the
+    team already has lower down stays where it is.
+  - **Forward button:** where the pointing error at rail exit is least. Tip-off grows with the spacing: while the
+    rocket hangs on the aft button alone, gravity across the tilted rail and the crosswind on the CP pivot it. Slop in
+    the rail slot shrinks with the spacing.
+  - **Returns:** both positions, the effective rail exit velocity, tip-off rate and angle, slop, side loads on each
+    button, and the change from the current layout.
+  - **Check or apply:** `forward` / `aft` check a layout of your own; `apply` moves the design's buttons there (or adds
+    a Delrin pair), and undo reverts it.
 - `weather_forecast`: a **site forecast by GPS coordinates** from Open-Meteo: ground wind, gusts, temperature, pressure
   and winds at pressure levels up to the jet stream. It is applied to the simulation as a wind profile, with the site's
   altitude, temperature and pressure. Without internet, paste the JSON, or enter winds by hand with `wind_profile`.
@@ -223,6 +240,16 @@ The 69 tools, grouped by what a team is doing. Bold marks the main job of each t
 
 ### Reviews and files
 
+- `design_library`: the **team's past rockets and flights as a searchable history**. Point it at a folder of .ork
+  files (any OpenRocket version) and RockSim .rkt files, sub-folders included, with altimeter logs (.csv) beside them.
+  - **Per design:** year (from a folder or file name like `2024/`, else the file date), diameter, length, launch mass,
+    motors and impulse class, stages, predicted apogee (the file's saved simulation, else simulated now), stability,
+    materials and recovery. Files are read without being opened; summaries are cached until a file changes.
+  - **Search:** text, diameter range, motor class (`M`, `L-N`), years, stages, or only rockets that flew. For example,
+    "our 4 in rockets on M motors" is `minDiameter "3.9 in"`, `maxDiameter "4.1 in"`, `motorClass "M"`.
+  - **Similar rockets:** `similarTo` ranks past designs by closeness to an open one (diameter, mass, impulse).
+  - **Predicted vs measured:** each log is matched to its design (file name first, then its folder). The table shows
+    every flight's prediction error, the mean by year and the overall bias.
 - `compare_designs`: a **design diff** against another open design, another .ork, or an earlier **git revision** of the
   same file.
   - It compares length, mass, CG, CP, stability, motors, apogee, velocity, Mach, rail exit, flight stability, descent
@@ -284,8 +311,10 @@ runs from, or point `OPENROCKET_MCP_STANDARDS` at it) and commit it, so everyone
 - `units`, `ruleset` (`launch-canada-r4`, `none`, or a path to your own rules JSON), `competitionYear`
 - `launchSite`: altitude above sea level (**set this** — deployment air density depends on it), lat/lon, rail length,
   launch angle, design wind
-- `structures`: required flutter margin and fin-material shear moduli (typical G10, carbon, aluminum, plywood values
-  built in; put your laminate's measured value here)
+- `structures`: required flutter margin and fin-material stiffness and strength.
+  - Typical values are built in for G10, carbon, aluminium, steel, titanium, plywood and polycarbonate.
+  - Also built in: balsa and basswood (*Wood Handbook*), and 3-D printed PLA, PETG and ABS.
+  - Put your laminate's or print's measured value here: wood and printed parts vary a lot.
 - `recovery`: Cx, opening-load method (`infinite_mass` / `finite_mass` / `max`), canopy fill constant, safety factors
   for shear pins and ejection force, backup-charge factor, packing factor and measured packing factors, shock cord
   cross-section, **shear pin ratings** (e.g. `"4-40 nylon": {"strength": "140 N"}`)
@@ -339,6 +368,12 @@ See `openrocket://methods` for equations and sources. In short:
   graphics card or extra install. Geometry and masses are OpenRocket's; rail buttons and lugs are not drawn. In the
   animation, position, attitude, roll, thrust and every number shown come from the simulation. The hanging pose under
   the canopy, the canopy's inflation and the smoke are illustrative.
+- **Rail buttons**: the rail is left when the aft button passes its top. Speeds along the rail come from the
+  simulation. Tip-off is a rigid rocket pivoting on the aft button, pushed by gravity across the tilted rail and a
+  worst-direction crosswind on the CP (Barrowman CNα at low Mach); slop = button play / spacing. Friction, rail flex
+  and thrust misalignment are left out, so the numbers rank layouts rather than predict the departure angle.
+- **Design library**: the predicted apogee is the design file's own saved simulation, in the conditions set in that
+  file, not the launch day's weather. `compare_flight` re-flies a log in the day's conditions.
 - **Cd reference area**: OpenRocket uses the nominal canopy area. Vendor Cd values quoted on projected area (e.g. 2.2)
   must be paired with projected area.
 

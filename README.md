@@ -39,7 +39,8 @@ the answers, and the plots. Everything on that page is real output.
   written to your `.ork` until you ask Claude to save.
 
 **Design and stability**
-- Build a rocket from scratch, or open your team's `.ork` file and change it.
+- Build a rocket from scratch, or open your team's `.ork` file and change it. Older designs work too: `.ork` files
+  from any OpenRocket version and RockSim `.rkt` files, with a list of anything that didn't carry over.
 - "Is it stable all the way up, including in 30 km/h wind?" — checked at every moment of the flight, for every stage.
 - "How much nose weight do I need?" or "How big should the fins be?" — the smallest fins that meet the stability rules
   without fluttering.
@@ -113,10 +114,19 @@ the answers, and the plots. Everything on that page is real output.
 **Launch day**
 - "What will the winds be at our site on Saturday at 10 am?" — give the launch site's GPS coordinates and Claude pulls
   the forecast, including winds up at altitude, and flies the rocket in it. No internet? Just tell Claude the winds.
+- "Where should the rail buttons go?" — the aft button as low as the airframe allows (every cm above the aft end is
+  rail the rocket never uses), and the forward one where tip-off and slop at rail exit are least. You get the real
+  rail exit speed, button loads, and the gain over your current layout. Claude can move the buttons in the design.
 - A one-page flight card: predictions, motor delay, deployment settings, drift in each wind, and sign-off lines.
 
 **After you fly**
 - Load your altimeter file: Claude compares it with the prediction and tunes the model for next time.
+
+**Your team's history**
+- Point Claude at the folder of past rockets and flight logs, and ask "our 4 in rockets on M motors", "which past
+  rocket is closest to this one?" or "how did predicted apogee compare with actual over the years?". Each design is
+  summarised (size, mass, motors, predicted apogee, materials, recovery), and each altimeter log is matched to its
+  design. You get the prediction error for every flight, by year, and the overall bias.
 
 ## Getting started
 

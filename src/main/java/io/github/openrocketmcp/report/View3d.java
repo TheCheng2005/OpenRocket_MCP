@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
@@ -59,6 +60,9 @@ public final class View3d {
 	public static Result render(FlightConfiguration fc, String title, Mode mode, double azimuthDeg, double elevationDeg,
 			int width) {
 		List<Model3d.Part> parts = Model3d.build(fc, 64);
+		if (parts.stream().noneMatch(p -> !p.internal)) {
+			throw new ToolException("The design has no airframe yet (nose cone, body tube or fins) to draw.");
+		}
 		if (mode == Mode.ASSEMBLED) {
 			parts.removeIf(p -> p.internal);
 		}

@@ -86,7 +86,8 @@ def main():
     w()
     w("**Steps:** [Design](#design) · [Recovery](#recovery) · [Flight and rules](#flight-and-rules) ·")
     w("[Design studies](#design-studies) · [Structures and CFD](#structures-and-cfd) · [Build](#build) · [Reviews](#reviews) ·")
-    w("[Launch day](#launch-day) · [Show it off](#show-it-off) · [After the flight](#after-the-flight)")
+    w("[Launch day](#launch-day) · [Show it off](#show-it-off) · [After the flight](#after-the-flight) ·")
+    w("[Team history](#team-history)")
     w()
     w("The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch")
     w("Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before")
@@ -554,11 +555,34 @@ def main():
             w("> " + line)
     w()
 
+
+    rb = call("rail_buttons", {"designId": d})
+    ask(24, "Where should the rail buttons go to get the most out of the rail?", ["rail_buttons"])
+    rec, cur = rb["recommended"], rb.get("current", {})
+    w(f"> The aft button goes {lead(rec['aftButton'].split(' above')[0])} above the aft end and the forward one "
+      f"{lead(rec['forwardButton'].split(' above')[0])} up, {lead(rec['spacing'])} apart. The rocket leaves the rail at "
+      f"{lead(rec['railExitVelocity'])}" + (f" instead of {lead(cur['railExitVelocity'])} with today's layout" if cur else "")
+      + f". OpenRocket says {lead(rb['openRocketRailExit'].split(':')[0])} because it counts the whole rail and ignores "
+      "where the buttons are.")
+    w()
+    rows = [{"k": "Forward button", "c": cur.get("forwardButton", ""), "r": rec["forwardButton"]},
+            {"k": "Aft button", "c": cur.get("aftButton", ""), "r": rec["aftButton"]},
+            {"k": "Rail exit", "c": cur.get("railExitVelocity", ""), "r": rec["railExitVelocity"]},
+            {"k": "Tip-off", "c": cur.get("tipOff", ""), "r": rec["tipOff"]},
+            {"k": "Pointing error at rail exit", "c": cur.get("pointingErrorAtRailExit", ""), "r": rec["pointingErrorAtRailExit"]},
+            {"k": "Side loads", "c": cur.get("buttonLoads", "").split(" sideways")[0], "r": rec["buttonLoads"].split(" sideways")[0]}]
+    table(rows, ["k", "c", "r"], ["", "Current", "Recommended"])
+    for n in rb.get("notes", [])[:2]:
+        w(f"- {n}")
+    w()
+    w("Say \"move them\" and Claude applies it to the design (`apply`); `undo` takes it back.")
+    w()
+
     # Show it off ------------------------------------------------------------------------------------------------------
     w("## Show it off")
     w()
     ex = call("render_3d", {"designId": d, "view": "exploded", "path": os.path.join(IMG, "exploded.png")})
-    ask(24, "Make an exploded view for our design review poster, with the parts list.", ["render_3d"])
+    ask(25, "Make an exploded view for our design review poster, with the parts list.", ["render_3d"])
     w("![Exploded 3-D view of Maple 10K: airframe pieces pulled apart, fins slid out, every internal part laid out below "
       "the piece it goes in, with numbered balloons and a parts list with masses](examples/exploded.png)")
     w()
@@ -569,7 +593,7 @@ def main():
     w()
     an = call("animate_flight", {"designId": d, "path": os.path.join(IMG, "flight.gif"), "duration": 22, "fps": 10,
                                  "gifWidth": 560, "mp4": False})
-    ask(25, "Animate the flight for our social media post.", ["animate_flight"])
+    ask(26, "Animate the flight for our social media post.", ["animate_flight"])
     w("![3-D animation of the simulated flight with the flight clock, altitude, speed, Mach and distance from the pad, "
       "captions at burnout, apogee and each deployment](examples/flight.gif)")
     w()
@@ -585,7 +609,7 @@ def main():
 
     # Two stages ------------------------------------------------------------------------------------------------------
     ts = call("open_design", {"example": "Two stage high power"})["designId"]
-    ask(26, "We're also flying a two-stage rocket. Simulate the staging, show it pulled apart and animate it.",
+    ask(27, "We're also flying a two-stage rocket. Simulate the staging, show it pulled apart and animate it.",
         ["run_simulation", "render_3d", "animate_flight"])
     run = call("run_simulation", {"designId": ts})
     ign = [i for i in run["ignitions"] if "altitudeAtIgnition" in i]
@@ -619,6 +643,50 @@ def main():
     w("*\"Here is our altimeter file — how did we do compared with the prediction?\"* Claude lines the log up with the "
       "simulation (`compare_flight`), fits the drag so the next prediction is closer, and plots simulated against measured "
       "altitude.")
+    w()
+    w("## Team history")
+    w()
+    lib = os.path.join(tmp, "team-rockets")
+    for sub in ("2023", "2024", "2025/maple-pdr", "2026/maple"):
+        os.makedirs(os.path.join(lib, sub), exist_ok=True)
+    for example, where in (("Dual parachute", "2023/dual-deploy.ork"), ("Two stage high power", "2024/two-stage.ork")):
+        x = call("open_design", {"example": example})["designId"]
+        call("save_design", {"designId": x, "path": os.path.join(lib, where)})
+        call("close_design", {"designId": x})
+    shutil.copy(os.path.join(DOCS, "examples", "maple-10k-pdr.ork"), os.path.join(lib, "2025/maple-pdr/maple-pdr.ork"))
+    call("save_design", {"designId": d, "path": os.path.join(lib, "2026/maple/maple-10k.ork")})
+
+    def sample_log(path, apogee_m):
+        with open(path, "w") as fh:
+            fh.write("Time (s),Altitude (ft)\n")
+            for i in range(1500):
+                t = i / 10
+                a = 0 if t < 1 else apogee_m * (1 - ((21 - t) / 20) ** 2) if t < 21 else max(0, apogee_m - (t - 21) * 20)
+                fh.write(f"{t:.1f},{a / 0.3048 + 850:.0f}\n")
+
+    sample_log(os.path.join(lib, "2023/dual-deploy-flight1.csv"), 790)
+    sample_log(os.path.join(lib, "2024/two-stage-flight1.csv"), 610)
+    ask(28, "Here's our folder of past rockets and flight logs. Which 4 in rockets have we flown, and how good were our "
+        "apogee predictions over the years?", ["design_library"])
+    allr = call("design_library", {"folder": lib, "simulate": True})
+    four = call("design_library", {"folder": lib, "minDiameter": "3.9 in", "maxDiameter": "4.1 in"})
+    w(f"> {allr['library'].split(' in ')[0]}. {four['matches']} of them are 4 in rockets:")
+    w()
+    table(four["designs"], ["name", "file", "year", "motors", "predictedApogee"],
+          ["Rocket", "File", "Year", "Motors", "Predicted apogee"])
+    pv = allr.get("predictedVsMeasured", {})
+    if pv.get("flights"):
+        w("Each altimeter log is matched to its design by name or folder:")
+        w()
+        table(pv["flights"], ["year", "design", "predicted", "measured", "predictionError"],
+              ["Year", "Rocket", "Predicted", "Measured", "Error"])
+        w(f"> Overall, {pv['overall']}." + (f" {pv['use']}" if pv.get("use") else ""))
+        w()
+    w("<sub>(The two flight logs are samples made for this page; point Claude at your own folder of `.ork` / `.rkt` "
+      "files and altimeter CSVs.)</sub>")
+    w()
+    w("Ask for `similarTo` to find the past rocket closest to the one you are designing, then open it to reuse its "
+      "parts.")
     w()
     s.close()
     if os.environ.get("EXAMPLES_DUMP"):

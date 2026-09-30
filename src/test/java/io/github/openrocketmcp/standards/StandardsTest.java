@@ -102,7 +102,7 @@ class StandardsTest {
 		assertEquals(26e9, (Double) s.shearModulus("Aluminum")[0], 1);
 		assertEquals(4.5e9, (Double) s.shearModulus("Carbon fiber")[0], 1);
 		assertEquals(0.6e9, (Double) s.shearModulus("Plywood (birch)")[0], 1);
-		assertNull(s.shearModulus("Balsa"));
+		assertNull(s.shearModulus("Unobtainium")); // no default for an unknown material
 		Standards custom = s.patched(json("{\"structures\":{\"shearModulus\":{\"balsa\":\"0.03 GPa\"}}}"));
 		assertEquals(0.03e9, (Double) custom.shearModulus("Balsa")[0], 1);
 		// A team key that overlaps a default key wins
