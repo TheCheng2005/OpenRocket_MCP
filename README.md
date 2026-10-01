@@ -56,6 +56,14 @@ the answers, and the plots. Everything on that page is real output.
 - "Lay out the avionics bay": two independent altimeters, each with its own battery and switch, a GPS tracker, the
   ejection charges and static ports, placed by the Launch Canada electronics rules, with the parachutes packed against
   it and a warning if a bay is too short.
+- "Make test data for our flight computer" — what its accelerometers, gyro, barometer and GPS would log on the
+  simulated flight, with noise and range limits, plus the true event times to score your launch, burnout, apogee
+  and main detection against.
+- "Will our sensors cope?" — every sensor's range against the flight. Typical findings: a ±16 g accelerometer that
+  clips at motor start, a barometer that runs out of range at apogee, a GPS that loses lock above 515 m/s. It also
+  says when the barometer can't be trusted near Mach 1.
+- "What do we set the altimeters to?" — primary and backup settings for every parachute, the Mach lockout and the
+  static port size, as a one-page card with a pre-flight checklist.
 - Get a cut-away drawing: parachutes, shock cords, electronics, batteries, charges, motor, rings and bulkheads where
   they really sit, where the airframe separates, and the CG and CP.
 - "Show me an exploded view" — the rocket in 3-D, pulled apart, with every part inside laid out where it goes and a

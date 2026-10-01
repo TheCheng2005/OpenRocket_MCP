@@ -300,5 +300,61 @@
       }
     },
     "heatingNotes": "Service temperatures are typical glass-transition / softening limits; use your resin's datasheet (a post-cure raises epoxy Tg a lot)."
+  },
+  "electronics": {
+    "sensors": [
+      {
+        "id": "acc",
+        "name": "Accelerometer, ±16 g (e.g. ICM-42688-P, LSM6DSO32)",
+        "type": "accelerometer",
+        "range": 16,
+        "noise": 0.005,
+        "resolution": 0.0005,
+        "units": "g"
+      },
+      {
+        "id": "acc_hi",
+        "name": "High-g accelerometer, ±200 g (e.g. ADXL375)",
+        "type": "accelerometer",
+        "range": 200,
+        "noise": 0.15,
+        "resolution": 0.049,
+        "units": "g"
+      },
+      {
+        "id": "gyro",
+        "name": "Gyroscope, ±2000 deg/s (e.g. ICM-42688-P)",
+        "type": "gyroscope",
+        "range": 2000,
+        "noise": 0.1,
+        "resolution": 0.061,
+        "units": "deg/s"
+      },
+      {
+        "id": "baro",
+        "name": "Barometer, 30-125 kPa (e.g. BMP390)",
+        "type": "barometer",
+        "min": 30000,
+        "max": 125000,
+        "noise": 3,
+        "resolution": 0.02,
+        "units": "Pa"
+      },
+      {
+        "id": "gps",
+        "name": "GPS receiver (e.g. u-blox MAX-M10)",
+        "type": "gps",
+        "noise": 2.5,
+        "units": "m (horizontal, 1 sd)"
+      }
+    ],
+    "sensorNotes": "Typical student flight-computer parts; replace with your own (id names the CSV columns). range = ± full scale; noise = 1 sd; resolution = 1 LSB; barometer min / max in Pa. Datasheet values, not measured.",
+    "altimeter": {
+      "backupDrogueDelay": "1 s",
+      "backupMainOffset": "100 ft",
+      "baroUnreliableAboveMach": 0.7,
+      "machLockoutMargin": "1 s",
+      "notes": "Team choices for altimeter_settings: the backup altimeter fires the drogue backupDrogueDelay after apogee and the main backupMainOffset lower; barometric events are locked out while the rocket is above baroUnreliableAboveMach, plus machLockoutMargin."
+    }
   }
 }

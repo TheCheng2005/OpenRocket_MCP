@@ -259,11 +259,6 @@ public final class Avionics {
 			}
 			bayMass += c.getMass();
 		}
-		double volIn3 = Math.PI * rc * rc * usable / Math.pow(IN, 3);
-		// Rule of thumb from altimeter manuals: one 1/4 in port per 100 in3 of bay volume; split over 4 ports around the
-		// band (concentric sampling cancels crosswind pressure).
-		double areaIn2 = volIn3 / 100 * Math.PI * 0.125 * 0.125;
-		double d4 = 2 * Math.sqrt(areaIn2 / 4 / Math.PI);
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("added", "Av-bay: " + (s.switchBand() > 0 ? Units.fmt(s.switchBand(), Dim.LENGTH) + " switch band, " : "")
 				+ Units.fmt(lc, Dim.LENGTH) + " coupler between " + upper.getName() + " and " + lower.getName());
@@ -272,9 +267,7 @@ public final class Avionics {
 		out.put("charges", "main primary + backup on the forward bulkhead, drogue primary + backup on the aft bulkhead");
 		out.put("bayMass", Units.fmt(bayMass, Dim.MASS));
 		out.put("layout", layout);
-		out.put("staticPorts", String.format(Locale.ROOT, "bay volume %.0f in3: 4 ports of %.3f in (%.1f mm) evenly around the "
-				+ "switch band (same area as %.0f x 1/4 in); follow your altimeter's manual, and keep ports clear of the "
-				+ "switches and away from shoulders", volIn3, d4, d4 * 25.4, Math.max(1, volIn3 / 100)));
+		out.put("staticPorts", staticPorts(Math.PI * rc * rc * usable));
 		if (!packed.isEmpty()) {
 			out.put("recoveryPacked", packed);
 		}
@@ -287,6 +280,19 @@ public final class Avionics {
 		notes.add("Use two different altimeter models so one firmware or hardware fault cannot take out both.");
 		out.put("notes", notes);
 		return out;
+	}
+
+	/**
+	 * Static ports for a bay of {@code volume} m3. Rule of thumb from altimeter manuals: one 1/4 in port per 100 in3 of
+	 * bay volume, split over 4 ports around the band (concentric sampling cancels crosswind pressure).
+	 */
+	public static String staticPorts(double volume) {
+		double volIn3 = volume / Math.pow(IN, 3);
+		double areaIn2 = volIn3 / 100 * Math.PI * 0.125 * 0.125;
+		double d4 = 2 * Math.sqrt(areaIn2 / 4 / Math.PI);
+		return String.format(Locale.ROOT, "bay volume %.0f in3: 4 ports of %.3f in (%.1f mm) evenly around the switch band "
+				+ "(same area as %.1f x 1/4 in); follow your altimeter's manual, and keep ports clear of the switches and away "
+				+ "from shoulders", volIn3, d4, d4 * 25.4, volIn3 / 100);
 	}
 
 	private static RocketComponent pos(RocketComponent c, AxialMethod m, double off) {

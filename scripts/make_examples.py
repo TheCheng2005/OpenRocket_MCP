@@ -87,7 +87,7 @@ def main():
     w("**Steps:** [Design](#design) · [Recovery](#recovery) · [Flight and rules](#flight-and-rules) ·")
     w("[Design studies](#design-studies) · [Structures and CFD](#structures-and-cfd) · [Build](#build) · [Reviews](#reviews) ·")
     w("[Launch day](#launch-day) · [Show it off](#show-it-off) · [After the flight](#after-the-flight) ·")
-    w("[Team history](#team-history)")
+    w("[Team history](#team-history) · [Electronics](#electronics)")
     w()
     w("The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch")
     w("Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before")
@@ -687,6 +687,44 @@ def main():
     w()
     w("Ask for `similarTo` to find the past rocket closest to the one you are designing, then open it to reuse its "
       "parts.")
+    w()
+    w("## Electronics")
+    w()
+    ask(29, "Will our flight computer's sensors cope with this flight, and what do we set the altimeters to?",
+        ["sensor_check", "altimeter_settings"])
+    chk = call("sensor_check", {"designId": d})
+    w(f"> {chk['summary'].capitalize()}. Against the team's sensors (typical student parts, set in the standards):")
+    w()
+    table([dict(r, sensor=r["sensor"].split(" (e.g.")[0]) for r in chk["checks"]],
+          ["sensor", "quantity", "peak", "use", "status"], ["Sensor", "Checked", "Flight peak", "Use of range", ""])
+    alt = call("altimeter_settings", {"designId": d, "path": os.path.join(tmp, "altimeters.md")})
+    w("The altimeter card:")
+    w()
+    table(alt["channels"], ["device", "primary", "backup"], ["Parachute", "Primary altimeter", "Backup altimeter"])
+    w(f"> Mach lockout: {alt['lockout']['machLockout']}. Static ports: {alt['staticPorts'].split(';')[0]}.")
+    w()
+    ask(30, "Give us simulated sensor data to test our flight software.", ["sensor_data"])
+    csv_path = os.path.join(tmp, "maple-sensors.csv")
+    sd = call("sensor_data", {"designId": d, "path": csv_path})
+    w(f"> {sd['samples']}, plus the true event times in a separate file. A few rows:")
+    w()
+    rows = list(__import__("csv").DictReader(open(csv_path)))
+    events = {e.split(" s ", 1)[1]: float(e.split()[0][2:]) for e in sd["trueEvents"]}
+    picks = [("on the pad", 1.0), ("boost", events.get("liftoff", 5) + 1), ("burnout", events.get("burnout", 10) + 0.2),
+             ("apogee", events.get("apogee", 25)), ("under the main", events.get("landing", 100) - 10)]
+    sample = []
+    for label, t in picks:
+        r = min(rows, key=lambda x: abs(float(x["time_s"]) - t))
+        sample.append({"moment": label, "t": r["time_s"], "acc": r["acc_x_g"], "hi": r["acc_hi_x_g"],
+                       "p": r["baro_pressure_pa"], "alt": r["truth_altitude_agl_m"], "ph": r["truth_phase"]})
+    table(sample, ["moment", "t", "acc", "hi", "p", "alt", "ph"],
+          ["", "time_s", "acc_x_g (±16 g)", "acc_hi_x_g (±200 g)", "baro_pressure_pa", "truth_altitude_agl_m", "truth_phase"])
+    low = next(r for r in chk["checks"] if r["sensor"].startswith("Accelerometer") and r["quantity"].startswith("axial"))
+    verdict = ("clips at motor start, where the ±200 g one does not" if low["status"] == "FAIL" else
+               f"comes within {100 - float(low['use'].split('%')[0]):.0f}% of clipping at motor start, so a hotter "
+               "motor or vibration would saturate it; the ±200 g part keeps the boost on scale")
+    w(f"The ±16 g part {verdict}. Under the main both read about −1 g (the canopy holding the rocket). Columns follow "
+      "the team's sensors in the standards; pass your own parts with `sensors`.")
     w()
     s.close()
     if os.environ.get("EXAMPLES_DUMP"):

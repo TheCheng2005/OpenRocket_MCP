@@ -6,7 +6,7 @@ plain-language overview.
 
 ## Tools
 
-The 71 tools, grouped by what a team is doing. Bold marks the main job of each tool.
+The 74 tools, grouped by what a team is doing. Bold marks the main job of each tool.
 
 ### Session
 
@@ -166,6 +166,31 @@ The 71 tools, grouped by what a team is doing. Bold marks the main job of each t
 
   It packs the shock cords and parachutes against the bay, and warns when they do not fit before the nose shoulder or
   motor mount. `check_requirements` then counts altimeters and batteries against the electronics edicts.
+- `sensor_data`: **what the flight computer would log**, as CSV at a fixed rate (default 100 Hz), to test flight
+  software before it flies.
+  - **Accelerometers** read specific force in the rocket frame: x along the axis toward the nose, y in the pitch plane.
+    That is +1 g on the pad, thrust minus drag in flight, and the canopy's pull under parachute. Gravity is not sensed.
+  - **Gyroscopes** read the body rates; the **barometer** reads ambient pressure and temperature.
+  - **GPS** gives fixes at its own rate, and none above the 515 m/s / 18 km export limits.
+  - **Sensor behaviour:** each sensor adds its noise, rounds to its resolution and clips at its range. The same seed
+    gives the same file.
+  - **Extras:** pad time before ignition, rest after landing, the true values (`truth_` columns), and the true event
+    times in `<name>-events.csv` to score launch, burnout, apogee and main detection. A stage can be logged on its own
+    (`branch`).
+- `sensor_check`: **each sensor's range against the flight**.
+  - **Accelerometers:** peak axial acceleration (boost and coast, and parachute openings separately) and lateral.
+  - **Gyroscope:** roll, pitch and yaw rates.
+  - **Barometer:** the lowest pressure, with the altitude where a barometer runs out.
+  - **GPS:** the export limits.
+  - **Mach window:** when static ports cannot be trusted near Mach 1.
+- `altimeter_settings`: **altimeter settings from the simulation**.
+  - **Per recovery device:** the primary and backup setting. By default the drogue backup fires 1 s after apogee and the
+    main backup 100 ft lower. You also get the airspeed the backup drogue fires at, and how long the backup main waits.
+  - **Mach lockout:** time above Mach 0.7, plus 1 s.
+  - **Static ports:** sized for the bay.
+  - **Card:** optionally a one-page Markdown card with a pre-flight checklist.
+- **Team sensors and altimeter choices** live in `electronics` in the team standards. The defaults are typical student
+  parts (±16 g and ±200 g accelerometers, ±2000 deg/s gyro, a 30–125 kPa barometer, GPS): replace them with yours.
 
 ### Recovery chain
 
@@ -387,6 +412,10 @@ See `openrocket://methods` for equations and sources. In short:
   and thrust misalignment are left out, so the numbers rank layouts rather than predict the departure angle.
 - **Design library**: the predicted apogee is the design file's own saved simulation, in the conditions set in that
   file, not the launch day's weather. `compare_flight` re-flies a log in the day's conditions.
+- **Sensor data**: specific force from OpenRocket's thrust, drag (axial) and normal-force coefficient (lateral) over
+  mass. Body rates and ambient air are the simulation's. A test checks the accelerometer against the trajectory
+  (dvz/dt = a_x cos(tilt) - g within 1 m/s²). Not modelled: vibration, deployment shocks (OpenRocket opens canopies
+  instantly, so opening peaks are upper bounds), bias and drift, bay pressure lag and port errors near Mach 1.
 - **Cd reference area**: OpenRocket uses the nominal canopy area. Vendor Cd values quoted on projected area (e.g. 2.2)
   must be paired with projected area.
 

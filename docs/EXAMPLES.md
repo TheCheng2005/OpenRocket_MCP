@@ -9,7 +9,7 @@ appear right in the chat, and long runs (optimizers, Monte Carlo) show their pro
 **Steps:** [Design](#design) · [Recovery](#recovery) · [Flight and rules](#flight-and-rules) ·
 [Design studies](#design-studies) · [Structures and CFD](#structures-and-cfd) · [Build](#build) · [Reviews](#reviews) ·
 [Launch day](#launch-day) · [Show it off](#show-it-off) · [After the flight](#after-the-flight) ·
-[Team history](#team-history)
+[Team history](#team-history) · [Electronics](#electronics)
 
 The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch
 Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before
@@ -27,7 +27,7 @@ Claude builds the rocket part by part in OpenRocket, inside as well as out: nose
 
 <sub>Tools Claude uses: `add_avionics_bay`</sub>
 
-> Av-bay: 25.4 mm (1 in) switch band, 304.8 mm (12 in) coupler between Upper airframe and Lower airframe: 2 independent altimeter circuits (each: altimeter + own battery + own physical switch), GPS tracker on its own battery in the nose; main primary + backup on the forward bulkhead, drogue primary + backup on the aft bulkhead. Bay mass 567.6 g (1.251 lb). Static ports: bay volume 135 in3: 4 ports of 0.145 in (3.7 mm) evenly around the switch band (same area as 1 x 1/4 in).
+> Av-bay: 25.4 mm (1 in) switch band, 304.8 mm (12 in) coupler between Upper airframe and Lower airframe: 2 independent altimeter circuits (each: altimeter + own battery + own physical switch), GPS tracker on its own battery in the nose; main primary + backup on the forward bulkhead, drogue primary + backup on the aft bulkhead. Bay mass 567.6 g (1.251 lb). Static ports: bay volume 135 in3: 4 ports of 0.145 in (3.7 mm) evenly around the switch band (same area as 1.3 x 1/4 in).
 
 <details><summary>Bay layout</summary>
 
@@ -179,7 +179,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 <sub>Tools Claude uses: `monte_carlo`</sub>
 
-> Over 200 simulated flights the median landing is 200.6 m (658.3 ft) from the pad and 95% land within 487.1 m (1598 ft); the landings centre 495 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 201.2 m (660.2 ft).
+> Over 200 simulated flights the median landing is 200.6 m (658.3 ft) from the pad and 95% land within 487.1 m (1598 ft); the landings centre 495 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 201.2 m (660 ft).
 
 ![200 simulated landings around the pad with the 2-sigma ellipse](examples/landing.svg)
 
@@ -189,12 +189,12 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 
 | Uncertain input | Apogee | Min stability | Landing distance |
 |---|---|---|---|
-| windSpeed | -0.13 | -0.9653 | -0.678 |
-| launchAngle | -0.1496 | -0.006994 | 0.3152 |
-| structureMass | -0.0506 | 0.1309 | 0.09416 |
-| airframeDrag | -0.9259 | 0.04255 | -0.1735 |
-| motorThrust | 0.3179 | 0.08091 | -0.02008 |
-| parachuteCd | -0.03481 | 0.03086 | -0.07641 |
+| windSpeed | -0.1297 | -0.9653 | -0.6783 |
+| launchAngle | -0.1498 | -0.006994 | 0.3159 |
+| structureMass | -0.05064 | 0.1309 | 0.09615 |
+| airframeDrag | -0.9259 | 0.04255 | -0.173 |
+| motorThrust | 0.3181 | 0.08091 | -0.02129 |
+| parachuteCd | -0.035 | 0.03086 | -0.07623 |
 
 <sub>Correlation from -1 to 1: the closer to ±1, the more that input drives the result.</sub>
 
@@ -484,3 +484,50 @@ Each altimeter log is matched to its design by name or folder:
 <sub>(The two flight logs are samples made for this page; point Claude at your own folder of `.ork` / `.rkt` files and altimeter CSVs.)</sub>
 
 Ask for `similarTo` to find the past rocket closest to the one you are designing, then open it to reuse its parts.
+
+## Electronics
+
+### 29. "Will our flight computer's sensors cope with this flight, and what do we set the altimeters to?"
+
+<sub>Tools Claude uses: `sensor_check`, `altimeter_settings`</sub>
+
+> 0 fail, 3 warn, 8 ok. Against the team's sensors (typical student parts, set in the standards):
+
+| Sensor | Checked | Flight peak | Use of range |  |
+|---|---|---|---|---|
+| Accelerometer, ±16 g | axial acceleration (x), boost and coast | 15.73 g at t=0.815 s (boost) | 98.33% of range | WARN |
+| Accelerometer, ±16 g | lateral acceleration (y, z) | 0.6481 g at t=1.74 s (boost) | 4.051% of range | PASS |
+| Accelerometer, ±16 g | parachute openings | 17.99 g at t=115.4 s | 112.5% of range | WARN |
+| High-g accelerometer, ±200 g | axial acceleration (x), boost and coast | 15.73 g at t=0.815 s (boost) | 7.866% of range | PASS |
+| High-g accelerometer, ±200 g | lateral acceleration (y, z) | 0.6481 g at t=1.74 s (boost) | 0.324% of range | PASS |
+| High-g accelerometer, ±200 g | parachute openings | 17.99 g at t=115.4 s | 8.997% of range | PASS |
+| Gyroscope, ±2000 deg/s | roll rate (x) | 0.0006659 deg/s at t=5.48 s | 3.329e-05% of range | PASS |
+| Gyroscope, ±2000 deg/s | pitch / yaw rate (y, z) | 34.89 deg/s at t=0.58 s | 1.745% of range | PASS |
+| Barometer, 30-125 kPa | pressure (lowest at apogee) | 68.26 kPa (9.9 psi) at t=20.8 s |  | PASS |
+| Barometer, 30-125 kPa | static pressure above Mach 0.7 | t=1.805 to 6.92 s (max Mach 1.15) |  | WARN |
+| GPS receiver | speed and altitude (export limits 515 m/s, 18 km) | 392.3 m/s (1287 ft/s), 3323 m (10903 ft) MSL |  | PASS |
+
+The altimeter card:
+
+| Parachute | Primary altimeter | Backup altimeter |
+|---|---|---|
+| Main | 304.8 m (1000 ft) AGL on the way down | 274.3 m (900 ft) AGL on the way down |
+| Drogue | apogee | apogee + 1 s |
+
+> Mach lockout: 8 s after launch (above Mach 0.7 until t=6.88 s, plus 1 s). Static ports: bay volume 141 in3: 4 ports of 0.148 in (3.8 mm) evenly around the switch band (same area as 1.4 x 1/4 in).
+
+### 30. "Give us simulated sensor data to test our flight software."
+
+<sub>Tools Claude uses: `sensor_data`</sub>
+
+> 16908 rows x 22 columns at 100 Hz (169.1 s: 5 s on the pad first), plus the true event times in a separate file. A few rows:
+
+|  | time_s | acc_x_g (±16 g) | acc_hi_x_g (±200 g) | baro_pressure_pa | truth_altitude_agl_m | truth_phase |
+|---|---|---|---|---|---|---|
+| on the pad | 1.0000 | 0.99150 | 0.83300 | 97831.12 | 0.00 | pad |
+| boost | 6.0600 | 15.27650 | 15.28800 | 97038.96 | 70.53 | boost |
+| burnout | 11.1500 | -4.96250 | -4.94900 | 80773.72 | 1637.92 | coast |
+| apogee | 25.8000 | -0.14800 | -0.04900 | 68257.22 | 3023.14 | descent |
+| under the main | 156.1000 | -0.99750 | -1.12700 | 97108.72 | 64.07 | descent |
+
+The ±16 g part comes within 2% of clipping at motor start, so a hotter motor or vibration would saturate it; the ±200 g part keeps the boost on scale. Under the main both read about −1 g (the canopy holding the rocket). Columns follow the team's sensors in the standards; pass your own parts with `sensors`.

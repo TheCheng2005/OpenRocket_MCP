@@ -684,6 +684,27 @@ def scenario_avionics(s, tmp):
     svg = open(out).read()
     check(sc, "cut-away shows electronics, parachutes, charges and separations",
           all(f'class="{c}"' in svg for c in ("elec", "batt", "chute", "charge", "sep")))
+    s.call("set_deployment", {"designId": d, "component": "Drogue", "event": "apogee"})
+    s.call("set_deployment", {"designId": d, "component": "Main", "event": "altitude", "altitude": "1000 ft"})
+    alt = s.call("altimeter_settings", {"designId": d, "path": os.path.join(tmp, "altimeters.md")})
+    chans = {c["device"]: c for c in alt["channels"]}
+    check(sc, "altimeter settings: backup drogue after apogee, backup main lower, static ports for the bay",
+          chans["Drogue"]["backup"] == "apogee + 1 s" and "AGL" in chans["Main"]["backup"]
+          and alt["staticPorts"].startswith("bay volume"), json.dumps(alt)[:400])
+    check(sc, "Mach lockout set for a transonic flight",
+          alt["lockout"]["machLockout"].split()[0].replace(".", "").isdigit(), alt["lockout"]["machLockout"])
+    chk = s.call("sensor_check", {"designId": d})
+    rows = {(r["sensor"].split(",")[0], r["quantity"].split(",")[0]): r for r in chk["checks"]}
+    check(sc, "sensor check covers accelerometers, gyro, barometer (incl. the Mach window) and GPS",
+          ("Accelerometer", "axial acceleration (x)") in rows and any(q.startswith("static pressure above Mach") for _, q in rows)
+          and any(k[0].startswith("GPS") for k in rows), str(list(rows))[:300])
+    csv_path = os.path.join(tmp, "sensors.csv")
+    data = s.call("sensor_data", {"designId": d, "path": csv_path, "rate": 50})
+    header = open(csv_path).readline().strip().split(",")
+    events = open(data["events"]).read()
+    check(sc, "sensor CSV with every sensor, truth columns and the true events",
+          {"acc_x_g", "gyro_y_dps", "baro_pressure_pa", "gps_lat_deg", "truth_phase"} <= set(header)
+          and ",apogee," in events and "deployment: Main" in events, str(header)[:200])
     s.call("close_design", {"designId": d})
 
 

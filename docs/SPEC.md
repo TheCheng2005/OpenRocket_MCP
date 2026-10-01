@@ -397,6 +397,34 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   that new simulations use, without marking the file changed; `RepeatableTest` reopens a file and compares.
 - Server instructions mention `rail_buttons` and `design_library`.
 
+### Electronics (v0.18.0)
+
+- `or.SensorSim`: the flight resampled at a fixed rate into what each sensor measures.
+  - **Specific force on x:** pad support up to liftoff; on the rail, thrust minus drag with the rail carrying g sin(angle)
+    sideways. In flight, (T - D) / m.
+  - **Specific force on y:** CN q A / m from OpenRocket's normal-force coefficient (zero after the first deployment).
+  - **Gyro and air:** OpenRocket's roll, pitch and yaw rates; ambient pressure and temperature.
+  - **GPS:** latitude and longitude (OpenRocket keeps them in degrees). No fix above 515 m/s or 18 km.
+  - **Phases:** pad, rail, boost, coast, descent, landed.
+  - **Measurement:** Gaussian noise, rounding to the resolution, clipping at the range (and at a barometer's min/max).
+  - **Output:** the CSV, an events CSV, and `check`. The check splits accelerometer peaks into boost/coast and parachute
+    openings (an upper bound, since OpenRocket opens canopies instantly), and finds the window above
+    `baroUnreliableAboveMach`.
+- `or.AltimeterSettings`:
+  - **Channels:** per recovery device from its deployment configuration. Apogee devices get primary apogee + delay and
+    backup + `backupDrogueDelay`; altitude devices get primary h and backup h - `backupMainOffset`. Ejection deployment
+    gets a warning.
+  - **Matching:** each channel is matched to its simulated opening by component id; events refer to the simulated copy.
+  - **Mach lockout:** ceil(last time above the Mach limit before apogee + margin), with a warning when it comes within
+    2 s of apogee.
+  - **Static ports:** via `Avionics.staticPorts`, shared with `add_avionics_bay`.
+  - **Card:** Markdown with a checklist.
+- Standards: `electronics.sensors` (typical student parts) and `electronics.altimeter` (backup delay and offset, Mach
+  limit, lockout margin).
+- Tests: `SensorSimTest`, which checks the accelerometer against the trajectory and covers 1 g on the pad and under the
+  canopy, noise sd, clipping, the CSV and events file, range failures and the transonic window; and
+  `AltimeterSettingsTest`, which covers lockout, backups, static ports, the card, and two-stage branches.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.
