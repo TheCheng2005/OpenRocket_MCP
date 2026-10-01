@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -323,7 +324,108 @@ public final class McpServer {
 		}
 	}
 
+	/**
+	 * An argument the tool does not take would otherwise be ignored without a word (a filter that silently does not
+	 * filter); it is refused with the tool's arguments and the closest name. Returns the error, or null.
+	 */
+	static String unknownArguments(String tool, JsonObject schema, JsonObject args) {
+		if (schema == null || args == null || !schema.has("properties")) {
+			return null;
+		}
+		var known = schema.getAsJsonObject("properties").keySet();
+		List<String> unknown = new ArrayList<>();
+		for (String k : args.keySet()) {
+			// designId is harmless where a tool works on no design (models pass it out of habit).
+			if (!known.contains(k) && !k.equals("designId")) {
+				unknown.add(k);
+			}
+		}
+		if (unknown.isEmpty()) {
+			return null;
+		}
+		StringBuilder b = new StringBuilder(tool + " has no argument" + (unknown.size() > 1 ? "s " : " "));
+		for (int i = 0; i < unknown.size(); i++) {
+			String k = unknown.get(i), near = closest(k, known);
+			b.append(i > 0 ? ", " : "").append('\'').append(k).append('\'').append(near == null ? "" : " (did you mean '" + near + "'?)");
+		}
+		return b.append(known.isEmpty() ? ". It takes no arguments." : ". It takes: " + String.join(", ", known) + ".").toString();
+	}
+
+	/** The known name nearest to {@code k} (edit distance up to a third of its length), or null. */
+	private static String closest(String k, Iterable<String> known) {
+		String best = null;
+		int bestD = Math.max(2, k.length() / 3) + 1;
+		for (String c : known) {
+			int d = distance(k.toLowerCase(Locale.ROOT), c.toLowerCase(Locale.ROOT));
+			if (d < bestD) {
+				bestD = d;
+				best = c;
+			}
+		}
+		return best;
+	}
+
+	private static int distance(String a, String b) {
+		int[] prev = new int[b.length() + 1], cur = new int[b.length() + 1];
+		for (int j = 0; j <= b.length(); j++) {
+			prev[j] = j;
+		}
+		for (int i = 1; i <= a.length(); i++) {
+			cur[0] = i;
+			for (int j = 1; j <= b.length(); j++) {
+				cur[j] = Math.min(Math.min(cur[j - 1], prev[j]) + 1, prev[j - 1] + (a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1));
+			}
+			int[] t = prev;
+			prev = cur;
+			cur = t;
+		}
+		return prev[b.length()];
+	}
+
+	/**
+	 * Checks arguments that the schema limits to a list of values, accepting any case and spaces or hyphens for
+	 * underscores ("Max apogee" -> "max_apogee") and rewriting them to the listed spelling. Returns the error for a value
+	 * that is not on the list, naming the choices, or null.
+	 */
+	static String normalizeChoices(JsonObject schema, JsonObject args) {
+		if (schema == null || args == null || !schema.has("properties")) {
+			return null;
+		}
+		JsonObject props = schema.getAsJsonObject("properties");
+		for (String key : props.keySet()) {
+			JsonObject p = props.getAsJsonObject(key);
+			if (!p.has("enum") || !args.has(key) || !args.get(key).isJsonPrimitive()) {
+				continue;
+			}
+			String given = args.get(key).getAsString();
+			String norm = given.trim().toLowerCase(Locale.ROOT).replaceAll("[\\s-]+", "_");
+			List<String> choices = new ArrayList<>();
+			String match = null;
+			for (var e : p.getAsJsonArray("enum")) {
+				String v = e.getAsString();
+				choices.add(v);
+				if (v.equals(given) || v.toLowerCase(Locale.ROOT).equals(norm)) {
+					match = v;
+				}
+			}
+			if (match == null) {
+				return "'" + given + "' is not a valid " + key + "; use one of: " + String.join(", ", choices) + ".";
+			}
+			if (!match.equals(given)) {
+				args.addProperty(key, match);
+			}
+		}
+		return null;
+	}
+
 	private JsonObject runTool(ToolDef tool, String toolName, Args args, CallContext ctx) {
+		String badChoice = unknownArguments(tool.name(), tool.inputSchema(), args.raw());
+		if (badChoice == null) {
+			badChoice = normalizeChoices(tool.inputSchema(), args.raw());
+		}
+		if (badChoice != null) {
+			return textResult("Error: " + badChoice, true);
+		}
 		Guard g = guard;
 		Lock lock = null;
 		try {

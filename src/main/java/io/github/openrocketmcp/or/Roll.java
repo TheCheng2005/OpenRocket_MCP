@@ -41,7 +41,7 @@ public final class Roll {
 	public static List<Case> sweep(Simulation base, OpenRocketDocument doc, String finId, List<Double> cants) {
 		List<Simulation> sims = new ArrayList<>();
 		for (double c : cants) {
-			sims.add(Variants.of(base, doc, r -> cant(r, finId, c), null));
+			sims.add(Variants.ascentOnly(Variants.of(base, doc, r -> cant(r, finId, c), null)));
 		}
 		List<Variants.Run> runs = Variants.runAll(sims);
 		List<Case> out = new ArrayList<>();

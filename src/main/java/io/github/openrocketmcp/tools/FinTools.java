@@ -11,6 +11,8 @@ import java.util.Map;
 
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.rocketcomponent.FinSet;
+import info.openrocket.core.rocketcomponent.ParallelStage;
+import info.openrocket.core.rocketcomponent.PodSet;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.TrapezoidFinSet;
 import info.openrocket.core.rocketcomponent.position.AxialMethod;
@@ -89,9 +91,29 @@ public final class FinTools {
 				found.add(t);
 			}
 		}
+		if (found.size() > 1) {
+			// Fins on pods and side boosters (winglets, strakes) are not the rocket's fins: prefer the main airframe's.
+			List<TrapezoidFinSet> main = new ArrayList<>();
+			for (TrapezoidFinSet t : found) {
+				boolean onPod = false;
+				for (RocketComponent p = t.getParent(); p != null; p = p.getParent()) {
+					onPod |= p instanceof PodSet || p instanceof ParallelStage;
+				}
+				if (!onPod) {
+					main.add(t);
+				}
+			}
+			if (main.size() == 1) {
+				return main.get(0);
+			}
+		}
 		if (found.size() != 1) {
+			List<String> names = new ArrayList<>();
+			for (TrapezoidFinSet t : found) {
+				names.add(t.getName() + " [" + Components.shortId(t) + "]");
+			}
 			throw new ToolException(found.isEmpty() ? "The active configuration has no trapezoidal fin set."
-					: "Several trapezoidal fin sets; choose one with finSet.");
+					: "Several trapezoidal fin sets; choose one with finSet: " + String.join(", ", names) + ".");
 		}
 		return found.get(0);
 	}

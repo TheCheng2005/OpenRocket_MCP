@@ -156,7 +156,7 @@ public final class RecoveryTools {
 					}
 					out.sort((x, y) -> Double.compare((double) x.get("_d"), (double) y.get("_d")));
 					out.forEach(m -> m.remove("_d"));
-					return out.subList(0, Math.min(a.integer("limit", 40), out.size()));
+					return out.subList(0, Math.min(Math.max(1, a.integer("limit", 40)), out.size()));
 				}));
 
 		s.tool(new ToolDef("opening_shock", "Parachute opening load",
@@ -177,11 +177,14 @@ public final class RecoveryTools {
 				true, a -> {
 					Standards std = ctx.standards();
 					double rho = density(a, std, std.q("launchSite.altitudeMsl", Dim.DISTANCE, 0));
-					double m = a.qty("mass", Dim.MASS);
-					double v = a.qty("velocity", Dim.VELOCITY);
+					double m = a.positive("mass", Dim.MASS);
+					double v = a.positive("velocity", Dim.VELOCITY);
 					double cd = a.num("cd");
-					double diameter = a.qtyOrNaN("diameter", Dim.LENGTH);
-					double area = a.has("area") ? a.qty("area", Dim.AREA) : Double.isNaN(diameter) ? Double.NaN : Parachutes.circleArea(diameter);
+					if (!(cd > 0)) {
+						throw new ToolException("'cd' must be greater than zero (e.g. 1.5 for a round canopy).");
+					}
+					double diameter = a.has("diameter") ? a.positive("diameter", Dim.LENGTH) : Double.NaN;
+					double area = a.has("area") ? a.positive("area", Dim.AREA) : Double.isNaN(diameter) ? Double.NaN : Parachutes.circleArea(diameter);
 					if (Double.isNaN(area)) {
 						throw new ToolException("Give area or diameter.");
 					}
@@ -347,7 +350,7 @@ public final class RecoveryTools {
 
 	private static Object sizeParachute(Context ctx, Args a) {
 		Standards std = ctx.standards();
-		double v = a.qty("targetDescentRate", Dim.VELOCITY);
+		double v = a.positive("targetDescentRate", Dim.VELOCITY);
 		double mass;
 		double rho;
 		double cd = a.num("cd", 0.8);
@@ -372,7 +375,7 @@ public final class RecoveryTools {
 			double siteAlt = sim.getOptions().getLaunchAltitude();
 			rho = a.has("airDensity") || a.has("altitudeMsl") || a.has("altitudeAgl") ? density(a, std, siteAlt) : Atmosphere.at(siteAlt).density();
 		} else {
-			mass = a.qty("mass", Dim.MASS);
+			mass = a.positive("mass", Dim.MASS);
 			massSource = "given";
 			rho = density(a, std, std.q("launchSite.altitudeMsl", Dim.DISTANCE, 0));
 		}
@@ -495,12 +498,12 @@ public final class RecoveryTools {
 			Designs.Design d = ctx.designs.get(a.str("designId", null));
 			diameter = innerDiameter(Components.find(d.doc.getRocket(), a.str("bayTube")));
 		}
-		double volume = a.qtyOrNaN("bayVolume", Dim.VOLUME);
+		double volume = a.has("bayVolume") ? a.positive("bayVolume", Dim.VOLUME) : Double.NaN;
 		if (Double.isNaN(volume)) {
 			if (Double.isNaN(diameter) || !a.has("bayLength")) {
 				throw new ToolException("Give bayVolume, or bayDiameter/bayTube and bayLength.");
 			}
-			volume = Packing.cylinderVolume(diameter, a.qty("bayLength", Dim.LENGTH));
+			volume = Packing.cylinderVolume(diameter, a.positive("bayLength", Dim.LENGTH));
 		}
 		double sf = a.num("safetyFactor", std.q("recovery.ejectionForceSafetyFactor", Dim.DIMENSIONLESS, 1.5));
 		double pressure;
@@ -513,7 +516,7 @@ public final class RecoveryTools {
 				throw new ToolException("A bay diameter (bayDiameter or bayTube) is needed to turn pin force into pressure.");
 			}
 			double strength = pinStrength(ctx, a);
-			int pins = a.integer("pinCount", 0);
+			int pins = Math.max(0, a.integer("pinCount", 0));
 			double extra = a.qty("extraForce", Dim.FORCE, 0);
 			if ((pins == 0 || Double.isNaN(strength)) && extra == 0) {
 				throw new ToolException("Give pressure, or pinCount with pinType/pinStrength (and optionally extraForce).");

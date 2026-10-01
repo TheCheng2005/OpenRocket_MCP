@@ -237,7 +237,7 @@ public final class DesignTools {
 						c.setName(a.str("name"));
 					}
 					if (a.has("index")) {
-						parent.addChild(c, Math.min(a.integer("index", 0), parent.getChildCount()));
+						parent.addChild(c, Math.max(0, Math.min(a.integer("index", 0), parent.getChildCount())));
 					} else {
 						parent.addChild(c);
 					}

@@ -41,6 +41,12 @@ public final class MassBudget {
 	 */
 	public record Item(String part, double mass, double cg, boolean cgFromNose, String status, boolean section, String parent,
 			boolean apply, String componentId) {
+		public Item {
+			if (!(mass >= 0) || Double.isInfinite(mass)) {
+				throw new ToolException("'" + part + "': a mass must be zero or more (got " + Units.fmt(mass, Dim.MASS) + ").");
+			}
+		}
+
 		public Item(String part, double mass, double cg, boolean cgFromNose, String status, boolean section, String parent,
 				boolean apply) {
 			this(part, mass, cg, cgFromNose, status, section, parent, apply, null);
@@ -90,7 +96,11 @@ public final class MassBudget {
 			}
 			String q = cell(row, iQty);
 			if (!q.isBlank()) {
-				mass *= Double.parseDouble(q.trim());
+				try {
+					mass *= Double.parseDouble(q.trim());
+				} catch (NumberFormatException e) {
+					throw new ToolException("Row " + (r + 1) + " (" + part + "): the quantity '" + q + "' is not a number.");
+				}
 			}
 			String cg = cell(row, iCg);
 			double cgv = cg.isBlank() ? Double.NaN : quantity(cg, cgUnit, Dim.LENGTH);

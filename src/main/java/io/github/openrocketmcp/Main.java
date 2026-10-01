@@ -50,7 +50,7 @@ import io.github.openrocketmcp.tools.ViewTools;
 
 /** Entry point: stdio MCP server for OpenRocket. */
 public final class Main {
-	public static final String VERSION = "0.17.0";
+	public static final String VERSION = "0.17.1";
 
 	static final String INSTRUCTIONS = """
 			OpenRocket MCP: design, simulate and check high-power / competition rockets with OpenRocket's physics.
@@ -58,7 +58,9 @@ public final class Main {
 			- Let the tools do numeric work: use size_parachute, rank_motors, sweep, optimize, ballast, fin_flutter, monte_carlo,
 			  recovery_analysis, deployment_delay_sweep, aero_analysis rather than estimating by hand.
 			- Launch day: ask for the site's GPS coordinates and use weather_forecast (or wind_profile with winds the user
-			  types), then flight_card.
+			  types), then flight_card. rail_buttons gives the real rail exit speed and where the buttons go.
+			- Past rockets: ask for the folder of old designs and flight logs, then design_library (search, similarTo,
+			  predicted vs measured apogee over the years).
 			- Use OpenRocket's data: search_parts / apply_preset for real catalog parts, wind_profile for winds aloft,
 			  draw_rocket to show the design. What-if tools never modify the design. Deployment airspeed comes from the simulation and includes horizontal velocity and wind.
 			- Pictures and video: render_3d for exploded / cut-away 3-D views with a parts list, animate_flight for a 3-D

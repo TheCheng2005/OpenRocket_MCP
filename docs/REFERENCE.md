@@ -244,11 +244,13 @@ The 71 tools, grouped by what a team is doing. Bold marks the main job of each t
   files (any OpenRocket version) and RockSim .rkt files, sub-folders included, with altimeter logs (.csv) beside them.
   - **Per design:** year (from a folder or file name like `2024/`, else the file date), diameter, length, launch mass,
     motors and impulse class, stages, predicted apogee (the file's saved simulation, else simulated now), stability,
-    materials and recovery. Files are read without being opened; summaries are cached until a file changes.
+    materials and recovery. Files are read without being opened, several at a time, and summaries are cached until a
+    file changes. Linked files are not followed (on the team server a link could lead outside the workspace).
   - **Search:** text, diameter range, motor class (`M`, `L-N`), years, stages, or only rockets that flew. For example,
     "our 4 in rockets on M motors" is `minDiameter "3.9 in"`, `maxDiameter "4.1 in"`, `motorClass "M"`.
   - **Similar rockets:** `similarTo` ranks past designs by closeness to an open one (diameter, mass, impulse).
-  - **Predicted vs measured:** each log is matched to its design (file name first, then its folder). The table shows
+  - **Predicted vs measured:** each log is matched to its design (file name first, then its folder). Simulation data
+    exported from OpenRocket or this server is recognised and not counted as a flight. The table shows
     every flight's prediction error, the mean by year and the overall bias.
 - `compare_designs`: a **design diff** against another open design, another .ork, or an earlier **git revision** of the
   same file.
@@ -298,8 +300,19 @@ The 71 tools, grouped by what a team is doing. Bold marks the main job of each t
   `"15 psi"` or `"75 ft-lbf"`; bare numbers are SI.
 - **What-if tools never change the design.** `rank_motors`, `sweep`, `optimize`, `ballast`, `monte_carlo` and
   `deployment_delay_sweep` fly each variant on a copy of the rocket, in parallel across CPU cores.
+- **Faster studies:** studies that only read the climb (`rank_motors`, `optimize`, `optimize_fins`, `compare_shapes`,
+  `ballast`, `roll_analysis`) stop each flight once its first parachute is out, skipping the long descent. Apogee,
+  stability, rail exit, Mach, flutter and ejection timing are unchanged (a test checks this).
+- **Arguments are checked:** an argument a tool does not take is refused with the tool's list and the closest name, not
+  silently ignored. Listed choices accept any case and spaces (`"Max apogee"` = `max_apogee`). Masses, rates, lengths
+  and volumes that must be positive are checked.
+- **Component names:** an id, a full name, or a piece of a name that only one part has (`"Apex"` for
+  `Apex 12" Drogue Parachute`).
+- **Files people bring** (altimeter logs, mass budgets, aero tables) may be UTF-8 or Windows-1252, as Excel and many
+  altimeter programs write them, with or without a byte-order mark.
 - **Fair comparisons:** variants share the same wind turbulence, so differences come from the change being studied.
-  Monte Carlo results repeat for a given seed.
+  Monte Carlo results repeat for a given seed, and the same design file gives the same flight in every session
+  (OpenRocket does not save the turbulence seed, so every opened simulation gets a fixed one).
 - **Prompts and resources:** MCP prompts `recovery_review`, `design_review` and `motor_selection`; resources
   `openrocket://standards`, `openrocket://rules` and `openrocket://methods`.
 

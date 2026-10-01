@@ -288,6 +288,13 @@ public final class RailButtons {
 
 	public static Map<String, Object> analyse(Simulation sim, Options o, boolean apply, double[] manual) {
 		Model m = new Model(sim, o);
+		if (o.standoff() < 0 || o.standoff() >= m.railLength) {
+			throw new ToolException("standoff (the rocket's aft end above the foot of the rail) must be between 0 and the rail length, "
+					+ Units.fmt(m.railLength, Dim.LENGTH) + ".");
+		}
+		if (o.clearance() < 0 || o.minSpacing() < 0 || o.windSpeed() < 0) {
+			throw new ToolException("clearance, minSpacing and crosswind cannot be negative.");
+		}
 		Map<String, Object> out = new LinkedHashMap<>();
 		List<String> notes = new ArrayList<>();
 		Map<String, Object> setup = new LinkedHashMap<>();

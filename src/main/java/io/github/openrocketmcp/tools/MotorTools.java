@@ -78,7 +78,7 @@ public final class MotorTools {
 						+ "certification level, manufacturer or designation. For simulated ranking in a design, use rank_motors.",
 				filterSchema(Schema.object()).integer("limit", "Maximum results (default 40).", false).build(), true, a -> {
 					List<ThrustCurveMotor> found = Motors.search(filter(a, Double.NaN));
-					int limit = a.integer("limit", 40);
+					int limit = Math.max(1, a.integer("limit", 40));
 					List<Map<String, Object>> out = new ArrayList<>();
 					for (ThrustCurveMotor m : found.subList(0, Math.min(limit, found.size()))) {
 						out.add(Motors.describe(m));
@@ -321,7 +321,7 @@ public final class MotorTools {
 		if (objective.equals("target_apogee") && Double.isNaN(target)) {
 			throw new ToolException("targetApogee is required for objective=target_apogee.");
 		}
-		int budget = Math.min(120, a.integer("maxCandidates", 60));
+		int budget = Math.max(2, Math.min(120, a.integer("maxCandidates", 60)));
 
 		MotorConfiguration original = fc.getId() == null ? null : mount.getMotorConfig(fc.getId());
 		Simulation base = Sims.prepare(d, null, fc.getId().toString(), Sims.Overrides.none(), ctx.standards(), false, true);
@@ -348,6 +348,7 @@ public final class MotorTools {
 					r.getFlightConfiguration(fc.getId()).update();
 				}, null));
 			}
+			variants.forEach(Variants::ascentOnly); // ranking reads the ascent and the first deployment only
 			List<Variants.Run> runs = Variants.runAll(variants);
 			List<Ranked> out = new ArrayList<>();
 			for (int i = 0; i < runs.size(); i++) {
@@ -405,7 +406,7 @@ public final class MotorTools {
 		results.sort(Comparator.comparing((Ranked r) -> !r.compliant()).thenComparing(byObjective));
 
 		List<Map<String, Object>> rows = new ArrayList<>();
-		int shown = Math.min(a.integer("limit", 12), results.size());
+		int shown = Math.min(Math.max(1, a.integer("limit", 12)), results.size());
 		for (Ranked r : results.subList(0, shown)) {
 			ThrustCurveMotor m = r.motor();
 			Map<String, Object> row = new LinkedHashMap<>();

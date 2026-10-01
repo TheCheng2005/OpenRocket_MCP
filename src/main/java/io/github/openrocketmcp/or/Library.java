@@ -2,6 +2,7 @@ package io.github.openrocketmcp.or;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.ZoneOffset;
@@ -14,6 +15,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -49,7 +51,10 @@ public final class Library {
 	}
 
 	static final int MAX_FILES = 2000;
-	private static final Pattern YEAR = Pattern.compile("(?<![0-9])(19[89][0-9]|20[0-9][0-9])(?![0-9])");
+	/** A year standing on its own in a path ("2024/", "maple-2025.ork"), not part of a motor ("M2020") or a size. */
+	private static final Pattern YEAR = Pattern.compile("(?<![0-9A-Za-z])(19[89][0-9]|20[0-9][0-9])(?![0-9])");
+	/** CSVs bigger than this are not altimeter logs worth reading (an altimeter log at 100 Hz is a few MB). */
+	static final long MAX_LOG_BYTES = 50L << 20;
 
 	/** One past design. Lengths in m, mass in kg, apogee in m (NaN when unknown). */
 	public record Entry(Path file, String relPath, String name, int year, String yearSource, int stages, double length,
@@ -83,7 +88,8 @@ public final class Library {
 		OrRuntime.init();
 		List<Path> designFiles = new ArrayList<>(), logFiles = new ArrayList<>();
 		try (Stream<Path> walk = Files.walk(root, 8)) {
-			walk.filter(Files::isRegularFile).sorted().forEach(p -> {
+			// Links are not followed: on the team server a link could point outside the workspace.
+			walk.filter(p -> Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)).sorted().forEach(p -> {
 				String n = p.getFileName().toString().toLowerCase(Locale.ROOT);
 				if (n.startsWith(".")) {
 					return;
@@ -100,12 +106,21 @@ public final class Library {
 		}
 		CallContext call = CallContext.current();
 		call.expect(designFiles.size(), "designs read");
-		List<Entry> designs = new ArrayList<>();
+		List<Callable<Entry>> reads = new ArrayList<>();
 		for (Path p : designFiles) {
-			call.checkCancelled();
-			designs.add(entry(root, p, simulate));
-			call.advance();
+			reads.add(() -> {
+				if (call.isCancelled()) {
+					return failed(p, rel(root, p), "cancelled");
+				}
+				try {
+					return entry(root, p, simulate);
+				} finally {
+					call.advance();
+				}
+			});
 		}
+		List<Entry> designs = Variants.parallel(reads); // each design is read and flown on its own
+		call.checkCancelled();
 		List<Flight> flights = new ArrayList<>();
 		List<String> skipped = new ArrayList<>();
 		for (Path p : logFiles) {
@@ -113,7 +128,16 @@ public final class Library {
 			String rel = rel(root, p);
 			double apogee;
 			try {
-				FlightLog.Log log = FlightLog.parse(Files.readString(p), null);
+				if (Files.size(p) > MAX_LOG_BYTES) {
+					skipped.add(rel + " (over " + (MAX_LOG_BYTES >> 20) + " MB: not an altimeter log)");
+					continue;
+				}
+				String text = TextFiles.read(p);
+				if (simulatedExport(text)) {
+					skipped.add(rel + " (simulation data exported from OpenRocket, not a flight)");
+					continue;
+				}
+				FlightLog.Log log = FlightLog.parse(text, null);
 				apogee = FlightLog.metrics(log.t(), log.alt()).apogee();
 			} catch (RuntimeException | IOException e) {
 				skipped.add(rel + " (not an altimeter log of time and altitude)");
@@ -132,6 +156,13 @@ public final class Library {
 			}
 		}
 		return new Scan(root, designs, flights, skipped);
+	}
+
+	/** OpenRocket's (and this server's) flight data exports: event comments and simulation-only columns. */
+	static boolean simulatedExport(String text) {
+		String head = text.substring(0, Math.min(text.length(), 4000)).toLowerCase(Locale.ROOT);
+		return head.contains("# event") || head.contains("occurred at t=") || head.contains("stability margin")
+				|| head.contains("openrocket");
 	}
 
 	static String rel(Path root, Path p) {
@@ -183,6 +214,7 @@ public final class Library {
 		OpenRocketDocument doc;
 		try {
 			doc = new GeneralRocketLoader(p.toFile()).load();
+			Designs.repeatable(doc);
 		} catch (Exception | LinkageError e) {
 			return failed(p, rel, "OpenRocket could not read it: " + e.getMessage());
 		}
@@ -245,6 +277,7 @@ public final class Library {
 				Simulation run = pick != null ? pick.copy() : new Simulation(doc, doc.getRocket());
 				if (pick == null) {
 					run.setFlightConfigurationId(fc.getFlightConfigurationID());
+					run.getOptions().setRandomSeed(Sims.NEW_SIMULATION_SEED);
 				}
 				try {
 					Sims.run(run);

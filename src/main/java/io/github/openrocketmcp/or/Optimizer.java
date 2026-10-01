@@ -319,7 +319,7 @@ public final class Optimizer {
 					err[0] = e.getMessage();
 				}
 			};
-			Simulation s = Variants.of(base, doc, edit, null);
+			Simulation s = Variants.ascentOnly(Variants.of(base, doc, edit, null));
 			if (applier.openRocketDrag()) {
 				AeroTable.without(s);
 			}
@@ -329,7 +329,7 @@ public final class Optimizer {
 					st.launchMass(), Double.NaN, err[0]));
 			sims.add(s);
 			if (wind) {
-				Simulation w = Variants.of(base, doc, edit, null);
+				Simulation w = Variants.ascentOnly(Variants.of(base, doc, edit, null));
 				if (applier.openRocketDrag()) {
 					AeroTable.without(w);
 				}
