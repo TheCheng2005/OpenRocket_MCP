@@ -115,7 +115,7 @@ public final class AdvancedTools {
 					if (levels == null) {
 						throw new ToolException("The active rule set has no probation levels (use launch-canada-2027).");
 					}
-					double v = a.qty("glppVolume", Dim.VOLUME);
+					double v = a.positive("glppVolume", Dim.VOLUME);
 					JsonObject level = null;
 					for (JsonElement e : levels) {
 						JsonObject l = e.getAsJsonObject();

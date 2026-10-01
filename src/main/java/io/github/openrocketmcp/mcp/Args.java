@@ -82,6 +82,15 @@ public final class Args {
 		return qtyOf(json.get(key), key, dim);
 	}
 
+	/** A quantity that only makes sense above zero (a mass, rate, volume or length). */
+	public double positive(String key, Dim dim) {
+		double v = qty(key, dim);
+		if (!(v > 0) || Double.isInfinite(v)) {
+			throw new ToolException("'" + key + "' must be greater than zero (got " + json.get(key) + ").");
+		}
+		return v;
+	}
+
 	public double qty(String key, Dim dim, double fallback) {
 		return has(key) ? qty(key, dim) : fallback;
 	}

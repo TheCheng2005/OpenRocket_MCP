@@ -98,7 +98,7 @@ public final class Shapes {
 		boolean autoMach = false;
 		String noseId = nose.getID().toString();
 		if (Double.isNaN(designMach)) { // compare every option's drag at the current design's peak Mach
-			Variants.Run r0 = Variants.runAll(List.of(Variants.of(base, doc, null, null))).get(0);
+			Variants.Run r0 = Variants.runAll(List.of(Variants.ascentOnly(Variants.of(base, doc, null, null)))).get(0);
 			if (!r0.ok()) {
 				throw new ToolException("Simulation failed: " + r0.error());
 			}
@@ -237,7 +237,7 @@ public final class Shapes {
 	static List<Row> evaluate(Simulation base, OpenRocketDocument doc, List<Option> opts, double designMach) {
 		List<Simulation> sims = new ArrayList<>();
 		for (Option o : opts) {
-			sims.add(Variants.of(base, doc, o.edit(), null));
+			sims.add(Variants.ascentOnly(Variants.of(base, doc, o.edit(), null)));
 		}
 		CallContext.current().expect(sims.size(), "shapes flown");
 		List<Variants.Run> runs = Variants.runAll(sims);

@@ -361,6 +361,42 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
     no buttons, it adds a Delrin pair. The result is verified against OpenRocket's instance positions, and undo
     reverts it.
 
+### Bug and speed sweep (v0.17.1)
+
+- A sweep ran about 45 tool calls on each of the 15 bundled examples, plus an edge-case probe (zero, negative, unknown
+  and oversized inputs). Fixes:
+  - **Arguments:** `McpServer` refuses arguments a tool does not declare, naming the tool's arguments and the closest
+    match. Before, they were dropped silently: `search_motors` with a made-up filter returned every motor. Enum
+    arguments are checked and normalised (case, spaces, hyphens). An unknown value used to surface as a Java
+    `IllegalArgumentException` or a bare "Unknown action".
+  - **Physical inputs:** `Args.positive` guards masses, rates, lengths and volumes that must be above zero
+    (`size_parachute` returned an "Infinity" parachute for 0 ft/s; `ejection_charge` a 0 g charge for a 0-length
+    bay). Budget lines with negative mass are refused. Negative `limit`, `maxCandidates` and `index` values no
+    longer throw index errors.
+  - **`sweep`:** an unknown launch-condition name is refused (it used to fly the same rocket N times).
+  - **`rail_buttons`:** a standoff taller than the rail is refused with that reason.
+  - **Component references** may be a piece of a name that only one part has. Ambiguous pieces list the candidates.
+  - **`optimize_fins`** prefers the main airframe's fin set over fin sets on pods or side boosters, and names the
+    candidates when it cannot choose.
+  - **User files** (`TextFiles`): UTF-8 or Windows-1252, without a byte-order mark. Logs, budgets and aero tables
+    exported from Windows software failed to read before.
+  - **`design_library`:**
+    - years are no longer taken from motor names ("M2020");
+    - simulation exports are not counted as flights;
+    - CSVs over 50 MB are skipped;
+    - linked files are not followed;
+    - designs are read in parallel on the simulation pool.
+- Speed: `AscentOnly` ends a flight branch 0.5 s after its first recovery deployment past apogee (or 60 s after
+  apogee). Studies that read only the climb use it: motor ranking, optimizers, shape study, ballast and roll. About
+  half the integration steps are skipped. Ascent results are identical (`AscentOnlyTest`), and the benchmark went
+  from 73 s to 64 s. Monte Carlo, `compare_flight` and anything reporting descent or landing still fly the whole
+  flight.
+- Repeatability: OpenRocket does not save a simulation's random seed in the .ork. Each open drew a new turbulence
+  seed, so tilt, drift and landing points changed from session to session (the two-stage example's sustainer
+  landing ranged over 32-44 m across three runs). `Designs.repeatable` gives every opened simulation the fixed seed
+  that new simulations use, without marking the file changed; `RepeatableTest` reopens a file and compares.
+- Server instructions mention `rail_buttons` and `design_library`.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

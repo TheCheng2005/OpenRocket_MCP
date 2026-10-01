@@ -144,6 +144,35 @@ class LibraryTest {
 		assertNull(Library.match(tmp.resolve("x.csv"), scan.designs())[0]);
 	}
 
+	@Test
+	void yearsComeFromThePathButNotFromMotorNames(@TempDir Path tmp) throws Exception {
+		Path f = Files.writeString(tmp.resolve("x.ork"), "");
+		assertEquals(2024, Library.year("2024/maple.ork", f)[0]);
+		assertEquals(2025, Library.year("old/maple-2025-v2.ork", f)[0]);
+		assertEquals(0, Library.year("valkyrie-M2020.ork", f)[1], "M2020 is a motor, not a year");
+		assertEquals(0, Library.year("boattail2030mm.ork", f)[1]);
+	}
+
+	@Test
+	void simulationExportsAndOtherEncodingsAreHandled(@TempDir Path tmp) throws Exception {
+		library(tmp);
+		// The same flight written by Windows software: Latin-1 degree sign and a byte-order mark.
+		byte[] bom = { (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
+		String log = log(600).replace("Time (s)", "Time (s) at 20\u00b0C");
+		byte[] body = log.getBytes(java.nio.charset.Charset.forName("windows-1252"));
+		byte[] all = new byte[bom.length + body.length];
+		System.arraycopy(bom, 0, all, 0, bom.length);
+		System.arraycopy(body, 0, all, bom.length, body.length);
+		Files.write(tmp.resolve("2025/dual/dual-v2-flight2.csv"), all);
+		// A simulation export beside the design is not a flight.
+		Files.writeString(tmp.resolve("2025/dual/dual-v2-sim.csv"),
+				"\"Time [s]\",\"Altitude [m]\",\"Stability margin calibers\"\n" + log(900).lines().skip(1)
+						.map(l -> l + ",2").reduce("", (x, y) -> x + y + "\n"));
+		Library.Scan scan = Library.scan(tmp, false);
+		assertEquals(2, scan.flights().size(), scan.flights().toString());
+		assertTrue(scan.skipped().stream().anyMatch(x -> x.startsWith("2025/dual/dual-v2-sim.csv (simulation")), scan.skipped().toString());
+	}
+
 	private static Library.Query q(String text, double min, double max, String cls, int from, int to) {
 		return new Library.Query(text, min, max, cls, from, to, 0, false, null);
 	}

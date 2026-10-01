@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -152,15 +153,30 @@ public final class SimTools {
 
 	private static Object sweep(Context ctx, Args a) {
 		Designs.Design d = ctx.designs.get(a.str("designId", null));
-		String param = a.str("parameter");
+		String asked = a.str("parameter");
 		RocketComponent comp = a.has("component") ? Components.find(d.doc.getRocket(), a.str("component")) : null;
 		JsonArray values = a.array("values");
 		if (values.isEmpty()) {
 			throw new ToolException("values must not be empty.");
 		}
+		String match = asked;
 		if (comp != null) {
-			Components.getRaw(comp, param); // validates the property name up front
+			Components.getRaw(comp, asked); // validates the property name up front
+		} else {
+			// A launch condition: one of the overrides, any case ("WindSpeed", "wind speed").
+			match = null;
+			Set<String> conditions = overrides(Schema.object()).build().getAsJsonObject("properties").keySet();
+			for (String c : conditions) {
+				if (c.equalsIgnoreCase(asked.replaceAll("[\\s_-]", ""))) {
+					match = c;
+				}
+			}
+			if (match == null) {
+				throw new ToolException("'" + asked + "' is not a launch condition (" + String.join(", ", conditions)
+						+ "). To sweep a part's property, also give component.");
+			}
 		}
+		String param = match;
 		Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
 				ctx.standards(), false);
 		String compId = comp == null ? null : comp.getID().toString();

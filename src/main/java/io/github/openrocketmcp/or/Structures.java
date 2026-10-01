@@ -241,7 +241,7 @@ public final class Structures {
 					+ "needed for " + Units.num(target) + " cal; move it forward (e.g. into the nose cone) or add fin area.");
 		}
 		int sims = 1;
-		Variants.Run r0 = Variants.runAll(List.of(Variants.of(base, doc, null, null))).get(0);
+		Variants.Run r0 = Variants.runAll(List.of(Variants.ascentOnly(Variants.of(base, doc, null, null)))).get(0);
 		if (!r0.ok()) {
 			throw new ToolException("Simulation failed: " + r0.error());
 		}
@@ -254,7 +254,7 @@ public final class Structures {
 		Variants.Run r1 = r0;
 		if (s0 < target && guess > 0) {
 			double g = guess;
-			r1 = Variants.runAll(List.of(Variants.of(base, doc, r -> addBallast(find(r, pid), local, g), null))).get(0);
+			r1 = Variants.runAll(List.of(Variants.ascentOnly(Variants.of(base, doc, r -> addBallast(find(r, pid), local, g), null)))).get(0);
 			sims++;
 			if (!r1.ok()) {
 				throw new ToolException("Simulation failed: " + r1.error());
@@ -299,7 +299,7 @@ public final class Structures {
 					mn = Math.min(mn, 4 * mb + 0.05); // guard against runaway steps
 				}
 				double mm = mn;
-				Variants.Run rn = Variants.runAll(List.of(Variants.of(base, doc, r -> addBallast(find(r, pid), local, mm), null))).get(0);
+				Variants.Run rn = Variants.runAll(List.of(Variants.ascentOnly(Variants.of(base, doc, r -> addBallast(find(r, pid), local, mm), null)))).get(0);
 				sims++;
 				if (!rn.ok()) {
 					break;

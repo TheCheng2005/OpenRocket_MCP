@@ -26,6 +26,7 @@ import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.FlightLog;
 import io.github.openrocketmcp.or.Presets;
 import io.github.openrocketmcp.or.Sims;
+import io.github.openrocketmcp.or.TextFiles;
 import io.github.openrocketmcp.or.Variants;
 import io.github.openrocketmcp.or.Winds;
 import io.github.openrocketmcp.report.Drawing;
@@ -206,7 +207,7 @@ public final class AeroTools {
 
 	static String readText(Context ctx, Args a, String pathKey, String textKey) throws IOException {
 		if (a.has(pathKey)) {
-			return Files.readString(ctx.path(a.str(pathKey)));
+			return TextFiles.read(ctx.path(a.str(pathKey)));
 		}
 		if (a.has(textKey)) {
 			return a.str(textKey);

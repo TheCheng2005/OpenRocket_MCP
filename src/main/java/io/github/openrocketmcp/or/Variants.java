@@ -2,10 +2,12 @@ package io.github.openrocketmcp.or;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -44,6 +46,15 @@ public final class Variants {
 	/** Attaches listeners used when {@code sim} is run through {@link #runAll}. */
 	public static Simulation listen(Simulation sim, SimulationListener... listeners) {
 		LISTENERS.put(sim, listeners);
+		return sim;
+	}
+
+	/** Ends the flight once it is past apogee and its first recovery device is out (see {@link AscentOnly}). */
+	public static Simulation ascentOnly(Simulation sim) {
+		SimulationListener[] had = LISTENERS.get(sim);
+		SimulationListener[] l = had == null ? new SimulationListener[1] : Arrays.copyOf(had, had.length + 1);
+		l[l.length - 1] = new AscentOnly();
+		LISTENERS.put(sim, l);
 		return sim;
 	}
 
@@ -133,6 +144,30 @@ public final class Variants {
 			}
 		}
 		call.checkCancelled();
+		return out;
+	}
+
+	/**
+	 * Runs independent tasks on the simulation pool, in order. The tasks must not call {@link #runAll} themselves (they
+	 * would wait on the pool they run in).
+	 */
+	static <T> List<T> parallel(List<Callable<T>> tasks) {
+		List<Future<T>> futures = new ArrayList<>();
+		for (Callable<T> t : tasks) {
+			futures.add(POOL.submit(t));
+		}
+		List<T> out = new ArrayList<>();
+		for (Future<T> f : futures) {
+			try {
+				out.add(f.get());
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new ToolException("Interrupted");
+			} catch (ExecutionException e) {
+				Throwable c = e.getCause() == null ? e : e.getCause();
+				throw c instanceof RuntimeException r ? r : new ToolException(c.getMessage(), c);
+			}
+		}
 		return out;
 	}
 

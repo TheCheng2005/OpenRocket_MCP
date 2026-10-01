@@ -108,7 +108,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 <sub>Tools Claude uses: `edit_components`, `fin_flutter`</sub>
 
-> Claude makes the change and checks it: flutter **FAIL**, margin 0.7306 (flutter speed / airspeed; the team wants 1.5). Thinner fins would need 5.129 mm to be safe.
+> Claude makes the change and checks it: flutter **FAIL**, margin 0.7305 (flutter speed / airspeed; the team wants 1.5). Thinner fins would need 5.129 mm to be safe.
 
 ### 9. "Undo that."
 
@@ -156,7 +156,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 |---|---|---|---|
 | WARN | Launch site altitude | 0 m (0 ft) used by this simulation |  |
 | WARN | Ascent stability (maximum, over-stability) | 5.693 cal | R10.3.1, R10.4.1 |
-| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.689 cal | R10.3.1, R10.4.1 |
+| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.692 cal | R10.3.1, R10.4.1 |
 | WARN | Maximum Mach number | 1.175 |  |
 | PASS | Simulated launch angle | 6 deg | R10.1.1 |
 | PASS | Rail departure velocity | 41.63 m/s (136.6 ft/s) | R10.2.1 |
@@ -179,7 +179,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 <sub>Tools Claude uses: `monte_carlo`</sub>
 
-> Over 200 simulated flights the median landing is 201.2 m (660.1 ft) from the pad and 95% land within 489.3 m (1605 ft); the landings centre 494 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 201.1 m (659.6 ft).
+> Over 200 simulated flights the median landing is 200.6 m (658.3 ft) from the pad and 95% land within 487.1 m (1598 ft); the landings centre 495 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 201.2 m (660.2 ft).
 
 ![200 simulated landings around the pad with the 2-sigma ellipse](examples/landing.svg)
 
@@ -189,12 +189,12 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 
 | Uncertain input | Apogee | Min stability | Landing distance |
 |---|---|---|---|
-| windSpeed | -0.1303 | -0.9653 | -0.6773 |
-| launchAngle | -0.1489 | -0.006994 | 0.3163 |
-| structureMass | -0.05115 | 0.1309 | 0.09484 |
-| airframeDrag | -0.9259 | 0.04255 | -0.173 |
-| motorThrust | 0.3178 | 0.08091 | -0.01958 |
-| parachuteCd | -0.03381 | 0.03086 | -0.075 |
+| windSpeed | -0.13 | -0.9653 | -0.678 |
+| launchAngle | -0.1496 | -0.006994 | 0.3152 |
+| structureMass | -0.0506 | 0.1309 | 0.09416 |
+| airframeDrag | -0.9259 | 0.04255 | -0.1735 |
+| motorThrust | 0.3179 | 0.08091 | -0.02008 |
+| parachuteCd | -0.03481 | 0.03086 | -0.07641 |
 
 <sub>Correlation from -1 to 1: the closer to ±1, the more that input drives the result.</sub>
 
@@ -214,7 +214,7 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 | Von Karman (Haack LD) | square (current) | 3002 m (9850 ft) | 0.4851% | 1.341 | 3.525 cal |
 | 1/2 power | square (current) | 3001 m (9847 ft) | 0.4484% | 1.34 | 3.537 cal |
 | LV-Haack | square (current) | 2993 m (9821 ft) | 0.189% | 1.356 | 3.533 cal |
-| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02348% | 1.36 | 3.513 cal |
+| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02337% | 1.36 | 3.513 cal |
 | tangent ogive (current) | square (current) | 2988 m (9803 ft) | 0% | 1.351 | 3.522 cal |
 
 <details><summary>Claude's shape guidance (from the tool)</summary>
@@ -312,7 +312,7 @@ Paint and primer,90,estimated,no,Upper airframe
 |---|---|---|
 | Launch site | WARN | Launch site altitude: 0 m (0 ft) used by this simulation |
 | Stability | WARN | Ascent stability (maximum, over-stability): 5.683 cal (R10.3.1, R10.4.1) |
-| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.68 cal (R10.3.1, R10.4.1) |
+| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.683 cal (R10.3.1, R10.4.1) |
 | Rules | WARN | Maximum Mach number: 1.144 |
 | Standards | TODO | The team standards were changed in this session but are not saved to a file, so the next session and the rest of the team will not have them. |
 | File | TODO | Unsaved changes (22 edit(s) this session, undo available). |
@@ -442,9 +442,9 @@ Real time through the burn, slowed down around apogee and each deployment; the c
 
 <sub>Tools Claude uses: `run_simulation`, `render_3d`, `animate_flight`</sub>
 
-> The sustainer lights at 1.535 s, 62.8 m up at 67.4 m/s and 4.767 deg off vertical (thrust-to-weight 10.27); apogee 674.5 m.
-> - Sustainer: lands 33.01 m from the pad at 6.286 m/s.
-> - Booster: lands 32.3 m from the pad at 8.493 m/s.
+> The sustainer lights at 1.535 s, 62.83 m up at 67.42 m/s and 4.759 deg off vertical (thrust-to-weight 10.27); apogee 674.9 m.
+> - Sustainer: lands 36.18 m from the pad at 6.356 m/s.
+> - Booster: lands 32.44 m from the pad at 8.448 m/s.
 
 ![Exploded view of a two-stage rocket: the sustainer and booster bracketed with their masses, every part numbered](examples/two-stage-exploded.png)
 
@@ -468,8 +468,8 @@ Each stage is followed through the whole flight. The captions name the stage (bo
 
 | Rocket | File | Year | Motors | Predicted apogee |
 |---|---|---|---|---|
-| Maple 10K | 2026/maple/maple-10k.ork | 2026 | M1315W (M, 6645 Ns (1494 lbf-s)) | 3026 m (9929 ft) (simulated now ('MCP - [L1250DM-P]')) |
-| Maple 10K | 2025/maple-pdr/maple-pdr.ork | 2025 | L1250DM (L, 4400 Ns (989.2 lbf-s)) | 3142 m (10310 ft) (simulated now in OpenRocket's default conditions (no simulation in the file)) |
+| Maple 10K | 2026/maple/maple-10k.ork | 2026 | M1315W (M, 6645 Ns (1494 lbf-s)) | 3023 m (9918 ft) (simulated now ('MCP - [L1250DM-P]')) |
+| Maple 10K | 2025/maple-pdr/maple-pdr.ork | 2025 | L1250DM (L, 4400 Ns (989.2 lbf-s)) | 3141 m (10306 ft) (simulated now in OpenRocket's default conditions (no simulation in the file)) |
 | Two stage high power rocket | 2024/two-stage.ork | 2024 | H148R, H148R (I, 430.4 Ns (96.75 lbf-s)) | 675 m (2214 ft) (saved result of 'Simulation 1') |
 
 Each altimeter log is matched to its design by name or folder:

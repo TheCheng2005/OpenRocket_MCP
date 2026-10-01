@@ -105,6 +105,25 @@ public final class Components {
 			}
 			throw new ToolException("Several components are named '" + ref + "'; use an id:" + sb);
 		}
+		// No exact name: a piece of one ("Apex" for "Apex 12\" Drogue Parachute") when only one part has it.
+		List<RocketComponent> partial = new ArrayList<>();
+		String lower = r.toLowerCase(Locale.ROOT);
+		for (RocketComponent c : rocket) {
+			if (r.length() >= 3 && c.getName().toLowerCase(Locale.ROOT).contains(lower)) {
+				partial.add(c);
+			}
+		}
+		if (partial.size() == 1) {
+			return partial.get(0);
+		}
+		if (partial.size() > 1) {
+			StringBuilder sb = new StringBuilder();
+			for (RocketComponent c : partial.subList(0, Math.min(8, partial.size()))) {
+				sb.append(sb.length() > 0 ? ", " : " ").append(c.getName()).append(" [").append(shortId(c)).append(']');
+			}
+			throw new ToolException("'" + ref + "' matches several components:" + sb + (partial.size() > 8 ? ", ..." : "")
+					+ ". Use a full name or an id.");
+		}
 		throw new ToolException("No component '" + ref + "'. Use get_design to list component ids.");
 	}
 

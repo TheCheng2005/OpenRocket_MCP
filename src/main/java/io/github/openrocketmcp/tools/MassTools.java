@@ -19,6 +19,7 @@ import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.Geometry;
 import io.github.openrocketmcp.or.MassBudget;
+import io.github.openrocketmcp.or.TextFiles;
 import io.github.openrocketmcp.units.Dim;
 
 /** Mass budget and weigh-in tracking. */
@@ -70,7 +71,7 @@ public final class MassTools {
 			items.addAll(MassBudget.parseCsv(a.str("csv"), massUnit, lengthUnit));
 		}
 		if (a.has("path")) {
-			items.addAll(MassBudget.parseCsv(Files.readString(ctx.path(a.str("path"))), massUnit, lengthUnit));
+			items.addAll(MassBudget.parseCsv(TextFiles.read(ctx.path(a.str("path"))), massUnit, lengthUnit));
 		}
 		if (a.has("items")) {
 			for (Args it : a.objList("items")) {

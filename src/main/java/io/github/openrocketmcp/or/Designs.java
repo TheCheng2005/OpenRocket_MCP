@@ -13,6 +13,7 @@ import java.util.Map;
 
 import info.openrocket.core.document.OpenRocketDocument;
 import info.openrocket.core.document.OpenRocketDocumentFactory;
+import info.openrocket.core.document.Simulation;
 import info.openrocket.core.file.GeneralRocketLoader;
 import info.openrocket.core.file.GeneralRocketSaver;
 import info.openrocket.core.file.RocketLoadException;
@@ -125,6 +126,9 @@ public final class Designs {
 	}
 
 	private Design register(OpenRocketDocument doc, Path path, String origin) {
+		boolean saved = doc.isSaved();
+		repeatable(doc);
+		doc.setSaved(saved);
 		String id = "d" + (++counter);
 		Design d = new Design(id, doc, path, origin);
 		for (FlightConfiguration fc : doc.getRocket().getFlightConfigurations()) {
@@ -132,6 +136,17 @@ public final class Designs {
 		}
 		designs.put(id, d);
 		return d;
+	}
+
+	/**
+	 * OpenRocket does not store a simulation's random seed in the file, so each time a design was opened its turbulence,
+	 * and with it tilt, drift and landing points, came out a little different. Every simulation of an opened design gets
+	 * the same seed as the simulations this server creates, so the same file gives the same answers in every session.
+	 */
+	static void repeatable(OpenRocketDocument doc) {
+		for (Simulation s : doc.getSimulations()) {
+			s.getOptions().setRandomSeed(Sims.NEW_SIMULATION_SEED);
+		}
 	}
 
 	/** An imported RASAero / aero table lives next to the design (rocket.aero.json) and comes back on open. */
