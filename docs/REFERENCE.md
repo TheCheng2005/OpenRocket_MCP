@@ -352,7 +352,8 @@ The 76 tools, grouped by what a team is doing. Bold marks the main job of each t
   and the allowed range: no negative masses, areas, densities or delays; Cd above zero; latitude within ±90°; wind
   0–150 m/s; launch angle 0–60°; site temperature −100 to +100 °C; nothing beyond any rocket's scale (a 10^30 m/s wind
   or a 1 km fin is a typo or a wrong unit). Counts are whole numbers, switches are true or false. Team standards are
-  checked the same way when loaded or changed, and a section replaced by a value of another shape is refused.
+  checked the same way when loaded or changed, and a section replaced by a value of another shape is refused. Every
+  argument is checked before the tool runs, including ones the chosen options would not use.
 - **Parts:** a negative size or mass is refused, and so is a zero thickness, chord or span on fins, a zero length or
   diameter on tubes and nose cones, or a zero Cd or diameter on a parachute. Positions, offsets, sweep and motor
   overhang may be negative. When OpenRocket limits a value (a wall thicker than the tube's radius, a cant over 15°),

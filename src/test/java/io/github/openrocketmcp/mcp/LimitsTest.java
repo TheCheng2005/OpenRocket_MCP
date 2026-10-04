@@ -58,4 +58,18 @@ class LimitsTest {
 		assertTrue(args("{\"apply\": \"yes\"}").bool("apply", false));
 		assertTrue(refused(() -> args("{\"mass\": [1]}").qty("mass", Dim.MASS)).contains("quantity with units"));
 	}
+
+	@Test
+	void argumentsAreCheckedEvenWhenTheToolWouldNotReadThem() {
+		var schema = JsonParser.parseString("{\"properties\": {\"pinCount\": {\"type\": \"integer\"}}}").getAsJsonObject();
+		assertTrue(refused(() -> Limits.precheck(JsonParser.parseString("{\"targetApogee\": \"1e30 m\"}").getAsJsonObject(), schema))
+				.contains("targetApogee"));
+		assertTrue(refused(() -> Limits.precheck(JsonParser.parseString("{\"pinCount\": 2.5}").getAsJsonObject(), schema))
+				.contains("whole number"));
+		assertTrue(refused(() -> Limits.precheck(JsonParser.parseString("{\"weldKnockdown\": 0.5}").getAsJsonObject(), schema))
+				.contains("weldKnockdown"));
+		// Ordinary values, values in another unit (left for the tool to name) and text pass.
+		Limits.precheck(JsonParser.parseString("{\"targetApogee\": \"10000 ft\", \"weldKnockdown\": 1.3, \"mass\": \"20 ft/s\", "
+				+ "\"cd\": \"auto\"}").getAsJsonObject(), schema);
+	}
 }

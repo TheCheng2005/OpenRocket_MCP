@@ -103,6 +103,9 @@ public final class Limits {
 		nonNegative(Dim.ANGLE, 180 * DEG, "launchAngleSd", "launchDirectionSd", "windDirectionSd");
 		name(Dim.ANGLE, -90 * DEG, false, 90 * DEG, "angleOfAttack", "pathAngle");
 		name(Dim.ANGLE, -30 * DEG, false, 30 * DEG, "cantAngles");
+		name(Dim.ANGLE, -720 * DEG, false, 720 * DEG, "direction", "windDirection", "launchDirection");
+		name(Dim.DIMENSIONLESS, -720, false, 720, "azimuth");
+		nonNegative(Dim.FORCE, 1e8, "extraForce");
 		nonNegative(Dim.ANGLE, 85 * DEG, "maxSweepAngle");
 		name(Dim.DIMENSIONLESS, -90, false, 90, "latitude", "siteLatitude", "elevation");
 		name(Dim.DIMENSIONLESS, -180, false, 360, "longitude", "siteLongitude");
@@ -113,7 +116,8 @@ public final class Limits {
 		positive(Dim.DIMENSIONLESS, 100, "fillConstant");
 		// (monte_carlo checks its own spreads, massSd etc., with a more specific message.)
 		nonNegative(Dim.DIMENSIONLESS, 1, "tolerance", "contingency", "turbulence", "windTurbulence");
-		positive(Dim.DIMENSIONLESS, 1, "derating", "weldKnockdown", "exponent");
+		positive(Dim.DIMENSIONLESS, 1, "derating", "exponent");
+		name(Dim.DIMENSIONLESS, 1, false, 10, "weldKnockdown"); // divides the allowable stress (>= 1.2 by the edicts)
 		name(Dim.DIMENSIONLESS, 1, false, 10, "packingFactor"); // packed volume multiplier
 		name(Dim.DIMENSIONLESS, 0, false, 0.5, "poissonRatio");
 		name(Dim.DIMENSIONLESS, 1, false, 100, "safetyFactor", "backupFactor");
@@ -148,6 +152,46 @@ public final class Limits {
 		name(Dim.DIMENSIONLESS, 1, false, 10, "stages");
 		name(Dim.DIMENSIONLESS, 1900, false, 2200, "yearFrom", "yearTo");
 		nonNegative(Dim.DIMENSIONLESS, 1e6, "index");
+	}
+
+	/**
+	 * Checks every top-level argument that has a rule of its own before the tool runs, so a nonsense value is refused
+	 * even on a path that would not read it (a target apogee of 10^30 m with another objective). Values in another
+	 * dimension are left for the tool, which names the unit it expected.
+	 */
+	public static void precheck(com.google.gson.JsonObject args, com.google.gson.JsonObject schema) {
+		com.google.gson.JsonObject props = schema != null && schema.has("properties") ? schema.getAsJsonObject("properties") : null;
+		for (Map.Entry<String, com.google.gson.JsonElement> e : args.entrySet()) {
+			// Counts declared as integers are whole numbers, read or not.
+			com.google.gson.JsonElement type = props != null && props.has(e.getKey()) && props.get(e.getKey()).isJsonObject()
+					? props.getAsJsonObject(e.getKey()).get("type") : null;
+			if (type != null && type.isJsonPrimitive() && "integer".equals(type.getAsString()) && e.getValue().isJsonPrimitive()
+					&& e.getValue().getAsJsonPrimitive().isNumber()
+					&& e.getValue().getAsDouble() != Math.rint(e.getValue().getAsDouble())) {
+				throw new ToolException("Argument '" + e.getKey() + "' must be a whole number, got " + e.getValue() + ".");
+			}
+			Rule r = BY_NAME.get(e.getKey());
+			if (r == null || !e.getValue().isJsonPrimitive() || e.getValue().getAsJsonPrimitive().isBoolean()) {
+				continue;
+			}
+			double v;
+			Dim dim = r.dim();
+			if (e.getValue().getAsJsonPrimitive().isNumber()) {
+				v = e.getValue().getAsDouble();
+			} else {
+				Units.Parsed p;
+				try {
+					p = Units.parse(e.getValue().getAsString());
+				} catch (IllegalArgumentException notANumber) {
+					continue; // the tool reports what it could not read
+				}
+				if (p.dim() != null && !same(r.dim(), p.dim())) {
+					continue;
+				}
+				v = p.si();
+			}
+			check(e.getKey(), dim, v);
+		}
 	}
 
 	/** {@code v} (SI) checked against the rule for {@code key}, or its dimension's default. */

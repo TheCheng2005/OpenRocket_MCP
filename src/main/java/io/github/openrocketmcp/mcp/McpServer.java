@@ -459,6 +459,7 @@ public final class McpServer {
 		}
 		try {
 			ctx.checkCancelled();
+			Limits.precheck(args.raw(), tool.inputSchema());
 			Object value = withoutInternal(tool.handler().call(args));
 			// Compact JSON: indentation roughly doubles the size of every result the model has to read.
 			JsonObject r = textResult(outputFilter.apply(value instanceof String s ? s : compact.toJson(value)), false);
