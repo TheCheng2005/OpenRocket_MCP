@@ -20,6 +20,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import info.openrocket.core.simulation.SimulationOptions;
+import io.github.openrocketmcp.mcp.Limits;
 import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.UnitSystem;
@@ -75,6 +76,8 @@ public final class Standards {
 			return build(team, p);
 		} catch (IOException e) {
 			throw new ToolException("Cannot read standards file " + p + ": " + e.getMessage());
+		} catch (ToolException e) {
+			throw new ToolException("Standards file " + p + ": " + e.getMessage());
 		} catch (RuntimeException e) {
 			throw new ToolException("Invalid JSON in " + p + ": " + e.getMessage());
 		}
@@ -83,6 +86,7 @@ public final class Standards {
 	private static Standards build(JsonObject team, Path source) {
 		JsonObject merged = resource("/openrocketmcp/default-standards.json");
 		deepMerge(merged, team);
+		validate(merged);
 		JsonObject rules = loadRules(merged.has("ruleset") ? merged.get("ruleset").getAsString() : null, source);
 		Standards s = new Standards(merged, rules, source);
 		if (merged.has("units")) {
@@ -156,6 +160,7 @@ public final class Standards {
 	public Standards patched(JsonObject patch) {
 		JsonObject copy = data.deepCopy();
 		deepMerge(copy, patch);
+		validate(copy);
 		JsonObject rulesNow = loadRules(copy.has("ruleset") ? copy.get("ruleset").getAsString() : null, source);
 		Standards s = new Standards(copy, rulesNow, source);
 		s.edited = true;
@@ -163,6 +168,81 @@ public final class Standards {
 			Units.setSystem(UnitSystem.parse(copy.get("units").getAsString()));
 		}
 		return s;
+	}
+
+	/**
+	 * Refuses standards a tool would later misread: a section replaced by a value of another shape (an object by a
+	 * string), or a quantity outside its physical range (a negative modulus or pin strength, a zero air density).
+	 * Checked when standards are loaded or patched, so the mistake is reported where it was made.
+	 */
+	static void validate(JsonObject merged) {
+		List<String> problems = new ArrayList<>();
+		shape(resource("/openrocketmcp/default-standards.json"), merged, "", problems);
+		quantities(merged, "", null, problems);
+		if (!problems.isEmpty()) {
+			List<String> shown = problems.subList(0, Math.min(5, problems.size())).stream().map(x -> x.replaceAll("\\.+$", "")).toList();
+			throw new ToolException("Standards not changed: " + String.join("; ", shown)
+					+ (problems.size() > 5 ? " (and " + (problems.size() - 5) + " more)" : "") + ".");
+		}
+	}
+
+	private static void shape(JsonElement def, JsonElement got, String where, List<String> problems) {
+		if (got == null || got.isJsonNull() || def == null || def.isJsonNull()) {
+			return;
+		}
+		// {"value": "16 GPa", "source": ...} may also be written as just "16 GPa".
+		boolean valueForm = def.isJsonObject() && def.getAsJsonObject().has("value") && got.isJsonPrimitive();
+		if (!valueForm && (def.isJsonObject() != got.isJsonObject() || def.isJsonArray() != got.isJsonArray())) {
+			problems.add(where.substring(Math.min(1, where.length())) + " must be "
+					+ (def.isJsonObject() ? "an object" : def.isJsonArray() ? "a list" : "a single value") + " as in the defaults (got "
+					+ abbreviate(got.toString()) + ")");
+			return;
+		}
+		if (def.isJsonObject() && got.isJsonObject()) {
+			for (Map.Entry<String, JsonElement> e : def.getAsJsonObject().entrySet()) {
+				shape(e.getValue(), got.getAsJsonObject().get(e.getKey()), where + "." + e.getKey(), problems);
+			}
+		}
+	}
+
+	private static void quantities(JsonElement e, String where, String key, List<String> problems) {
+		if (e == null || e.isJsonNull()) {
+			return;
+		}
+		if (e.isJsonObject()) {
+			for (Map.Entry<String, JsonElement> c : e.getAsJsonObject().entrySet()) {
+				// {"value": "16 GPa", "source": ...} is checked under its own key.
+				quantities(c.getValue(), where + "." + c.getKey(), c.getKey().equals("value") ? key : c.getKey(), problems);
+			}
+		} else if (e.isJsonArray()) {
+			for (JsonElement c : e.getAsJsonArray()) {
+				quantities(c, where, key, problems);
+			}
+		} else if (e.isJsonPrimitive() && key != null) {
+			try {
+				if (e.getAsJsonPrimitive().isNumber()) {
+					if (Limits.hasRule(key)) {
+						Limits.check(key, null, e.getAsDouble());
+					}
+				} else if (e.getAsJsonPrimitive().isString()) {
+					Units.Parsed q;
+					try {
+						q = Units.parse(e.getAsString());
+					} catch (IllegalArgumentException notAQuantity) {
+						return; // text: names, notes, sources
+					}
+					if (q.dim() != null || Limits.hasRule(key)) {
+						Limits.check(key, q.dim(), q.si());
+					}
+				}
+			} catch (ToolException bad) {
+				problems.add(where.substring(1) + ": " + bad.getMessage().replace(" Check the value and its unit.", ""));
+			}
+		}
+	}
+
+	private static String abbreviate(String s) {
+		return s.length() > 40 ? s.substring(0, 40) + "..." : s;
 	}
 
 	public void save(Path path) throws IOException {
@@ -257,7 +337,11 @@ public final class Standards {
 		for (Map.Entry<String, JsonElement> e : pins.getAsJsonObject().entrySet()) {
 			if (e.getKey().equalsIgnoreCase(name.trim())) {
 				JsonElement s = e.getValue().isJsonObject() ? e.getValue().getAsJsonObject().get("strength") : e.getValue();
-				return s.getAsJsonPrimitive().isNumber() ? s.getAsDouble() : Units.toSi(s.getAsString(), Dim.FORCE);
+				double v = s.getAsJsonPrimitive().isNumber() ? s.getAsDouble() : Units.toSi(s.getAsString(), Dim.FORCE);
+				if (!(v > 0) || !Double.isFinite(v)) {
+					throw new ToolException("recovery.shearPins." + e.getKey() + " strength must be greater than zero (got " + s + ").");
+				}
+				return v;
 			}
 		}
 		return Double.NaN;
@@ -289,6 +373,9 @@ public final class Standards {
 				if (!frag.isBlank() && m.contains(frag.trim())) {
 					JsonElement v = e.getValue().isJsonObject() ? e.getValue().getAsJsonObject().get("value") : e.getValue();
 					double g = v.getAsJsonPrimitive().isNumber() ? v.getAsDouble() : Units.toSi(v.getAsString(), dim);
+					if (!(g > 0) || !Double.isFinite(g)) {
+						throw new ToolException(tablePath + "." + e.getKey() + " must be greater than zero (got " + v + ").");
+					}
 					return new Object[] { g, e.getKey() };
 				}
 			}

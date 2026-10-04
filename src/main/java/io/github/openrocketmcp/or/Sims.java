@@ -247,7 +247,15 @@ public final class Sims {
 		try {
 			sim.simulate(listeners);
 		} catch (Exception e) {
-			throw new ToolException("Simulation '" + sim.getName() + "' failed: " + e.getMessage(), e);
+			String why = String.valueOf(e.getMessage());
+			if (why.contains("not-a-number") || why.contains("NaN")) {
+				// OpenRocket's wording ("BUG: ... please report a bug") blames itself for what is nearly always an input.
+				throw new ToolException("Simulation '" + sim.getName() + "' broke down numerically (a value became NaN). "
+						+ "This comes from a non-physical rocket or launch: a part with zero or negative size or mass, a "
+						+ "motor heavier than its thrust can lift, or extreme wind or launch settings. Check the last change "
+						+ "(undo reverts it) and get_design for odd masses or lengths.", e);
+			}
+			throw new ToolException("Simulation '" + sim.getName() + "' failed: " + why, e);
 		}
 		FlightData data = sim.getSimulatedData();
 		if (data == null || data.getBranchCount() == 0) {
@@ -479,6 +487,10 @@ public final class Sims {
 		}
 		cond.put("launchSiteAltitude", Units.fmt(opt.getLaunchAltitude(), Dim.DISTANCE));
 		out.put("conditions", cond);
+		List<String> problems = problems(sim);
+		if (!problems.isEmpty()) {
+			out.put("PROBLEMS", problems); // first, so it is read before the numbers it puts in doubt
+		}
 
 		FlightDataBranch main = data.getBranch(0);
 		Map<String, Object> overall = new LinkedHashMap<>();
@@ -550,6 +562,60 @@ public final class Sims {
 			out.put("warnings", warnings);
 		}
 		return out;
+	}
+
+	/** Above this Mach OpenRocket's empirical aerodynamics are an extrapolation. */
+	static final double MACH_LIMIT = 3;
+	/** Peak acceleration (G) beyond what student airframes, motors and electronics are built for. */
+	static final double G_LIMIT = 150;
+
+	/**
+	 * Flights that are not physically believable, in plain words: OpenRocket stopped the simulation (no lift-off,
+	 * tumbling or a parachute out under thrust), or the numbers are outside what the models or any student rocket can
+	 * do. Empty for a sound flight.
+	 */
+	public static List<String> problems(Simulation sim) {
+		List<String> out = new ArrayList<>();
+		FlightData data = sim.getSimulatedData();
+		if (data == null) {
+			return out;
+		}
+		for (FlightDataBranch b : data.getBranches()) {
+			for (FlightEvent e : b.getEvents()) {
+				if (e.getType() == FlightEvent.Type.SIM_ABORT) {
+					String why = e.getData() instanceof info.openrocket.core.logging.SimulationAbort a
+							? abortAdvice(a.getCause()) : "OpenRocket stopped the simulation";
+					out.add(b.getName() + ": simulation stopped at t=" + Units.num(e.getTime()) + " s: " + why);
+				}
+			}
+		}
+		double mach = data.getMaxMachNumber();
+		if (mach > MACH_LIMIT) {
+			out.add("Max Mach " + Units.num(mach) + " is beyond OpenRocket's aerodynamics (validated to about Mach "
+					+ Units.num(MACH_LIMIT) + "): drag, stability and heating are extrapolated. Check the motor's thrust and mass.");
+		}
+		double g = data.getMaxAcceleration() / Atmosphere.G0;
+		if (g > G_LIMIT) {
+			out.add("Peak acceleration " + Units.num(g) + " G is beyond what student airframes, motors and electronics are "
+					+ "built for: check the motor's thrust curve (N, not lbf or kN) and the rocket's mass.");
+		}
+		return out;
+	}
+
+	private static String abortAdvice(info.openrocket.core.logging.SimulationAbort.Cause c) {
+		return switch (c) {
+			case NO_LIFTOFF -> "the motor burned out without lifting the rocket off the pad. Thrust-to-weight is below 1: "
+					+ "use a bigger motor or take mass out (get_design shows the masses).";
+			case TUMBLE_UNDER_THRUST -> "the rocket tumbled while the motor was burning (unstable or overpowered). Check "
+					+ "stability (ballast, fins) and the motor.";
+			case DEPLOY_UNDER_THRUST -> "a parachute opened while the motor was still burning. Check set_deployment "
+					+ "(event and delay) and the motor's ejection delay.";
+			case NO_MOTORS_DEFINED, NO_CONFIGURED_IGNITION, NO_MOTORS_FIRED -> "no motor fired. Use set_motor.";
+			case ACTIVE_LENGTH_ZERO, ACTIVE_MASS_ZERO, NO_ACTIVE_STAGES -> "the flying stage has no length or mass. Check "
+					+ "the parts with get_design.";
+			case NO_CP -> "OpenRocket could not find the centre of pressure (no aerodynamic surfaces?). Check the parts.";
+			default -> c.toString().replaceAll("<[^>]+>", " ").trim();
+		};
 	}
 
 	// ------------------------------------------------------------------------------------------ flight data

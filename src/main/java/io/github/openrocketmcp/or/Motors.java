@@ -57,8 +57,11 @@ public final class Motors {
 
 	/** Upper total-impulse bound of an impulse class letter. */
 	public static double classMaxImpulse(String letter) {
-		char c = Character.toUpperCase(letter.trim().charAt(0));
-		return 2.5 * Math.pow(2, c - 'A');
+		String l = letter.trim().toUpperCase(Locale.ROOT).replaceFirst("^1/[248]", "");
+		if (!l.matches("[A-Z]")) {
+			throw new ToolException("Impulse class is one letter, A to Z (e.g. \"K\"), got '" + letter + "'.");
+		}
+		return 2.5 * Math.pow(2, l.charAt(0) - 'A');
 	}
 
 	/** Highest impulse class allowed for a certification level (NAR/TRA and CAR use the same letters). */
@@ -243,6 +246,40 @@ public final class Motors {
 		}
 		if (c.propellantMass() <= 0 || c.propellantMass() >= c.totalMass()) {
 			throw new ToolException("propellantMass must be positive and less than totalMass.");
+		}
+		if (c.designation() == null || c.designation().isBlank() || c.manufacturer() == null || c.manufacturer().isBlank()) {
+			throw new ToolException("Give the motor a designation and a manufacturer (team name is fine).");
+		}
+		if (!(c.diameter() > 0) || !(c.length() > 0)) {
+			throw new ToolException("diameter and length must be greater than zero.");
+		}
+		for (int i = 0; i < c.time().length; i++) {
+			double ti = c.time()[i], fi = c.thrust()[i];
+			if (!Double.isFinite(ti) || !Double.isFinite(fi) || ti < 0 || fi < 0) {
+				throw new ToolException("thrustCurve point " + (i + 1) + " [" + ti + ", " + fi + "]: times and thrusts must be "
+						+ "finite and not negative.");
+			}
+			if (i > 0 && ti <= c.time()[i - 1]) {
+				throw new ToolException("thrustCurve times must increase (point " + (i + 1) + " at " + ti + " s follows "
+						+ c.time()[i - 1] + " s).");
+			}
+			if (fi > ThrustCurveMotor.MAX_THRUST) {
+				throw new ToolException("thrustCurve point " + (i + 1) + ": " + Units.fmt(fi, Dim.FORCE) + " is beyond the "
+						+ Units.fmt(ThrustCurveMotor.MAX_THRUST, Dim.FORCE) + " OpenRocket can model; check the unit (N).");
+			}
+		}
+		for (double cg : new double[] { c.dryCgFromTop(), c.propellantCgFromTop() }) {
+			if (!Double.isNaN(cg) && (cg < 0 || cg > c.length())) {
+				throw new ToolException("dryCgFromTop and propellantCgFromTop are measured from the top of the motor and must "
+						+ "lie within its " + Units.fmt(c.length(), Dim.LENGTH) + " length (got " + Units.fmt(cg, Dim.LENGTH) + ").");
+			}
+		}
+		if (c.delays() != null) {
+			for (double d : c.delays()) {
+				if (!(d >= 0) || d > 1000) {
+					throw new ToolException("Ejection delays are seconds from burnout, 0 or more (got " + d + ").");
+				}
+			}
 		}
 		int n = c.time().length;
 		double[] t = new double[n + (c.time()[0] > 0 ? 1 : 0)];

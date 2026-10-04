@@ -300,8 +300,12 @@ public final class AeroTools {
 			case "levels" -> {
 				levels = new ArrayList<>();
 				for (Args l : a.objList("levels")) {
-					levels.add(new Winds.Level(l.qty("altitude", Dim.DISTANCE), l.qty("speed", Dim.VELOCITY),
-							l.qty("direction", Dim.ANGLE, 0), l.qtyOrNaN("sd", Dim.VELOCITY)));
+					double h = l.qty("altitude", Dim.DISTANCE);
+					if (levels.stream().anyMatch(x -> Math.abs(x.altitude() - h) < 1e-6)) {
+						throw new ToolException("Two wind levels at " + Units.fmt(h, Dim.DISTANCE) + ": give each altitude once.");
+					}
+					levels.add(new Winds.Level(h, l.qty("speed", Dim.VELOCITY), l.qty("direction", Dim.ANGLE, 0),
+							l.qtyOrNaN("sd", Dim.VELOCITY)));
 				}
 			}
 			case "power_law" -> {

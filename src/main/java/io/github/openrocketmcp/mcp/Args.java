@@ -3,6 +3,7 @@ package io.github.openrocketmcp.mcp;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import com.google.gson.Gson;
@@ -48,11 +49,13 @@ public final class Args {
 
 	public double num(String key) {
 		String s = str(key);
+		double v;
 		try {
-			return Double.parseDouble(s);
+			v = Double.parseDouble(s);
 		} catch (NumberFormatException e) {
 			throw new ToolException("Argument '" + key + "' must be a number, got '" + s + "'.");
 		}
+		return Limits.check(key, null, v);
 	}
 
 	public double num(String key, double fallback) {
@@ -60,7 +63,14 @@ public final class Args {
 	}
 
 	public int integer(String key, int fallback) {
-		return has(key) ? (int) Math.round(num(key)) : fallback;
+		if (!has(key)) {
+			return fallback;
+		}
+		double v = num(key);
+		if (v != Math.rint(v) || Math.abs(v) > Integer.MAX_VALUE) {
+			throw new ToolException("Argument '" + key + "' must be a whole number, got " + json.get(key) + ".");
+		}
+		return (int) v;
 	}
 
 	public boolean bool(String key, boolean fallback) {
@@ -71,7 +81,14 @@ public final class Args {
 		if (e.isJsonPrimitive() && e.getAsJsonPrimitive().isBoolean()) {
 			return e.getAsBoolean();
 		}
-		return Boolean.parseBoolean(e.getAsString());
+		String s = e.isJsonPrimitive() ? e.getAsString().trim().toLowerCase(Locale.ROOT) : "";
+		if (s.equals("true") || s.equals("yes")) {
+			return true;
+		}
+		if (s.equals("false") || s.equals("no")) {
+			return false;
+		}
+		throw new ToolException("Argument '" + key + "' must be true or false, got " + e + ".");
 	}
 
 	/** A physical quantity in SI. */
@@ -84,11 +101,14 @@ public final class Args {
 
 	/** A quantity that only makes sense above zero (a mass, rate, volume or length). */
 	public double positive(String key, Dim dim) {
-		double v = qty(key, dim);
+		if (!has(key)) {
+			return qty(key, dim); // the missing-argument message
+		}
+		double v = parse(json.get(key), key, dim);
 		if (!(v > 0) || Double.isInfinite(v)) {
 			throw new ToolException("'" + key + "' must be greater than zero (got " + json.get(key) + ").");
 		}
-		return v;
+		return Limits.check(key, dim, v);
 	}
 
 	public double qty(String key, Dim dim, double fallback) {
@@ -100,15 +120,37 @@ public final class Args {
 		return qty(key, dim, Double.NaN);
 	}
 
+	/**
+	 * A quantity in SI checked only for being a finite number, for a caller that applies the rules of what it describes
+	 * (an optimizer bound on a part's property follows that property's rules, not the generic "min").
+	 */
+	public double qtyUnchecked(String key, Dim dim) {
+		if (!has(key)) {
+			return qty(key, dim);
+		}
+		return Limits.check(key + " (unchecked)", null, parse(json.get(key), key, dim));
+	}
+
+	/** A quantity in SI, checked against its physical limits ({@link Limits}). */
 	public static double qtyOf(JsonElement e, String key, Dim dim) {
+		return Limits.check(key, dim, parse(e, key, dim));
+	}
+
+	private static double parse(JsonElement e, String key, Dim dim) {
+		double v;
 		try {
 			if (e.isJsonPrimitive() && ((JsonPrimitive) e).isNumber()) {
-				return e.getAsDouble();
+				v = e.getAsDouble();
+			} else if (e.isJsonPrimitive() && ((JsonPrimitive) e).isString()) {
+				v = Units.toSi(e.getAsString(), dim);
+			} else {
+				throw new ToolException("Argument '" + key + "' must be a number or a quantity with units (e.g. "
+						+ Units.example(dim) + "), got " + e + ".");
 			}
-			return Units.toSi(e.getAsString(), dim);
 		} catch (IllegalArgumentException | IllegalStateException | UnsupportedOperationException ex) {
 			throw new ToolException("Argument '" + key + "': " + ex.getMessage());
 		}
+		return v;
 	}
 
 	public List<Double> qtyList(String key, Dim dim) {
@@ -134,8 +176,14 @@ public final class Args {
 		JsonElement e = json.get(key);
 		if (e.isJsonArray()) {
 			for (JsonElement item : e.getAsJsonArray()) {
+				if (!item.isJsonPrimitive()) {
+					throw new ToolException("Argument '" + key + "' is a list of names, e.g. [\"altitude\", \"velocity\"]; got "
+							+ item + ".");
+				}
 				out.add(item.getAsString());
 			}
+		} else if (!e.isJsonPrimitive()) {
+			throw new ToolException("Argument '" + key + "' is a list of names, got " + e + ".");
 		} else {
 			for (String s : e.getAsString().split(",")) {
 				if (!s.isBlank()) {

@@ -260,6 +260,12 @@ public final class Reports {
 		md.append("| Rule set | ").append(std.rulesName()).append(" |\n");
 		md.append("| Team standards | ").append(std.source() == null ? "built-in defaults" : std.source().getFileName()).append(" |\n");
 		md.append("| Generated | ").append(LocalDate.now()).append(" by openrocket-mcp (OpenRocket 24.12) |\n\n");
+		for (String p : Sims.problems(sim)) {
+			md.append("> **Not a sound flight:** ").append(p).append("\n");
+		}
+		if (!Sims.problems(sim).isEmpty()) {
+			md.append("\n");
+		}
 
 		md.append("## 1. Requirement checks\n\n").append(checks.get("summary")).append("\n\n");
 		md.append(table((List<Map<String, Object>>) checks.get("checks"))).append('\n');

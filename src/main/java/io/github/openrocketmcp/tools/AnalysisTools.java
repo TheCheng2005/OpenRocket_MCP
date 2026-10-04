@@ -222,7 +222,10 @@ public final class AnalysisTools {
 						+ c.getName() + "'s shape does not change drag here. For shape changes use optimize_fins (OpenRocket's "
 						+ "shape-aware drag), or clear the table first.");
 			}
-			vars.add(new Optimizer.Variable(c.getID().toString(), c.getName(), prop, v.qty("min", dim), v.qty("max", dim)));
+			// Bounds follow the property's own rules (a position may be negative, a thickness may not).
+			double lo = Components.physical(c, prop, dim, v.qtyUnchecked("min", dim));
+			double hi = Components.physical(c, prop, dim, v.qtyUnchecked("max", dim));
+			vars.add(new Optimizer.Variable(c.getID().toString(), c.getName(), prop, lo, hi));
 		}
 		Optimizer.Objective obj = Optimizer.Objective.valueOf(a.str("objective").toUpperCase(Locale.ROOT));
 		double target = switch (obj) {

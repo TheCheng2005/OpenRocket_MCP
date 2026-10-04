@@ -116,6 +116,12 @@ public final class Requirements {
 		boolean staged = fc.getActiveStageCount() > 1;
 		FlightDataBranch main = data.getBranch(0);
 
+		// A flight OpenRocket stopped, or one beyond what the models cover, puts every number below in doubt.
+		for (String p : Sims.problems(sim)) {
+			r.add(p.contains("stopped") ? Status.FAIL : Status.WARN, "Physically sound flight",
+					"the simulation runs to landing within OpenRocket's models", p, "");
+		}
+
 		// Launch conditions used by the simulation
 		double nominal = std.rule("launchAngleFromVertical.nominal", Dim.ANGLE);
 		double tol = std.rule("launchAngleFromVertical.tolerance", Dim.ANGLE);

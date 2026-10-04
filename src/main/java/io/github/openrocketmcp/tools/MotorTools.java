@@ -208,7 +208,7 @@ public final class MotorTools {
 						JsonArray arr = a.array("delays");
 						delays = new double[arr.size()];
 						for (int i = 0; i < arr.size(); i++) {
-							delays[i] = arr.get(i).getAsDouble();
+							delays[i] = Args.qtyOf(arr.get(i), "delays", Dim.TIME);
 						}
 					}
 					String designation = a.str("designation");
@@ -247,8 +247,8 @@ public final class MotorTools {
 				if (!p.isJsonArray() || p.getAsJsonArray().size() != 2) {
 					throw new ToolException("thrustCurve points must be [time_s, thrust_N].");
 				}
-				t[i] = p.getAsJsonArray().get(0).getAsDouble();
-				f[i] = p.getAsJsonArray().get(1).getAsDouble();
+				t[i] = Args.qtyOf(p.getAsJsonArray().get(0), "thrustCurve time", Dim.TIME);
+				f[i] = Args.qtyOf(p.getAsJsonArray().get(1), "thrustCurve thrust", Dim.FORCE);
 			}
 			return new double[][] { t, f };
 		}
