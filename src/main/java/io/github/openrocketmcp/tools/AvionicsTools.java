@@ -277,7 +277,7 @@ public final class AvionicsTools {
 					Electrical.Pyro pyro = ElectronicsSummary.pyro(std, a.num("ematchResistance", Double.NaN), a.num("allFireCurrent", Double.NaN));
 					double pad = a.has("padWait") ? a.qty("padWait", Dim.TIME) : Double.NaN;
 					double after = a.has("recoveryTime") ? a.qty("recoveryTime", Dim.TIME) : Double.NaN;
-					double derating = a.num("derating", ElectronicsSummary.derating(std));
+					double derating = a.has("derating") ? a.num("derating", 0) : ElectronicsSummary.derating(std);
 					if (!(derating > 0 && derating <= 1) || pad < 0 || after < 0) {
 						throw new ToolException("derating must be in (0, 1]; padWait and recoveryTime cannot be negative.");
 					}
@@ -319,9 +319,6 @@ public final class AvionicsTools {
 							a.num("txPowerDbm", Double.NaN), a.num("txAntennaGainDbi", Double.NaN), a.num("rxAntennaGainDbi", Double.NaN),
 							a.num("rxSensitivityDbm", Double.NaN), a.num("lossesDb", Double.NaN), a.num("requiredMarginDb", Double.NaN),
 							a.has("groundStationHeight") ? a.positive("groundStationHeight", Dim.LENGTH) : Double.NaN);
-					if (!(r.frequency() > 0)) {
-						throw new ToolException("frequencyMhz must be greater than zero.");
-					}
 					Simulation sim = SimTools.runSelected(ctx, a);
 					return Electrical.link(sim, r, a.qty("groundStationEast", Dim.DISTANCE, 0), a.qty("groundStationNorth", Dim.DISTANCE, 0),
 							Math.max(0, a.qty("landingDispersion", Dim.DISTANCE, 0)));

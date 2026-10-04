@@ -3,6 +3,7 @@ package io.github.openrocketmcp.or;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -115,6 +116,20 @@ public final class Variants {
 	 * design-wind case and the flight card's drift table ask for the same flights again and again; they are flown once
 	 * (in parallel) and reused until the design, its configuration or the launch conditions change.
 	 */
+	/**
+	 * Drops the cached wind cases of these simulations. Each cached flight belongs to its design's document, which holds
+	 * the simulation the cache is keyed on, so the weak keys alone never let a closed design go.
+	 */
+	public static void forget(Collection<Simulation> sims) {
+		for (Simulation s : sims) {
+			WIND.remove(s);
+		}
+	}
+
+	static boolean hasWindCases(Simulation sim) {
+		return WIND.containsKey(sim);
+	}
+
 	public static List<Run> windCases(Simulation base, OpenRocketDocument doc, List<Double> speeds) {
 		String stamp = Sims.stamp(base);
 		Map<Double, Flown> cache = WIND.computeIfAbsent(base, k -> new ConcurrentHashMap<>());

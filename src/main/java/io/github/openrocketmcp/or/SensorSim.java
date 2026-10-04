@@ -65,6 +65,9 @@ public final class SensorSim {
 			return out;
 		}
 		for (JsonElement e : arr) {
+			if (!e.isJsonObject()) {
+				throw new ToolException("Each sensor is an object like {\"type\": \"accelerometer\", \"range\": 16}; got " + e + ".");
+			}
 			JsonObject o = e.getAsJsonObject();
 			String type = o.has("type") ? o.get("type").getAsString().toLowerCase(Locale.ROOT) : "";
 			if (!List.of("accelerometer", "gyroscope", "barometer", "gps").contains(type)) {
@@ -81,7 +84,8 @@ public final class SensorSim {
 	}
 
 	private static double num(JsonObject o, String k, double d) {
-		return o.has(k) && !o.get(k).isJsonNull() ? o.get(k).getAsDouble() : d;
+		double v = Electrical.num(o, k);
+		return Double.isNaN(v) ? d : v;
 	}
 
 	/** Samples the branch at {@code rate} Hz, with {@code padTime} s on the pad before ignition and rest after landing. */

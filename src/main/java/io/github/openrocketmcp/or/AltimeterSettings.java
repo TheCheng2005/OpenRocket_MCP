@@ -92,12 +92,14 @@ public final class AltimeterSettings {
 					dep = x;
 				}
 			}
+			// The branch the device opened in. Stages can share a name (OpenRocket's three-stage example has two
+			// "Booster stage" branches), so look for the deployment event itself rather than the name.
 			FlightDataBranch b = main;
-			if (dep != null) {
-				for (FlightDataBranch fb : sim.getSimulatedData().getBranches()) {
-					if (fb.getName().equals(dep.branch())) {
-						b = fb;
-					}
+			for (FlightDataBranch fb : sim.getSimulatedData().getBranches()) {
+				if (fb.getEvents().stream().anyMatch(e -> e.getType() == FlightEvent.Type.RECOVERY_DEVICE_DEPLOYMENT
+						&& e.getSource() != null && e.getSource().getID().equals(rd.getID()))) {
+					b = fb;
+					break;
 				}
 			}
 			DeployEvent ev = dc.getDeployEvent();

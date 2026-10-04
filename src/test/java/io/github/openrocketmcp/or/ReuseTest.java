@@ -1,9 +1,11 @@
 package io.github.openrocketmcp.or;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -130,5 +132,17 @@ class ReuseTest {
 		assertNotSame(w2, Variants.windCase(base, d.doc, 8), "after a launch condition change");
 		List<Variants.Run> table = Variants.windCases(base, d.doc, List.of(0.0, 8.0));
 		assertSame(Variants.windCase(base, d.doc, 8), table.get(1).sim());
+	}
+
+	@Test
+	void closingADesignDropsItsWindCases() throws Exception {
+		Designs designs = new Designs();
+		Designs.Design d = designs.openExample("Dual parachute");
+		Simulation base = sim(d);
+		Sims.ensure(base);
+		Variants.windCase(base, d.doc, 8);
+		assertTrue(Variants.hasWindCases(base));
+		designs.close(d.id);
+		assertFalse(Variants.hasWindCases(base), "the cached flights hold the document, so the weak key alone keeps it");
 	}
 }

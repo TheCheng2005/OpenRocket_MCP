@@ -198,6 +198,7 @@ public final class Designs {
 		if (designs.values().stream().noneMatch(o -> o.doc.getRocket().getID().toString().equals(rid))) {
 			AeroTable.clear(d.doc.getRocket());
 		}
+		Variants.forget(d.doc.getSimulations());
 	}
 
 	public synchronized Path save(Design d, Path target) throws Exception {

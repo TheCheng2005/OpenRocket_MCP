@@ -449,6 +449,18 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   40 ms. Benchmark 137/137.
 - **Found along the way:** working keys (`_cdA`) leaked from `search_parachutes`; `McpServer.withoutInternal` strips
   `_`-prefixed keys from every result. Times accept `min` and `h`.
+- **Bug review before release:**
+  - The wind-case cache was keyed weakly on the simulation, but each cached flight holds the document and so the
+    simulation: closed designs were never freed (a team server would grow with every design opened).
+    `Designs.close` now drops them (`Variants.forget`; `ReuseTest` checks).
+  - One bad entry in `electronics` (a typo, `"9 V"` for 9) stopped the whole flight card. Each part of the electronics
+    summary (sensors, power, radio) now fails alone into a note, and `design_status` lists it with `update_standards`.
+  - Non-numbers, non-objects, negative battery resistance, fractional pyro channels, a zero or negative e-match
+    resistance or all-fire current, and a non-positive derating, frequency or antenna height are refused by name
+    instead of a Java exception or a silent wrong answer.
+  - `altimeter_settings` found a device's branch by name and kept the last match; stages can share a name, so it now
+    takes the branch holding the device's deployment event. `radio_link` numbers repeated branch names, and a part
+    that never climbs above 10 m reports only its ground path.
 - **Reproducibility note:** two server processes can differ in the 4th digit after long sessions. The design files
   match; one simulation result differs in the last bit (HotSpot's `Math` intrinsics differ between interpreted and
   compiled code), and the flight amplifies it. Within a process, and for a given call sequence on a fresh design,

@@ -53,22 +53,37 @@ public final class Electrical {
 			return out;
 		}
 		for (JsonElement e : arr) {
+			if (!e.isJsonObject()) {
+				throw new ToolException("Each circuit is an object like {\"name\": \"Primary altimeter\", \"voltage\": 9, "
+						+ "\"capacityMah\": 550, \"currentMa\": 12}; got " + e + ".");
+			}
 			JsonObject o = e.getAsJsonObject();
 			String name = o.has("name") ? o.get("name").getAsString() : "circuit " + (out.size() + 1);
 			double v = num(o, "voltage"), cap = num(o, "capacityMah") / 1000, ri = num(o, "internalResistance"),
-					i = num(o, "currentMa") / 1000;
+					i = num(o, "currentMa") / 1000, pyro = num(o, "pyroChannels");
 			if (!(v > 0) || !(cap > 0) || !(i >= 0)) {
 				throw new ToolException("Circuit '" + name + "' needs voltage (V), capacityMah and currentMa.");
 			}
+			if (ri < 0 || pyro < 0 || pyro != Math.rint(pyro)) {
+				throw new ToolException("Circuit '" + name + "': internalResistance cannot be negative and pyroChannels is a "
+						+ "whole number (0 for a tracker).");
+			}
 			out.add(new Circuit(name, o.has("battery") ? o.get("battery").getAsString() : "", v, cap,
-					Double.isNaN(ri) ? 0 : ri, i, o.has("pyroChannels") ? o.get("pyroChannels").getAsInt() : 0,
-					num(o, "brownoutVoltage")));
+					Double.isNaN(ri) ? 0 : ri, i, Double.isNaN(pyro) ? 0 : (int) pyro, num(o, "brownoutVoltage")));
 		}
 		return out;
 	}
 
-	private static double num(JsonObject o, String k) {
-		return o.has(k) && !o.get(k).isJsonNull() ? o.get(k).getAsDouble() : Double.NaN;
+	/** A number from team data or a call, NaN when absent; anything else is refused by name. */
+	static double num(JsonObject o, String k) {
+		if (!o.has(k) || o.get(k).isJsonNull()) {
+			return Double.NaN;
+		}
+		try {
+			return o.get(k).getAsDouble();
+		} catch (RuntimeException e) {
+			throw new ToolException("'" + k + "' must be a plain number in its stated unit, not " + o.get(k) + ".");
+		}
 	}
 
 	/** Launch to the last landing in the simulation (s). */
@@ -201,7 +216,11 @@ public final class Electrical {
 				+ " dBm, losses " + Units.num(r.losses()) + " dB: " + Units.num(r.budget()) + " dB to spend on the path");
 		List<Map<String, Object>> rows = new ArrayList<>();
 		String worst = "PASS";
+		List<String> seen = new ArrayList<>();
 		for (FlightDataBranch b : sim.getSimulatedData().getBranches()) {
+			// Stages can share a name: number the repeats so each row says which one it is.
+			long same = seen.stream().filter(b.getName()::equals).count();
+			seen.add(b.getName());
 			Branch br = Branch.of(b);
 			double[] x = br.col(FlightDataType.TYPE_POSITION_X), y = br.col(FlightDataType.TYPE_POSITION_Y),
 					h = br.col(FlightDataType.TYPE_ALTITUDE);
@@ -220,10 +239,13 @@ public final class Electrical {
 			}
 			double apogee = Sims.eventTime(b, FlightEvent.Type.APOGEE);
 			Map<String, Object> m = new LinkedHashMap<>();
-			m.put("branch", b.getName());
-			double mFar = r.budget() - fspl(far, r.frequency());
-			m.put("farthestInFlight", Units.fmt(far, Dim.DISTANCE) + " at t=" + Units.num(farT) + " s (" + Units.fmt(farH, Dim.DISTANCE)
-					+ " up): " + db(mFar));
+			m.put("branch", same == 0 ? b.getName() : b.getName() + " (" + (same + 1) + ")");
+			// A part that never climbs above 10 m (a booster dropped on the pad) has only a ground path.
+			double mFar = far > 0 ? r.budget() - fspl(far, r.frequency()) : Double.POSITIVE_INFINITY;
+			if (far > 0) {
+				m.put("farthestInFlight", Units.fmt(far, Dim.DISTANCE) + " at t=" + Units.num(farT) + " s ("
+						+ Units.fmt(farH, Dim.DISTANCE) + " up): " + db(mFar));
+			}
 			if (!Double.isNaN(apogee)) {
 				int ia = br.index(apogee);
 				double dx = x[ia] - east, dy = y[ia] - north;

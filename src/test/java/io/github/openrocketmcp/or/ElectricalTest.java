@@ -1,13 +1,18 @@
 package io.github.openrocketmcp.or;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import org.junit.jupiter.api.Test;
 
+import com.google.gson.JsonParser;
+
+import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.standards.Standards;
 import io.github.openrocketmcp.units.Units;
 
@@ -53,4 +58,29 @@ class ElectricalTest {
 		assertEquals(3, Electrical.circuits(pw.getAsJsonArray("circuits")).size());
 	}
 
+	@Test
+	void badCircuitsAreRefusedByName() {
+		Function<String, String> refused = json -> assertThrows(ToolException.class,
+				() -> Electrical.circuits(JsonParser.parseString(json).getAsJsonArray())).getMessage();
+		assertTrue(refused.apply("[{\"name\":\"A\",\"voltage\":\"9 V\",\"capacityMah\":500,\"currentMa\":10}]").contains("'voltage'"));
+		assertTrue(refused.apply("[{\"name\":\"A\",\"voltage\":9,\"capacityMah\":500,\"currentMa\":10,\"pyroChannels\":1.5}]")
+				.contains("pyroChannels"));
+		assertTrue(refused.apply("[{\"name\":\"A\",\"voltage\":9,\"capacityMah\":500,\"currentMa\":10,\"internalResistance\":-1}]")
+				.contains("internalResistance"));
+		assertTrue(refused.apply("[\"abc\"]").contains("object"));
+	}
+
+	@Test
+	void badTeamDataCostsOnlyItsOwnPartOfTheSummary() throws Exception {
+		Designs.Design d = new Designs().openExample("Dual parachute");
+		Standards std = Standards.defaults().patched(JsonParser.parseString(
+				"{\"electronics\":{\"power\":{\"circuits\":[{\"name\":\"bad\"}]}}}").getAsJsonObject());
+		var sim = Sims.prepare(d, null, null, Sims.Overrides.none(), std);
+		Sims.ensure(sim);
+		ElectronicsSummary.Summary s = ElectronicsSummary.of(d, sim, std);
+		assertTrue(s.power().isEmpty());
+		assertTrue(s.radio() != null && !s.sensors().isEmpty(), "radio and sensors still checked");
+		assertTrue(s.issues().stream().anyMatch(x -> x.what().startsWith("Power not checked") && x.tool().equals("update_standards")));
+		assertTrue(ElectronicsSummary.markdown(s, "## Electronics").contains("Power not checked"));
+	}
 }

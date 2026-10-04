@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import info.openrocket.core.document.Simulation;
@@ -34,12 +33,16 @@ public final class ElectronicsSummary {
 	}
 
 	static double num(JsonObject o, String k, double fallback) {
-		return o.has(k) && o.get(k).isJsonPrimitive() ? o.get(k).getAsDouble() : fallback;
+		double v = Electrical.num(o, k);
+		return Double.isNaN(v) ? fallback : v;
 	}
 
 	public static List<SensorSim.Spec> sensors(Standards std) {
 		JsonObject data = std.data();
 		JsonObject el = data.has("electronics") && data.get("electronics").isJsonObject() ? data.getAsJsonObject("electronics") : null;
+		if (el != null && el.has("sensors") && !el.get("sensors").isJsonArray()) {
+			throw new ToolException("electronics.sensors in the team standards must be a list of sensors.");
+		}
 		return SensorSim.specs(el != null && el.has("sensors") ? el.getAsJsonArray("sensors") : null);
 	}
 
@@ -52,20 +55,31 @@ public final class ElectronicsSummary {
 
 	public static List<Electrical.Circuit> circuits(Standards std) {
 		JsonObject pw = section(std, "power");
-		JsonArray arr = pw.has("circuits") ? pw.getAsJsonArray("circuits") : null;
-		return Electrical.circuits(arr);
+		if (pw.has("circuits") && !pw.get("circuits").isJsonArray()) {
+			throw new ToolException("electronics.power.circuits in the team standards must be a list of circuits.");
+		}
+		return Electrical.circuits(pw.has("circuits") ? pw.getAsJsonArray("circuits") : null);
 	}
 
 	public static Electrical.Pyro pyro(Standards std, double resistance, double allFire) {
 		JsonObject pw = section(std, "power");
 		JsonObject em = pw.has("ematch") && pw.get("ematch").isJsonObject() ? pw.getAsJsonObject("ematch") : new JsonObject();
-		return new Electrical.Pyro(Double.isNaN(resistance) ? num(em, "resistance", 1.6) : resistance,
+		Electrical.Pyro p = new Electrical.Pyro(Double.isNaN(resistance) ? num(em, "resistance", 1.6) : resistance,
 				Double.isNaN(allFire) ? num(em, "allFireCurrent", 1.0) : allFire, num(em, "wiringResistance", 0.3),
 				num(em, "currentMargin", 2));
+		if (!(p.matchResistance() > 0) || !(p.allFireCurrent() > 0) || p.wiringResistance() < 0 || !(p.margin() > 0)) {
+			throw new ToolException("E-match: resistance, all-fire current and margin must be greater than zero, and wiring "
+					+ "resistance cannot be negative (electronics.power.ematch or the call).");
+		}
+		return p;
 	}
 
 	public static double derating(Standards std) {
-		return num(section(std, "power"), "capacityDerating", 0.8);
+		double v = num(section(std, "power"), "capacityDerating", 0.8);
+		if (!(v > 0 && v <= 1)) {
+			throw new ToolException("electronics.power.capacityDerating must be in (0, 1].");
+		}
+		return v;
 	}
 
 	public static Electrical.Durations durations(Standards std, Simulation sim, double pad, double after) {
@@ -77,12 +91,16 @@ public final class ElectronicsSummary {
 	public static Electrical.Radio radio(Standards std, double freqMhz, double tx, double txGain, double rxGain, double sens,
 			double losses, double margin, double stationHeight) {
 		JsonObject ro = section(std, "radio");
-		return new Electrical.Radio(or(freqMhz, num(ro, "frequencyMhz", 915)) * 1e6, or(tx, num(ro, "txPowerDbm", 20)),
+		Electrical.Radio r = new Electrical.Radio(or(freqMhz, num(ro, "frequencyMhz", 915)) * 1e6, or(tx, num(ro, "txPowerDbm", 20)),
 				or(txGain, num(ro, "txAntennaGainDbi", 2.15)), or(rxGain, num(ro, "rxAntennaGainDbi", 2.15)),
 				or(sens, num(ro, "rxSensitivityDbm", -123)), or(losses, num(ro, "lossesDb", 3)),
 				or(margin, num(ro, "requiredMarginDb", 10)),
 				or(stationHeight, std.q("electronics.radio.groundStationHeight", Dim.LENGTH, 2)),
 				std.q("electronics.radio.rocketAntennaHeightOnGround", Dim.LENGTH, 0.1));
+		if (!(r.frequency() > 0) || !(r.groundStationHeight() > 0) || !(r.rocketHeightOnGround() > 0)) {
+			throw new ToolException("Radio: frequency and both antenna heights must be greater than zero.");
+		}
+		return r;
 	}
 
 	private static double or(double v, double fallback) {
@@ -128,6 +146,11 @@ public final class ElectronicsSummary {
 			if (radio != null && !"PASS".equals(radio.get("status"))) {
 				out.add(new Issue((String) radio.get("status"), "tracker radio link short of the wanted margin", "radio_link"));
 			}
+			for (String n : notes) {
+				if (n.contains(" not checked: ")) {
+					out.add(new Issue("WARN", n, "update_standards"));
+				}
+			}
 			if (altimeters != null && altimeters.get("warnings") instanceof List<?> w) {
 				for (Object x : w) {
 					out.add(new Issue("WARN", String.valueOf(x), "altimeter_settings"));
@@ -147,24 +170,38 @@ public final class ElectronicsSummary {
 		} catch (ToolException | IOException e) {
 			notes.add("Altimeter settings: " + e.getMessage());
 		}
+		// Bad team data in one part (a typo in the standards) costs that part, not the whole card or status.
 		List<Map<String, Object>> sensors = List.of();
-		List<SensorSim.Spec> specs = sensors(std);
-		if (specs.isEmpty()) {
-			notes.add("No sensors in electronics.sensors: sensor ranges not checked.");
-		} else {
-			sensors = SensorSim.check(SensorSim.trace(sim, null, 200, 0, 0), specs,
-					std.q("electronics.altimeter.baroUnreliableAboveMach", Dim.DIMENSIONLESS, 0.7));
+		try {
+			List<SensorSim.Spec> specs = sensors(std);
+			if (specs.isEmpty()) {
+				notes.add("No sensors in electronics.sensors: sensor ranges not checked.");
+			} else {
+				sensors = SensorSim.check(SensorSim.trace(sim, null, 200, 0, 0), specs,
+						std.q("electronics.altimeter.baroUnreliableAboveMach", Dim.DIMENSIONLESS, 0.7));
+			}
+		} catch (ToolException e) {
+			notes.add("Sensors not checked: " + e.getMessage());
 		}
 		List<Map<String, Object>> power = List.of();
-		List<Electrical.Circuit> circuits = circuits(std);
-		if (circuits.isEmpty()) {
-			notes.add("No battery circuits in electronics.power: power not checked.");
-		} else {
-			power = Electrical.power(circuits, pyro(std, Double.NaN, Double.NaN), durations(std, sim, Double.NaN, Double.NaN),
-					derating(std));
+		try {
+			List<Electrical.Circuit> circuits = circuits(std);
+			if (circuits.isEmpty()) {
+				notes.add("No battery circuits in electronics.power: power not checked.");
+			} else {
+				power = Electrical.power(circuits, pyro(std, Double.NaN, Double.NaN),
+						durations(std, sim, Double.NaN, Double.NaN), derating(std));
+			}
+		} catch (ToolException e) {
+			notes.add("Power not checked: " + e.getMessage());
 		}
-		Map<String, Object> radio = Electrical.link(sim, radio(std, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
-				Double.NaN, Double.NaN, Double.NaN), 0, 0, 0);
+		Map<String, Object> radio = null;
+		try {
+			radio = Electrical.link(sim, radio(std, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
+					Double.NaN, Double.NaN), 0, 0, 0);
+		} catch (ToolException e) {
+			notes.add("Radio not checked: " + e.getMessage());
+		}
 		return new Summary(alt, sensors, power, radio, notes);
 	}
 
@@ -202,10 +239,14 @@ public final class ElectronicsSummary {
 		if (s.radio() != null) {
 			StringBuilder rl = new StringBuilder(s.radio().get("status") + " radio: ");
 			for (Map<String, Object> p : (List<Map<String, Object>>) s.radio().get("paths")) {
-				rl.append(p.get("branch")).append(" ").append(String.valueOf(p.get("farthestInFlight")).replaceAll(".*: ", "in flight "));
-				if (p.containsKey("afterLanding")) {
-					rl.append(", ").append(String.valueOf(p.get("afterLanding")).replaceAll(".*: ", "landed "));
+				List<String> parts = new ArrayList<>();
+				if (p.containsKey("farthestInFlight")) {
+					parts.add(String.valueOf(p.get("farthestInFlight")).replaceAll(".*: ", "in flight "));
 				}
+				if (p.containsKey("afterLanding")) {
+					parts.add(String.valueOf(p.get("afterLanding")).replaceAll(".*: ", "landed "));
+				}
+				rl.append(p.get("branch")).append(" ").append(String.join(", ", parts));
 				rl.append("; ");
 			}
 			lines.add(rl.toString().replaceAll("; $", ""));
