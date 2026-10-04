@@ -50,6 +50,10 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
      next prediction.
    - Past rockets -> ask for the folder of old designs and logs, then `design_library` (search, `similarTo` the current
      design, predicted vs measured apogee over the years).
+   - Electronics -> `sensor_check` (sensor ranges vs the flight, Mach window), `altimeter_settings` (primary/backup
+     settings, lockout, static ports, card), `sensor_data` (CSV to test flight software), `power_budget`
+     (batteries vs the pad wait, e-match current), `radio_link` (tracker range in flight and after landing). Ask for
+     the team's sensors, batteries and radio and put them in electronics.
 5. Recovery chain -> `recovery_analysis` (pinType from standards), `deployment_delay_sweep` for late drogue deployment,
    `ejection_charge` (pins to break), `recovery_bay_fit`, `descent_energy` per tethered section.
 6. Re-run `check_requirements`. Only `save_design` after the user agrees; prefer saving to a new file.

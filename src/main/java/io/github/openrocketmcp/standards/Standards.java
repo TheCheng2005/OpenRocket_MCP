@@ -153,7 +153,7 @@ public final class Standards {
 		return edited;
 	}
 
-		public Standards patched(JsonObject patch) {
+	public Standards patched(JsonObject patch) {
 		JsonObject copy = data.deepCopy();
 		deepMerge(copy, patch);
 		JsonObject rulesNow = loadRules(copy.has("ruleset") ? copy.get("ruleset").getAsString() : null, source);

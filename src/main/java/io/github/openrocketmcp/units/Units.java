@@ -81,7 +81,8 @@ public final class Units {
 		def(Dim.DENSITY, 16.01846337396, "lb/ft3");
 		def(Dim.TIME, 1, "s", "sec", "secs", "seconds");
 		def(Dim.TIME, 0.001, "ms");
-		def(Dim.TIME, 60, "min");
+		def(Dim.TIME, 60, "min", "mins", "minutes");
+		def(Dim.TIME, 3600, "h", "hr", "hrs", "hour", "hours");
 		def(Dim.ANGLE, 1, "rad");
 		def(Dim.ANGLE, Math.PI / 180, "deg", "degrees", "°");
 		def(Dim.IMPULSE, 1, "Ns", "N-s");

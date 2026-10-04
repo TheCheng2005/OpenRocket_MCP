@@ -21,9 +21,10 @@ import io.github.openrocketmcp.or.AeroTable;
 import io.github.openrocketmcp.or.Analysis;
 import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
+import io.github.openrocketmcp.or.ElectronicsSummary;
 import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sims;
-import io.github.openrocketmcp.or.Winds;
+import io.github.openrocketmcp.or.Variants;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
 
@@ -115,13 +116,11 @@ public final class StatusTools {
 		if (motor) {
 			try {
 				Simulation sim = Sims.prepare(d, null, fc.getId().toString(), Sims.Overrides.none(), std);
-				Sims.run(sim);
+				Sims.ensure(sim);
 				Simulation wind = null;
 				double maxWind = std.rule("maxGroundWind.value", Dim.VELOCITY);
 				if (!Double.isNaN(maxWind)) {
-					wind = sim.copy();
-					Winds.setGround(wind.getOptions(), maxWind, Double.NaN);
-					Sims.run(wind);
+					wind = Variants.windCase(sim, d.doc, maxWind);
 				}
 				rules = Requirements.check(sim, wind, std).render(std.rulesName());
 				vehicle.put("apogee", Units.fmt(sim.getSimulatedData().getMaxAltitude(), Dim.DISTANCE));
@@ -134,6 +133,12 @@ public final class StatusTools {
 					String item = String.valueOf(c.get("item"));
 					String finding = item + ": " + c.get("value") + (c.containsKey("ref") ? " (" + c.get("ref") + ")" : "");
 					items.add(new Item(area(item), status, finding, fix(item), status.equals("FAIL") ? -1 : 5));
+				}
+				if (electronics) {
+					// Sensor ranges, batteries, radio and altimeter settings against this flight (team parts in the standards).
+					for (ElectronicsSummary.Issue i : ElectronicsSummary.of(d, sim, std).issues()) {
+						items.add(new Item("Electronics", i.status(), i.what(), i.tool() + " for the details.", i.status().equals("FAIL") ? 0 : 5));
+					}
 				}
 			} catch (RuntimeException e) {
 				items.add(new Item("Flight", "FAIL", "The simulation fails: " + e.getMessage(),

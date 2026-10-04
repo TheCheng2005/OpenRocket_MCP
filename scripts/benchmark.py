@@ -684,6 +684,45 @@ def scenario_avionics(s, tmp):
     svg = open(out).read()
     check(sc, "cut-away shows electronics, parachutes, charges and separations",
           all(f'class="{c}"' in svg for c in ("elec", "batt", "chute", "charge", "sep")))
+    s.call("set_deployment", {"designId": d, "component": "Drogue", "event": "apogee"})
+    s.call("set_deployment", {"designId": d, "component": "Main", "event": "altitude", "altitude": "1000 ft"})
+    alt = s.call("altimeter_settings", {"designId": d, "path": os.path.join(tmp, "altimeters.md")})
+    chans = {c["device"]: c for c in alt["channels"]}
+    check(sc, "altimeter settings: backup drogue after apogee, backup main lower, static ports for the bay",
+          chans["Drogue"]["backup"] == "apogee + 1 s" and "AGL" in chans["Main"]["backup"]
+          and alt["staticPorts"].startswith("bay volume"), json.dumps(alt)[:400])
+    check(sc, "Mach lockout set for a transonic flight",
+          alt["lockout"]["machLockout"].split()[0].replace(".", "").isdigit(), alt["lockout"]["machLockout"])
+    chk = s.call("sensor_check", {"designId": d})
+    rows = {(r["sensor"].split(",")[0], r["quantity"].split(",")[0]): r for r in chk["checks"]}
+    check(sc, "sensor check covers accelerometers, gyro, barometer (incl. the Mach window) and GPS",
+          ("Accelerometer", "axial acceleration (x)") in rows and any(q.startswith("static pressure above Mach") for _, q in rows)
+          and any(k[0].startswith("GPS") for k in rows), str(list(rows))[:300])
+    csv_path = os.path.join(tmp, "sensors.csv")
+    data = s.call("sensor_data", {"designId": d, "path": csv_path, "rate": 50})
+    header = open(csv_path).readline().strip().split(",")
+    events = open(data["events"]).read()
+    check(sc, "sensor CSV with every sensor, truth columns and the true events",
+          {"acc_x_g", "gyro_y_dps", "baro_pressure_pa", "gps_lat_deg", "truth_phase"} <= set(header)
+          and ",apogee," in events and "deployment: Main" in events, str(header)[:200] + " EVENTS " + events)
+    pw = s.call("power_budget", {"designId": d})
+    check(sc, "power budget: every team circuit with runtime, e-match current and a status",
+          len(pw["circuits"]) >= 3 and all(r["status"] in ("PASS", "WARN", "FAIL") and "runtime" in r for r in pw["circuits"])
+          and any("pyroCurrent" in r for r in pw["circuits"]), json.dumps(pw)[:400])
+    weak = s.call("power_budget", {"designId": d, "padWait": "12 h", "circuits": [
+        {"name": "Coin cell", "voltage": 3, "capacityMah": 220, "currentMa": 30, "internalResistance": 15, "pyroChannels": 1}]})
+    check(sc, "power budget fails a coin cell on a long pad wait and a weak e-match current",
+          weak["circuits"][0]["status"] == "FAIL" and len(weak["circuits"][0]["issues"]) >= 2, json.dumps(weak)[:400])
+    rl = s.call("radio_link", {"designId": d})
+    check(sc, "radio link: margin in flight and after landing with a ground range",
+          rl["status"] in ("PASS", "WARN", "FAIL") and "afterLanding" in rl["paths"][0] and "groundRange" in rl, json.dumps(rl)[:400])
+    far = s.call("radio_link", {"designId": d, "txPowerDbm": -10, "groundStationEast": "5 km"})
+    check(sc, "a weak transmitter far from the pad fails the link", far["status"] == "FAIL", json.dumps(far)[:300])
+    card = os.path.join(tmp, "avbay-card.md")
+    s.call("flight_card", {"designId": d, "path": card})
+    md = open(card).read()
+    check(sc, "flight card carries the electronics: altimeters, power and radio",
+          "## Electronics" in md and "power:" in md and "radio:" in md, md[:300])
     s.call("close_design", {"designId": d})
 
 

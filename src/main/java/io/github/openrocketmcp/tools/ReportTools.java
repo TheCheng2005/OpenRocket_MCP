@@ -11,8 +11,7 @@ import io.github.openrocketmcp.mcp.McpServer;
 import io.github.openrocketmcp.mcp.Schema;
 import io.github.openrocketmcp.mcp.ToolDef;
 import io.github.openrocketmcp.or.Designs;
-import io.github.openrocketmcp.or.Sims;
-import io.github.openrocketmcp.or.Winds;
+import io.github.openrocketmcp.or.Variants;
 import io.github.openrocketmcp.report.Reports;
 import io.github.openrocketmcp.units.Dim;
 
@@ -39,9 +38,7 @@ public final class ReportTools {
 					Simulation wind = null;
 					double maxWind = ctx.standards().rule("maxGroundWind.value", Dim.VELOCITY);
 					if (a.bool("includeWindCase", true) && !Double.isNaN(maxWind)) {
-						wind = sim.copy();
-						Winds.setGround(wind.getOptions(), maxWind, Double.NaN);
-						Sims.run(wind);
+						wind = Variants.windCase(sim, d.doc, maxWind);
 					}
 					String pinName = a.has("pinType") && !a.has("pinStrength") ? a.str("pinType") : null;
 					List<Path> files = Reports.write(d, sim, wind, ctx.standards(), RecoveryTools.pinStrength(ctx, a), pinName,

@@ -74,7 +74,7 @@ class StudiesTest {
 				new Shapes.Option("n", "square", r -> Shapes.applyFins(r, FinSet.CrossSection.SQUARE)),
 				new Shapes.Option("n", "airfoil", r -> Shapes.applyFins(r, FinSet.CrossSection.AIRFOIL))), 0.5);
 		assertTrue(rows.get(1).cdDesign() < rows.get(0).cdDesign(), rows.toString());
-		assertTrue(rows.get(1).apogee() > rows.get(0).apogee());
+		assertTrue(rows.get(1).apogee() > rows.get(0).apogee(), rows.toString());
 	}
 
 	@Test

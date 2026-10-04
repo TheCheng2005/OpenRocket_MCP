@@ -324,6 +324,27 @@ public final class McpServer {
 		}
 	}
 
+	/** Drops working keys ("_d", "_cdA": sort keys and intermediates) so they never reach the model. */
+	static Object withoutInternal(Object v) {
+		if (v instanceof Map<?, ?> m) {
+			Map<Object, Object> out = new LinkedHashMap<>();
+			for (Map.Entry<?, ?> e : m.entrySet()) {
+				if (!(e.getKey() instanceof String k && k.startsWith("_"))) {
+					out.put(e.getKey(), withoutInternal(e.getValue()));
+				}
+			}
+			return out;
+		}
+		if (v instanceof List<?> l) {
+			List<Object> out = new ArrayList<>(l.size());
+			for (Object x : l) {
+				out.add(withoutInternal(x));
+			}
+			return out;
+		}
+		return v;
+	}
+
 	/**
 	 * An argument the tool does not take would otherwise be ignored without a word (a filter that silently does not
 	 * filter); it is refused with the tool's arguments and the closest name. Returns the error, or null.
@@ -438,7 +459,7 @@ public final class McpServer {
 		}
 		try {
 			ctx.checkCancelled();
-			Object value = tool.handler().call(args);
+			Object value = withoutInternal(tool.handler().call(args));
 			// Compact JSON: indentation roughly doubles the size of every result the model has to read.
 			JsonObject r = textResult(outputFilter.apply(value instanceof String s ? s : compact.toJson(value)), false);
 			for (CallContext.Image im : ctx.images()) {

@@ -4,16 +4,19 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.logging.Warning;
 import info.openrocket.core.motor.Motor;
 import info.openrocket.core.motor.MotorConfiguration;
 import info.openrocket.core.motor.ThrustCurveMotor;
+import info.openrocket.core.rocketcomponent.AxialStage;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.FlightConfigurationId;
 import info.openrocket.core.rocketcomponent.MotorMount;
@@ -179,7 +182,57 @@ public final class Sims {
 		}
 	}
 
+	/** What each simulation was last flown with, beyond what OpenRocket tracks itself (see {@link #ensure}). */
+	private static final Map<Simulation, String> FLOWN = Collections.synchronizedMap(new WeakHashMap<>());
+
+	/** The parts of a run OpenRocket's own staleness check does not cover. */
+	static String stamp(Simulation sim) {
+		SimulationOptions o = sim.getOptions();
+		Rocket r = sim.getRocket();
+		FlightConfigurationId fcid = sim.getFlightConfigurationId();
+		AeroTable.Table t = AeroTable.of(r);
+		StringBuilder b = new StringBuilder();
+		b.append(r.getModID()).append('|').append(r.getFlightConfiguration(fcid).getModID()).append('|').append(o.getRandomSeed())
+				.append('|').append(o.getLaunchIntoWind()).append('|').append(t == null || !t.useDrag() ? 0 : System.identityHashCode(t));
+		// OpenRocket's deployment, motor and separation settings change without a change event, so no counter moves.
+		for (RocketComponent c : r) {
+			if (c instanceof RecoveryDevice rd) {
+				var dc = rd.getDeploymentConfigurations().get(fcid);
+				b.append('|').append(dc.getDeployEvent()).append(dc.getDeployAltitude()).append('/').append(dc.getDeployDelay());
+			}
+			if (c instanceof MotorMount mm && mm.isMotorMount()) {
+				MotorConfiguration mc = mm.getMotorConfig(fcid);
+				b.append('|').append(mc.getMotor() == null ? "-" : mc.getMotor().getDigest()).append(mc.getEjectionDelay())
+						.append(mc.getIgnitionEvent()).append(mc.getIgnitionDelay());
+			}
+			if (c instanceof AxialStage st) {
+				var sc = st.getSeparationConfigurations().get(fcid);
+				b.append('|').append(sc.getSeparationEvent()).append(sc.getSeparationDelay());
+			}
+		}
+		return b.toString();
+	}
+
+	/**
+	 * The simulation's results, flown only if they are out of date. Most tools read the same flight (run, check,
+	 * recovery, card, electronics...); flying it again for each one was most of their time. Results are reused only
+	 * when OpenRocket says they are current (same configuration and launch conditions) and the run was a plain one
+	 * of this server (same seed, launch-into-wind and aero table, no extra listeners).
+	 */
+	public static FlightData ensure(Simulation sim) {
+		FlightData data = sim.getSimulatedData();
+		String now = stamp(sim);
+		if (data != null && data.getBranchCount() > 0 && now.equals(FLOWN.get(sim))
+				&& sim.getStatus() == Simulation.Status.UPTODATE) {
+			return data;
+		}
+		FlightData out = run(sim);
+		FLOWN.put(sim, stamp(sim));
+		return out;
+	}
+
 	public static FlightData run(Simulation sim, SimulationListener... listeners) {
+		FLOWN.remove(sim); // a run with other listeners (or a failed one) is not reusable
 		// Turbulence always follows the simulation's random seed, so every tool (run, check, optimize, sweep) sees the
 		// same gusts for the same simulation. See Variants.seed.
 		Variants.seed(sim.getOptions(), sim.getOptions().getRandomSeed());
