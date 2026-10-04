@@ -156,7 +156,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 |---|---|---|---|
 | WARN | Launch site altitude | 0 m (0 ft) used by this simulation |  |
 | WARN | Ascent stability (maximum, over-stability) | 5.693 cal | R10.3.1, R10.4.1 |
-| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.692 cal | R10.3.1, R10.4.1 |
+| WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability) | 5.688 cal | R10.3.1, R10.4.1 |
 | WARN | Maximum Mach number | 1.175 |  |
 | PASS | Simulated launch angle | 6 deg | R10.1.1 |
 | PASS | Rail departure velocity | 41.63 m/s (136.6 ft/s) | R10.2.1 |
@@ -179,7 +179,7 @@ A cut-away from the OpenRocket model itself: every part is drawn where it is, el
 
 <sub>Tools Claude uses: `monte_carlo`</sub>
 
-> Over 200 simulated flights the median landing is 200.6 m (658.3 ft) from the pad and 95% land within 487.1 m (1598 ft); the landings centre 495 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 201.2 m (660 ft).
+> Over 200 simulated flights the median landing is 200.1 m (656.5 ft) from the pad and 95% land within 489.7 m (1607 ft); the landings centre 495 ft west of the pad (the rail is tilted into the wind, so it flies upwind and drifts back under the drogue). Apogee 2973 m (9754 ft) ± 200.8 m (658.9 ft).
 
 ![200 simulated landings around the pad with the 2-sigma ellipse](examples/landing.svg)
 
@@ -189,12 +189,12 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 
 | Uncertain input | Apogee | Min stability | Landing distance |
 |---|---|---|---|
-| windSpeed | -0.1297 | -0.9653 | -0.6783 |
-| launchAngle | -0.1498 | -0.006994 | 0.3159 |
-| structureMass | -0.05064 | 0.1309 | 0.09615 |
-| airframeDrag | -0.9259 | 0.04255 | -0.173 |
-| motorThrust | 0.3181 | 0.08091 | -0.02129 |
-| parachuteCd | -0.035 | 0.03086 | -0.07623 |
+| windSpeed | -0.1313 | -0.9653 | -0.6802 |
+| launchAngle | -0.1482 | -0.006994 | 0.3148 |
+| structureMass | -0.05159 | 0.1309 | 0.09545 |
+| airframeDrag | -0.9263 | 0.04255 | -0.1758 |
+| motorThrust | 0.3162 | 0.08091 | -0.02 |
+| parachuteCd | -0.03394 | 0.03086 | -0.07612 |
 
 <sub>Correlation from -1 to 1: the closer to ±1, the more that input drives the result.</sub>
 
@@ -213,8 +213,8 @@ Claude also reports what drives the spread (correlation of each uncertain input 
 | tangent ogive (current) | rounded | 3575 m (11730 ft) | 19.66% | 1.144 | 3.528 cal |
 | Von Karman (Haack LD) | square (current) | 3002 m (9850 ft) | 0.4851% | 1.341 | 3.525 cal |
 | 1/2 power | square (current) | 3001 m (9847 ft) | 0.4484% | 1.34 | 3.537 cal |
-| LV-Haack | square (current) | 2993 m (9821 ft) | 0.189% | 1.356 | 3.533 cal |
-| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02337% | 1.36 | 3.513 cal |
+| LV-Haack | square (current) | 2993 m (9821 ft) | 0.1891% | 1.356 | 3.533 cal |
+| 3/4 power | square (current) | 2989 m (9805 ft) | 0.02339% | 1.36 | 3.513 cal |
 | tangent ogive (current) | square (current) | 2988 m (9803 ft) | 0% | 1.351 | 3.522 cal |
 
 <details><summary>Claude's shape guidance (from the tool)</summary>
@@ -306,14 +306,15 @@ Paint and primer,90,estimated,no,Upper airframe
 
 <sub>Tools Claude uses: `design_status`</sub>
 
-> **In progress: 2 thing(s) to set up, 4 warning(s).** Launch Canada 2027: DTEG Revision 4 + LC 2027 DTEG and R&R Edicts (to become DTEG R5): No failures; 4 warning(s).
+> **In progress: 2 thing(s) to set up, 5 warning(s).** Launch Canada 2027: DTEG Revision 4 + LC 2027 DTEG and R&R Edicts (to become DTEG R5): No failures; 4 warning(s).
 
 | Area | Status | Finding |
 |---|---|---|
 | Launch site | WARN | Launch site altitude: 0 m (0 ft) used by this simulation |
 | Stability | WARN | Ascent stability (maximum, over-stability): 5.683 cal (R10.3.1, R10.4.1) |
-| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.683 cal (R10.3.1, R10.4.1) |
+| Stability | WARN | Ascent stability in 8.333 m/s (27.34 ft/s) wind (maximum, over-stability): 5.68 cal (R10.3.1, R10.4.1) |
 | Rules | WARN | Maximum Mach number: 1.144 |
+| Electronics | WARN | GPS tracker (1S LiPo 500 mAh): less than 30% to spare: a delay on the pad or a long search uses it up |
 | Standards | TODO | The team standards were changed in this session but are not saved to a file, so the next session and the rest of the team will not have them. |
 | File | TODO | Unsaved changes (22 edit(s) this session, undo available). |
 
@@ -322,8 +323,9 @@ Next steps, in order:
 1. update_standards launchSite.altitudeMsl (and weather_forecast on the day).
 2. optimize_fins (smaller fins) or less nose ballast.
 3. check_requirements for the details and rule reference.
-4. update_standards with saveTo (e.g. openrocket-mcp.json), then commit the file.
-5. save_design once the team agrees (history shows what changed).
+4. power_budget for the details.
+5. update_standards with saveTo (e.g. openrocket-mcp.json), then commit the file.
+6. save_design once the team agrees (history shows what changed).
 
 ### 21. "Make the design review package."
 
@@ -531,3 +533,25 @@ The altimeter card:
 | under the main | 156.1000 | -0.99750 | -1.12700 | 97108.72 | 64.07 | descent |
 
 The ±16 g part comes within 2% of clipping at motor start, so a hotter motor or vibration would saturate it; the ±200 g part keeps the boost on scale. Under the main both read about −1 g (the canopy holding the rocket). Columns follow the team's sensors in the standards; pass your own parts with `sensors`.
+
+### 31. "Do our batteries last a two-hour pad wait, and will we hear the GPS tracker all the way down?"
+
+<sub>Tools Claude uses: `power_budget`, `radio_link`</sub>
+
+> 2 h on the pad + 2.685 min flight + 2 h until found. Each circuit against its battery (the team's parts, set in the standards):
+
+| Circuit | Needs | Usable | Runs for |  |
+|---|---|---|---|---|
+| Primary altimeter (9 V alkaline) | 48.54 mAh (12 mA for 4.045 h) | 440 mAh usable (550 mAh x 0.8) | 36.67 h on the pad and after | PASS |
+| Backup altimeter (2S LiPo 300 mAh) | 48.54 mAh (12 mA for 4.045 h) | 240 mAh usable (300 mAh x 0.8) | 20 h on the pad and after | PASS |
+| GPS tracker (1S LiPo 500 mAh) | 364 mAh (90 mA for 4.045 h) | 400 mAh usable (500 mAh x 0.8) | 4.444 h on the pad and after | WARN |
+
+E-match: 2.5 A through each e-match (1.6 ohm match, 1.7 ohm battery, 0.3 ohm wiring); the battery holds 4.75 V (from 9 V) while firing.
+
+> Link: 915 MHz, 20 dBm, antennas 2.15 / 2.15 dBi, receiver -123 dBm, losses 3 dB: 144.3 dB to spend on the path.
+
+| Flight | Farthest in flight | After landing |  |
+|---|---|---|---|
+| Sustainer | 3165 m (10383 ft) at t=21.46 s (3021 m (9912 ft) up): +42.62 dB margin | 99.93 m (327.9 ft) away on the ground: +50.33 dB margin | PASS |
+
+Ground range: 1019 m (3342 ft) with 10 dB margin once landed (ground station antenna 2 m (6.562 ft) up, rocket antenna 0.1 m (0.3281 ft) off the ground). In the air the path is clear, so free-space loss rules; on the ground the two antennas are near the earth and the signal falls off with the fourth power of distance, which is why a tracker heard at apogee can go quiet once it lands.

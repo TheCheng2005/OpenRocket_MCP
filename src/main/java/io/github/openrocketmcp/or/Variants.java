@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -22,6 +23,8 @@ import info.openrocket.core.simulation.SimulationOptions;
 import info.openrocket.core.simulation.listeners.SimulationListener;
 import io.github.openrocketmcp.mcp.CallContext;
 import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.units.Dim;
+import io.github.openrocketmcp.units.Units;
 
 /**
  * Independent what-if simulations. Each variant runs on its own copy of the rocket (component ids preserved), so
@@ -99,6 +102,55 @@ public final class Variants {
 		}
 		Winds.seedLevels(options, seed);
 		options.setWindModelType(type);
+	}
+
+	private record Flown(String stamp, SimulationOptions options, Simulation sim) {
+	}
+
+	/** Flights of a simulation in other ground winds, reused while the design and its conditions are unchanged. */
+	private static final Map<Simulation, Map<Double, Flown>> WIND = Collections.synchronizedMap(new WeakHashMap<>());
+
+	/**
+	 * The simulation flown in each steady ground wind (a wind profile is scaled from its lowest level). The rule check's
+	 * design-wind case and the flight card's drift table ask for the same flights again and again; they are flown once
+	 * (in parallel) and reused until the design, its configuration or the launch conditions change.
+	 */
+	public static List<Run> windCases(Simulation base, OpenRocketDocument doc, List<Double> speeds) {
+		String stamp = Sims.stamp(base);
+		Map<Double, Flown> cache = WIND.computeIfAbsent(base, k -> new ConcurrentHashMap<>());
+		Run[] out = new Run[speeds.size()];
+		List<Simulation> todo = new ArrayList<>();
+		List<Integer> where = new ArrayList<>();
+		for (int i = 0; i < speeds.size(); i++) {
+			Flown f = cache.get(speeds.get(i));
+			if (f != null && f.stamp().equals(stamp) && f.options().equals(base.getOptions())) {
+				out[i] = new Run(f.sim(), null);
+			} else {
+				Simulation v = of(base, doc, null, null);
+				Winds.setGround(v.getOptions(), speeds.get(i), Double.NaN);
+				todo.add(v);
+				where.add(i);
+			}
+		}
+		List<Run> runs = todo.isEmpty() ? List.of() : runAll(todo);
+		for (int j = 0; j < runs.size(); j++) {
+			int i = where.get(j);
+			out[i] = runs.get(j);
+			if (runs.get(j).ok()) {
+				cache.put(speeds.get(i), new Flown(stamp, base.getOptions().clone(), runs.get(j).sim()));
+			}
+		}
+		return List.of(out);
+	}
+
+	/** One ground-wind case, flown or reused; throws when the flight fails. */
+	public static Simulation windCase(Simulation base, OpenRocketDocument doc, double speed) {
+		Run r = windCases(base, doc, List.of(speed)).get(0);
+		if (!r.ok()) {
+			throw new ToolException("The " + Units.fmt(speed, Dim.VELOCITY)
+					+ " wind case failed: " + r.error());
+		}
+		return r.sim();
 	}
 
 	/** Result of one run: the simulation, or the error that stopped it. */

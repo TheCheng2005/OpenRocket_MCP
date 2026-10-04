@@ -726,6 +726,24 @@ def main():
     w(f"The ±16 g part {verdict}. Under the main both read about −1 g (the canopy holding the rocket). Columns follow "
       "the team's sensors in the standards; pass your own parts with `sensors`.")
     w()
+    ask(31, "Do our batteries last a two-hour pad wait, and will we hear the GPS tracker all the way down?",
+        ["power_budget", "radio_link"])
+    pw = call("power_budget", {"designId": d})
+    w(f"> {pw['time']}. Each circuit against its battery (the team's parts, set in the standards):")
+    w()
+    table(pw["circuits"], ["circuit", "needs", "has", "runtime", "status"], ["Circuit", "Needs", "Usable", "Runs for", ""])
+    fire = next((r for r in pw["circuits"] if "pyroCurrent" in r), None)
+    if fire:
+        w(f"E-match: {fire['pyroCurrent']}; the battery holds {fire['voltageWhileFiring']} while firing.")
+        w()
+    rl = call("radio_link", {"designId": d})
+    w(f"> Link: {rl['radio']}.")
+    w()
+    table(rl["paths"], ["branch", "farthestInFlight", "afterLanding", "status"], ["Flight", "Farthest in flight", "After landing", ""])
+    w(f"Ground range: {rl['groundRange']}. In the air the path is clear, so free-space loss rules; on the ground the "
+      "two antennas are near the earth and the signal falls off with the fourth power of distance, which is why a "
+      "tracker heard at apogee can go quiet once it lands.")
+    w()
     s.close()
     if os.environ.get("EXAMPLES_DUMP"):
         json.dump(raw, open(os.environ["EXAMPLES_DUMP"], "w"), indent=1)

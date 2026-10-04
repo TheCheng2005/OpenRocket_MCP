@@ -355,6 +355,61 @@
       "baroUnreliableAboveMach": 0.7,
       "machLockoutMargin": "1 s",
       "notes": "Team choices for altimeter_settings: the backup altimeter fires the drogue backupDrogueDelay after apogee and the main backupMainOffset lower; barometric events are locked out while the rocket is above baroUnreliableAboveMach, plus machLockoutMargin."
+    },
+    "power": {
+      "circuits": [
+        {
+          "name": "Primary altimeter",
+          "battery": "9 V alkaline",
+          "voltage": 9,
+          "capacityMah": 550,
+          "internalResistance": 1.7,
+          "currentMa": 12,
+          "pyroChannels": 2,
+          "brownoutVoltage": 4.0
+        },
+        {
+          "name": "Backup altimeter",
+          "battery": "2S LiPo 300 mAh",
+          "voltage": 7.4,
+          "capacityMah": 300,
+          "internalResistance": 0.15,
+          "currentMa": 12,
+          "pyroChannels": 2,
+          "brownoutVoltage": 4.0
+        },
+        {
+          "name": "GPS tracker",
+          "battery": "1S LiPo 500 mAh",
+          "voltage": 3.7,
+          "capacityMah": 500,
+          "internalResistance": 0.1,
+          "currentMa": 90,
+          "pyroChannels": 0
+        }
+      ],
+      "padWait": "2 h",
+      "recoveryTime": "2 h",
+      "capacityDerating": 0.8,
+      "ematch": {
+        "resistance": 1.6,
+        "allFireCurrent": 1.0,
+        "wiringResistance": 0.3,
+        "currentMargin": 2
+      },
+      "notes": "Typical parts and datasheet-style values: replace with yours (current = average draw of everything on that battery; brownoutVoltage = the lowest supply the electronics keep running at). padWait and recoveryTime are team choices: check your competition's rule for time on the pad. Derating covers cold, age and a partly charged battery."
+    },
+    "radio": {
+      "frequencyMhz": 915,
+      "txPowerDbm": 20,
+      "txAntennaGainDbi": 2.15,
+      "rxAntennaGainDbi": 2.15,
+      "rxSensitivityDbm": -123,
+      "lossesDb": 3,
+      "requiredMarginDb": 10,
+      "groundStationHeight": "2 m",
+      "rocketAntennaHeightOnGround": "0.1 m",
+      "notes": "A 915 MHz LoRa tracker with dipoles; replace with your radio. Use the frequency and power your licence or the ISM band in your country allows."
     }
   }
 }

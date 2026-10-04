@@ -704,7 +704,25 @@ def scenario_avionics(s, tmp):
     events = open(data["events"]).read()
     check(sc, "sensor CSV with every sensor, truth columns and the true events",
           {"acc_x_g", "gyro_y_dps", "baro_pressure_pa", "gps_lat_deg", "truth_phase"} <= set(header)
-          and ",apogee," in events and "deployment: Main" in events, str(header)[:200])
+          and ",apogee," in events and "deployment: Main" in events, str(header)[:200] + " EVENTS " + events)
+    pw = s.call("power_budget", {"designId": d})
+    check(sc, "power budget: every team circuit with runtime, e-match current and a status",
+          len(pw["circuits"]) >= 3 and all(r["status"] in ("PASS", "WARN", "FAIL") and "runtime" in r for r in pw["circuits"])
+          and any("pyroCurrent" in r for r in pw["circuits"]), json.dumps(pw)[:400])
+    weak = s.call("power_budget", {"designId": d, "padWait": "12 h", "circuits": [
+        {"name": "Coin cell", "voltage": 3, "capacityMah": 220, "currentMa": 30, "internalResistance": 15, "pyroChannels": 1}]})
+    check(sc, "power budget fails a coin cell on a long pad wait and a weak e-match current",
+          weak["circuits"][0]["status"] == "FAIL" and len(weak["circuits"][0]["issues"]) >= 2, json.dumps(weak)[:400])
+    rl = s.call("radio_link", {"designId": d})
+    check(sc, "radio link: margin in flight and after landing with a ground range",
+          rl["status"] in ("PASS", "WARN", "FAIL") and "afterLanding" in rl["paths"][0] and "groundRange" in rl, json.dumps(rl)[:400])
+    far = s.call("radio_link", {"designId": d, "txPowerDbm": -10, "groundStationEast": "5 km"})
+    check(sc, "a weak transmitter far from the pad fails the link", far["status"] == "FAIL", json.dumps(far)[:300])
+    card = os.path.join(tmp, "avbay-card.md")
+    s.call("flight_card", {"designId": d, "path": card})
+    md = open(card).read()
+    check(sc, "flight card carries the electronics: altimeters, power and radio",
+          "## Electronics" in md and "power:" in md and "radio:" in md, md[:300])
     s.call("close_design", {"designId": d})
 
 

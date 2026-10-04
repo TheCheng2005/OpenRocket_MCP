@@ -27,7 +27,6 @@ import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sims;
 import io.github.openrocketmcp.or.Variants;
-import io.github.openrocketmcp.or.Winds;
 import io.github.openrocketmcp.report.Png;
 import io.github.openrocketmcp.report.Reports;
 import io.github.openrocketmcp.units.Dim;
@@ -72,7 +71,7 @@ public final class SimTools {
 	static Simulation runSelected(Context ctx, Args a) {
 		Designs.Design d = ctx.designs.get(a.str("designId", null));
 		Simulation sim = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), overrides(a), ctx.standards());
-		Sims.run(sim);
+		Sims.ensure(sim);
 		return sim;
 	}
 
@@ -143,9 +142,7 @@ public final class SimTools {
 					Simulation wind = null;
 					double maxWind = ctx.standards().rule("maxGroundWind.value", Dim.VELOCITY);
 					if (a.bool("includeWindCase", true) && !Double.isNaN(maxWind)) {
-						wind = sim.copy();
-						Winds.setGround(wind.getOptions(), maxWind, Double.NaN);
-						Sims.run(wind);
+						wind = Variants.windCase(sim, ctx.designs.get(a.str("designId", null)).doc, maxWind);
 					}
 					return Requirements.check(sim, wind, ctx.standards()).render(ctx.standards().rulesName());
 				}));

@@ -5,6 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 
 import com.google.gson.JsonObject;
@@ -45,6 +49,17 @@ class ChoicesTest {
 		assertNull(McpServer.unknownArguments("search_motors", schema, a), "a stray designId is let through");
 		a.addProperty("x", 1);
 		assertTrue(McpServer.unknownArguments("list_designs", Schema.object().build(), a).endsWith("It takes no arguments."));
+	}
+
+	@Test
+	void workingKeysNeverReachTheModel() {
+		Map<String, Object> nested = new LinkedHashMap<>(), row = new LinkedHashMap<>();
+		nested.put("_d", 1);
+		nested.put("d", 2);
+		row.put("parachute", "x");
+		row.put("_cdA", 0.3);
+		row.put("nested", nested);
+		assertEquals("[{parachute=x, nested={d=2}}]", McpServer.withoutInternal(List.of(row)).toString());
 	}
 
 	@Test

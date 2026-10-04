@@ -20,6 +20,7 @@ import info.openrocket.core.simulation.FlightEvent;
 import io.github.openrocketmcp.or.Aero;
 import io.github.openrocketmcp.or.Analysis;
 import io.github.openrocketmcp.or.Designs;
+import io.github.openrocketmcp.or.ElectronicsSummary;
 import io.github.openrocketmcp.or.Recovery;
 import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sims;
@@ -198,13 +199,7 @@ public final class Reports {
 		for (int i = 0; i <= 3; i++) {
 			winds.add(max * i / 3);
 		}
-		List<Simulation> sims = new ArrayList<>();
-		for (double w : winds) {
-			Simulation v = Variants.of(sim, d.doc, null, null);
-			Winds.setGround(v.getOptions(), w, Double.NaN);
-			sims.add(v);
-		}
-		List<Variants.Run> runs = Variants.runAll(sims);
+		List<Variants.Run> runs = Variants.windCases(sim, d.doc, winds);
 		List<Map<String, Object>> rows = new ArrayList<>();
 		for (int i = 0; i < runs.size(); i++) {
 			Map<String, Object> r = new LinkedHashMap<>();
@@ -345,7 +340,11 @@ public final class Reports {
 			md.append("- ").append(n).append('\n');
 		}
 
-		md.append("\n## 6. Methods and assumptions\n\n");
+		md.append('\n').append(ElectronicsSummary.markdown(ElectronicsSummary.of(d, sim, std), "## 6. Electronics"));
+		md.append("Sensor ranges, power and radio against this flight use the team's parts in electronics (standards); "
+				+ "sensor_data writes simulated sensor logs for testing flight software.\n");
+
+		md.append("\n## 7. Methods and assumptions\n\n");
 		md.append("- Flight: OpenRocket 24.12 six-degree-of-freedom simulation, Barrowman aerodynamics. ");
 		md.append("Stability margin = (CP - CG) / maximum body diameter.\n");
 		md.append("- Opening load: Knacke (NWC TP 6575) infinite-mass F = Cx q CdA with Cx = ")

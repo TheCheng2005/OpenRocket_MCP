@@ -6,7 +6,7 @@ plain-language overview.
 
 ## Tools
 
-The 74 tools, grouped by what a team is doing. Bold marks the main job of each tool.
+The 76 tools, grouped by what a team is doing. Bold marks the main job of each tool.
 
 ### Session
 
@@ -189,7 +189,21 @@ The 74 tools, grouped by what a team is doing. Bold marks the main job of each t
   - **Mach lockout:** time above Mach 0.7, plus 1 s.
   - **Static ports:** sized for the bay.
   - **Card:** optionally a one-page Markdown card with a pre-flight checklist.
-- **Team sensors and altimeter choices** live in `electronics` in the team standards. The defaults are typical student
+- `power_budget`: **every battery against the day**. For each circuit (by default the team's: two altimeters and a GPS
+  tracker), the charge needed for the pad wait + the simulated flight + the search, against the derated capacity
+  (80% by default); the runtime it gives; the current through each e-match (battery voltage over battery + match +
+  wiring resistance) against the all-fire current times a margin (2x); and the voltage while firing against the
+  brownout voltage. FAIL when it runs out or a match may not fire, WARN under 30% spare or on a brownout. Pass your
+  own `circuits`, `padWait`, `recoveryTime`, `ematchResistance` or `allFireCurrent`.
+- `radio_link`: **can the ground station hear the tracker**. The link budget (transmit power + antenna gains −
+  sensitivity − losses) against the path loss at the farthest point of each flight branch (free space in the air), at
+  apogee, and after landing (plane-earth two-ray loss, since both antennas sit near the ground), with the range at
+  which a landed tracker still has the wanted margin (10 dB). The ground station may stand away from the pad
+  (`groundStationEast` / `groundStationNorth`); `landingDispersion` adds the Monte Carlo spread to the landing.
+- **Electronics everywhere:** the flight card and the review report carry an Electronics section (altimeter settings,
+  sensor problems, every battery circuit and the radio), and `design_status` lists electronics problems with the tool
+  to open.
+- **Team sensors, altimeter choices, batteries, e-matches and radio** live in `electronics` in the team standards. The defaults are typical student
   parts (±16 g and ±200 g accelerometers, ±2000 deg/s gyro, a 30–125 kPa barometer, GPS): replace them with yours.
 
 ### Recovery chain
@@ -261,7 +275,7 @@ The 74 tools, grouped by what a team is doing. Bold marks the main job of each t
   altitude, temperature and pressure. Without internet, paste the JSON, or enter winds by hand with `wind_profile`.
 - `flight_card`: a one-page launch-day card. It covers the vehicle, CG/CP, motors with the optimum and closest
   available ejection delay, predictions, recovery settings, sections and landing energy, drift per ground wind, the
-  rule check and sign-off lines.
+  rule check, the electronics (altimeters, power, radio) and sign-off lines.
 
 ### Reviews and files
 
@@ -288,7 +302,7 @@ The 74 tools, grouped by what a team is doing. Bold marks the main job of each t
 ### Reports
 
 - `generate_report`: a Markdown design review. It has the rule checks, stability by stage, a wind-sensitivity flight-card
-  table, the recovery chain and the methods. It also writes the two stability-against-time SVG plots DTEG R10.3.2 asks
+  table, the recovery chain, the electronics and the methods. It also writes the two stability-against-time SVG plots DTEG R10.3.2 asks
   for, and a CSV.
 - `export_flight_data`: the full-resolution CSV.
 
@@ -328,6 +342,10 @@ The 74 tools, grouped by what a team is doing. Bold marks the main job of each t
 - **Faster studies:** studies that only read the climb (`rank_motors`, `optimize`, `optimize_fins`, `compare_shapes`,
   `ballast`, `roll_analysis`) stop each flight once its first parachute is out, skipping the long descent. Apogee,
   stability, rail exit, Mach, flutter and ejection timing are unchanged (a test checks this).
+- **Each flight is flown once:** tools that read the design's own flight (`run_simulation`, `check_requirements`,
+  `flight_card`, `design_status`, the electronics tools, the report) reuse its results until the design, the motor,
+  deployment, staging or launch conditions change, and the design-wind case is cached the same way. A typical
+  session of a dozen such calls went from 26 s to 3 s.
 - **Arguments are checked:** an argument a tool does not take is refused with the tool's list and the closest name, not
   silently ignored. Listed choices accept any case and spaces (`"Max apogee"` = `max_apogee`). Masses, rates, lengths
   and volumes that must be positive are checked.
@@ -416,6 +434,12 @@ See `openrocket://methods` for equations and sources. In short:
   mass. Body rates and ambient air are the simulation's. A test checks the accelerometer against the trajectory
   (dvz/dt = a_x cos(tilt) - g within 1 m/s²). Not modelled: vibration, deployment shocks (OpenRocket opens canopies
   instantly, so opening peaks are upper bounds), bias and drift, bay pressure lag and port errors near Mach 1.
+- **Power budget**: constant average current over the whole day (measure it armed and transmitting); capacity derated
+  for cold and age; the e-match current is Ohm's law with the battery's internal resistance, which falls as a battery
+  cools or ages. Not modelled: capacity loss at high current, temperature, self-discharge.
+- **Radio link**: free-space loss 20 log10(4π d f / c) in the air; on the ground the plane-earth model (40 dB per
+  decade beyond the two-ray crossover 4π h1 h2 / λ), which is pessimistic over open fields and optimistic in forest
+  or hills. Antenna patterns, polarisation and the rocket's orientation are in `lossesDb`; keep a 10 dB margin.
 - **Cd reference area**: OpenRocket uses the nominal canopy area. Vendor Cd values quoted on projected area (e.g. 2.2)
   must be paired with projected area.
 

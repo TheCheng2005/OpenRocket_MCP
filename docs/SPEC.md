@@ -425,6 +425,35 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   canopy, noise sd, clipping, the CSV and events file, range failures and the transonic window; and
   `AltimeterSettingsTest`, which covers lockout, backups, static ports, the card, and two-stage branches.
 
+### Power, radio, integration and reuse (v0.19.0)
+
+- `or.Electrical`:
+  - **Power:** per circuit, the charge for pad + flight (`flightTime` from the simulation) + recovery against
+    capacity x derating. FAIL above usable, WARN above 70% of it. E-match current I = V / (R_batt + R_match + R_wiring)
+    against all-fire x margin; voltage while firing V - I R_batt against brownout.
+  - **Radio:** FSPL = 20 log d + 20 log f + 20 log(4π/c) (exact constant; a test checks the textbook value). In
+    flight, the farthest airborne sample (above 10 m) per branch and apogee; after landing the plane-earth loss
+    40 log d - 20 log h1 - 20 log h2 beyond the crossover 4π h1 h2 / λ (free space inside it). `groundRange` bisects
+    for the distance with the wanted margin.
+- `or.ElectronicsSummary`: one reading of `electronics` in the standards (sensors, altimeter options, circuits,
+  e-match, derating, durations, radio) shared by the six electronics tools, and one summary of every check used by
+  `flight_card`, `design_status` (issues with the tool to open) and the review report (section 6).
+- **Flying once:** `Sims.ensure` reuses a simulation's results when OpenRocket reports them up to date *and* a stamp
+  matches: rocket modID, configuration modID, seed, launch-into-wind, aero table, plus each recovery device's
+  deployment, each mount's motor and delay and each stage's separation. Those three setters fire no change event in
+  OpenRocket 24.12, so without the stamp a deployment change kept the old flight (the benchmark caught it). Runs with
+  extra listeners are never reused. `Variants.windCases` caches the ground-wind variants per simulation the same way
+  (`check_requirements`, `design_status`, the report and the card share the design-wind flight). `ReuseTest` covers
+  edits, deployment, motor delay, launch conditions, aero tables, undo and listener runs.
+- **Results:** a 13-tool session on the example rocket went from 26.1 s to 3.1 s; `check_requirements` warm is about
+  40 ms. Benchmark 137/137.
+- **Found along the way:** working keys (`_cdA`) leaked from `search_parachutes`; `McpServer.withoutInternal` strips
+  `_`-prefixed keys from every result. Times accept `min` and `h`.
+- **Reproducibility note:** two server processes can differ in the 4th digit after long sessions. The design files
+  match; one simulation result differs in the last bit (HotSpot's `Math` intrinsics differ between interpreted and
+  compiled code), and the flight amplifies it. Within a process, and for a given call sequence on a fresh design,
+  results repeat.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

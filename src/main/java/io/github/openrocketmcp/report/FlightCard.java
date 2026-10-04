@@ -24,6 +24,7 @@ import info.openrocket.core.simulation.FlightEvent;
 import info.openrocket.core.simulation.SimulationOptions;
 import io.github.openrocketmcp.or.Analysis;
 import io.github.openrocketmcp.or.Designs;
+import io.github.openrocketmcp.or.ElectronicsSummary;
 import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sections;
 import io.github.openrocketmcp.or.Sims;
@@ -187,6 +188,8 @@ public final class FlightCard {
 			secRows.add(r);
 		}
 		md.append("### Sections\n\n").append(Reports.table(secRows)).append('\n');
+
+		md.append(ElectronicsSummary.markdown(ElectronicsSummary.of(d, sim, std), "## Electronics"));
 
 		md.append("## Drift vs ground wind\n\n").append(Reports.table(Reports.windTable(d, sim, std))).append('\n');
 
