@@ -347,8 +347,23 @@ The 76 tools, grouped by what a team is doing. Bold marks the main job of each t
   deployment, staging or launch conditions change, and the design-wind case is cached the same way. A typical
   session of a dozen such calls went from 26 s to 3 s.
 - **Arguments are checked:** an argument a tool does not take is refused with the tool's list and the closest name, not
-  silently ignored. Listed choices accept any case and spaces (`"Max apogee"` = `max_apogee`). Masses, rates, lengths
-  and volumes that must be positive are checked.
+  silently ignored. Listed choices accept any case and spaces (`"Max apogee"` = `max_apogee`).
+- **Physical limits:** every number is checked against what it can physically be, with a sentence naming the argument
+  and the allowed range: no negative masses, areas, densities or delays; Cd above zero; latitude within ±90°; wind
+  0–150 m/s; launch angle 0–60°; site temperature −100 to +100 °C; nothing beyond any rocket's scale (a 10^30 m/s wind
+  or a 1 km fin is a typo or a wrong unit). Counts are whole numbers, switches are true or false. Team standards are
+  checked the same way when loaded or changed, and a section replaced by a value of another shape is refused. Every
+  argument is checked before the tool runs, including ones the chosen options would not use.
+- **Parts:** a negative size or mass is refused, and so is a zero thickness, chord or span on fins, a zero length or
+  diameter on tubes and nose cones, or a zero Cd or diameter on a parachute. Positions, offsets, sweep and motor
+  overhang may be negative. When OpenRocket limits a value (a wall thicker than the tube's radius, a cant over 15°),
+  the reply gives the value it kept.
+- **Flights that cannot happen are flagged:** when OpenRocket stops a simulation (no lift-off, tumbling under thrust,
+  a parachute out under thrust), or a flight passes Mach 3 (beyond its aerodynamics) or 150 G, `run_simulation` lists
+  it first under `PROBLEMS`, `check_requirements` fails "Physically sound flight", and the flight card and review report
+  open with it. `recovery_analysis` warns when no parachute opened (a ballistic landing).
+- **Errors are sentences:** a failure says what was wrong and how to fix it; an internal error says it is a bug in the
+  server and asks for a report.
 - **Component names:** an id, a full name, or a piece of a name that only one part has (`"Apex"` for
   `Apex 12" Drogue Parachute`).
 - **Files people bring** (altimeter logs, mass budgets, aero tables) may be UTF-8 or Windows-1252, as Excel and many

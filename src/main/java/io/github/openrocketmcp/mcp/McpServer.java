@@ -459,6 +459,7 @@ public final class McpServer {
 		}
 		try {
 			ctx.checkCancelled();
+			Limits.precheck(args.raw(), tool.inputSchema());
 			Object value = withoutInternal(tool.handler().call(args));
 			// Compact JSON: indentation roughly doubles the size of every result the model has to read.
 			JsonObject r = textResult(outputFilter.apply(value instanceof String s ? s : compact.toJson(value)), false);
@@ -474,8 +475,7 @@ public final class McpServer {
 			return textResult(outputFilter.apply("Error: " + e.getMessage()), true);
 		} catch (Exception e) {
 			Log.error("Tool " + toolName + " failed", e);
-			String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getClass().getSimpleName() + ": " + e.getMessage();
-			return textResult(outputFilter.apply("Error: " + msg), true);
+			return textResult(outputFilter.apply("Error: " + unexpected(toolName, e)), true);
 		} finally {
 			if (lock != null) {
 				lock.unlock();
@@ -609,5 +609,26 @@ public final class McpServer {
 			super(message);
 			this.code = code;
 		}
+	}
+
+	/**
+	 * A sentence for an exception no tool turned into one. Malformed JSON and unparsable numbers are the caller's to
+	 * fix and say so; OpenRocket's own IllegalArgumentExceptions are usually readable ("Wind level already exists for
+	 * altitude: 0.0"); anything else is our bug and says to report it, with the type for the report.
+	 */
+	static String unexpected(String tool, Exception e) {
+		String m = e.getMessage() == null ? "" : e.getMessage().lines().findFirst().orElse("").trim();
+		if (e instanceof com.google.gson.JsonParseException) {
+			return "Some JSON in the arguments is not valid JSON (" + m.replaceAll("^\\S+Exception: ", "")
+					.replace(" Use JsonReader.setStrictness(Strictness.LENIENT) to accept malformed JSON", "") + ").";
+		}
+		if (e instanceof NumberFormatException) {
+			return "A value that should be a number is not: " + m.replace("For input string: ", "") + ".";
+		}
+		if (e instanceof IllegalArgumentException && !m.isEmpty()) {
+			return m + (m.endsWith(".") ? "" : ".");
+		}
+		return tool + " hit an internal error (" + e.getClass().getSimpleName() + (m.isEmpty() ? "" : ": " + m)
+				+ "). This is a bug in the server, not in your design: please report it with the call that caused it.";
 	}
 }

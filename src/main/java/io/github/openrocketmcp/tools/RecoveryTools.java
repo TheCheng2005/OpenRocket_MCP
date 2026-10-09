@@ -561,6 +561,9 @@ public final class RecoveryTools {
 		double cordT = std.q("recovery.shockCord.thickness", Dim.LENGTH, 0.00635);
 		double total = 0;
 		List<Map<String, Object>> items = new ArrayList<>();
+		if (a.objList("items").isEmpty()) {
+			throw new ToolException("Give at least one item to pack (parachute, shock cord, blanket...).");
+		}
 		for (Args it : a.objList("items")) {
 			double vol;
 			String how;

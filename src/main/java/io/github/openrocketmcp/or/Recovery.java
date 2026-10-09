@@ -119,6 +119,12 @@ public final class Recovery {
 		out.put("simulation", sim.getName());
 		out.put("deployments", rows);
 		List<String> notes = new ArrayList<>();
+		if (rows.isEmpty()) {
+			// Nothing opened: the rocket comes down ballistic. Say so instead of returning an empty table.
+			out.put("WARNING", "No recovery device opened in this simulation: the rocket lands ballistic at "
+					+ Units.fmt(Math.abs(sim.getSimulatedData().getGroundHitVelocity()), Dim.VELOCITY) + ". Add a parachute or set its "
+					+ "deployment (set_deployment), and check get_design for parachutes with no area.");
+		}
 		notes.add("Airspeed at deployment comes from the OpenRocket simulation (Mach x speed of sound, so wind and horizontal velocity are included).");
 		notes.add("CdA uses OpenRocket's convention: Cd referenced to the nominal canopy area. If you enter a vendor Cd referenced to projected area (e.g. 2.2), use the projected area too.");
 		notes.add("Infinite-mass load = Cx * q * CdA (Knacke). Finite-mass load integrates vehicle deceleration while the canopy fills over n*D0/v; n and the inflation exponent come from the team standards and should be calibrated against test data.");

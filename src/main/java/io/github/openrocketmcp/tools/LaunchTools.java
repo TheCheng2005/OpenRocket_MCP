@@ -48,7 +48,12 @@ public final class LaunchTools {
 					double lon = a.num("longitude", std.q("launchSite.longitude", Dim.DIMENSIONLESS, Double.NaN));
 					JsonObject json;
 					if (a.has("forecastJson")) {
-						json = JsonParser.parseString(a.str("forecastJson")).getAsJsonObject();
+						try {
+							json = JsonParser.parseString(a.str("forecastJson")).getAsJsonObject();
+						} catch (RuntimeException e) {
+							throw new ToolException("forecastJson is not an Open-Meteo JSON object (paste the whole response "
+									+ "from api.open-meteo.com, starting with '{').");
+						}
 						if (Double.isNaN(lat) && json.has("latitude")) {
 							lat = json.get("latitude").getAsDouble();
 							lon = json.get("longitude").getAsDouble();

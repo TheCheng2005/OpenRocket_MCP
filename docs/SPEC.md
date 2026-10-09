@@ -466,6 +466,30 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   compiled code), and the flight amplifies it. Within a process, and for a given call sequence on a fresh design,
   results repeat.
 
+### Error reporting and physical limits (v0.19.1)
+
+- **How it was found:** a fuzzer (every tool, every argument, valid baseline plus -1, 0, 10^30, text, wrong units,
+  empty lists, objects where names go; about 4,000 calls) and a probe of part properties and list arguments. It found
+  raw Java errors (malformed JSON, an empty motor class, CG outside a custom motor, thrust over OpenRocket's 10 MN,
+  objects in name lists, duplicate wind levels, a 10^30 s pad time sizing an array), and several hundred non-physical
+  values accepted (negative air density, zero Cd, negative parachute counts, 10^30 winds driving OpenRocket to NaN,
+  negative shear modulus in the standards, booleans read from any text).
+- `mcp.Limits`: one table of physical ranges by argument name, applied by `Args` to every number and quantity, with
+  per-dimension defaults for names without a rule (no negative mass, area, volume, density, force, time; generous
+  maxima). A name rule applies only to its own dimension ("width" is pixels for an image, a length for a shock cord).
+  `Args.integer` refuses fractions, `Args.bool` refuses anything but true/false/yes/no, non-finite values are refused.
+- `Components.physical`: negative sizes, masses, densities and Cd refused (positions, offsets, sweep and overhang may be
+  negative); zero thickness/chord/span on fins, zero length/radius on tubes and nose cones, zero Cd/diameter on
+  recovery devices refused; values OpenRocket clamps are read back and reported.
+- `Standards.validate` on load and patch: shape against the defaults (a value object may be written as just its
+  value) and every quantity through `Limits`.
+- `Sims.problems`: OpenRocket's SIM_ABORT events (with advice per cause), Mach above 3 and peaks above 150 G. Shown in
+  `run_simulation` (`PROBLEMS`, first), `check_requirements` ("Physically sound flight": FAIL when stopped, WARN when
+  outside the models), the flight card and the report. OpenRocket's "BUG: ... NaN" failure becomes an explanation.
+- `McpServer.unexpected`: malformed JSON and unparsable numbers are the caller's to fix and say so; OpenRocket's own
+  IllegalArgumentExceptions pass through as sentences; anything else is reported as a server bug.
+- Tests: `LimitsTest`, `PhysicalTest` (refused edits, clamped values reported, a rocket that cannot lift off).
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

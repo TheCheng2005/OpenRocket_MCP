@@ -309,7 +309,7 @@ public final class DesignTools {
 					UnaryOperator<DeploymentConfiguration> edit = dc -> {
 						dc.setDeployEvent(ev);
 						if (a.has("altitude")) {
-							dc.setDeployAltitude(a.qty("altitude", Dim.DISTANCE));
+							dc.setDeployAltitude(aboveGround(a));
 						}
 						if (a.has("delay")) {
 							dc.setDeployDelay(a.qty("delay", Dim.TIME));
@@ -355,7 +355,7 @@ public final class DesignTools {
 							sc.setSeparationDelay(a.qty("delay", Dim.TIME));
 						}
 						if (a.has("altitude")) {
-							sc.setSeparationAltitude(a.qty("altitude", Dim.DISTANCE));
+							sc.setSeparationAltitude(aboveGround(a));
 						}
 						return sc;
 					};
@@ -405,5 +405,14 @@ public final class DesignTools {
 					return Map.of("id", fc.getId().toString().substring(0, 8), "name", fc.getName(), "selected",
 							rocket.getSelectedConfiguration() == fc);
 				}));
+	}
+
+	/** An event altitude: above the pad, so not below it. */
+	private static double aboveGround(Args a) {
+		double h = a.qty("altitude", Dim.DISTANCE);
+		if (h < 0) {
+			throw new ToolException("altitude is above the launch site and cannot be negative (got " + Units.fmt(h, Dim.DISTANCE) + ").");
+		}
+		return h;
 	}
 }

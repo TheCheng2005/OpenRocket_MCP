@@ -108,6 +108,12 @@ public final class FlightCard {
 			md.append("| Site / forecast | ").append(site).append(" |\n");
 		}
 		md.append("| Rule set | ").append(std.rulesName()).append(" |\n\n");
+		for (String p : Sims.problems(sim)) {
+			md.append("> **Not a sound flight:** ").append(p).append("\n");
+		}
+		if (!Sims.problems(sim).isEmpty()) {
+			md.append("\n");
+		}
 
 		md.append("## Vehicle\n\n| | |\n|---|---|\n");
 		md.append("| Length / diameter | ").append(Units.fmt(st.length(), Dim.LENGTH)).append(" / ")

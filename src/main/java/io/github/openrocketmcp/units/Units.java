@@ -246,8 +246,8 @@ public final class Units {
 
 	/** Formats an SI value for display in the active unit system, e.g. "30.5 m/s (100 ft/s)". */
 	public static String fmt(double si, Dim dim) {
-		if (Double.isNaN(si)) {
-			return "n/a";
+		if (!Double.isFinite(si)) {
+			return num(si);
 		}
 		if (dim == Dim.DIMENSIONLESS) {
 			return num(si);
@@ -276,8 +276,12 @@ public final class Units {
 
 	/** Rounds to 4 significant figures without scientific notation for typical magnitudes. */
 	public static String num(double v) {
-		if (Double.isNaN(v) || Double.isInfinite(v)) {
-			return String.valueOf(v);
+		// Never "NaN" or "Infinity" in a reply: a value that does not exist, or one without a bound.
+		if (Double.isNaN(v)) {
+			return "n/a";
+		}
+		if (Double.isInfinite(v)) {
+			return v > 0 ? "unlimited" : "-unlimited";
 		}
 		if (v == 0) {
 			return "0";

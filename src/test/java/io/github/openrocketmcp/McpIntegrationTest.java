@@ -293,7 +293,7 @@ class McpIntegrationTest {
 		JsonObject bal = JsonParser.parseString(call("ballast", "{\"designId\":\"" + id + "\",\"targetStability\":4.5}")).getAsJsonObject();
 		assertTrue(bal.has("ballastMass") && bal.getAsJsonObject("effect").has("apogee"), bal.toString());
 		assertTrue(bal.get("note").getAsString().contains("overrides the mass"), "weighed-mass override explained: " + bal);
-		String unreachable = callExpectError("ballast", "{\"designId\":\"" + id + "\",\"targetStability\":40}");
+		String unreachable = callExpectError("ballast", "{\"designId\":\"" + id + "\",\"targetStability\":25}");
 		assertTrue(unreachable.contains("not ahead of the CG"), unreachable);
 
 		// Editing a component under a weighed-mass override warns that the change is hidden

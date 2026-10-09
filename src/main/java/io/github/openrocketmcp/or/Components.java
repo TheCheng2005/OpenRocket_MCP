@@ -19,11 +19,13 @@ import info.openrocket.core.database.Databases;
 import info.openrocket.core.material.Material;
 import info.openrocket.core.rocketcomponent.AxialStage;
 import info.openrocket.core.rocketcomponent.BodyTube;
+import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.FlightConfigurationId;
 import info.openrocket.core.rocketcomponent.MotorMount;
 import info.openrocket.core.rocketcomponent.RecoveryDevice;
 import info.openrocket.core.rocketcomponent.Rocket;
+import info.openrocket.core.rocketcomponent.RingComponent;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.SymmetricComponent;
 import info.openrocket.core.rocketcomponent.Transition;
@@ -368,14 +370,22 @@ public final class Components {
 		try {
 			if (type == double.class || type == Double.class) {
 				Dim d = dimOf(canonical);
-				arg = value.isJsonPrimitive() && ((JsonPrimitive) value).isNumber()
+				double v = value.isJsonPrimitive() && ((JsonPrimitive) value).isNumber()
 						? value.getAsDouble()
 						: Units.toSi(value.getAsString(), d);
+				arg = physical(c, canonical, d, v);
 			} else if (type == int.class || type == Integer.class) {
-				arg = (int) Math.round(value.getAsDouble());
+				double v = value.getAsDouble();
+				if (v != Math.rint(v) || v < 0 || v > 10_000) {
+					throw new ToolException(canonical + " is a count: give a whole number from 0 (got " + value + ").");
+				}
+				arg = (int) v;
 			} else if (type == boolean.class || type == Boolean.class) {
-				arg = value.isJsonPrimitive() && ((JsonPrimitive) value).isBoolean()
-						? value.getAsBoolean() : Boolean.parseBoolean(value.getAsString());
+				String b = value.getAsString().trim().toLowerCase(Locale.ROOT);
+				if (!b.equals("true") && !b.equals("false")) {
+					throw new ToolException(canonical + " is true or false (got " + value + ").");
+				}
+				arg = Boolean.parseBoolean(b);
 			} else if (type == Material.class) {
 				Object current = getRaw(c, canonical);
 				Material.Type mt = current instanceof Material m ? m.getType() : Material.Type.BULK;
@@ -386,6 +396,9 @@ public final class Components {
 				arg = value.getAsString();
 			}
 			target.invoke(c, arg);
+		} catch (UnsupportedOperationException | IllegalStateException e) {
+			throw new ToolException("Property '" + canonical + "' needs " + (type == double.class ? "a number or a quantity "
+					+ "with units" : "a single value") + ", got " + value + ".");
 		} catch (IllegalArgumentException e) {
 			throw new ToolException("Property '" + canonical + "': " + e.getMessage());
 		} catch (InvocationTargetException e) {
@@ -396,6 +409,18 @@ public final class Components {
 		}
 		Object shown = arg instanceof Double dv ? render(canonical, double.class, dv)
 				: arg instanceof Material m ? m.getName() : arg;
+		// OpenRocket clamps some values to what the part allows (an inner radius to the outer, a length to zero):
+		// say what it kept rather than echo what was asked.
+		if (arg instanceof Double dv) {
+			Object kept = readBack(c, canonical);
+			if (kept instanceof Double k && Math.abs(k - dv) > 1e-9 * Math.max(1, Math.abs(dv))) {
+				return c.getName() + "." + lowerFirst(canonical) + " = " + render(canonical, double.class, k) + " (asked for "
+						+ shown + "; OpenRocket keeps it within what the part allows)";
+			}
+		} else if (arg instanceof Integer iv && readBack(c, canonical) instanceof Integer k && !k.equals(iv)) {
+			return c.getName() + "." + lowerFirst(canonical) + " = " + k + " (asked for " + iv
+					+ "; OpenRocket keeps it within what the part allows)";
+		}
 		return c.getName() + "." + lowerFirst(canonical) + " = " + shown;
 	}
 
@@ -494,6 +519,56 @@ public final class Components {
 	}
 
 	/** Raw (SI) value of a property, for exact restore after temporary edits. */
+	/**
+	 * Refuses values no part can have: non-finite numbers, and negative sizes, masses, densities, areas or drag
+	 * coefficients. Positions, offsets, angles, sweep and motor overhang may be negative.
+	 */
+	public static double physical(RocketComponent c, String property, Dim d, double v) {
+		if (!Double.isFinite(v)) {
+			throw new ToolException(property + " must be a finite number (got " + v + ").");
+		}
+		String p = property.toLowerCase(Locale.ROOT);
+		boolean signed = p.contains("offset") || p.contains("position") || p.contains("shift") || p.contains("overhang")
+				|| p.equals("sweep") || p.contains("cgx") || d == Dim.ANGLE || d == Dim.DISTANCE;
+		boolean sized = d == Dim.LENGTH || d == Dim.MASS || d == Dim.AREA || d == Dim.DENSITY || d == Dim.TIME
+				|| p.equals("cd");
+		if (sized && !signed && v < 0) {
+			throw new ToolException(c.getName() + ": " + property + " cannot be negative (got " + v + " " + d.si + ").");
+		}
+		if (v == 0 && mustExist(c, p)) {
+			throw new ToolException(c.getName() + ": " + property + " cannot be zero on a " + c.getClass().getSimpleName()
+					+ " (a part needs a real size to fly; remove_component takes a part out).");
+		}
+		if (d == Dim.LENGTH && Math.abs(v) > 1000 || d == Dim.MASS && v > 1e5 || p.equals("cd") && v > 10) {
+			throw new ToolException(c.getName() + ": " + property + " = " + v + " " + d.si
+					+ " is far beyond any rocket part; check the value and its unit.");
+		}
+		return v;
+	}
+
+	/** Sizes a part cannot do without: a fin needs thickness, chord and span; a tube a length; a parachute area and Cd. */
+	private static boolean mustExist(RocketComponent c, String p) {
+		if (c instanceof FinSet) {
+			return p.equals("thickness") || p.equals("rootchord") || p.equals("height");
+		}
+		if (c instanceof SymmetricComponent
+				|| c instanceof RingComponent) {
+			return p.equals("length") || p.equals("outerradius") || p.equals("aftradius") && c instanceof BodyTube;
+		}
+		if (c instanceof RecoveryDevice) {
+			return p.equals("cd") || p.equals("diameter") || p.equals("striplength") || p.equals("stripwidth");
+		}
+		return false;
+	}
+
+	private static Object readBack(RocketComponent c, String property) {
+		try {
+			return getRaw(c, property);
+		} catch (ToolException e) {
+			return null;
+		}
+	}
+
 	public static Object getRaw(RocketComponent c, String property) {
 		for (Method m : c.getClass().getMethods()) {
 			String n = m.getName();
