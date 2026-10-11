@@ -82,12 +82,13 @@ def main():
     w("numbers and plots behind the answer. **Everything below is real output from the server** (OpenRocket 24.12), generated")
     w("by [`scripts/make_examples.py`](../scripts/make_examples.py); the one-line answers are written from those numbers.")
     w("Units follow the team setting (here metric with imperial in brackets). In Claude Desktop the plots and drawings")
-    w("appear right in the chat, and long runs (optimizers, Monte Carlo) show their progress and can be stopped.")
+    w("appear right in the chat, and long runs (optimizers, Monte Carlo) show their progress and can be stopped. Not sure what")
+    w("to ask? Ask Claude what it can do: it also offers related things as you work.")
     w()
     w("**Steps:** [Design](#design) · [Recovery](#recovery) · [Flight and rules](#flight-and-rules) ·")
     w("[Design studies](#design-studies) · [Structures and CFD](#structures-and-cfd) · [Build](#build) · [Reviews](#reviews) ·")
     w("[Launch day](#launch-day) · [Show it off](#show-it-off) · [After the flight](#after-the-flight) ·")
-    w("[Team history](#team-history) · [Electronics](#electronics)")
+    w("[Team history](#team-history) · [Electronics](#electronics) · [Parachutes and product links](#parachutes-and-product-links)")
     w()
     w("The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch")
     w("Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before")
@@ -743,6 +744,36 @@ def main():
     w(f"Ground range: {rl['groundRange']}. In the air the path is clear, so free-space loss rules; on the ground the "
       "two antennas are near the earth and the signal falls off with the fourth power of distance, which is why a "
       "tracker heard at apogee can go quiet once it lands.")
+    w()
+    w("## Parachutes and product links")
+    w()
+    ask(32, "Plot our main's size against descent rate for Cd 0.85, 1.5 and 2.2.", ["parachute_sizes"])
+    ch = call("parachute_sizes", {"designId": d, "cds": [0.85, 1.5, 2.2],
+                                  "plotPath": os.path.join(IMG, "parachute-sizes.svg")})
+    w(f"> {ch['mass']}; the drogue stays attached under the main, so {lead(ch['otherDrag'])} of drag is counted "
+      f"(calibrated from the simulation). Target {lead(ch['target'])}, {ch['ruleLimit']}.")
+    w()
+    w("![Descent rate against canopy diameter for three drag coefficients, with the rule limit, the target, catalog "
+      "parachutes and the current main](examples/parachute-sizes.svg)")
+    w()
+    table(ch["sizeForTarget"], ["cd", "diameterForTarget"], ["Cd", "Size for the target"])
+    cm = ch.get("catalogMatches", [])[:3]
+    if cm:
+        w("Catalog parachutes closest to the target (each at its own Cd):")
+        w()
+        table(cm, ["parachute", "diameter", "cd", "descentRate"], ["Parachute", "Diameter", "Cd", "Rate"])
+    w("`apply: true` with one Cd sets the main to that size (rounded up to a whole inch) and re-flies the rocket.")
+    w()
+    ask(33, "Here's the chute we want to buy: put it in as our main.", ["add_from_link"])
+    page = "Fruity Chutes\nIris Ultra 84\" Compact Parachute\nToroidal canopy for large high power rockets."
+    link = call("add_from_link", {"designId": d, "pageText": page, "component": "Main"})
+    rows = [{"value": k, "found": v} for k, v in link["fromThePage"].items() if k != "catalogMatch"]
+    table(rows, ["value", "found"], ["", "Value (source)"])
+    w(f"> {link['applied']['replaced']}: descent rate {link['applied']['descentRate']}. The page named the maker and "
+      f"the size; Cd, weight and packed size came from the matching catalog entry ({lead(link['fromThePage']['catalogMatch'])}).")
+    w()
+    w("<sub>(The product text here is a sample written for this page. With a link, the server reads the shop's page "
+      "itself; when a shop blocks that, paste the page's text.)</sub>")
     w()
     s.close()
     if os.environ.get("EXAMPLES_DUMP"):

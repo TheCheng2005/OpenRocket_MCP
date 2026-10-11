@@ -39,7 +39,9 @@ import io.github.openrocketmcp.tools.LaunchTools;
 import io.github.openrocketmcp.tools.LibraryTools;
 import io.github.openrocketmcp.tools.MassTools;
 import io.github.openrocketmcp.tools.MotorTools;
+import io.github.openrocketmcp.tools.ProductTools;
 import io.github.openrocketmcp.tools.RecoveryTools;
+import io.github.openrocketmcp.tools.Suggestions;
 import io.github.openrocketmcp.tools.ReportTools;
 import io.github.openrocketmcp.tools.SimTools;
 import io.github.openrocketmcp.tools.StandardsTools;
@@ -50,7 +52,7 @@ import io.github.openrocketmcp.tools.ViewTools;
 
 /** Entry point: stdio MCP server for OpenRocket. */
 public final class Main {
-	public static final String VERSION = "0.19.1";
+	public static final String VERSION = "0.21.0";
 
 	static final String INSTRUCTIONS = """
 			OpenRocket MCP: design, simulate and check high-power / competition rockets with OpenRocket's physics.
@@ -64,11 +66,20 @@ public final class Main {
 			- Electronics: sensor_check (sensor ranges vs the flight), altimeter_settings (primary/backup settings, Mach
 			  lockout, static ports), sensor_data (simulated sensor CSV to test flight software), power_budget (batteries
 			  vs the pad wait, e-match current), radio_link (tracker link margin in flight and after landing).
+			- Parachutes: parachute_sizes plots descent rate against diameter for the Cd values the team picks and sizes the
+			  chute (apply). add_from_link puts a product page (link or pasted text) into the design: parachute, motor,
+			  catalog part or electronics.
 			- Use OpenRocket's data: search_parts / apply_preset for real catalog parts, wind_profile for winds aloft,
 			  draw_rocket to show the design. What-if tools never modify the design. Deployment airspeed comes from the simulation and includes horizontal velocity and wind.
 			- Pictures and video: render_3d for exploded / cut-away 3-D views with a parts list, animate_flight for a 3-D
 			  animation of the simulated flight (GIF, MP4 with ffmpeg, key-moment stills).
 			- Inputs accept units ("20 ft/s", "4 in", "15 psi"); bare numbers are SI. Output uses the team's unit setting.
+			- Help the team discover what you can do; most people never read documentation. Results may end with
+			  youCouldAlsoAsk: related things this server does that the team has not used yet. When one fits what the
+			  user is working on, end your reply with a one-line offer in their words ("I can also plot descent rate
+			  against parachute size for a few Cd values: want that?"). At most one or two offers per reply; none while
+			  there are rule failures to fix first or when the user is in a hurry; never the same one twice. When someone
+			  is new or asks what you can do, call capabilities and introduce the few features that fit their project.
 			- Team standards (safety factors, pin ratings, launch site) and the competition rule set (default Launch Canada
 			  2027: DTEG R4 + 2027 edicts) drive checks; see get_standards. Ask the team to set launchSite.altitudeMsl.
 			- generate_report writes a design-review package (Markdown, stability plots, CSV).
@@ -93,6 +104,7 @@ public final class Main {
 		MotorTools.register(server, ctx);
 		SimTools.register(server, ctx);
 		RecoveryTools.register(server, ctx);
+		ProductTools.register(server, ctx);
 		AnalysisTools.register(server, ctx);
 		ReportTools.register(server, ctx);
 		StructureTools.register(server, ctx);
@@ -108,8 +120,10 @@ public final class Main {
 		HistoryTools.register(server, ctx);
 		LibraryTools.register(server, ctx);
 		MassTools.register(server, ctx);
+		Suggestions.register(server, ctx);
 		Prompts.register(server, ctx);
 		server.wrapTools(t -> HistoryTools.recording(ctx, t));
+		server.wrapTools(t -> Suggestions.suggesting(ctx, t));
 		return server;
 	}
 

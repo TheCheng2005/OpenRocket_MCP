@@ -251,7 +251,9 @@ class McpIntegrationTest {
 		String mc1 = call("monte_carlo", "{\"designId\":\"" + id + "\",\"runs\":24,\"seed\":7}");
 		String mc2 = call("monte_carlo", "{\"designId\":\"" + id + "\",\"runs\":24,\"seed\":7}");
 		assertTrue(mc1.contains("ellipse2Sigma") && mc1.contains("maxDesignLoad"), mc1);
-		assertEquals(mc1.replaceAll("\"elapsed\":\"[^\"]*\"", ""), mc2.replaceAll("\"elapsed\":\"[^\"]*\"", ""),
+		// Feature suggestions come with the first call only; the numbers must match.
+		String noise = "\"elapsed\":\"[^\"]*\"|,\"youCouldAlsoAsk\":\\[[^\\]]*\\]";
+		assertEquals(mc1.replaceAll(noise, ""), mc2.replaceAll(noise, ""),
 				"same seed must give the same result even though runs are parallel");
 	}
 

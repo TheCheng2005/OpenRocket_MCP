@@ -1,5 +1,7 @@
 package io.github.openrocketmcp.tools;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,6 +16,7 @@ import info.openrocket.core.rocketcomponent.BodyTube;
 import info.openrocket.core.rocketcomponent.DeploymentConfiguration;
 import info.openrocket.core.rocketcomponent.FlightConfigurationId;
 import info.openrocket.core.rocketcomponent.InnerTube;
+import info.openrocket.core.rocketcomponent.Parachute;
 import info.openrocket.core.rocketcomponent.RecoveryDevice;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.TubeCoupler;
@@ -23,6 +26,7 @@ import io.github.openrocketmcp.calc.OpeningShock;
 import io.github.openrocketmcp.calc.Packing;
 import io.github.openrocketmcp.calc.Parachutes;
 import io.github.openrocketmcp.mcp.Args;
+import io.github.openrocketmcp.mcp.Limits;
 import io.github.openrocketmcp.mcp.McpServer;
 import io.github.openrocketmcp.mcp.Schema;
 import io.github.openrocketmcp.mcp.ToolDef;
@@ -30,9 +34,12 @@ import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.OrRuntime;
+import io.github.openrocketmcp.or.ParachuteSizes;
 import io.github.openrocketmcp.or.Recovery;
 import io.github.openrocketmcp.or.Sims;
 import io.github.openrocketmcp.or.Variants;
+import io.github.openrocketmcp.report.ChuteChart;
+import io.github.openrocketmcp.report.Png;
 import io.github.openrocketmcp.standards.Standards;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
@@ -135,6 +142,31 @@ public final class RecoveryTools {
 						.integer("count", "Number of identical parachutes sharing the load (default 1).", false)
 						.num("tolerance", "Preset match tolerance on descent rate, fraction (default 0.15).", false).build(),
 				true, a -> sizeParachute(ctx, a)));
+
+		s.tool(new ToolDef("parachute_sizes", "Parachute size vs descent rate chart",
+				"Plot steady descent rate against canopy diameter for one to three drag coefficients you choose, with the "
+						+ "rule limits and the target, the catalog parachutes (OpenRocket's parts database, each at its own Cd), "
+						+ "the size each Cd needs for the target, and the parachute the design has now. From a design the mass is "
+						+ "the simulated mass under the device, and the airframe's drag and any parachute still attached (the "
+						+ "drogue under the main) are calibrated in from the simulation, so the chart agrees with "
+						+ "check_requirements. apply (or diameter) sizes the design's parachute and re-flies it. Without a design, "
+						+ "give mass.",
+				atmosphere(SimTools.simSelect(Schema.object()))
+						.str("device", "Parachute in the design (default: the main, the last to open).", false)
+						.qty("mass", "Mass under the parachute, instead of a design.", false)
+						.qty("otherCdA", "With mass: drag area already there without this canopy (e.g. the drogue's CdA).", false)
+						.num("cd", "Drag coefficient to plot and to size with (default: the parachute's own, else 0.8).", false)
+						.array("cds", "Up to three drag coefficients to compare, e.g. [0.8, 1.5, 2.2].", Schema.type("number", null), false)
+						.qty("targetDescentRate", "Target rate (default: the rule set's recommended rate for a main or drogue).", false)
+						.enumStr("role", "Without a design: which rule limits apply (default main).", false, "main", "drogue")
+						.qty("minDiameter", "Smallest diameter on the chart.", false).qty("maxDiameter", "Largest diameter on the chart.", false)
+						.integer("count", "Identical canopies sharing the load (default 1).", false)
+						.bool("catalog", "Show catalog parachutes (default true).", false)
+						.str("plotPath", "Also write the chart as SVG, e.g. \"plots/main-sizes.svg\".", false)
+						.bool("apply", "Set the device to the size for the target at the chosen Cd (rounded up), set that Cd, and "
+								+ "re-fly.", false)
+						.qty("diameter", "Set the device to this diameter instead (with the chosen Cd) and re-fly.", false).build(),
+				false, a -> parachuteSizes(ctx, a)));
 
 		s.tool(new ToolDef("search_parachutes", "Search parachutes in the parts database",
 				"List parachute presets from OpenRocket's parts database with diameter, Cd, CdA and packed size.",
@@ -415,6 +447,265 @@ public final class RecoveryTools {
 						+ "the vendor's descent-rate chart.",
 				"Descent rate at landing depends on the landing-site density; drogue rates depend on the altitude of interest."));
 		return out;
+	}
+
+	private static Object parachuteSizes(Context ctx, Args a) throws Exception {
+		Standards std = ctx.standards();
+		int count = Math.max(1, a.integer("count", 1));
+		boolean byDesign = !a.has("mass");
+		Designs.Design design = null;
+		ParachuteSizes.Setup su;
+		if (byDesign) {
+			design = ctx.designs.get(a.str("designId", null));
+			su = ParachuteSizes.fromFlight(SimTools.runSelected(ctx, a), a.str("device", null), count);
+		} else {
+			double rho = density(a, std, std.q("launchSite.altitudeMsl", Dim.DISTANCE, 0));
+			su = ParachuteSizes.given(a.positive("mass", Dim.MASS), rho, Double.NaN, a.qty("otherCdA", Dim.AREA, 0), count);
+		}
+		String role = su.role() != null ? su.role() : a.str("role", "main");
+		boolean drogue = role.equals("drogue") || role.equals("intermediate");
+
+		// The Cd values: chosen, else the parachute's own, else 0.8.
+		List<Double> cds = new ArrayList<>();
+		if (a.has("cds")) {
+			for (JsonElement e : a.array("cds")) {
+				cds.add(Limits.check("cds", null, Args.qtyOf(e, "cd", Dim.DIMENSIONLESS)));
+			}
+		} else if (a.has("cd")) {
+			cds.add(a.num("cd"));
+		} else {
+			cds.add(su.device() != null ? su.device().getCD() : 0.8);
+		}
+		if (cds.isEmpty() || cds.size() > 3) {
+			throw new ToolException("Give one to three drag coefficients (cds), e.g. [0.8, 1.5, 2.2].");
+		}
+
+		// Rule limits and the target.
+		double lo = drogue ? std.rule("drogueDescentRate.min", Dim.VELOCITY) : Double.NaN;
+		double hi = std.rule(drogue ? "drogueDescentRate.max" : "mainDescentRate.max", Dim.VELOCITY);
+		String ref = std.ruleRef(drogue ? "drogueDescentRate" : "mainDescentRate");
+		double target = a.has("targetDescentRate") ? a.positive("targetDescentRate", Dim.VELOCITY) : Double.NaN;
+		String targetWhy = "given";
+		if (Double.isNaN(target)) {
+			double rMin = std.rule("drogueDescentRate.recommendedMin", Dim.VELOCITY), rMax = std.rule("drogueDescentRate.recommendedMax", Dim.VELOCITY);
+			target = drogue ? (Double.isNaN(rMin) ? Double.NaN : (rMin + rMax) / 2) : std.rule("mainDescentRate.recommended", Dim.VELOCITY);
+			targetWhy = "the rule set's recommended " + (drogue ? "drogue" : "main") + " rate (" + ref + ")";
+		}
+
+		// Apply first, so the chart shows the parachute as it will fly.
+		Map<String, Object> applied = null;
+		if (a.bool("apply", false) || a.has("diameter")) {
+			if (!byDesign || !(su.device() instanceof Parachute chute)) {
+				throw new ToolException("apply sizes a parachute in the design; give designId (and device) rather than mass.");
+			}
+			if (cds.size() != 1) {
+				throw new ToolException("Choose one Cd to apply (cd), not a list.");
+			}
+			double cd = cds.get(0);
+			double d;
+			if (a.has("diameter")) {
+				d = a.positive("diameter", Dim.LENGTH);
+			} else {
+				if (Double.isNaN(target)) {
+					throw new ToolException("No target rate: give targetDescentRate (the rule set has none for this device), or diameter.");
+				}
+				double step = Units.system() == io.github.openrocketmcp.units.UnitSystem.METRIC ? 0.01 : 0.0254;
+				d = Math.ceil(su.diameterFor(cd, target) / step - 1e-9) * step; // whole inches (cm in metric) at or above
+			}
+			double before = su.simulatedRate();
+			double beforeD = ParachuteSizes.diameterOf(chute);
+			List<String> said = new ArrayList<>();
+			said.add(Components.set(chute, "diameter", new com.google.gson.JsonPrimitive(d)));
+			if (Math.abs(chute.getCD() - cd) > 1e-9) {
+				said.add(Components.set(chute, "cd", new com.google.gson.JsonPrimitive(cd)));
+			}
+			su = ParachuteSizes.fromFlight(SimTools.runSelected(ctx, a), chute.getID().toString(), count);
+			applied = new LinkedHashMap<>();
+			applied.put("changed", said);
+			applied.put("descentRate", Units.fmt(before, Dim.VELOCITY) + " with " + Units.fmt(beforeD, Dim.LENGTH) + " -> "
+					+ Units.fmt(su.simulatedRate(), Dim.VELOCITY) + " simulated now");
+			applied.put("note", "The parachute's packed size and mass are not from a real product: take them from the vendor "
+					+ "(edit_components packedLength, packedRadius, mass), or use apply_preset with one of the catalog matches. "
+					+ "undo reverts this.");
+		}
+
+		// Chart range: around the sizes that matter.
+		List<Double> sizes = new ArrayList<>();
+		for (double cd : cds) {
+			if (!Double.isNaN(target)) {
+				double need = su.diameterFor(cd, target);
+				if (need > 0) {
+					sizes.add(need);
+				}
+			}
+		}
+		if (su.device() != null) {
+			sizes.add(ParachuteSizes.diameterOf(su.device()));
+		}
+		double dLo = sizes.isEmpty() ? 0.3 : 0.45 * sizes.stream().mapToDouble(x -> x).min().getAsDouble();
+		double dHi = sizes.isEmpty() ? 3 : 1.8 * sizes.stream().mapToDouble(x -> x).max().getAsDouble();
+		dLo = Math.max(0.05, a.qty("minDiameter", Dim.LENGTH, dLo));
+		dHi = a.qty("maxDiameter", Dim.LENGTH, dHi);
+		if (!(dHi > dLo)) {
+			throw new ToolException("maxDiameter must be larger than minDiameter.");
+		}
+		boolean metric = Units.system() == io.github.openrocketmcp.units.UnitSystem.METRIC;
+		String xu = metric ? "cm" : "in", yu = metric ? "m/s" : "ft/s";
+		double[] ds = ParachuteSizes.range(dLo, dHi, 90);
+		double[] dsShown = new double[ds.length];
+		for (int i = 0; i < ds.length; i++) {
+			dsShown[i] = Units.fromSi(ds[i], xu);
+		}
+
+		// Curves and the sizes for the target.
+		List<ChuteChart.Curve> curves = new ArrayList<>();
+		List<Map<String, Object>> sizeRows = new ArrayList<>();
+		for (double cd : cds) {
+			double[] v = new double[ds.length];
+			for (int i = 0; i < ds.length; i++) {
+				v[i] = Units.fromSi(su.rate(cd, ds[i]), yu);
+			}
+			double need = Double.isNaN(target) ? Double.NaN : su.diameterFor(cd, target);
+			curves.add(new ChuteChart.Curve("Cd " + Units.num(cd), v, Double.isNaN(need) || need <= 0 ? Double.NaN : Units.fromSi(need, xu)));
+			if (!Double.isNaN(target)) {
+				Map<String, Object> r = new LinkedHashMap<>();
+				r.put("cd", Units.num(cd));
+				r.put("diameterForTarget", need <= 0 ? "none needed: the other drag alone is slower than the target"
+						: Units.fmt(need, Dim.LENGTH) + (count > 1 ? " each (" + count + " canopies)" : ""));
+				sizeRows.add(r);
+			}
+		}
+
+		// Table at round sizes.
+		List<Map<String, Object>> table = new ArrayList<>();
+		for (double x : ChuteChart.ticks(Units.fromSi(dLo, xu), Units.fromSi(dHi, xu))) {
+			double d = Units.toSi(x + " " + xu, Dim.LENGTH);
+			if (d < dLo - 1e-9 || d > dHi + 1e-9) {
+				continue;
+			}
+			Map<String, Object> r = new LinkedHashMap<>();
+			r.put("diameter", Units.fmt(d, Dim.LENGTH));
+			for (double cd : cds) {
+				double v = su.rate(cd, d);
+				r.put("rate at Cd " + Units.num(cd), Units.fmt(v, Dim.VELOCITY) + verdict(v, drogue, lo, hi));
+			}
+			if (!drogue) {
+				r.put("landingEnergy(all of it)", Units.fmt(Parachutes.kineticEnergy(su.mass(), su.rate(cds.get(0), d)), Dim.ENERGY));
+			}
+			table.add(r);
+		}
+
+		// Catalog parachutes, each at its own Cd.
+		List<ChuteChart.Dot> dots = new ArrayList<>();
+		List<Map<String, Object>> matches = new ArrayList<>();
+		if (a.bool("catalog", true)) {
+			for (ComponentPreset p : parachutePresets()) {
+				if (!p.has(ComponentPreset.DIAMETER)) {
+					continue;
+				}
+				double d = p.get(ComponentPreset.DIAMETER);
+				if (d < dLo || d > dHi) {
+					continue;
+				}
+				double cd = p.has(ComponentPreset.CD) ? p.get(ComponentPreset.CD) : 0.8;
+				double v = su.rate(cd, d);
+				String name = p.getManufacturer().getSimpleName() + " " + p.getPartNo();
+				dots.add(new ChuteChart.Dot(Units.fromSi(d, xu), Units.fromSi(v, yu), name + ": " + Units.fmt(d, Dim.LENGTH) + ", Cd "
+						+ Units.num(cd) + (p.has(ComponentPreset.CD) ? "" : " (assumed)") + " -> " + Units.fmt(v, Dim.VELOCITY)));
+				if (verdict(v, drogue, lo, hi).isEmpty()) {
+					Map<String, Object> m = renderPreset(p, Double.NaN, Double.NaN);
+					m.put("descentRate", Units.fmt(v, Dim.VELOCITY));
+					m.put("_err", Double.isNaN(target) ? v : Math.abs(v - target));
+					matches.add(m);
+				}
+			}
+			matches.sort((x, y) -> Double.compare((double) x.get("_err"), (double) y.get("_err")));
+			matches.forEach(m -> {
+				m.remove("_d");
+				m.remove("_cdA");
+				m.remove("_err");
+			});
+		}
+
+		ChuteChart.Dot now = null;
+		Map<String, Object> current = null;
+		if (su.device() != null) {
+			double d = ParachuteSizes.diameterOf(su.device());
+			double v = Double.isNaN(su.simulatedRate()) ? su.rate(su.device().getCD(), d) : su.simulatedRate();
+			now = new ChuteChart.Dot(Units.fromSi(d, xu), Units.fromSi(v, yu), su.device().getName() + " now: " + Units.fmt(d, Dim.LENGTH)
+					+ ", Cd " + Units.num(su.device().getCD()) + " -> " + Units.fmt(v, Dim.VELOCITY) + " (simulated)");
+			current = new LinkedHashMap<>();
+			current.put("device", su.device().getName() + " (" + role + ")");
+			current.put("diameter", Units.fmt(d, Dim.LENGTH));
+			current.put("cd", Units.num(su.device().getCD()));
+			current.put("simulatedRate", Units.fmt(v, Dim.VELOCITY) + verdict(v, drogue, lo, hi));
+		}
+		List<ChuteChart.Ref> limits = new ArrayList<>();
+		if (!Double.isNaN(hi)) {
+			limits.add(drogue && !Double.isNaN(lo)
+					? new ChuteChart.Ref(Units.fromSi(lo, yu), Units.fromSi(hi, yu), "allowed " + ChuteChart.fmt(Units.fromSi(lo, yu)) + "-"
+							+ ChuteChart.fmt(Units.fromSi(hi, yu)) + " " + yu)
+					: new ChuteChart.Ref(Units.fromSi(hi, yu), Double.NaN, "limit " + ChuteChart.fmt(Units.fromSi(hi, yu)) + " " + yu));
+		}
+		String title = (su.device() != null ? su.device().getName() : "Parachute") + ": descent rate vs size, "
+				+ Units.fmt(su.mass(), Dim.MASS).replaceAll(" \\(.*", "") + " under it";
+		String svg = ChuteChart.svg(title, xu, yu, dsShown, curves, Double.isNaN(target) ? Double.NaN : Units.fromSi(target, yu),
+				Double.isNaN(target) ? "" : "target " + ChuteChart.fmt(Units.fromSi(target, yu)) + " " + yu, limits, dots, now);
+
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("mass", Units.fmt(su.mass(), Dim.MASS) + " (" + su.massSource() + ")");
+		out.put("readAt", (Double.isNaN(su.altitudeAgl()) ? "" : Units.fmt(su.altitudeAgl(), Dim.DISTANCE) + " AGL, ")
+				+ Units.fmt(su.density(), Dim.DENSITY) + (byDesign ? " (where check_requirements reads the steady rate)" : ""));
+		if (su.otherCdA() > 0) {
+			out.put("otherDrag", Units.fmt(su.otherCdA(), Dim.AREA) + " CdA without this canopy"
+					+ (byDesign ? " (airframe and any parachute still attached, from the simulation)" : ""));
+		}
+		if (current != null) {
+			out.put("current", current);
+		}
+		if (applied != null) {
+			out.put("applied", applied);
+		}
+		if (!Double.isNaN(target)) {
+			out.put("target", Units.fmt(target, Dim.VELOCITY) + " (" + targetWhy + ")");
+			out.put("sizeForTarget", sizeRows);
+		}
+		if (!Double.isNaN(hi)) {
+			out.put("ruleLimit", (drogue && !Double.isNaN(lo) ? Units.fmt(lo, Dim.VELOCITY) + " to " : "below ")
+					+ Units.fmt(hi, Dim.VELOCITY) + " (" + ref + ")");
+		}
+		out.put("rates", table);
+		if (!matches.isEmpty()) {
+			out.put("catalogMatches", matches.subList(0, Math.min(6, matches.size())));
+		}
+		if (a.has("plotPath")) {
+			Path p = ctx.path(a.str("plotPath"));
+			if (p.getParent() != null) {
+				Files.createDirectories(p.getParent());
+			}
+			Files.writeString(p, svg);
+			out.put("plot", p.toString());
+		}
+		out.put("shown", Png.attach(svg, "Descent rate against parachute diameter") ? "the chart is attached as an image"
+				: "pass plotPath to write the chart");
+		out.put("notes", List.of("v = sqrt(2 m g / (rho (n Cd A + other CdA))). Cd and A must use the same reference area: "
+				+ "OpenRocket and most vendors use the nominal (flat) area; some quote Cd on the projected area (e.g. Iris Ultra "
+				+ "2.2). A vendor's Cd from their own drop tests is better than a generic one.",
+				drogue ? "Drogue rates are read in the middle of the drogue descent; the air is thinner higher up."
+						: "Landing energy here is for everything under the parachute; rules apply per independently landing "
+								+ "section (descent_energy)."));
+		return out;
+	}
+
+	/** "" when the rate is within the rule limits, else why not. */
+	private static String verdict(double v, boolean drogue, double lo, double hi) {
+		if (!Double.isNaN(hi) && v >= hi) {
+			return " (over the limit)";
+		}
+		if (drogue && !Double.isNaN(lo) && v < lo) {
+			return " (below the drogue minimum)";
+		}
+		return "";
 	}
 
 	private static Object delaySweep(Context ctx, Args a) {

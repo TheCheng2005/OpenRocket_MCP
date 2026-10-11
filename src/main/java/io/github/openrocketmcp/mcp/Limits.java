@@ -76,6 +76,7 @@ public final class Limits {
 		positive(Dim.LENGTH, 100, "railLength", "groundStationHeight");
 		name(Dim.LENGTH, -10, false, 10, "overhang", "maxOverhang"); // negative = motor recessed in the mount
 		positive(Dim.AREA, 1e4, "area");
+		nonNegative(Dim.AREA, 1e4, "otherCdA");
 		positive(Dim.VOLUME, 1e3, "bayVolume", "glppVolume", "packedVolume", "availableVolume");
 		positive(Dim.FORCE, 1e8, "holdForce", "pinStrength", "averageThrust");
 		positive(Dim.PRESSURE, 1e12, "meop", "burstPressure", "pressure", "proofPressure", "ultimateStrength",

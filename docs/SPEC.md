@@ -490,6 +490,51 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   IllegalArgumentExceptions pass through as sentences; anything else is reported as a server bug.
 - Tests: `LimitsTest`, `PhysicalTest` (refused edits, clamped values reported, a rocket that cannot lift off).
 
+### Parachute sizes and product links (v0.20.0)
+
+- `or.ParachuteSizes`: the setup for a device from the flight. Mass at deployment; density at the middle of the steady
+  descent window (where `check_requirements` reads the rate); CdA_other = 2mg/(rho v_sim^2) - n Cd A (>= 0), so the
+  curve passes through the simulated point. On the example rocket that is 0.18 m2 under the main (the drogue's CdA,
+  still attached) and 0 under the drogue. `diameterFor` inverts the rate.
+- `report.ChuteChart`: SVG with the first three slots of the validated categorical palette (light and dark), direct
+  labels at the curve ends, a legend only for more than one curve, a dashed rule limit or shaded drogue band, a solid
+  target, drop lines from each size-for-target point with the size above the axis (haloed text), hollow muted catalog
+  dots with hover titles, and the current parachute. Rendered to PNG for the chat by Batik.
+- `parachute_sizes` tool: table at round sizes per Cd (with landing energy for a main), catalog matches inside the rule
+  limits nearest the target, `apply` / `diameter` to size the device and re-fly.
+- `or.Products`: page reader (JSON-LD Product incl. `@graph`, meta tags, h1/title, visible text with table cells as
+  "label: value"), maker from the page or the shop's address, kind (ThrustCurve link or designation + motor words;
+  parachute words; part number in OpenRocket's presets; weight), and values with their source. Parachutes take Cd,
+  weight and packed size from the catalog entry of the same maker and diameter whose description shares the most
+  words when the page lacks them.
+- `or.Web`: http(s) only; refuses loopback, site-local, link-local, CGNAT, ULA, multicast and *.local/*.internal hosts,
+  checked again after every redirect (followed by hand, at most five); 3 MB, 20 s. `Web.use` swaps the client in tests.
+- `Motors.fromThrustCurve`: ThrustCurve.org API v1 `search.json` then `download.json` (RASP, base64), written to
+  `motors/` and loaded. `MotorTools.putMotor` is shared by `set_motor` and `add_from_link`.
+- Tests: `ProductsTest` (constructed pages in `src/test/resources/products`, written to follow common shop page
+  structures; not copies of real pages), `ProductToolsTest` (chart agrees with `check_requirements`, sizing flies the
+  target, a link through a redirect, a pasted page, `apply: false`). The network policy of the development
+  environment blocks shop sites and ThrustCurve.org, so live fetching was exercised only through the test client.
+
+### Feature discovery (v0.21.0)
+
+- Teams do not read documentation, so the server introduces itself while they work. `tools.Suggestions`:
+  - `FEATURES`: about 50 features, each worded as a team member would ask, grouped by what they are doing. Every tool a
+    team would ask for by name must have one (`SuggestionsTest` lists the plumbing tools that need none).
+  - `NEXT`: what naturally follows each tool. `WHEN`: conditions (no av-bay suggestion when the design has one; the
+    heating screen only above Mach 1.2; flutter above Mach 0.6 or when the Mach is unknown).
+  - `suggesting` wraps every tool (outside the undo wrapper): on a successful map result it records the tool as used
+    and adds `youCouldAlsoAsk` with up to two features not used and not yet offered in the session; each is offered
+    once. `Context.toolsUsed` / `Context.suggested` hold the session state. Off with `"suggestions": false`.
+  - `capabilities` tool: the whole map (or one group), marking used features; listing them counts as offering them.
+- Server instructions: offer at most one or two per reply in the user's words, none while rule failures need fixing,
+  never twice; call `capabilities` for new users. MCP prompt `what_can_you_do`: a tour fitted to the open design.
+- Docs: the contributor guide asks for a physical range (`Limits`) for new argument names and a `Suggestions` entry for
+  new tools; the methods resource covers the power budget, radio link, parachute chart and input checks.
+- Cost: about 3% more tool output over the benchmark session. Tests: `SuggestionsTest` (every suggested tool exists and
+  has wording, once per session, never for used tools, conditions, the standards switch). Two tests that compared a
+  repeated call's full output now ignore the suggestions, which come with the first call only.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

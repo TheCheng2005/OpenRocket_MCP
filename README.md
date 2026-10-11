@@ -33,6 +33,9 @@ the answers, and the plots. Everything on that page is real output.
 **Working with Claude**
 - "Where do we stand?" — the rule check in short, what is not set up yet, and the next steps in order with the tool for
   each. A good first question in any session.
+- "What can you do?" — or nothing at all: Claude offers related things as you work ("I can also plot descent rate
+  against parachute size: want that?"), once each and only when they fit. In Claude Desktop, the `what_can_you_do`
+  prompt gives a tour fitted to your design. Teams that prefer quiet can set `"suggestions": false` in their standards.
 - Plots and drawings appear right in the chat (Claude Desktop, claude.ai), and are saved as files too.
 - Long runs (optimizers, Monte Carlo, motor ranking) show their progress, and you can stop them.
 - "Undo that" — every change to a design in the session can be undone and redone; `history` lists them. Nothing is
@@ -98,6 +101,14 @@ the answers, and the plots. Everything on that page is real output.
 
 **Recovery**
 - Choose parachutes for a target descent rate.
+- "Plot our main's size against descent rate for Cd 0.85, 1.5 and 2.2" — a chart of descent rate against canopy
+  diameter for the drag coefficients you pick, with the rule limit and target, every catalog parachute at its own Cd,
+  the size each Cd needs, and where your parachute sits now. It is calibrated to your simulation (the airframe and an
+  attached drogue are counted), and "size it" sets the parachute and re-flies the rocket.
+- "Here's the link to the chute we want" — paste a product link (or the page's text) and the part goes into the
+  design: a parachute with its diameter, Cd, weight and packed size (gaps filled from the matching catalog
+  parachute), a motor (also new ones, from ThrustCurve.org), a catalog tube or nose cone by part number, or an
+  altimeter or tracker by its weight. Every value says where it came from, and the rocket is re-flown.
 - Opening shock loads, shear pin count, black powder charge size, and whether it all fits in the bay.
 - "How late can the drogue fire before the pins break?"
 - Landing energy of every piece of the rocket, and what happens if the main fails.
@@ -223,6 +234,9 @@ materials. You can also just tell Claude ("our pins are 2-56 nylon, 35 lbf each"
 - Every number is an engineering estimate from OpenRocket and standard calculations. Claude says where each number
   comes from. It does **not** replace ground tests, flight tests, your mentors or the range safety officer.
 - Nothing is saved to your design file until you ask Claude to save it.
+- Inputs are checked: a value no rocket can have (a negative mass, a zero Cd, a 10^30 m/s wind) is refused with the range
+  that is allowed, and a flight that cannot happen (no lift-off, tumbling under thrust, beyond Mach 3) is flagged
+  before its numbers.
 - On a team server, everyone connected shares the open designs, so say which one you mean if several are open.
 - Details on every tool, the methods behind them and their limits: [docs/REFERENCE.md](docs/REFERENCE.md).
 

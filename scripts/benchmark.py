@@ -82,7 +82,10 @@ def check(scenario, name, ok, detail=""):
 def scenario_from_scratch(s):
     """'Design a 4 in dual-deploy rocket for 10,000 ft that passes Launch Canada rules.'"""
     sc = "from-scratch 10k ft"
-    d = s.call("open_design", {"newRocketName": "Bench 10k"})["designId"]
+    first = s.call("open_design", {"newRocketName": "Bench 10k"})
+    d = first["designId"]
+    check(sc, "the first result offers what to ask next (design_status, capabilities)",
+          any("design_status" in x for x in first.get("youCouldAlsoAsk", [])), str(first.get("youCouldAlsoAsk")))
     stage = s.call("get_design", {"designId": d})["components"][0].split("[")[1][:8]
     add = lambda parent, typ, name, props: s.call("add_component", {"designId": d, "parent": parent, "type": typ,
                                                                     "name": name, "properties": props})
@@ -201,6 +204,25 @@ def scenario_recovery(s):
     shock = s.call("opening_shock", {"mass": 50, "velocity": 36, "cd": 2.2, "area": 0.636, "airDensity": 0.86, "cx": 1.4})
     check(sc, "opening shock reproduces team doc (~1100 N)", abs(num(shock["infiniteMassLoad"]) - 1092) < 5,
           shock["infiniteMassLoad"])
+    chart = s.call("parachute_sizes", {"designId": d, "device": "Sustainer Main", "cds": [0.8, 1.5, 2.2]})
+    sim_rate = chart["current"]["simulatedRate"].split(" (")[0]
+    main_check = [c for c in s.call("check_requirements", {"designId": d})["checks"]
+                  if c["item"].startswith("Sustainer: landing descent rate")]
+    check(sc, "size chart: three Cd curves, the size each needs, and the current main where check_requirements has it",
+          len(chart["sizeForTarget"]) == 3 and main_check and main_check[0]["value"].startswith(sim_rate),
+          json.dumps(chart["current"]) + " vs " + str(main_check))
+    sized = s.call("parachute_sizes", {"designId": d, "device": "Sustainer Main", "cd": 1.5, "apply": True,
+                                       "targetDescentRate": "20 ft/s", "catalog": False})
+    check(sc, "sizing the main at Cd 1.5 re-flies it at the 20 ft/s target",
+          18.5 < ft(sized["current"]["simulatedRate"]) <= 20.05, sized["current"]["simulatedRate"])
+    s.call("undo", {"designId": d})
+    page = ("Iris Ultra 84\" Standard Parachute\nBrand: Fruity Chutes\nToroidal canopy for large rockets.")
+    link = s.call("add_from_link", {"designId": d, "pageText": page, "component": "Sustainer Main"})
+    check(sc, "pasted product page: 84 in parachute in, Cd and packed size from the catalog, re-flown",
+          link["product"]["kind"] == "parachute" and "catalog" in link["fromThePage"]["cd"]
+          and "->" in link["applied"]["descentRate"], json.dumps(link)[:400])
+    blocked = s.call("add_from_link", {"designId": d, "url": "http://169.254.169.254/latest/meta-data"}, expect_error=True)
+    check(sc, "links into the server's own network are refused", "not fetched" in blocked, blocked)
 
 
 def scenario_two_stage(s):
@@ -603,6 +625,11 @@ def raw(s, tool, args, token=None, cancel_after=None):
 def scenario_user_experience(s, d, tmp):
     """Pictures in the chat, progress and cancel, status, undo, and the landing map for Google Earth."""
     sc = "user experience"
+    cap = s.call("capabilities", {})
+    asks = [a for g in cap["youCanAsk"].values() for a in g]
+    check(sc, "capabilities: everything worded as a team would ask, grouped, with what was used this session",
+          len(cap["youCanAsk"]) >= 8 and len(asks) >= 40 and any(", used)" in a for a in asks)
+          and any("parachute_sizes" in a for a in asks), cap["notUsedYet"])
     r, _ = raw(s, "draw_rocket", {"designId": d, "path": os.path.join(tmp, "ux.svg")})
     imgs = [c for c in r["content"] if c["type"] == "image"]
     import base64

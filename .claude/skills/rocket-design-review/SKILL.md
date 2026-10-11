@@ -12,8 +12,12 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
 2. `open_design` then `design_status` - where the design stands and the next steps; `get_design` for components (ids),
    motors per configuration and the stability of every stage stack. If an edit was a mistake, `undo` (see `history`).
 3. `check_requirements` - explain every FAIL and WARN with the rule reference and a concrete fix.
+   Results may carry `youCouldAlsoAsk`: once the FAILs are handled, offer the one that fits in a line. For a new team,
+   `capabilities` gives the map of what they can ask.
 4. Goals:
-   - Descent rate -> `size_parachute` (with `device` to use the simulated descent mass), then `edit_components`.
+   - Descent rate -> `parachute_sizes` (chart of rate vs diameter for the Cd values the team picks; `apply` sizes the
+     chute and re-flies) or `size_parachute` (with `device` to use the simulated descent mass).
+   - A product the team links -> `add_from_link` (url, or pageText when the shop blocks the server).
    - Motor -> `rank_motors` (objective target_apogee / max_apogee / min_impulse_meeting_rules), then `set_motor`.
      Custom engines (liquid/hybrid/static-fire data) -> `create_custom_motor` or `import_motor_file`.
    - Stability (CP/CG) -> `ballast` for "how much nose weight" (simulated minimum ascent stability, default target =
