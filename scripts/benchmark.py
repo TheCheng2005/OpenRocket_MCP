@@ -82,7 +82,10 @@ def check(scenario, name, ok, detail=""):
 def scenario_from_scratch(s):
     """'Design a 4 in dual-deploy rocket for 10,000 ft that passes Launch Canada rules.'"""
     sc = "from-scratch 10k ft"
-    d = s.call("open_design", {"newRocketName": "Bench 10k"})["designId"]
+    first = s.call("open_design", {"newRocketName": "Bench 10k"})
+    d = first["designId"]
+    check(sc, "the first result offers what to ask next (design_status, capabilities)",
+          any("design_status" in x for x in first.get("youCouldAlsoAsk", [])), str(first.get("youCouldAlsoAsk")))
     stage = s.call("get_design", {"designId": d})["components"][0].split("[")[1][:8]
     add = lambda parent, typ, name, props: s.call("add_component", {"designId": d, "parent": parent, "type": typ,
                                                                     "name": name, "properties": props})
@@ -622,6 +625,11 @@ def raw(s, tool, args, token=None, cancel_after=None):
 def scenario_user_experience(s, d, tmp):
     """Pictures in the chat, progress and cancel, status, undo, and the landing map for Google Earth."""
     sc = "user experience"
+    cap = s.call("capabilities", {})
+    asks = [a for g in cap["youCanAsk"].values() for a in g]
+    check(sc, "capabilities: everything worded as a team would ask, grouped, with what was used this session",
+          len(cap["youCanAsk"]) >= 8 and len(asks) >= 40 and any(", used)" in a for a in asks)
+          and any("parachute_sizes" in a for a in asks), cap["notUsedYet"])
     r, _ = raw(s, "draw_rocket", {"designId": d, "path": os.path.join(tmp, "ux.svg")})
     imgs = [c for c in r["content"] if c["type"] == "image"]
     import base64

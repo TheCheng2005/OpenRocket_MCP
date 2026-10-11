@@ -11,6 +11,9 @@ import io.github.openrocketmcp.standards.Standards;
 /** Shared server state. */
 public final class Context {
 	public final Designs designs = new Designs();
+	/** Tools used in this session, and features already offered: each suggestion is made once (Suggestions). */
+	public final java.util.Set<String> toolsUsed = java.util.concurrent.ConcurrentHashMap.newKeySet();
+	public final java.util.Set<String> suggested = java.util.concurrent.ConcurrentHashMap.newKeySet();
 	private volatile Standards standards;
 	/** Base directory for relative paths; when {@link #sandboxed}, every file must stay inside it (team server). */
 	private final Path workspace;

@@ -86,6 +86,18 @@ final class Prompts {
 		s.resource(new Resource("openrocket://methods", "Calculation methods", "Equations, constants and sources used by the tools.",
 				"text/markdown", () -> METHODS));
 
+		s.prompt(new Prompt("what_can_you_do", "Show what this rocketry assistant can do for our project.",
+				List.of(new PromptArg("design", "Path to the team's .ork file (optional).", false)),
+				args -> """
+						We are a student rocketry team and have not used this assistant before. %s
+						Call capabilities, and design_status if a design is open. Then introduce, in a few short lines each, the
+						five or six things that would help us most right now, worded as we would ask them, starting with
+						where our design stands. Mention that units can be typed as we speak ("20 ft/s", "4 in"), that
+						every change can be undone, and that pictures (cut-aways, 3-D views, charts) come back in the chat.
+						End by asking what we are working on.
+						""".formatted(args.getOrDefault("design", "").isBlank() ? ""
+						: "Open our design " + args.get("design") + " first.")));
+
 		s.prompt(new Prompt("recovery_review", "Walk through the full recovery chain for a design and write it up.",
 				List.of(new PromptArg("design", "Path to the .ork file (or an open designId).", true),
 						new PromptArg("pinType", "Shear pin type from the team standards, e.g. \"4-40 nylon\".", false)),

@@ -33,6 +33,9 @@ the answers, and the plots. Everything on that page is real output.
 **Working with Claude**
 - "Where do we stand?" — the rule check in short, what is not set up yet, and the next steps in order with the tool for
   each. A good first question in any session.
+- "What can you do?" — or nothing at all: Claude offers related things as you work ("I can also plot descent rate
+  against parachute size: want that?"), once each and only when they fit. In Claude Desktop, the `what_can_you_do`
+  prompt gives a tour fitted to your design. Teams that prefer quiet can set `"suggestions": false` in their standards.
 - Plots and drawings appear right in the chat (Claude Desktop, claude.ai), and are saved as files too.
 - Long runs (optimizers, Monte Carlo, motor ranking) show their progress, and you can stop them.
 - "Undo that" — every change to a design in the session can be undone and redone; `history` lists them. Nothing is

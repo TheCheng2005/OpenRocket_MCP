@@ -1,4 +1,6 @@
 {
+  "suggestions": true,
+  "suggestionsNote": "Tool results suggest related features the team has not used yet; set false to turn that off.",
   "units": "both",
   "ruleset": "launch-canada-2027",
   "competitionYear": 2027,

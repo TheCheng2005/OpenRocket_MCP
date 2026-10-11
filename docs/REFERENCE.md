@@ -6,13 +6,21 @@ plain-language overview.
 
 ## Tools
 
-The 78 tools, grouped by what a team is doing. Bold marks the main job of each tool.
+The 79 tools, grouped by what a team is doing. Bold marks the main job of each tool.
 
 ### Session
 
 - `design_status`: **where the design stands**. It gives the rule-check summary, then what is not set up yet: motor,
   deployment, electronics, RASAero data where the diameter changes, team standards and launch site. It also lists mass
   overrides and unsaved changes, and the next steps in order with the tool for each.
+- `capabilities`: **what the team can ask for**, grouped by what they are doing (start and review, design and parts,
+  motors and flight, stability, structures, recovery, electronics, launch day, after the flight, pictures), each
+  worded as a team member would ask it, with the tool and whether it was used in this session. `group` narrows it.
+- **Suggestions as you work:** a result may end with `youCouldAlsoAsk`, up to two related things the team has not used
+  yet (after `recovery_analysis`: plot parachute size against descent rate; after `run_simulation` of a fast rocket:
+  flutter, heating). Each is offered once per session, only when it applies (no av-bay layout when there is one, no
+  heating screen below Mach 1.2). The server instructions ask the model to offer at most one or two per reply, in the
+  user's words, and none while rule failures need fixing. `"suggestions": false` in the standards turns them off.
 - `undo` / `redo` / `history`: every tool call that changed the rocket is one step, up to 50 steps. Motors, deployment
   and all component properties are included. Files are untouched until `save_design`.
 
@@ -397,7 +405,7 @@ The 78 tools, grouped by what a team is doing. Bold marks the main job of each t
 - **Fair comparisons:** variants share the same wind turbulence, so differences come from the change being studied.
   Monte Carlo results repeat for a given seed, and the same design file gives the same flight in every session
   (OpenRocket does not save the turbulence seed, so every opened simulation gets a fixed one).
-- **Prompts and resources:** MCP prompts `recovery_review`, `design_review` and `motor_selection`; resources
+- **Prompts and resources:** MCP prompts `what_can_you_do`, `recovery_review`, `design_review` and `motor_selection`; resources
   `openrocket://standards`, `openrocket://rules` and `openrocket://methods`.
 
 ## Team standards
@@ -578,7 +586,8 @@ macOS arm64 / x64, and attaches the bundles to GitHub releases for `v*` tags.
 
 ## Claude integration
 
-- MCP prompts: `recovery_review`, `design_review`, `motor_selection`; resources: `openrocket://standards`,
+- MCP prompts: `what_can_you_do` (a tour fitted to the team's design), `recovery_review`, `design_review`,
+  `motor_selection`; resources: `openrocket://standards`,
   `openrocket://rules`, `openrocket://methods`.
 - Claude Code skill: `.claude/skills/rocket-design-review` (the review workflow); the same skill for Codex and other
   agents in `.agents/skills/rocket-design-review` (kept identical by `SkillsTest`).

@@ -12,6 +12,8 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
 2. `open_design` then `design_status` - where the design stands and the next steps; `get_design` for components (ids),
    motors per configuration and the stability of every stage stack. If an edit was a mistake, `undo` (see `history`).
 3. `check_requirements` - explain every FAIL and WARN with the rule reference and a concrete fix.
+   Results may carry `youCouldAlsoAsk`: once the FAILs are handled, offer the one that fits in a line. For a new team,
+   `capabilities` gives the map of what they can ask.
 4. Goals:
    - Descent rate -> `parachute_sizes` (chart of rate vs diameter for the Cd values the team picks; `apply` sizes the
      chute and re-flies) or `size_parachute` (with `device` to use the simulated descent mass).

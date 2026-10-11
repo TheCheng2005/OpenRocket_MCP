@@ -95,9 +95,9 @@ class ProductToolsTest {
 		JsonObject a = ok("add_from_link", "{\"designId\":\"" + design + "\",\"pageText\":" + new com.google.gson.Gson().toJson(alt) + "}");
 		assertTrue(a.getAsJsonObject("applied").get("item").getAsString().contains("Av-bay"), a.toString());
 
-		// apply=false changes nothing.
-		String before = call("get_design", "{\"designId\":\"" + design + "\"}").get("text").getAsString();
+		// apply=false changes nothing (feature suggestions aside, which come with a first call only).
+		String before = ok("get_design", "{\"designId\":\"" + design + "\"}").getAsJsonArray("components").toString();
 		ok("add_from_link", "{\"designId\":\"" + design + "\",\"pageText\":" + new com.google.gson.Gson().toJson(alt) + ",\"apply\":false}");
-		assertEquals(before, call("get_design", "{\"designId\":\"" + design + "\"}").get("text").getAsString());
+		assertEquals(before, ok("get_design", "{\"designId\":\"" + design + "\"}").getAsJsonArray("components").toString());
 	}
 }
