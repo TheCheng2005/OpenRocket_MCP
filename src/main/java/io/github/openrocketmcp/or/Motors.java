@@ -7,10 +7,15 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import info.openrocket.core.database.motor.ThrustCurveMotorSet;
 import info.openrocket.core.database.motor.ThrustCurveMotorSetDatabase;
@@ -204,6 +209,48 @@ public final class Motors {
 			}
 		}
 		return matches.get(0);
+	}
+
+	/**
+	 * Downloads a motor's thrust curve from ThrustCurve.org (search by maker and designation, then the RASP file), writes
+	 * it to {@code dir} and loads it. For motors newer than OpenRocket's built-in database.
+	 */
+	public static ThrustCurveMotor fromThrustCurve(String maker, String designation, Path dir) throws IOException {
+		JsonObject q = new JsonObject();
+		q.addProperty("designation", designation);
+		if (maker != null) {
+			q.addProperty("manufacturer", maker);
+		}
+		q.addProperty("maxResults", 5);
+		JsonArray found = JsonParser.parseString(Web.postJson("https://www.thrustcurve.org/api/v1/search.json", q.toString()))
+				.getAsJsonObject().getAsJsonArray("results");
+		if (found == null || found.isEmpty()) {
+			throw new ToolException("ThrustCurve.org has no motor '" + designation + "'" + (maker == null ? "" : " from " + maker) + ".");
+		}
+		JsonObject hit = found.get(0).getAsJsonObject();
+		JsonObject dl = new JsonObject();
+		JsonArray ids = new JsonArray();
+		ids.add(hit.get("motorId").getAsString());
+		dl.add("motorIds", ids);
+		dl.addProperty("format", "RASP");
+		dl.addProperty("data", "file");
+		JsonArray files = JsonParser.parseString(Web.postJson("https://www.thrustcurve.org/api/v1/download.json", dl.toString()))
+				.getAsJsonObject().getAsJsonArray("results");
+		if (files == null || files.isEmpty() || !files.get(0).getAsJsonObject().has("data")) {
+			throw new ToolException("ThrustCurve.org has no downloadable thrust curve for " + designation + ".");
+		}
+		byte[] eng = Base64.getDecoder().decode(files.get(0).getAsJsonObject().get("data").getAsString());
+		Files.createDirectories(dir);
+		Path file = dir.resolve(designation.replaceAll("[^A-Za-z0-9._-]", "_") + ".eng");
+		Files.write(file, eng);
+		List<ThrustCurveMotor> loaded = importFile(file);
+		for (ThrustCurveMotor m : loaded) {
+			if (ThrustCurveMotor.Builder.simplifyDesignation(m.getDesignation()).equalsIgnoreCase(
+					ThrustCurveMotor.Builder.simplifyDesignation(designation))) {
+				return m;
+			}
+		}
+		return loaded.get(0);
 	}
 
 	/** Loads .eng / .rse / .zip motor files into the session's motor database. */

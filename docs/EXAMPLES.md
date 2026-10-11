@@ -9,7 +9,7 @@ appear right in the chat, and long runs (optimizers, Monte Carlo) show their pro
 **Steps:** [Design](#design) · [Recovery](#recovery) · [Flight and rules](#flight-and-rules) ·
 [Design studies](#design-studies) · [Structures and CFD](#structures-and-cfd) · [Build](#build) · [Reviews](#reviews) ·
 [Launch day](#launch-day) · [Show it off](#show-it-off) · [After the flight](#after-the-flight) ·
-[Team history](#team-history) · [Electronics](#electronics)
+[Team history](#team-history) · [Electronics](#electronics) · [Parachutes and product links](#parachutes-and-product-links)
 
 The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch
 Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before
@@ -555,3 +555,45 @@ E-match: 2.5 A through each e-match (1.6 ohm match, 1.7 ohm battery, 0.3 ohm wir
 | Sustainer | 3165 m (10383 ft) at t=21.46 s (3021 m (9912 ft) up): +42.62 dB margin | 99.93 m (327.9 ft) away on the ground: +50.33 dB margin | PASS |
 
 Ground range: 1019 m (3342 ft) with 10 dB margin once landed (ground station antenna 2 m (6.562 ft) up, rocket antenna 0.1 m (0.3281 ft) off the ground). In the air the path is clear, so free-space loss rules; on the ground the two antennas are near the earth and the signal falls off with the fourth power of distance, which is why a tracker heard at apogee can go quiet once it lands.
+
+## Parachutes and product links
+
+### 32. "Plot our main's size against descent rate for Cd 0.85, 1.5 and 2.2."
+
+<sub>Tools Claude uses: `parachute_sizes`</sub>
+
+> 7.815 kg (17.23 lb) (simulated mass under Main (Sustainer)); the drogue stays attached under the main, so 0.2061 m2 of drag is counted (calibrated from the simulation). Target 6.096 m/s, below 9.144 m/s (30 ft/s) (R4.3.1).
+
+![Descent rate against canopy diameter for three drag coefficients, with the rule limit, the target, catalog parachutes and the current main](examples/parachute-sizes.svg)
+
+| Cd | Size for the target |
+|---|---|
+| 0.85 | 2266 mm (89.23 in) |
+| 1.5 | 1706 mm (67.17 in) |
+| 2.2 | 1409 mm (55.46 in) |
+
+Catalog parachutes closest to the target (each at its own Cd):
+
+| Parachute | Diameter | Cd | Rate |
+|---|---|---|---|
+| b2 Rocketry Company CL-60 | 1524 mm (60 in) | 1.89 | 6.081 m/s (19.95 ft/s) |
+| b2 Rocketry Company CL2-60 | 1524 mm (60 in) | 1.89 | 6.081 m/s (19.95 ft/s) |
+| Rocketman BA-07 | 2134 mm (84 in) | 0.97 | 6.064 m/s (19.89 ft/s) |
+
+`apply: true` with one Cd sets the main to that size (rounded up to a whole inch) and re-flies the rocket.
+
+### 33. "Here's the chute we want to buy: put it in as our main."
+
+<sub>Tools Claude uses: `add_from_link`</sub>
+
+|  | Value (source) |
+|---|---|
+| diameter | 2134 mm (84 in) (page) |
+| cd | 2.2 (catalog: Fruity Chutes IFC-084-S) |
+| mass | 379.9 g (13.4 oz) (catalog: Fruity Chutes IFC-084-S) |
+| packedDiameter | 99.06 mm (3.9 in) (catalog: Fruity Chutes IFC-084-S) |
+| packedLength | 157.5 mm (6.2 in) (catalog: Fruity Chutes IFC-084-S) |
+
+> Main -> Iris Ultra 84" Compact Parachute: descent rate 6.452 m/s (21.17 ft/s) -> 4.105 m/s (13.47 ft/s) (simulated). The page named the maker and the size; Cd, weight and packed size came from the matching catalog entry (Fruity Chutes IFC-084-S).
+
+<sub>(The product text here is a sample written for this page. With a link, the server reads the shop's page itself; when a shop blocks that, paste the page's text.)</sub>

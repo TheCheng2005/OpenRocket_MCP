@@ -98,6 +98,14 @@ the answers, and the plots. Everything on that page is real output.
 
 **Recovery**
 - Choose parachutes for a target descent rate.
+- "Plot our main's size against descent rate for Cd 0.85, 1.5 and 2.2" — a chart of descent rate against canopy
+  diameter for the drag coefficients you pick, with the rule limit and target, every catalog parachute at its own Cd,
+  the size each Cd needs, and where your parachute sits now. It is calibrated to your simulation (the airframe and an
+  attached drogue are counted), and "size it" sets the parachute and re-flies the rocket.
+- "Here's the link to the chute we want" — paste a product link (or the page's text) and the part goes into the
+  design: a parachute with its diameter, Cd, weight and packed size (gaps filled from the matching catalog
+  parachute), a motor (also new ones, from ThrustCurve.org), a catalog tube or nose cone by part number, or an
+  altimeter or tracker by its weight. Every value says where it came from, and the rocket is re-flown.
 - Opening shock loads, shear pin count, black powder charge size, and whether it all fits in the bay.
 - "How late can the drogue fire before the pins break?"
 - Landing energy of every piece of the rocket, and what happens if the main fails.

@@ -104,51 +104,62 @@ public final class MotorTools {
 						.qty("overhang", "Motor overhang beyond the mount aft end.", false).build(),
 				false, a -> {
 					Designs.Design d = ctx.designs.get(a.str("designId", null));
-					Rocket rocket = d.doc.getRocket();
-					RocketComponent comp = Components.find(rocket, a.str("mount"));
-					if (!(comp instanceof MotorMount mount)) {
-						throw new ToolException("'" + comp.getName() + "' cannot hold a motor (use an inner tube or body tube).");
-					}
-					ThrustCurveMotor motor = Motors.find(a.str("motor"), a.str("manufacturer", null));
-					if (motor.getDiameter() > mount.getMotorMountDiameter() + 0.0005) {
-						throw new ToolException(motor.getDesignation() + " (" + Units.fmt(motor.getDiameter(), Dim.LENGTH)
-								+ ") does not fit mount " + comp.getName() + " (" + Units.fmt(mount.getMotorMountDiameter(), Dim.LENGTH) + ").");
-					}
-					FlightConfiguration fc;
-					if (rocket.getIds().isEmpty() || (!a.has("configuration") && !rocket.getSelectedConfiguration().hasMotors()
-							&& rocket.getConfigurationCount() == 0)) {
-						fc = rocket.createFlightConfiguration(new FlightConfigurationId());
-						rocket.setSelectedConfiguration(fc.getId());
-					} else {
-						fc = Components.config(rocket, a.str("configuration", null));
-					}
-					mount.setMotorMount(true);
-					MotorConfiguration mc = new MotorConfiguration(mount, fc.getId());
-					mc.setMotor(motor);
-					if (a.has("ejectionDelay")) {
-						mc.setEjectionDelay(a.qty("ejectionDelay", Dim.TIME));
-					} else {
-						mc.setEjectionDelay(Motors.defaultDelay(motor));
-					}
-					if (a.has("ignitionEvent")) {
-						mc.setIgnitionEvent(IgnitionEvent.valueOf(a.str("ignitionEvent").toUpperCase(Locale.ROOT)));
-					}
-					if (a.has("ignitionDelay")) {
-						mc.setIgnitionDelay(a.qty("ignitionDelay", Dim.TIME));
-					}
-					if (a.has("overhang")) {
-						mount.setMotorOverhang(a.qty("overhang", Dim.LENGTH));
-					}
-					mount.setMotorConfig(mc, fc.getId());
-					fc.update();
-					d.doc.setSaved(false);
-					Map<String, Object> out = new LinkedHashMap<>();
-					out.put("configuration", fc.getId().toString().substring(0, 8) + " \"" + fc.getName() + "\"");
-					out.put("mount", comp.getName());
-					out.put("motor", Motors.describe(motor));
-					return out;
+					RocketComponent comp = Components.find(d.doc.getRocket(), a.str("mount"));
+					return putMotor(d, comp, Motors.find(a.str("motor"), a.str("manufacturer", null)), a);
 				}));
+		registerRest(s, ctx);
+	}
 
+	/**
+	 * Puts {@code motor} in {@code comp} for the configuration in {@code a} (configuration, ejectionDelay, ignitionEvent,
+	 * ignitionDelay, overhang; all optional), creating a configuration when the design has none. Shared by set_motor and
+	 * add_from_link.
+	 */
+	static Map<String, Object> putMotor(Designs.Design d, RocketComponent comp, ThrustCurveMotor motor, Args a) {
+		Rocket rocket = d.doc.getRocket();
+		if (!(comp instanceof MotorMount mount)) {
+			throw new ToolException("'" + comp.getName() + "' cannot hold a motor (use an inner tube or body tube).");
+		}
+		if (motor.getDiameter() > mount.getMotorMountDiameter() + 0.0005) {
+			throw new ToolException(motor.getDesignation() + " (" + Units.fmt(motor.getDiameter(), Dim.LENGTH)
+					+ ") does not fit mount " + comp.getName() + " (" + Units.fmt(mount.getMotorMountDiameter(), Dim.LENGTH) + ").");
+		}
+		FlightConfiguration fc;
+		if (rocket.getIds().isEmpty() || (!a.has("configuration") && !rocket.getSelectedConfiguration().hasMotors()
+				&& rocket.getConfigurationCount() == 0)) {
+			fc = rocket.createFlightConfiguration(new FlightConfigurationId());
+			rocket.setSelectedConfiguration(fc.getId());
+		} else {
+			fc = Components.config(rocket, a.str("configuration", null));
+		}
+		mount.setMotorMount(true);
+		MotorConfiguration mc = new MotorConfiguration(mount, fc.getId());
+		mc.setMotor(motor);
+		if (a.has("ejectionDelay")) {
+			mc.setEjectionDelay(a.qty("ejectionDelay", Dim.TIME));
+		} else {
+			mc.setEjectionDelay(Motors.defaultDelay(motor));
+		}
+		if (a.has("ignitionEvent")) {
+			mc.setIgnitionEvent(IgnitionEvent.valueOf(a.str("ignitionEvent").toUpperCase(Locale.ROOT)));
+		}
+		if (a.has("ignitionDelay")) {
+			mc.setIgnitionDelay(a.qty("ignitionDelay", Dim.TIME));
+		}
+		if (a.has("overhang")) {
+			mount.setMotorOverhang(a.qty("overhang", Dim.LENGTH));
+		}
+		mount.setMotorConfig(mc, fc.getId());
+		fc.update();
+		d.doc.setSaved(false);
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("configuration", fc.getId().toString().substring(0, 8) + " \"" + fc.getName() + "\"");
+		out.put("mount", comp.getName());
+		out.put("motor", Motors.describe(motor));
+		return out;
+	}
+
+	private static void registerRest(McpServer s, Context ctx) {
 		s.tool(new ToolDef("rank_motors", "Rank motors by simulating them",
 				"Simulate the motors that fit a mount (diameter and length) and rank them. objective: target_apogee "
 						+ "(closest to targetApogee), max_apogee, or min_impulse_meeting_rules. Each row: apogee, rail exit speed, "

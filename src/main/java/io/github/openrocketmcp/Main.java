@@ -39,6 +39,7 @@ import io.github.openrocketmcp.tools.LaunchTools;
 import io.github.openrocketmcp.tools.LibraryTools;
 import io.github.openrocketmcp.tools.MassTools;
 import io.github.openrocketmcp.tools.MotorTools;
+import io.github.openrocketmcp.tools.ProductTools;
 import io.github.openrocketmcp.tools.RecoveryTools;
 import io.github.openrocketmcp.tools.ReportTools;
 import io.github.openrocketmcp.tools.SimTools;
@@ -50,7 +51,7 @@ import io.github.openrocketmcp.tools.ViewTools;
 
 /** Entry point: stdio MCP server for OpenRocket. */
 public final class Main {
-	public static final String VERSION = "0.19.1";
+	public static final String VERSION = "0.20.0";
 
 	static final String INSTRUCTIONS = """
 			OpenRocket MCP: design, simulate and check high-power / competition rockets with OpenRocket's physics.
@@ -64,6 +65,9 @@ public final class Main {
 			- Electronics: sensor_check (sensor ranges vs the flight), altimeter_settings (primary/backup settings, Mach
 			  lockout, static ports), sensor_data (simulated sensor CSV to test flight software), power_budget (batteries
 			  vs the pad wait, e-match current), radio_link (tracker link margin in flight and after landing).
+			- Parachutes: parachute_sizes plots descent rate against diameter for the Cd values the team picks and sizes the
+			  chute (apply). add_from_link puts a product page (link or pasted text) into the design: parachute, motor,
+			  catalog part or electronics.
 			- Use OpenRocket's data: search_parts / apply_preset for real catalog parts, wind_profile for winds aloft,
 			  draw_rocket to show the design. What-if tools never modify the design. Deployment airspeed comes from the simulation and includes horizontal velocity and wind.
 			- Pictures and video: render_3d for exploded / cut-away 3-D views with a parts list, animate_flight for a 3-D
@@ -93,6 +97,7 @@ public final class Main {
 		MotorTools.register(server, ctx);
 		SimTools.register(server, ctx);
 		RecoveryTools.register(server, ctx);
+		ProductTools.register(server, ctx);
 		AnalysisTools.register(server, ctx);
 		ReportTools.register(server, ctx);
 		StructureTools.register(server, ctx);

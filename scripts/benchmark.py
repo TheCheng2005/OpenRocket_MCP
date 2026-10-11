@@ -201,6 +201,25 @@ def scenario_recovery(s):
     shock = s.call("opening_shock", {"mass": 50, "velocity": 36, "cd": 2.2, "area": 0.636, "airDensity": 0.86, "cx": 1.4})
     check(sc, "opening shock reproduces team doc (~1100 N)", abs(num(shock["infiniteMassLoad"]) - 1092) < 5,
           shock["infiniteMassLoad"])
+    chart = s.call("parachute_sizes", {"designId": d, "device": "Sustainer Main", "cds": [0.8, 1.5, 2.2]})
+    sim_rate = chart["current"]["simulatedRate"].split(" (")[0]
+    main_check = [c for c in s.call("check_requirements", {"designId": d})["checks"]
+                  if c["item"].startswith("Sustainer: landing descent rate")]
+    check(sc, "size chart: three Cd curves, the size each needs, and the current main where check_requirements has it",
+          len(chart["sizeForTarget"]) == 3 and main_check and main_check[0]["value"].startswith(sim_rate),
+          json.dumps(chart["current"]) + " vs " + str(main_check))
+    sized = s.call("parachute_sizes", {"designId": d, "device": "Sustainer Main", "cd": 1.5, "apply": True,
+                                       "targetDescentRate": "20 ft/s", "catalog": False})
+    check(sc, "sizing the main at Cd 1.5 re-flies it at the 20 ft/s target",
+          18.5 < ft(sized["current"]["simulatedRate"]) <= 20.05, sized["current"]["simulatedRate"])
+    s.call("undo", {"designId": d})
+    page = ("Iris Ultra 84\" Standard Parachute\nBrand: Fruity Chutes\nToroidal canopy for large rockets.")
+    link = s.call("add_from_link", {"designId": d, "pageText": page, "component": "Sustainer Main"})
+    check(sc, "pasted product page: 84 in parachute in, Cd and packed size from the catalog, re-flown",
+          link["product"]["kind"] == "parachute" and "catalog" in link["fromThePage"]["cd"]
+          and "->" in link["applied"]["descentRate"], json.dumps(link)[:400])
+    blocked = s.call("add_from_link", {"designId": d, "url": "http://169.254.169.254/latest/meta-data"}, expect_error=True)
+    check(sc, "links into the server's own network are refused", "not fetched" in blocked, blocked)
 
 
 def scenario_two_stage(s):

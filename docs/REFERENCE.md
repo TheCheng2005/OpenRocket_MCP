@@ -6,7 +6,7 @@ plain-language overview.
 
 ## Tools
 
-The 76 tools, grouped by what a team is doing. Bold marks the main job of each tool.
+The 78 tools, grouped by what a team is doing. Bold marks the main job of each tool.
 
 ### Session
 
@@ -34,6 +34,21 @@ The 76 tools, grouped by what a team is doing. Bold marks the main job of each t
 
 - `search_parts` / `apply_preset`: OpenRocket's manufacturer parts database for body tubes, nose cones, couplers, rings,
   bulkheads, rail buttons, launch lugs and chutes.
+- `add_from_link`: **a product page into the design**. Give the link (`url`) or paste the page's text (`pageText`)
+  when the server cannot reach the shop.
+  - **Parachute:** diameter, Cd, weight and packed size from the page. A matching catalog parachute (same maker and
+    diameter, closest description) fills in what the page leaves out. Replaces `component` or is added under `parent`.
+  - **Motor:** the designation in the title (delay suffixes such as "-L" are dropped) or a ThrustCurve.org link. Motors
+    newer than OpenRocket's database are downloaded from ThrustCurve.org into `motors/`. Goes into the only motor mount
+    or `component`, with a note when it needs an adapter.
+  - **Catalog part:** a tube, nose cone, coupler or ring by the part number on the page.
+  - **Item to carry:** an altimeter, tracker, battery or hardware by its weight (and longest dimension), into the
+    av-bay by default.
+  - **Every value names its source** (page, catalog, given, assumed). `cd`, `diameter` and `mass` override the page.
+    `apply: false` only reports. The rocket is re-flown and the effect shown; undo reverts it.
+  - **Safety:** only public http(s) pages are fetched. Links to the server's own machine or a private network
+    (localhost, 10.x, 192.168.x, link-local, cloud metadata) are refused, also after a redirect. Pages are capped at
+    3 MB and 20 s. Shops that block automated access get a message to paste the page instead.
 - `draw_rocket`: a **cut-away** SVG from OpenRocket's geometry. It draws the outside profile and fins over the internals,
   colour-coded by kind: parachutes and shock cords, altimeters, batteries, trackers, ejection charges, switches,
   ballast, motor, couplers, rings and bulkheads. It also marks separation points, CG and CP. The report includes it.
@@ -212,6 +227,17 @@ The 76 tools, grouped by what a team is doing. Bold marks the main job of each t
   and finite-mass inflation), then the shear pins.
 - `deployment_delay_sweep`: how late can the drogue fire?
 - `size_parachute`: the canopy size for a descent rate, plus real chutes from the parts database.
+- `parachute_sizes`: **descent rate against canopy diameter**, as a chart (attached; SVG with `plotPath`) and a table.
+  - **Curves:** one for each Cd you choose (`cd`, or up to three in `cds`); default the parachute's own Cd.
+  - **From the design:** the mass is the simulated mass under the device (default the main). The drag already there
+    without the canopy (the airframe, a drogue still attached under the main) is calibrated so the curve passes
+    through the simulated rate of the parachute as it is now, read where `check_requirements` reads it.
+  - **On the chart:** the rule limit (main maximum) or band (drogue), the target (default the rule set's recommended
+    rate), the size each Cd needs for it, every catalog parachute at its own Cd (hover for the part), and "now".
+  - **Sizing:** `apply` sets the parachute to the size for the target at the chosen Cd (rounded up to a whole inch,
+    or cm in metric units) and that Cd, then re-flies; `diameter` sets a size of your choice. Packed size and mass
+    stay as they were (take them from the vendor, or `apply_preset` a catalog match). Undo reverts it.
+  - Without a design, give `mass` (and `otherCdA`, `role`).
 - `search_parachutes`, `opening_shock`, `shear_pins`, `ejection_charge` (black powder).
 - `recovery_bay_fit`: bay volume from the design, in a tube or a nose-cone interior.
 - `descent_energy`: landing energy per section.
@@ -455,6 +481,11 @@ See `openrocket://methods` for equations and sources. In short:
 - **Radio link**: free-space loss 20 log10(4π d f / c) in the air; on the ground the plane-earth model (40 dB per
   decade beyond the two-ray crossover 4π h1 h2 / λ), which is pessimistic over open fields and optimistic in forest
   or hills. Antenna patterns, polarisation and the rocket's orientation are in `lossesDb`; keep a 10 dB margin.
+- **Parachute sizes**: steady rate v = sqrt(2 m g / (rho (n Cd A + CdA_other))). CdA_other is calibrated from the
+  simulated rate of the current parachute, so it includes everything OpenRocket models besides that canopy.
+- **Product pages** are read from their structured product data (JSON-LD) and visible text. Shops word their pages
+  differently, so check what was found against the vendor's sheet. A Cd quoted on the projected area (some toroidal
+  canopies) must be used with the projected area.
 - **Cd reference area**: OpenRocket uses the nominal canopy area. Vendor Cd values quoted on projected area (e.g. 2.2)
   must be paired with projected area.
 
