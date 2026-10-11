@@ -628,6 +628,16 @@ public final class McpServer {
 		if (e instanceof IllegalArgumentException && !m.isEmpty()) {
 			return m + (m.endsWith(".") ? "" : ".");
 		}
+		if (e instanceof java.nio.file.NoSuchFileException) {
+			return "File not found: " + m + ". Check the path (list_files shows the workspace).";
+		}
+		if (e instanceof java.nio.file.AccessDeniedException) {
+			return "Not allowed to read or write " + m + " (file permissions).";
+		}
+		if (e instanceof java.nio.file.NotDirectoryException || e instanceof java.nio.file.FileAlreadyExistsException) {
+			return "The path " + m + " is in the way: " + (e instanceof java.nio.file.NotDirectoryException
+					? "it is a file where a folder is needed." : "something already exists there.");
+		}
 		return tool + " hit an internal error (" + e.getClass().getSimpleName() + (m.isEmpty() ? "" : ": " + m)
 				+ "). This is a bug in the server, not in your design: please report it with the call that caused it.";
 	}

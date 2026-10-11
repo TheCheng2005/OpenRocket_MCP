@@ -214,10 +214,13 @@ public final class Raster3d {
 	/** Copies a background image of the output size, scaled up to the supersampled buffer. */
 	public void background(int[] img) {
 		int sw = w * ss;
-		for (int y = 0; y < h * ss; y++) {
-			int row = (y / ss) * w;
+		for (int y = 0; y < h; y++) {
+			int row = y * w, first = y * ss * sw;
 			for (int x = 0; x < sw; x++) {
-				rgb[y * sw + x] = img[row + x / ss];
+				rgb[first + x] = img[row + x / ss];
+			}
+			for (int k = 1; k < ss; k++) {
+				System.arraycopy(rgb, first, rgb, first + k * sw, sw);
 			}
 		}
 	}
@@ -304,9 +307,31 @@ public final class Raster3d {
 		}
 		double z0 = depthKey(s[0][2]), z1 = depthKey(s[1][2]), z2 = depthKey(s[2][2]);
 		double inv = 1 / area;
+		// Along a row each barycentric weight is linear in x, so the covered span is known before the loop; long
+		// thin triangles (a body tube seen at an angle) cover a sliver of their bounding box. One pixel of margin each
+		// side keeps the per-pixel test below the only judge, so the output is the same.
+		double b0 = (y1 - y2) * inv, b1 = (y2 - y0) * inv, b2 = -(b0 + b1);
 		for (int y = minY; y <= maxY; y++) {
 			double py = y + 0.5;
-			for (int x = minX; x <= maxX; x++) {
+			double a0 = (x1 * (y2 - py) - x2 * (y1 - py)) * inv, a1 = (x2 * (y0 - py) - x0 * (y2 - py)) * inv;
+			double a2 = 1 - a0 - a1;
+			double lo = minX, hi = maxX;
+			boolean empty = false;
+			for (int e = 0; e < 3 && !empty; e++) {
+				double a = e == 0 ? a0 : e == 1 ? a1 : a2, b = e == 0 ? b0 : e == 1 ? b1 : b2;
+				if (b > 1e-15) {
+					lo = Math.max(lo, -a / b - 0.5);
+				} else if (b < -1e-15) {
+					hi = Math.min(hi, -a / b - 0.5);
+				} else if (a < -1e-9) {
+					empty = true;
+				}
+			}
+			if (empty || !(lo <= hi + 2)) {
+				continue;
+			}
+			int from = Math.max(minX, (int) Math.floor(lo) - 1), to = Math.min(maxX, (int) Math.ceil(hi) + 1);
+			for (int x = from; x <= to; x++) {
 				double px = x + 0.5;
 				double w0 = ((x1 - px) * (y2 - py) - (x2 - px) * (y1 - py)) * inv;
 				double w1 = ((x2 - px) * (y0 - py) - (x0 - px) * (y2 - py)) * inv;
@@ -344,6 +369,19 @@ public final class Raster3d {
 		BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
 		int[] out = ((DataBufferInt) img.getRaster().getDataBuffer()).getData();
 		int sw = w * ss, n = ss * ss;
+		if (ss == 2) { // the common case, unrolled
+			for (int y = 0; y < h; y++) {
+				int r0 = 2 * y * sw, r1 = r0 + sw;
+				for (int x = 0; x < w; x++) {
+					int a = rgb[r0 + 2 * x], b = rgb[r0 + 2 * x + 1], c = rgb[r1 + 2 * x], d = rgb[r1 + 2 * x + 1];
+					int r = (a >> 16 & 255) + (b >> 16 & 255) + (c >> 16 & 255) + (d >> 16 & 255);
+					int g = (a >> 8 & 255) + (b >> 8 & 255) + (c >> 8 & 255) + (d >> 8 & 255);
+					int bl = (a & 255) + (b & 255) + (c & 255) + (d & 255);
+					out[y * w + x] = (r / 4) << 16 | (g / 4) << 8 | (bl / 4);
+				}
+			}
+			return img;
+		}
 		for (int y = 0; y < h; y++) {
 			for (int x = 0; x < w; x++) {
 				int r = 0, g = 0, b = 0;

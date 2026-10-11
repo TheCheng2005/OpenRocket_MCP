@@ -675,30 +675,33 @@ public final class FlightAnimation {
 		int[] px = new int[w * h];
 		double camAlt = cam.eye[2];
 		double dark = Math.min(1, camAlt / 9000);
-		int[] zenith = mix(new int[] { 74, 134, 204 }, new int[] { 22, 52, 112 }, dark);
-		int[] horizon = mix(new int[] { 203, 222, 240 }, new int[] { 170, 196, 226 }, dark);
+		int zenith = pack(mix(new int[] { 74, 134, 204 }, new int[] { 22, 52, 112 }, dark));
+		int horizon = pack(mix(new int[] { 203, 222, 240 }, new int[] { 170, 196, 226 }, dark));
+		int gravel = pack(new int[] { 176, 168, 150 });
+		Fields fields = new Fields();
+		// Per pixel this runs a million times a frame: packed colours, no allocation, the pad test on r^2.
 		for (int y = 0; y < h; y++) {
+			double v = (h / 2.0 - y - 0.5) / focal;
+			double rx = cam.fwd[0] + v * cam.up[0], ry = cam.fwd[1] + v * cam.up[1], rz = cam.fwd[2] + v * cam.up[2];
 			for (int x = 0; x < w; x++) {
-				double u = (x + 0.5 - w / 2.0) / focal, v = (h / 2.0 - y - 0.5) / focal;
-				double dx = cam.fwd[0] + u * cam.right[0] + v * cam.up[0];
-				double dy = cam.fwd[1] + u * cam.right[1] + v * cam.up[1];
-				double dz = cam.fwd[2] + u * cam.right[2] + v * cam.up[2];
+				double u = (x + 0.5 - w / 2.0) / focal;
+				double dx = rx + u * cam.right[0], dy = ry + u * cam.right[1], dz = rz + u * cam.right[2];
 				double l = Math.sqrt(dx * dx + dy * dy + dz * dz);
 				dz /= l;
 				int c;
 				if (dz >= -1e-4) {
 					double s = Math.pow(Math.min(1, dz * 1.6), 0.6);
-					c = pack(mix(horizon, zenith, s));
+					c = mix(horizon, zenith, s);
 				} else {
 					double s = camAlt / -dz; // distance along the ray to the ground
 					double gx = cam.eye[0] + s * dx / l, gy = cam.eye[1] + s * dy / l;
-					int[] ground = field(gx, gy);
-					double pr = Math.hypot(gx, gy);
-					if (pr < 25) {
-						ground = mix(new int[] { 176, 168, 150 }, ground, smooth((pr - 18) / 7));
+					int ground = fields.at(gx, gy);
+					double r2 = gx * gx + gy * gy;
+					if (r2 < 625) {
+						ground = mix(gravel, ground, smooth((Math.sqrt(r2) - 18) / 7));
 					}
 					double fog = 1 - Math.exp(-s / 9000);
-					c = pack(mix(ground, horizon, fog));
+					c = mix(ground, horizon, fog);
 				}
 				px[y * w + x] = c;
 			}
@@ -706,20 +709,45 @@ public final class FlightAnimation {
 		return px;
 	}
 
-	/** Farm fields 150 m on a side, each a slightly different green or tan. */
-	static int[] field(double x, double y) {
-		long ix = (long) Math.floor(x / 150), iy = (long) Math.floor(y / 150);
-		long hsh = ix * 73856093L ^ iy * 19349663L;
-		hsh = (hsh ^ (hsh >>> 13)) * 0x5bd1e995L;
-		double v = ((hsh >>> 8) & 1023) / 1023.0;
-		int[] a = { 120, 150, 88 }, b = { 164, 158, 104 }, c = { 96, 128, 76 };
-		int[] col = v < 0.5 ? mix(a, c, v * 2) : mix(a, b, (v - 0.5) * 2);
-		// Darker field edges (hedgerows / tracks) give a sense of scale and speed.
-		double ex = Math.abs(x / 150 - Math.rint(x / 150)) * 150, ey = Math.abs(y / 150 - Math.rint(y / 150)) * 150;
-		if (Math.min(ex, ey) < 1.5) {
-			col = mix(col, new int[] { 86, 98, 64 }, 0.6);
+	private static final int FIELD_A = 120 << 16 | 150 << 8 | 88, FIELD_B = 164 << 16 | 158 << 8 | 104,
+			FIELD_C = 96 << 16 | 128 << 8 | 76, HEDGE = 86 << 16 | 98 << 8 | 64;
+
+	/** Farm fields 150 m on a side, each a slightly different green or tan (packed RGB). */
+	static int field(double x, double y) {
+		return new Fields().at(x, y);
+	}
+
+	/**
+	 * {@link #field} for a whole frame: neighbouring pixels mostly fall in the same field, so the last field's colour is
+	 * kept, and the hedgerow test uses the same floor as the field index (no rint). Not thread-safe: one per frame.
+	 */
+	static final class Fields {
+		private long lastX = Long.MIN_VALUE, lastY = Long.MIN_VALUE;
+		private int lastCol;
+
+		int at(double x, double y) {
+			double fx = x / 150, fy = y / 150;
+			double flx = Math.floor(fx), fly = Math.floor(fy);
+			long ix = (long) flx, iy = (long) fly;
+			int col;
+			if (ix == lastX && iy == lastY) {
+				col = lastCol;
+			} else {
+				long hsh = ix * 73856093L ^ iy * 19349663L;
+				hsh = (hsh ^ (hsh >>> 13)) * 0x5bd1e995L;
+				double v = ((hsh >>> 8) & 1023) / 1023.0;
+				col = v < 0.5 ? mix(FIELD_A, FIELD_C, v * 2) : mix(FIELD_A, FIELD_B, (v - 0.5) * 2);
+				lastX = ix;
+				lastY = iy;
+				lastCol = col;
+			}
+			// Darker field edges (hedgerows / tracks) give a sense of scale and speed.
+			double rx = fx - flx, ry = fy - fly;
+			if (Math.min(Math.min(rx, 1 - rx), Math.min(ry, 1 - ry)) * 150 < 1.5) {
+				col = mix(col, HEDGE, 0.6);
+			}
+			return col;
 		}
-		return col;
 	}
 
 	private void drawSmoke(Graphics2D g, Raster3d r, double t) {
@@ -1413,6 +1441,14 @@ public final class FlightAnimation {
 
 	private static int[] mix(int[] a, int[] b, double t) {
 		return new int[] { (int) (a[0] + (b[0] - a[0]) * t), (int) (a[1] + (b[1] - a[1]) * t), (int) (a[2] + (b[2] - a[2]) * t) };
+	}
+
+	/** {@link #mix(int[], int[], double)} on packed RGB, same rounding. */
+	private static int mix(int a, int b, double t) {
+		int r = (int) ((a >> 16 & 255) + ((b >> 16 & 255) - (a >> 16 & 255)) * t);
+		int g = (int) ((a >> 8 & 255) + ((b >> 8 & 255) - (a >> 8 & 255)) * t);
+		int bl = (int) ((a & 255) + ((b & 255) - (a & 255)) * t);
+		return r << 16 | g << 8 | bl;
 	}
 
 	private static int pack(int[] c) {

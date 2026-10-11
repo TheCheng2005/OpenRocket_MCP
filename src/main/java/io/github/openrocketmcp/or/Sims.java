@@ -244,6 +244,7 @@ public final class Sims {
 		if (table != null) {
 			listeners[listeners.length - 2] = table;
 		}
+		FastSim.install(sim);
 		try {
 			sim.simulate(listeners);
 		} catch (Exception e) {
