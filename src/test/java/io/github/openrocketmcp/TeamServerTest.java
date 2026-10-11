@@ -133,6 +133,32 @@ class TeamServerTest {
 	}
 
 	@Test
+	void browserClientsOnAllowedOriginsGetCors() throws Exception {
+		Context ctx = new Context(Standards.defaults(), ws, true);
+		HttpTransport t = new HttpTransport(Main.build(ctx), ws, TOKEN, List.of("http://localhost:8080"));
+		String b = "http://127.0.0.1:" + t.start("127.0.0.1", 0, 2).getPort();
+		try {
+			HttpResponse<String> pre = HTTP.send(HttpRequest.newBuilder(URI.create(b + "/mcp")).method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+					.header("Origin", "http://localhost:8080").header("Access-Control-Request-Method", "POST").build(),
+					HttpResponse.BodyHandlers.ofString());
+			assertEquals(204, pre.statusCode());
+			assertEquals("http://localhost:8080", pre.headers().firstValue("Access-Control-Allow-Origin").orElse(""));
+			assertTrue(pre.headers().firstValue("Access-Control-Allow-Headers").orElse("").contains("authorization"));
+			HttpResponse<String> other = HTTP.send(HttpRequest.newBuilder(URI.create(b + "/mcp")).method("OPTIONS",
+					HttpRequest.BodyPublishers.noBody()).header("Origin", "http://localhost:3000").build(), HttpResponse.BodyHandlers.ofString());
+			assertEquals(403, other.statusCode(), "loopback pages are not given CORS: other local pages cannot call the server");
+			assertTrue(other.headers().firstValue("Access-Control-Allow-Origin").isEmpty());
+			HttpResponse<String> post = HTTP.send(HttpRequest.newBuilder(URI.create(b + "/mcp/" + TOKEN))
+					.POST(HttpRequest.BodyPublishers.ofString("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}"))
+					.header("Content-Type", "application/json").header("Origin", "http://localhost:8080").build(), HttpResponse.BodyHandlers.ofString());
+			assertEquals(200, post.statusCode());
+			assertEquals("http://localhost:8080", post.headers().firstValue("Access-Control-Allow-Origin").orElse(""));
+		} finally {
+			t.stop();
+		}
+	}
+
+	@Test
 	void rejectsForeignBrowserOrigins() throws Exception {
 		String ping = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}";
 		assertEquals(403, post("/mcp/" + TOKEN, ping, "Origin", "https://evil.example").statusCode());

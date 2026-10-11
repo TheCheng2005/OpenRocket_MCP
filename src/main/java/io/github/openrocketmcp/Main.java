@@ -49,6 +49,7 @@ import io.github.openrocketmcp.tools.StatusTools;
 import io.github.openrocketmcp.tools.StructureTools;
 import io.github.openrocketmcp.tools.StudyTools;
 import io.github.openrocketmcp.tools.ViewTools;
+import io.github.openrocketmcp.tools.WorkbenchTools;
 
 /** Entry point: stdio MCP server for OpenRocket. */
 public final class Main {
@@ -71,7 +72,11 @@ public final class Main {
 			  catalog part or electronics.
 			- Use OpenRocket's data: search_parts / apply_preset for real catalog parts, wind_profile for winds aloft,
 			  draw_rocket to show the design. What-if tools never modify the design. Deployment airspeed comes from the simulation and includes horizontal velocity and wind.
-			- Pictures and video: render_3d for exploded / cut-away 3-D views with a parts list, animate_flight for a 3-D
+			- Show, don't just tell: show_design opens an interactive view in the chat (3-D rocket with cut-away and
+			  exploded views, CG/CP through the flight, a 3-D flight replay, linked flight plots, trajectory, rule checks;
+			  the team can click parts and change them). Offer it when someone wants to see or explore the rocket or a
+			  flight, and after a run when a picture would help. It also writes a standalone HTML file for other clients.
+			- Pictures and video: render_3d for exploded / cut-away 3-D images with a parts list, animate_flight for a 3-D
 			  animation of the simulated flight (GIF, MP4 with ffmpeg, key-moment stills).
 			- Inputs accept units ("20 ft/s", "4 in", "15 psi"); bare numbers are SI. Output uses the team's unit setting.
 			- Help the team discover what you can do; most people never read documentation. Results may end with
@@ -111,6 +116,7 @@ public final class Main {
 		FinTools.register(server, ctx);
 		IntegrationTools.register(server, ctx);
 		ViewTools.register(server, ctx);
+		WorkbenchTools.register(server, ctx);
 		AeroTools.register(server, ctx);
 		StudyTools.register(server, ctx);
 		LaunchTools.register(server, ctx);
@@ -174,6 +180,7 @@ public final class Main {
 		Context ctx = new Context(Standards.discover(ws), ws, false);
 		McpServer server = build(ctx);
 		server.guard(new DesignLocks(ctx)); // requests run concurrently: calls on one design take turns
+		server.singleClient(true); // stdio: the one client's initialize says whether it shows interactive views
 		warmUp();
 		Log.info("openrocket-mcp " + VERSION + " ready; standards: "
 				+ (ctx.standards().source() == null ? "built-in defaults" : ctx.standards().source()));

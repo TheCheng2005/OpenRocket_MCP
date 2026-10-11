@@ -43,6 +43,7 @@ public final class CallContext {
 	private volatile String unit = "simulations";
 	private volatile long lastSent;
 	private final List<Image> images = Collections.synchronizedList(new ArrayList<>());
+	private volatile Object structured;
 
 	CallContext(JsonElement progressToken, Consumer<JsonObject> sink) {
 		this.progressToken = progressToken;
@@ -134,6 +135,20 @@ public final class CallContext {
 
 	List<Image> images() {
 		return images;
+	}
+
+	/**
+	 * Data for an interactive view (MCP Apps): sent as the result's structuredContent, beside the text the model
+	 * reads, so bulky view data (meshes, time series) need not go through the text (ignored outside a tool call).
+	 */
+	public void structured(Object data) {
+		if (this != INERT) {
+			structured = data;
+		}
+	}
+
+	Object structured() {
+		return structured;
 	}
 
 	int done() {

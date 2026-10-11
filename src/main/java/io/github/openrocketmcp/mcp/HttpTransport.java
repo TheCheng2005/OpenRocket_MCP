@@ -113,6 +113,11 @@ public final class HttpTransport {
 				send(ex, 403, "text/plain", "Origin not allowed");
 				return;
 			}
+			boolean cors = cors(ex);
+			if (ex.getRequestMethod().equals("OPTIONS")) {
+				send(ex, cors ? 204 : 403, "text/plain", cors ? null : "Origin not allowed");
+				return;
+			}
 			if (path.equals("/mcp") || path.equals("/mcp/")) {
 				if (!bearerOk(ex)) {
 					ex.getResponseHeaders().add("WWW-Authenticate", "Bearer");
@@ -261,6 +266,26 @@ public final class HttpTransport {
 
 	static boolean same(String a, String b) {
 		return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
+	}
+
+	/**
+	 * Browser MCP clients (the MCP Inspector, an MCP Apps host) on an origin given with --allow-origin get CORS headers,
+	 * so their preflight succeeds. Other origins get none: a page elsewhere, loopback included, cannot call the server
+	 * from a browser.
+	 */
+	boolean cors(HttpExchange ex) {
+		String origin = ex.getRequestHeaders().getFirst("Origin");
+		if (origin == null || !(allowedOrigins.contains("*") || allowedOrigins.contains(origin))) {
+			return false;
+		}
+		var h = ex.getResponseHeaders();
+		h.add("Access-Control-Allow-Origin", origin);
+		h.add("Vary", "Origin");
+		h.add("Access-Control-Allow-Methods", "POST, GET, PUT, OPTIONS");
+		h.add("Access-Control-Allow-Headers", "content-type, authorization, mcp-protocol-version, mcp-session-id, last-event-id");
+		h.add("Access-Control-Expose-Headers", "mcp-session-id");
+		h.add("Access-Control-Max-Age", "600");
+		return true;
 	}
 
 	/** Browsers send Origin; accept our own host, loopback and the configured origins (DNS-rebinding protection). */

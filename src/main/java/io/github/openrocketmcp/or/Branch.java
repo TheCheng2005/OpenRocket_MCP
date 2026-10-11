@@ -19,7 +19,7 @@ import info.openrocket.core.simulation.FlightDataType;
  * once and looks times up by binary search. Views are cached per branch; branches do not change once a
  * simulation has finished.
  */
-final class Branch {
+public final class Branch {
 	private static final Map<FlightDataBranch, Branch> CACHE = Collections.synchronizedMap(new WeakHashMap<>());
 
 	/*
@@ -28,7 +28,7 @@ final class Branch {
 	 * suite, eventually spent all its time in garbage collection).
 	 */
 	private final WeakReference<FlightDataBranch> raw;
-	final double[] time;
+	public final double[] time;
 	private final Map<FlightDataType, double[]> columns = new ConcurrentHashMap<>();
 
 	private Branch(FlightDataBranch raw) {
@@ -36,7 +36,7 @@ final class Branch {
 		this.time = toArray(raw.get(FlightDataType.TYPE_TIME));
 	}
 
-	static Branch of(FlightDataBranch b) {
+	public static Branch of(FlightDataBranch b) {
 		if (b.isMutable()) {
 			return new Branch(b); // still being written; do not cache
 		}
@@ -56,7 +56,7 @@ final class Branch {
 	}
 
 	/** Column values; NaN-filled when the type was not recorded. */
-	double[] col(FlightDataType type) {
+	public double[] col(FlightDataType type) {
 		return columns.computeIfAbsent(type, t -> {
 			FlightDataBranch b = raw.get();
 			double[] v = b == null ? new double[0] : toArray(b.get(t));
@@ -73,7 +73,7 @@ final class Branch {
 	}
 
 	/** First index with time >= t (clamped to the data range). */
-	int index(double t) {
+	public int index(double t) {
 		if (time.length == 0) {
 			return -1;
 		}
@@ -103,7 +103,7 @@ final class Branch {
 		return Double.isNaN(v) ? col(FlightDataType.TYPE_VELOCITY_TOTAL)[i] : v;
 	}
 
-	double last(FlightDataType type) {
+	public double last(FlightDataType type) {
 		double[] c = col(type);
 		return c.length == 0 ? Double.NaN : c[c.length - 1];
 	}

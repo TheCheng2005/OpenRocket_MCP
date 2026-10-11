@@ -69,7 +69,7 @@ public final class HistoryTools {
 		if (t.readOnly() || SKIP.contains(t.name())) {
 			return t;
 		}
-		return new ToolDef(t.name(), t.title(), t.description(), t.inputSchema(), t.readOnly(), args -> {
+		return t.withHandler(args -> {
 			Designs.Design d = target(ctx, args);
 			if (d == null) {
 				return t.handler().call(args);
