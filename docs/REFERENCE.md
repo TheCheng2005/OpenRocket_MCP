@@ -6,7 +6,8 @@ plain-language overview.
 
 ## Tools
 
-The 79 tools, grouped by what a team is doing. Bold marks the main job of each tool.
+The 81 tools, grouped by what a team is doing (one of them, `workbench_data`, serves the interactive view and is hidden
+from the model by hosts that show views). Bold marks the main job of each tool.
 
 ### Session
 
@@ -24,6 +25,40 @@ The 79 tools, grouped by what a team is doing. Bold marks the main job of each t
   user's words, and none while rule failures need fixing. `"suggestions": false` in the standards turns them off.
 - `undo` / `redo` / `history`: every tool call that changed the rocket is one step, up to 50 steps. Motors, deployment
   and all component properties are included. Files are untouched until `save_design`.
+
+### Interactive view
+
+- `show_design`: **the design and its flight as an interactive view** (MCP Apps). In Claude Desktop and claude.ai it
+  opens in the chat; it is also written as a standalone HTML file (`path`, default `<design>-view.html`) with the data
+  embedded, to open in any browser or send to the team. The model reads only the headline numbers and the rule-check
+  summary; the bulky data goes to the view. `tab` picks the first tab; the simulation and launch overrides are those of
+  `run_simulation`.
+  - **Rocket:** WebGL model built from the design's geometry (every part and motor, OpenRocket's masses). Orbit, zoom
+    and pan; *Cut-away* removes the half of the airframe toward the camera; *Exploded* pulls the airframe pieces apart
+    with their contents; *Side* is an orthographic view to scale with a ruler in the team's length unit. CG and CP
+    markers and the margin follow the time cursor (from the simulation). Clicking a part (or its row in the parts list)
+    highlights it and lists its properties; in a host, clicking a value edits it through `edit_components` (enum and
+    yes/no values become lists), re-simulates and updates the view; *Undo* calls `undo`. The model is told of selections
+    and edits (`ui/update-model-context`); *Ask Claude about this part* sends a message to the chat.
+  - **Fly:** the simulated flight in 3-D (position, attitude and roll from OpenRocket), the path and dropped stages as
+    lines, the parachutes as canopies once deployed, a ground grid; follows the rocket or frames the whole flight.
+    *Play* runs it at 1x through the burn, 3x to apogee and 8x on the way down.
+  - **Flight plots:** altitude, speed (total, vertical), acceleration, Mach, stability (with the rule minimum), thrust
+    and drag, angle of attack (from rail clearance) and mass, one measure per plot, events marked. One time cursor
+    across all plots with a readout of every value; drag to zoom, *Ascent* / *Whole flight* ranges. Up to 1,200 points
+    per series (every event and peak kept).
+  - **Trajectory:** altitude against distance downrange and the ground track (equal scales, wind arrow), apogee,
+    deployments and touchdown marked, dropped stages dashed.
+  - **Rule checks:** every check with status (icon and label), value, requirement and reference, failures first, with a
+    filter; in a host, *Ask Claude how to fix* on failures and warnings.
+- `workbench_data`: what the view loads (`_meta.ui.visibility: ["app"]`). Each `show_design` keeps a snapshot (the last
+  eight), so a view scrolled back to in the chat shows what it showed; `refresh: true` rebuilds from the design as it is
+  now. If the design is no longer open, the view says to ask for it again.
+- **Protocol:** MCP Apps (2026-01-26): `show_design` links `ui://openrocket/workbench.html` in `_meta.ui.resourceUri`
+  (and the earlier `ui/resourceUri` key); the resource (`text/html;profile=mcp-app`, not listed in `resources/list`)
+  needs no network: scripts, styles and data are all in the page. The view speaks `ui/initialize`, receives the tool
+  input and result, calls tools through the host, reports its size, follows the host's theme and display mode, and asks
+  for full screen. Tested against the MCP Apps reference host.
 
 ### Designs
 
@@ -374,6 +409,13 @@ The 79 tools, grouped by what a team is doing. Bold marks the main job of each t
   `"15 psi"` or `"75 ft-lbf"`; bare numbers are SI.
 - **What-if tools never change the design.** `rank_motors`, `sweep`, `optimize`, `ballast`, `monte_carlo` and
   `deployment_delay_sweep` fly each variant on a copy of the rocket, in parallel across CPU cores.
+- **Faster simulations:** every flight runs on OpenRocket's own engine with three per-step recomputations cached:
+  the airframe's mass, CG and inertia (recomputed by OpenRocket four times per RK4 step, though it changes only at
+  staging), the motors' mass and CG (cached once a motor is past its thrust curve, or before it lights) and the
+  geometry check (its warnings replayed). Results are identical to the last digit on every bundled design, flight data
+  and warnings alike (`FastSimTest`); about 2.9 times faster per simulation, and up to 7 times on studies. A design
+  whose own OpenRocket extension hooks the mass calculation runs uncached. `-Dopenrocketmcp.noFastSim=true` turns it
+  off.
 - **Faster studies:** studies that only read the climb (`rank_motors`, `optimize`, `optimize_fins`, `compare_shapes`,
   `ballast`, `roll_analysis`) stop each flight once its first parachute is out, skipping the long descent. Apogee,
   stability, rail exit, Mach, flutter and ejection timing are unchanged (a test checks this).
@@ -439,8 +481,9 @@ Claude can change them with `update_standards` (and save them with `saveTo`).
 
 See `openrocket://methods` for equations and sources. In short:
 
-- **Flight**: OpenRocket 24.12 6-DOF simulation, Barrowman aerodynamics. For airframes with diameter changes,
-  Launch Canada expects RASAero CP/CD overrides — the checker flags this.
+- **Flight**: OpenRocket 24.12 6-DOF simulation, Barrowman aerodynamics (with the per-step caching above, which changes
+  no number). For airframes with diameter changes, Launch Canada expects RASAero CP/CD overrides — the checker flags
+  this.
 - **Deployment conditions** come from the simulation (airspeed = Mach × speed of sound, so horizontal velocity and wind
   are included), not from vertical-only hand estimates.
 - **Opening load**: Knacke (NWC TP 6575) infinite-mass `Cx·q·CdA`, plus a finite-mass inflation integration with fill time
@@ -541,11 +584,13 @@ RSO.
 ./gradlew installDist           # build/install/openrocket-mcp/bin/openrocket-mcp[.bat]
 python3 scripts/benchmark.py    # scenario benchmark: realistic team requests, pass/fail + timings + output size
 python3 scripts/make_examples.py  # rebuilds docs/EXAMPLES.md, its plots and the demo designs from real runs (also in CI)
+node scripts/view_shots.mjs docs/examples/maple-10k-view.html docs/examples  # the view in headless Chromium + screenshots
 ```
 
-`./gradlew test` runs about 290 tests: calculators against the team's worked examples and hand calculations,
+`./gradlew test` runs about 375 tests: calculators against the team's worked examples and hand calculations,
 property tests (scaling laws, inverses), the protocol, standards, SVG output, OpenRocket-backed checks, the 3-D renderer
-and flight animation (single-stage, two-stage and side boosters), and end-to-end MCP calls.
+and flight animation (single-stage, two-stage and side boosters), the caching simulation engine against OpenRocket's own
+on every bundled design, the interactive view's data and page, and end-to-end MCP calls.
 
 `scripts/benchmark.py` drives a fresh server over stdio through realistic team requests and checks each answer against
 engineering expectations. It runs in CI. The scenarios:
@@ -575,7 +620,7 @@ server-initiated stream so `GET /mcp` is 405) for claude.ai custom connectors, C
 | `--workspace` | current folder | shared folder; every tool path is resolved inside it and cannot leave it (`..`, absolute paths and symbolic links out are refused) |
 | `--token` | `$OPENROCKET_MCP_TOKEN`, else generated once into `WORKSPACE/.openrocket-mcp-token` | at least 16 characters; required unless `--no-auth` on a loopback address |
 | `--public-url` | `http://HOST:PORT` | the address people use, for the links the server prints and `list_files` returns |
-| `--allow-origin` | none | extra browser origins; others are refused (DNS-rebinding protection); requests without `Origin` (server-to-server) are allowed |
+| `--allow-origin` | none | extra browser origins; others are refused (DNS-rebinding protection); requests without `Origin` (server-to-server) are allowed. These origins also get CORS headers (preflight `OPTIONS` answered), so a browser MCP client on them (the MCP Inspector, an MCP Apps host) can call the server; loopback pages get none |
 
 Endpoints: `POST /mcp` with `Authorization: Bearer TOKEN`, or `POST /mcp/TOKEN` for clients that only take a URL;
 `GET /files/TOKEN/` lists the workspace with download links and a drag-and-drop upload (`PUT /files/TOKEN/path`,

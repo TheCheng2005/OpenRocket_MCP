@@ -19,6 +19,8 @@ final class Prompts {
 			## Flight
 			OpenRocket 24.12 six-degree-of-freedom simulation (Barrowman aerodynamics). Stability margin = (CP - CG) / max body
 			diameter. Launch Canada requires RASAero CP/CD overrides when the airframe diameter changes (DTEG R10.3.1).
+			The server caches what OpenRocket recomputes at every step without change (airframe mass and inertia between
+			stagings, motor mass before ignition and after burnout, the geometry check): identical results, about 3x faster.
 
 			## Atmosphere
 			International Standard Atmosphere to 20 km: T = 288.15 - 0.0065 h, p = 101325 (T/288.15)^5.2559, rho = p / (287.05 T).

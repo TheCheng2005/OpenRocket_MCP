@@ -25,6 +25,8 @@ the model against plate theory (`apt install calculix-ccx`; CI installs it).
 ./gradlew installDist               # build/install/openrocket-mcp/bin/openrocket-mcp
 python3 scripts/benchmark.py        # realistic team requests, checked against engineering expectations
 python3 scripts/make_examples.py    # rebuild docs/EXAMPLES.md and its plots
+node scripts/view_shots.mjs docs/examples/maple-10k-view.html docs/examples   # check the interactive view in a
+                                    # headless browser and retake its screenshots (needs Playwright with Chromium)
 python3 scripts/test_codex.py       # the real Codex CLI against the server (needs `npm i -g @openai/codex`)
 ./gradlew mcpb && python3 scripts/test_mcpb.py   # Claude Desktop extension for your computer, started like Claude Desktop does
 ```
@@ -39,7 +41,8 @@ CI runs the tests on Linux, Windows and macOS, and the benchmark, examples, Code
 | `tools/` | One file per area; each tool is a `ToolDef` with a description written for the model |
 | `or/` | Everything that talks to OpenRocket: simulations, analyses, optimizer, dispersion |
 | `calc/` | Pure calculations (recovery, charges, flutter, atmosphere) with no OpenRocket dependency |
-| `report/` | Reports, flight card, SVG plots and drawings |
+| `report/` | Reports, flight card, SVG plots and drawings, the 3-D renderer, and the interactive view's data (`Workbench`) |
+| `src/main/resources/ui/` | The interactive view (`workbench.html`): one self-contained page, plain JavaScript, WebGL and SVG, no external resources |
 | `standards/` | Team standards and rule sets |
 | `units/` | Unit parsing and display (inputs accept "4 in", output follows the team setting) |
 
@@ -57,6 +60,10 @@ CI runs the tests on Linux, Windows and macOS, and the benchmark, examples, Code
 5. Test it: calculations in `src/test/java/.../calc`, OpenRocket-backed behaviour in `.../or`, and a scenario in
    `scripts/benchmark.py` if a team would use it in a workflow.
 6. Document it: a bullet under its area in `docs/REFERENCE.md`, and a line in the README's "What you can ask" if users will notice it.
+
+The interactive view talks MCP Apps (`ui/*` messages over `postMessage`) and must work with no network: no CDN, no
+external fonts. Insert names and other text with `textContent`, never as HTML. After changing it, run
+`scripts/view_shots.mjs` (no script errors in any tab) and look at the screenshots in both themes.
    The Claude Desktop manifest picks up new tools automatically, and `undo` records any change a tool makes to a
    design without extra code.
 

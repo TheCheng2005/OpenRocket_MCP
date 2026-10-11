@@ -53,7 +53,7 @@ import io.github.openrocketmcp.tools.WorkbenchTools;
 
 /** Entry point: stdio MCP server for OpenRocket. */
 public final class Main {
-	public static final String VERSION = "0.21.0";
+	public static final String VERSION = "0.22.0";
 
 	static final String INSTRUCTIONS = """
 			OpenRocket MCP: design, simulate and check high-power / competition rockets with OpenRocket's physics.

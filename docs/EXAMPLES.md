@@ -10,7 +10,8 @@ to ask? Ask Claude what it can do: it also offers related things as you work.
 **Steps:** [Design](#design) · [Recovery](#recovery) · [Flight and rules](#flight-and-rules) ·
 [Design studies](#design-studies) · [Structures and CFD](#structures-and-cfd) · [Build](#build) · [Reviews](#reviews) ·
 [Launch day](#launch-day) · [Show it off](#show-it-off) · [After the flight](#after-the-flight) ·
-[Team history](#team-history) · [Electronics](#electronics) · [Parachutes and product links](#parachutes-and-product-links)
+[Team history](#team-history) · [Electronics](#electronics) · [Parachutes and product links](#parachutes-and-product-links) ·
+[Explore it in the chat](#explore-it-in-the-chat)
 
 The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch
 Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before
@@ -598,3 +599,23 @@ Catalog parachutes closest to the target (each at its own Cd):
 > Main -> Iris Ultra 84" Compact Parachute: descent rate 6.452 m/s (21.17 ft/s) -> 4.105 m/s (13.47 ft/s) (simulated). The page named the maker and the size; Cd, weight and packed size came from the matching catalog entry (Fruity Chutes IFC-084-S).
 
 <sub>(The product text here is a sample written for this page. With a link, the server reads the shop's page itself; when a shop blocks that, paste the page's text.)</sub>
+
+## Explore it in the chat
+
+### 34. "Show us the rocket and its flight so we can click through it."
+
+<sub>Tools Claude uses: `show_design`</sub>
+
+> Apogee 2999 m; Max speed 384.8 m/s; Rail exit 40.59 m/s; Stability (ascent) 3.58–5.68 cal; Max accel. 144.4 m/s2; Drogue descent 27.65 m/s; Main descent 6.25 m/s; Landing 420.6 m. Rule checks: No failures; 5 warning(s).
+
+In Claude Desktop and claude.ai the view opens in the chat. Anywhere else, open the HTML file it writes: [this one](examples/maple-10k-view.html) is the Maple 10K (download it and open it in a browser; it needs no internet).
+
+- **Rocket:** drag to turn it, scroll to zoom. *Cut-away* opens the airframe, *Exploded* pulls the sections apart, *Side* is a view to scale with a ruler. CG and CP move as you scrub through the flight. Click a part to see its properties; in Claude, click a value to change it (the flight is re-simulated, and `undo` takes it back).
+- **Fly:** replays the simulated flight in 3-D with the parachutes, following the rocket or the whole trajectory.
+- **Flight plots:** altitude, speed, acceleration, Mach, stability, thrust and drag, angle of attack and mass, with the events marked and one time cursor across all of them (drag to zoom).
+- **Trajectory** and **Rule checks:** the profile and ground track with the wind, and every check with its rule reference (in Claude, *Ask Claude how to fix* on a failure).
+
+<p><img src="examples/view-rocket.png" alt="The design view: exploded cut-away 3-D model with the main parachute selected and its properties" width="49%"> <img src="examples/view-side.png" alt="Side view to scale at burnout with CG, CP, the margin and a ruler" width="49%"></p>
+<p><img src="examples/view-flight.png" alt="Linked flight plots with the time cursor at maximum velocity" width="49%"> <img src="examples/view-fly.png" alt="3-D replay under the main parachute" width="49%"></p>
+
+<sub>(Screenshots by [`scripts/view_shots.mjs`](../scripts/view_shots.mjs), which also checks the view in a headless browser.)</sub>

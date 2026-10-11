@@ -88,7 +88,8 @@ def main():
     w("**Steps:** [Design](#design) · [Recovery](#recovery) · [Flight and rules](#flight-and-rules) ·")
     w("[Design studies](#design-studies) · [Structures and CFD](#structures-and-cfd) · [Build](#build) · [Reviews](#reviews) ·")
     w("[Launch day](#launch-day) · [Show it off](#show-it-off) · [After the flight](#after-the-flight) ·")
-    w("[Team history](#team-history) · [Electronics](#electronics) · [Parachutes and product links](#parachutes-and-product-links)")
+    w("[Team history](#team-history) · [Electronics](#electronics) · [Parachutes and product links](#parachutes-and-product-links) ·")
+    w("[Explore it in the chat](#explore-it-in-the-chat)")
     w()
     w("The rocket: *Maple 10K*, a 4 in fiberglass, dual-deploy, single-stage rocket for the 10,000 ft category of Launch")
     w("Canada 2027. Try it yourself: open [`examples/maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) (the early version, before")
@@ -774,6 +775,34 @@ def main():
     w()
     w("<sub>(The product text here is a sample written for this page. With a link, the server reads the shop's page "
       "itself; when a shop blocks that, paste the page's text.)</sub>")
+    w()
+    w("## Explore it in the chat")
+    w()
+    ask(34, "Show us the rocket and its flight so we can click through it.", ["show_design"])
+    view = call("show_design", {"designId": d, "path": os.path.join(IMG, "maple-10k-view.html")})
+    w(f"> {view['summary']}. Rule checks: {view['checks']}")
+    w()
+    w("In Claude Desktop and claude.ai the view opens in the chat. Anywhere else, open the HTML file it writes: "
+      "[this one](examples/maple-10k-view.html) is the Maple 10K (download it and open it in a browser; it needs no "
+      "internet).")
+    w()
+    w("- **Rocket:** drag to turn it, scroll to zoom. *Cut-away* opens the airframe, *Exploded* pulls the sections "
+      "apart, *Side* is a view to scale with a ruler. CG and CP move as you scrub through the flight. Click a part to "
+      "see its properties; in Claude, click a value to change it (the flight is re-simulated, and `undo` takes it back).")
+    w("- **Fly:** replays the simulated flight in 3-D with the parachutes, following the rocket or the whole trajectory.")
+    w("- **Flight plots:** altitude, speed, acceleration, Mach, stability, thrust and drag, angle of attack and mass, "
+      "with the events marked and one time cursor across all of them (drag to zoom).")
+    w("- **Trajectory** and **Rule checks:** the profile and ground track with the wind, and every check with its rule "
+      "reference (in Claude, *Ask Claude how to fix* on a failure).")
+    w()
+    w('<p><img src="examples/view-rocket.png" alt="The design view: exploded cut-away 3-D model with the main parachute '
+      'selected and its properties" width="49%"> <img src="examples/view-side.png" alt="Side view to scale at burnout '
+      'with CG, CP, the margin and a ruler" width="49%"></p>')
+    w('<p><img src="examples/view-flight.png" alt="Linked flight plots with the time cursor at maximum velocity" '
+      'width="49%"> <img src="examples/view-fly.png" alt="3-D replay under the main parachute" width="49%"></p>')
+    w()
+    w("<sub>(Screenshots by [`scripts/view_shots.mjs`](../scripts/view_shots.mjs), which also checks the view in a "
+      "headless browser.)</sub>")
     w()
     s.close()
     if os.environ.get("EXAMPLES_DUMP"):

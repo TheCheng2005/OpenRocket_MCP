@@ -535,6 +535,55 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   has wording, once per session, never for used tools, conditions, the standards switch). Two tests that compared a
   repeated call's full output now ignore the suggestions, which come with the first call only.
 
+### Faster simulations and the interactive view (v0.22.0)
+
+- **Efficiency pass** (profiled with Java Flight Recorder on the benchmark and the bundled designs):
+  - `or.FastSim`: OpenRocket's engine with three per-step recomputations cached. `Simulation.simulate` builds its
+    engine by reflection from a private class field; `FastSim.install` points it at `FastSim.Engine`, a
+    `BasicEventSimulationEngine` whose RK4, landing and tumble steppers cache `calculateStructureMass` (key: the
+    configuration object, its modification id, the rocket's modification id, the active stages) and
+    `calculateMotorMass` (same key plus every active motor's state and its thrust-curve time, clamped at the last data
+    point: OpenRocket's interpolation gives the same mass and CG past burnout and before ignition), and whose Barrowman
+    calculator does `checkGeometry` once per configuration and stage subtree, replaying its warnings. Listeners that
+    override the mass hooks turn the mass caches off. If OpenRocket's internals change, `install` leaves the standard
+    engine in place. `FastSimTest` flies all 54 simulations of the bundled designs both ways: every flight-data value,
+    event count and warning identical; 27 s -> 9 s.
+  - Effect: benchmark 64 s -> 40 s; `monte_carlo` (benchmark) 10.9 -> 2.5 s; steady-state `roll_analysis` 3.6 -> 0.5 s,
+    `compare_shapes` 3.2 -> 0.4 s, `optimize_fins` 3.4 -> 0.7 s, `optimize` 3.3 -> 0.85 s.
+  - Renderer (`Raster3d`, `FlightAnimation`): triangles are filled over each row's covered span (computed from the
+    linear barycentric weights, one pixel of margin) instead of the whole bounding box; 2x supersampling paths for the
+    background copy and the box filter; the animation background without per-pixel allocation, with the field colour
+    reused along a row. Pixel-identical output (compared on the 3-D views and the animation stills); default animation
+    21 -> 16 s.
+  - Missing files, permission errors and paths in the way now read as sentences instead of "internal error".
+- **Interactive view** (`report.Workbench`, `tools.WorkbenchTools`, `resources/ui/workbench.html`):
+  - MCP Apps 2026-01-26: `show_design` carries `_meta.ui.resourceUri` (+ the earlier flat key); `workbench_data` is
+    `visibility: ["app"]`. The resource `ui://openrocket/workbench.html` (`text/html;profile=mcp-app`, `_meta.ui`:
+    `prefersBorder`, empty CSP) is not listed in `resources/list`.
+  - Data: per-part triangle meshes (float32, base64) from `Model3d` with OpenRocket's masses and editable properties
+    (`Components.describe`), metrics, flight series in the team's units thinned to 1,200 points with events and peaks
+    kept, CG/CP and the 3-D path (position, attitude, roll), dropped stages, events, wind and the rule checks (with the
+    design-wind case). About 0.4-1.4 MB per design; it reaches only the view (`structuredContent` of an app-only call),
+    while the model reads a summary line.
+  - Views are snapshots (the last 8 per session) so a view scrolled back to shows what it showed; `refresh` rebuilds.
+    Edits from the view go through `edit_components` and `undo` like any other call (and so through the undo history),
+    and are reported to the model with `ui/update-model-context`.
+  - Plumbing: `ToolDef.meta`, `CallContext.structured`, unlisted resources with `_meta`, the client's view capability
+    (`McpServer.rendersViews`, wording only: app-only tools stay listed, since hosts hide them), CORS on the HTTP
+    transport for `--allow-origin` origins.
+  - Page: plain JavaScript, WebGL 1 (smoothed normals with a 40° crease, two-sided lighting, a fresnel highlight for
+    the selection, colour-ID picking into an 8-bit texture, a cut plane facing the camera), SVG plots following the
+    data-visualisation guide (one measure per plot, palette slots 1-3 validated for both themes, status colours only
+    for status with icon and label), host theme variables and fonts, size reporting, full screen. The same page with
+    the data embedded is the standalone file (`<\/` escaping inside the data block).
+  - Checked against the MCP Apps reference host (`examples/basic-host` of modelcontextprotocol/ext-apps): handshake,
+    data through the host, edit, refresh, model context, undo. `scripts/view_shots.mjs` checks every tab and view in
+    headless Chromium (SwiftShader WebGL) and takes the documentation screenshots; all bundled designs load without a
+    script error.
+- Tests: `FastSimTest`, `WorkbenchTest` (meshes, series alignment, peaks, rail-clearance AoA, safe embedding, no
+  network), protocol tests for metadata, structured content and unlisted resources, the `show_design` /
+  `workbench_data` flow end to end (snapshot, edit and refresh, closed design), CORS.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.
