@@ -606,7 +606,7 @@ Catalog parachutes closest to the target (each at its own Cd):
 
 <sub>Tools Claude uses: `show_design`</sub>
 
-> Apogee 2999 m; Max speed 384.8 m/s; Rail exit 40.59 m/s; Stability (ascent) 3.58–5.68 cal; Max accel. 144.4 m/s2; Drogue descent 27.65 m/s; Main descent 6.25 m/s; Landing 420.6 m. Rule checks: No failures; 5 warning(s).
+> Apogee 3022 m; Max speed 389.9 m/s; Rail exit 40.05 m/s; Stability (ascent) 2.88–5.79 cal; Max accel. 143.1 m/s2; Drogue descent 28.84 m/s; Iris Ultra 84" Compact Parachute descent 4.105 m/s; Landing 182.9 m. Rule checks: No failures; 4 warning(s).
 
 In Claude Desktop and claude.ai the view opens in the chat. Anywhere else, open the HTML file it writes: [this one](examples/maple-10k-view.html) is the Maple 10K (download it and open it in a browser; it needs no internet).
 

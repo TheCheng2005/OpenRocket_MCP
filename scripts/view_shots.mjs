@@ -41,9 +41,12 @@ if (await page.$("#app[hidden]")) errors.push("the view did not load its data: "
 await page.check("#cut");
 await page.evaluate(() => { const e = document.querySelector("#explode"); e.value = 0.55; e.dispatchEvent(new Event("input")); });
 await page.evaluate(() => {
-  const parts = window.__orView.data.rocket.parts;
-  const i = Math.max(0, parts.findIndex((p) => p.kind === "chute" && /main/i.test(p.name)));
-  document.querySelector('.prow[data-i="' + i + '"]').click();
+  // The main: the parachute of the last deployment (whatever it is called), else the heaviest chute.
+  const d = window.__orView.data, parts = d.rocket.parts, chutes = parts.filter((p) => p.kind === "chute");
+  const last = d.flight.events.filter((e) => e.kind === "deploy" && e.branch === 0).pop();
+  const grams = (p) => parseFloat(String(p.mass)) * (/ kg/.test(p.mass) ? 1000 : 1);
+  const main = chutes.find((p) => last && p.name === last.device) || chutes.sort((a, b) => grams(b) - grams(a))[0] || parts[0];
+  document.querySelector('.prow[data-i="' + main.i + '"]').click();
 });
 await page.waitForTimeout(400);
 await shot("view-rocket.png");

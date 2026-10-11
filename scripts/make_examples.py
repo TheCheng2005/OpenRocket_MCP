@@ -64,9 +64,18 @@ def compass(mean_point):
 
 
 def main():
+    # The design view's screenshots come from scripts/view_shots.mjs (a browser), not from this script: keep them.
+    keep = {}
     if os.path.exists(IMG):
+        for f in os.listdir(IMG):
+            if f.startswith("view-") and f.endswith(".png"):
+                with open(os.path.join(IMG, f), "rb") as fh:
+                    keep[f] = fh.read()
         shutil.rmtree(IMG)
     os.makedirs(IMG)
+    for f, b in keep.items():
+        with open(os.path.join(IMG, f), "wb") as fh:
+            fh.write(b)
     tmp = tempfile.mkdtemp()
     s = benchmark.Server()
     raw = []
