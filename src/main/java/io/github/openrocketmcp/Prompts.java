@@ -27,6 +27,12 @@ final class Prompts {
 			v = sqrt(2 m g / (rho Cd A)). Cd and A must share a reference area (nominal for OpenRocket and most vendors;
 			projected for some vendor Cd values such as 2.2).
 
+			## Parachute size chart
+			v = sqrt(2 m g / (rho (n Cd A + CdA_other))). From a design, m is the simulated mass under the device and
+			CdA_other = 2 m g / (rho v_sim^2) - n Cd A of the parachute as it is now, so the curve passes through the simulated
+			rate (airframe drag and any parachute still attached included), read where check_requirements reads it: the
+			middle of the steady part of that descent.
+
 			## Opening load (Knacke, Parachute Recovery Systems Design Manual, NWC TP 6575, DTIC ADA247666)
 			- Infinite mass: F = Cx * 0.5 rho v^2 * Cd A. Cx from Knacke table 5-1 (team default 1.4).
 			- Finite mass: integrate the vehicle's 2D point-mass motion while CdA(t) = CdA (t/t_f)^j, t_f = n D0 / v0.
@@ -71,6 +77,22 @@ final class Prompts {
 			Axial (compression +): N(x) = m_fwd / m (T - D) + D_fwd. Bending: M(x) = sum_fwd N_i (x - x_i) - sum_fwd m_j a_j (x - x_j)
 			with N_i = q A CNa_i alpha at each component CP, a_j = a_n + thetaDD (x_cg - x_j) (rigid-body inertial relief).
 			Thin-wall stress sigma = N / (2 pi r t) + M / (pi r^2 t). Gust case: alpha = atan(v_gust / V) at max q.
+
+			## Power budget
+			Charge needed = average draw x (pad wait + simulated flight + search time), against rated capacity x derating
+			(0.8 by default). E-match current I = V / (R_battery + R_match + R_wiring), wanted >= all-fire current x margin
+			(2 by default); voltage while firing V - I R_battery against the electronics' brownout voltage.
+
+			## Radio link
+			Budget = transmit power + antenna gains - losses - receiver sensitivity. In the air, free-space loss
+			20 log10(4 pi d f / c) to the farthest point of each flight branch; on the ground, plane-earth loss
+			40 log10 d - 20 log10 h1 - 20 log10 h2 beyond the two-ray crossover 4 pi h1 h2 / lambda. Keep a 10 dB margin for
+			antenna nulls, terrain and the airframe.
+
+			## Physically possible inputs and flights
+			Every argument is checked against a physical range (no negative mass or Cd, wind 0-150 m/s, launch angle 0-60 deg,
+			site temperature -100 to +100 C). A flight OpenRocket stops (no lift-off, tumbling or a parachute opening under
+			thrust), or one beyond Mach 3 or 150 G, is reported under PROBLEMS before its numbers.
 
 			## Monte Carlo
 			Randomized: wind speed/direction, launch angle/direction, turbulence seed; optionally structure mass (each

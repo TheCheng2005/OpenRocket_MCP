@@ -46,6 +46,8 @@ public final class Suggestions {
 			new Feature("create_custom_motor", "Motors and flight", "Model our own motor or liquid engine from static-fire data."),
 			new Feature("monte_carlo", "Motors and flight", "Where will it land? Give us a landing map for Google Earth."),
 			new Feature("optimize", "Motors and flight", "Find the ballast or fin size that hits our target apogee."),
+			new Feature("sweep", "Motors and flight", "Show how apogee and stability change as we vary one thing (fin span, ballast, wind)."),
+			new Feature("get_flight_data", "Motors and flight", "Plot or export any flight variable (altitude, Mach, stability) against time."),
 
 			new Feature("ballast", "Stability, fins and aero", "How much nose weight do we need to meet the stability rules?"),
 			new Feature("optimize_fins", "Stability, fins and aero", "Optimize our fin shape for the least drag within the rules."),
@@ -78,6 +80,9 @@ public final class Suggestions {
 			new Feature("rail_buttons", "Launch day", "Where should the rail buttons go, and what is our real rail exit speed?"),
 
 			new Feature("compare_flight", "After the flight", "Here's our altimeter log: how did the flight compare with the simulation?"),
+
+			new Feature("pressure_vessel", "Liquid and hybrid programmes", "Check our tank or chamber against the proof and burst-pressure rules."),
+			new Feature("advanced_probation", "Liquid and hybrid programmes", "Which advanced probation level are we in, and what static-fire Isp do we need?"),
 
 			new Feature("render_3d", "Pictures and video", "Show the rocket in 3-D, exploded, with a parts list."),
 			new Feature("draw_rocket", "Pictures and video", "Draw a cut-away showing where everything sits inside."),
@@ -190,7 +195,7 @@ public final class Suggestions {
 		s.tool(new ToolDef("capabilities", "What this server can do",
 				"A short map of what the team can ask for, grouped by what they are doing (start and review, design and "
 						+ "parts, motors and flight, stability, structures, recovery, electronics, launch day, after the flight, "
-						+ "pictures), each worded as a team member would ask it, with the tool and whether it was used in this "
+						+ "liquid and hybrid programmes, pictures), each worded as a team member would ask it, with the tool and whether it was used in this "
 						+ "session. Call it when someone is new, asks what you can do, or seems unaware of a feature that would "
 						+ "help; then introduce the few that fit their project rather than reading out the list.",
 				Schema.object().enumStr("group", "Only this group.", false, groups.stream()

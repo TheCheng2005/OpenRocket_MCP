@@ -4,7 +4,8 @@ One rocket, from a blank page to launch day. Each step shows what a team member 
 numbers and plots behind the answer. **Everything below is real output from the server** (OpenRocket 24.12), generated
 by [`scripts/make_examples.py`](../scripts/make_examples.py); the one-line answers are written from those numbers.
 Units follow the team setting (here metric with imperial in brackets). In Claude Desktop the plots and drawings
-appear right in the chat, and long runs (optimizers, Monte Carlo) show their progress and can be stopped.
+appear right in the chat, and long runs (optimizers, Monte Carlo) show their progress and can be stopped. Not sure what
+to ask? Ask Claude what it can do: it also offers related things as you work.
 
 **Steps:** [Design](#design) · [Recovery](#recovery) · [Flight and rules](#flight-and-rules) ·
 [Design studies](#design-studies) · [Structures and CFD](#structures-and-cfd) · [Build](#build) · [Reviews](#reviews) ·

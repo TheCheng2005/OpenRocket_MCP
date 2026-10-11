@@ -43,6 +43,22 @@ class SuggestionsTest {
 		});
 	}
 
+	/** Tools that are steps inside a workflow rather than something a team asks for by name. */
+	static final Set<String> PLUMBING = Set.of("open_design", "list_designs", "close_design", "save_design", "get_design",
+			"describe_component", "edit_components", "add_component", "remove_component", "set_deployment", "set_stage_separation",
+			"flight_configuration", "list_files", "search_motors", "set_motor", "import_motor_file", "run_simulation",
+			"size_parachute", "search_parachutes", "opening_shock", "shear_pins", "export_flight_data", "wind_profile",
+			"apply_preset", "get_standards", "update_standards", "load_standards", "set_units", "redo", "history",
+			"capabilities", "recovery_sections");
+
+	@Test
+	void everyToolATeamWouldAskForIsDiscoverable() {
+		for (String tool : registered(Main.build(new Context(Standards.defaults())))) {
+			assertTrue(PLUMBING.contains(tool) || Suggestions.FEATURES.stream().anyMatch(f -> f.tool().equals(tool)),
+					tool + " has no wording in Suggestions.FEATURES: add one (or list it here as plumbing)");
+		}
+	}
+
 	@Test
 	void eachSuggestionOnceAndNeverForWhatWasUsed() {
 		Context ctx = new Context(Standards.defaults());

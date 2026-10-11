@@ -48,9 +48,15 @@ CI runs the tests on Linux, Windows and macOS, and the benchmark, examples, Code
 1. Write the tool in the matching `tools/*Tools.java`. The description tells the model **when** to use it and **what** it
    returns; inputs accept units (`Schema.qty`) and outputs use `Units.fmt`.
 2. Keep what-if tools read-only: work on copies (`Variants.of`) and leave the design alone unless the user asks to apply.
-3. Test it: calculations in `src/test/java/.../calc`, OpenRocket-backed behaviour in `.../or`, and a scenario in
+3. Give new argument names a physical range in `mcp/Limits.java` (a mass cannot be negative, a Cd must be above zero).
+   `Args` applies it wherever the argument is read, and the server checks it before the tool runs. Throw
+   `ToolException` with a sentence that says what to change; any other exception reaches the user as a server bug.
+4. Make it discoverable: add it to `tools/Suggestions.java`, worded as a team member would ask (`FEATURES`), and after
+   the tools it naturally follows (`NEXT`). Results then offer it to teams that have not used it yet. `SuggestionsTest`
+   fails for a tool that is in neither the catalog nor its list of plumbing tools.
+5. Test it: calculations in `src/test/java/.../calc`, OpenRocket-backed behaviour in `.../or`, and a scenario in
    `scripts/benchmark.py` if a team would use it in a workflow.
-4. Document it: a bullet under its area in `docs/REFERENCE.md`, and a line in the README's "What you can ask" if users will notice it.
+6. Document it: a bullet under its area in `docs/REFERENCE.md`, and a line in the README's "What you can ask" if users will notice it.
    The Claude Desktop manifest picks up new tools automatically, and `undo` records any change a tool makes to a
    design without extra code.
 

@@ -14,7 +14,8 @@ The 79 tools, grouped by what a team is doing. Bold marks the main job of each t
   deployment, electronics, RASAero data where the diameter changes, team standards and launch site. It also lists mass
   overrides and unsaved changes, and the next steps in order with the tool for each.
 - `capabilities`: **what the team can ask for**, grouped by what they are doing (start and review, design and parts,
-  motors and flight, stability, structures, recovery, electronics, launch day, after the flight, pictures), each
+  motors and flight, stability, structures, recovery, electronics, launch day, after the flight, liquid and hybrid
+  programmes, pictures), each
   worded as a team member would ask it, with the tool and whether it was used in this session. `group` narrows it.
 - **Suggestions as you work:** a result may end with `youCouldAlsoAsk`, up to two related things the team has not used
   yet (after `recovery_analysis`: plot parachute size against descent rate; after `run_simulation` of a fast rocket:
@@ -423,6 +424,14 @@ runs from, or point `OPENROCKET_MCP_STANDARDS` at it) and commit it, so everyone
 - `recovery`: Cx, opening-load method (`infinite_mass` / `finite_mass` / `max`), canopy fill constant, safety factors
   for shear pins and ejection force, backup-charge factor, packing factor and measured packing factors, shock cord
   cross-section, **shear pin ratings** (e.g. `"4-40 nylon": {"strength": "140 N"}`)
+- `electronics`: the team's `sensors` (type, range, noise, resolution), `altimeter` choices (backup delay and offset,
+  barometer Mach limit, lockout margin), `power` (battery circuits, pad wait, search time, derating, e-match) and
+  `radio` (frequency, power, antenna gains, receiver sensitivity, losses, wanted margin, antenna heights). The defaults
+  are typical student parts: replace them with yours.
+- `suggestions`: `false` stops results from offering features the team has not used yet.
+
+Every value is checked when the standards are loaded or changed: a section must keep the shape of the defaults, and
+quantities must be physically possible (a negative modulus or a zero pin strength is refused with the reason).
 
 Claude can change them with `update_standards` (and save them with `saveTo`).
 

@@ -234,6 +234,9 @@ materials. You can also just tell Claude ("our pins are 2-56 nylon, 35 lbf each"
 - Every number is an engineering estimate from OpenRocket and standard calculations. Claude says where each number
   comes from. It does **not** replace ground tests, flight tests, your mentors or the range safety officer.
 - Nothing is saved to your design file until you ask Claude to save it.
+- Inputs are checked: a value no rocket can have (a negative mass, a zero Cd, a 10^30 m/s wind) is refused with the range
+  that is allowed, and a flight that cannot happen (no lift-off, tumbling under thrust, beyond Mach 3) is flagged
+  before its numbers.
 - On a team server, everyone connected shares the open designs, so say which one you mean if several are open.
 - Details on every tool, the methods behind them and their limits: [docs/REFERENCE.md](docs/REFERENCE.md).
 

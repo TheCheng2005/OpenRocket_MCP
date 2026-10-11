@@ -519,7 +519,8 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
 ### Feature discovery (v0.21.0)
 
 - Teams do not read documentation, so the server introduces itself while they work. `tools.Suggestions`:
-  - `FEATURES`: about 45 features, each worded as a team member would ask, grouped by what they are doing.
+  - `FEATURES`: about 50 features, each worded as a team member would ask, grouped by what they are doing. Every tool a
+    team would ask for by name must have one (`SuggestionsTest` lists the plumbing tools that need none).
   - `NEXT`: what naturally follows each tool. `WHEN`: conditions (no av-bay suggestion when the design has one; the
     heating screen only above Mach 1.2; flutter above Mach 0.6 or when the Mach is unknown).
   - `suggesting` wraps every tool (outside the undo wrapper): on a successful map result it records the tool as used
@@ -528,6 +529,8 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   - `capabilities` tool: the whole map (or one group), marking used features; listing them counts as offering them.
 - Server instructions: offer at most one or two per reply in the user's words, none while rule failures need fixing,
   never twice; call `capabilities` for new users. MCP prompt `what_can_you_do`: a tour fitted to the open design.
+- Docs: the contributor guide asks for a physical range (`Limits`) for new argument names and a `Suggestions` entry for
+  new tools; the methods resource covers the power budget, radio link, parachute chart and input checks.
 - Cost: about 3% more tool output over the benchmark session. Tests: `SuggestionsTest` (every suggested tool exists and
   has wording, once per session, never for used tools, conditions, the standards switch). Two tests that compared a
   repeated call's full output now ignore the suggestions, which come with the first call only.
