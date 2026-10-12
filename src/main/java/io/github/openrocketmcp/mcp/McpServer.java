@@ -45,8 +45,19 @@ public final class McpServer {
 		Lock lockFor(ToolDef tool, Args args);
 	}
 
-	public record Resource(String uri, String name, String description, String mimeType, Supplier<String> reader) {
+	/**
+	 * @param meta   the {@code _meta} sent with the content (MCP Apps: {"ui": {"prefersBorder": ..., "csp": ...}}), or null
+	 * @param listed false for a resource only reached through a tool (an MCP Apps view): left out of resources/list
+	 */
+	public record Resource(String uri, String name, String description, String mimeType, Supplier<String> reader,
+			JsonObject meta, boolean listed) {
+		public Resource(String uri, String name, String description, String mimeType, Supplier<String> reader) {
+			this(uri, name, description, mimeType, reader, null, true);
+		}
 	}
+
+	/** MCP Apps (interactive views) extension id and the HTML profile hosts render. */
+	public static final String UI_EXTENSION = "io.modelcontextprotocol/ui", UI_MIME = "text/html;profile=mcp-app";
 
 	public record PromptArg(String name, String description, boolean required) {
 	}
@@ -68,6 +79,12 @@ public final class McpServer {
 	private volatile UnaryOperator<String> outputFilter = UnaryOperator.identity();
 	/** Tool calls in flight, by request id (as JSON text), so notifications/cancelled can reach them. */
 	private final Map<String, CallContext> running = new ConcurrentHashMap<>();
+	/**
+	 * Whether the client said it renders MCP Apps views (initialize capabilities): null until a client says, and always
+	 * on the shared HTTP server, which has no sessions. Only wording depends on it.
+	 */
+	private volatile Boolean uiClient;
+	private volatile boolean singleClient;
 	/** Marks a result that must not be sent: the client cancelled the request. */
 	private static final JsonObject CANCELLED = new JsonObject();
 
@@ -79,6 +96,16 @@ public final class McpServer {
 
 	public void guard(Guard g) {
 		this.guard = g;
+	}
+
+	/** One client per server (stdio): its initialize says whether it renders views. */
+	public void singleClient(boolean single) {
+		this.singleClient = single;
+	}
+
+	/** True if the client said it renders MCP Apps views, false if it said nothing, null if unknown. */
+	public Boolean uiClient() {
+		return uiClient;
 	}
 
 	/** Rewrites every tool result's text (the team server shows workspace-relative paths). */
@@ -239,6 +266,9 @@ public final class McpServer {
 	}
 
 	private JsonObject initialize(JsonObject params) {
+		if (singleClient) {
+			uiClient = rendersViews(params);
+		}
 		String requested = params.has("protocolVersion") ? params.get("protocolVersion").getAsString() : null;
 		String version = requested != null && SUPPORTED_VERSIONS.contains(requested) ? requested : SUPPORTED_VERSIONS.get(0);
 		JsonObject result = new JsonObject();
@@ -266,9 +296,33 @@ public final class McpServer {
 		return result;
 	}
 
+	/** True if an initialize request advertises the MCP Apps extension with the HTML view profile. */
+	static boolean rendersViews(JsonObject params) {
+		try {
+			JsonObject ext = params.getAsJsonObject("capabilities").getAsJsonObject("extensions");
+			JsonObject ui = ext == null ? null : ext.getAsJsonObject(UI_EXTENSION);
+			if (ui == null) {
+				return false;
+			}
+			if (!ui.has("mimeTypes")) {
+				return true;
+			}
+			for (JsonElement m : ui.getAsJsonArray("mimeTypes")) {
+				if (UI_MIME.equals(m.getAsString())) {
+					return true;
+				}
+			}
+			return false;
+		} catch (RuntimeException e) {
+			return false;
+		}
+	}
+
 	private JsonObject listTools() {
 		JsonArray arr = new JsonArray();
 		for (ToolDef t : tools.values()) {
+			// App-only tools stay listed even for clients that do not say they render views: a host that renders them
+			// without saying so would otherwise lose the view's data; hosts that do hide them from the model.
 			JsonObject o = new JsonObject();
 			o.addProperty("name", t.name());
 			o.addProperty("title", t.title());
@@ -280,6 +334,9 @@ public final class McpServer {
 			annotations.addProperty("destructiveHint", false);
 			annotations.addProperty("openWorldHint", false);
 			o.add("annotations", annotations);
+			if (t.meta() != null) {
+				o.add("_meta", t.meta().deepCopy());
+			}
 			arr.add(o);
 		}
 		JsonObject result = new JsonObject();
@@ -470,6 +527,9 @@ public final class McpServer {
 				c.addProperty("mimeType", im.mimeType());
 				r.getAsJsonArray("content").add(c);
 			}
+			if (ctx.structured() != null) {
+				r.add("structuredContent", compact.toJsonTree(ctx.structured()));
+			}
 			return r;
 		} catch (ToolException e) {
 			return textResult(outputFilter.apply("Error: " + e.getMessage()), true);
@@ -498,6 +558,9 @@ public final class McpServer {
 	private JsonObject listResources() {
 		JsonArray arr = new JsonArray();
 		for (Resource r : resources.values()) {
+			if (!r.listed()) {
+				continue;
+			}
 			JsonObject o = new JsonObject();
 			o.addProperty("uri", r.uri());
 			o.addProperty("name", r.name());
@@ -526,6 +589,9 @@ public final class McpServer {
 		content.addProperty("uri", uri);
 		content.addProperty("mimeType", r.mimeType());
 		content.addProperty("text", r.reader().get());
+		if (r.meta() != null) {
+			content.add("_meta", r.meta().deepCopy());
+		}
 		JsonArray arr = new JsonArray();
 		arr.add(content);
 		JsonObject result = new JsonObject();
@@ -627,6 +693,16 @@ public final class McpServer {
 		}
 		if (e instanceof IllegalArgumentException && !m.isEmpty()) {
 			return m + (m.endsWith(".") ? "" : ".");
+		}
+		if (e instanceof java.nio.file.NoSuchFileException) {
+			return "File not found: " + m + ". Check the path (list_files shows the workspace).";
+		}
+		if (e instanceof java.nio.file.AccessDeniedException) {
+			return "Not allowed to read or write " + m + " (file permissions).";
+		}
+		if (e instanceof java.nio.file.NotDirectoryException || e instanceof java.nio.file.FileAlreadyExistsException) {
+			return "The path " + m + " is in the way: " + (e instanceof java.nio.file.NotDirectoryException
+					? "it is a file where a folder is needed." : "something already exists there.");
 		}
 		return tool + " hit an internal error (" + e.getClass().getSimpleName() + (m.isEmpty() ? "" : ": " + m)
 				+ "). This is a bug in the server, not in your design: please report it with the call that caused it.";

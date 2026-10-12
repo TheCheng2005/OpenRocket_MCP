@@ -434,4 +434,51 @@ class McpIntegrationTest {
 		assertEquals(3, roll.getAsJsonArray("cases").size());
 		assertTrue(roll.has("alignmentTolerance"));
 	}
+
+	@Test
+	@Order(15)
+	void interactiveView(@TempDir Path tmp) throws Exception {
+		String open = call("open_design", "{\"example\":\"Dual parachute\"}");
+		String id = JsonParser.parseString(open).getAsJsonObject().get("designId").getAsString();
+		String file = tmp.resolve("view.html").toString().replace("\\", "/");
+		JsonObject r = rpc("tools/call", "{\"name\":\"show_design\",\"arguments\":{\"designId\":\"" + id + "\",\"path\":\"" + file
+				+ "\",\"tab\":\"flight\"}}").getAsJsonObject("result");
+		assertFalse(r.get("isError").getAsBoolean(), r.toString());
+		JsonObject view = r.getAsJsonObject("structuredContent");
+		assertTrue(view.has("viewId") && view.get("designId").getAsString().equals(id), view.toString());
+		String text = r.getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString();
+		assertTrue(text.contains("Apogee") && text.contains("view.html"), "the model reads the headline numbers: " + text);
+		assertTrue(text.length() < 2000, "the bulky data stays out of the model's context: " + text.length());
+		assertTrue(Files.readString(tmp.resolve("view.html")).contains("id=\"or-data\""), "standalone copy with the data");
+
+		// The view loads its snapshot, then the design as it is now after an edit.
+		JsonObject snap = rpc("tools/call", "{\"name\":\"workbench_data\",\"arguments\":{\"viewId\":\"" + view.get("viewId").getAsString()
+				+ "\"}}").getAsJsonObject("result");
+		assertFalse(snap.get("isError").getAsBoolean(), snap.toString());
+		JsonObject data = snap.getAsJsonObject("structuredContent");
+		assertEquals("flight", data.get("tab").getAsString());
+		assertTrue(data.getAsJsonObject("rocket").getAsJsonArray("parts").size() >= 5);
+		assertTrue(data.getAsJsonObject("checks").has("summary"), "rule checks are in the view");
+		double apogee = apogee(data);
+		// (this example's sustainer overrides its parts' masses: change the override itself)
+		call("edit_components", "{\"designId\":\"" + id + "\",\"changes\":[{\"component\":\"Sustainer\",\"properties\":"
+				+ "{\"overrideMass\":\"2.5 kg\"}}]}");
+		JsonObject fresh = rpc("tools/call", "{\"name\":\"workbench_data\",\"arguments\":{\"viewId\":\""
+				+ view.get("viewId").getAsString() + "\",\"refresh\":true}}").getAsJsonObject("result").getAsJsonObject("structuredContent");
+		assertTrue(apogee(fresh) < apogee - 1, "a heavier rocket flies lower: " + apogee + " -> " + apogee(fresh));
+		call("undo", "{\"designId\":\"" + id + "\"}");
+
+		call("close_design", "{\"designId\":\"" + id + "\"}");
+		String gone = callExpectError("workbench_data", "{\"designId\":\"" + id + "\",\"refresh\":true}");
+		assertTrue(gone.contains("no longer open") && gone.contains("show the design again"), gone);
+	}
+
+	static double apogee(JsonObject data) {
+		for (var m : data.getAsJsonArray("metrics")) {
+			if (m.getAsJsonObject().get("key").getAsString().equals("apogee")) {
+				return m.getAsJsonObject().get("value").getAsDouble();
+			}
+		}
+		return Double.NaN;
+	}
 }

@@ -31,6 +31,7 @@ public final class Suggestions {
 
 	static final List<Feature> FEATURES = List.of(
 			new Feature("design_status", "Start and review", "Where do we stand, and what's left before the next review?"),
+			new Feature("show_design", "Start and review", "Show us the rocket and its flight: 3-D, cut-away, flight plots and checks we can click through."),
 			new Feature("check_requirements", "Start and review", "Does it pass the competition rules, including in maximum wind?"),
 			new Feature("generate_report", "Start and review", "Make the design review package (report, stability plots, data)."),
 			new Feature("compare_designs", "Start and review", "What changed since the version we showed at the last review?"),
@@ -90,10 +91,11 @@ public final class Suggestions {
 
 	/** What naturally comes next after each tool, most useful first. */
 	static final Map<String, List<String>> NEXT = Map.ofEntries(
-			Map.entry("open_design", List.of("design_status", "capabilities", "check_requirements")),
+			Map.entry("open_design", List.of("show_design", "design_status", "capabilities")),
 			Map.entry("get_design", List.of("render_3d", "draw_rocket", "mass_budget")),
 			Map.entry("design_status", List.of("check_requirements", "generate_report", "capabilities")),
-			Map.entry("run_simulation", List.of("check_requirements", "monte_carlo", "fin_flutter", "aero_heating", "animate_flight")),
+			Map.entry("run_simulation", List.of("show_design", "check_requirements", "monte_carlo", "fin_flutter", "aero_heating")),
+			Map.entry("show_design", List.of("check_requirements", "animate_flight", "generate_report")),
 			Map.entry("check_requirements", List.of("generate_report", "compare_designs", "monte_carlo")),
 			Map.entry("set_motor", List.of("rail_buttons", "fin_flutter", "flight_card")),
 			Map.entry("rank_motors", List.of("optimize", "rail_buttons", "fin_flutter")),
@@ -119,7 +121,7 @@ public final class Suggestions {
 			Map.entry("add_component", List.of("check_requirements", "add_from_link", "undo")),
 			Map.entry("mass_budget", List.of("check_requirements", "ballast")),
 			Map.entry("generate_report", List.of("compare_designs", "flight_card", "render_3d")),
-			Map.entry("render_3d", List.of("animate_flight", "draw_rocket")),
+			Map.entry("render_3d", List.of("show_design", "animate_flight", "draw_rocket")),
 			Map.entry("draw_rocket", List.of("render_3d", "add_avionics_bay")),
 			Map.entry("add_from_link", List.of("parachute_sizes", "check_requirements")),
 			Map.entry("design_library", List.of("compare_flight", "compare_designs")),
@@ -137,7 +139,7 @@ public final class Suggestions {
 
 	/** Wraps a tool so its successful map results carry suggestions; records the tools the session has used. */
 	public static ToolDef suggesting(Context ctx, ToolDef t) {
-		return new ToolDef(t.name(), t.title(), t.description(), t.inputSchema(), t.readOnly(), a -> {
+		return t.withHandler(a -> {
 			Object out = t.handler().call(a);
 			ctx.toolsUsed.add(t.name());
 			if (!(out instanceof Map<?, ?> m) || !ctx.standards().bool("suggestions", true)) {

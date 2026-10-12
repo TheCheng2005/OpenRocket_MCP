@@ -11,7 +11,10 @@ import java.awt.Shape;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -165,15 +168,23 @@ public final class FlightAnimation {
 		}
 		length = Math.max(0.1, fc.getLength());
 		maxR = Math.max(0.01, r);
-		// Stages dropped in flight fly their own track (branch names are the stage names).
-		Map<String, Integer> stageByName = new HashMap<>();
+		// Stages dropped in flight fly their own track (branch names are the stage names). Stages can share a name (two
+		// "Booster stage"s): the lowest goes first, so tracks of one name take its stages from the bottom up in the order
+		// they separate.
+		Map<String, Deque<Integer>> stagesByName = new HashMap<>();
 		for (RocketComponent c : fc.getRocket().getChildren()) {
 			if (c instanceof AxialStage st) {
-				stageByName.put(st.getName(), st.getStageNumber());
+				stagesByName.computeIfAbsent(st.getName(), x -> new ArrayDeque<>()).add(st.getStageNumber());
 			}
 		}
+		List<Integer> bySeparation = new ArrayList<>();
 		for (int i = 1; i < f.tracks().size(); i++) {
-			Integer st = stageByName.get(f.tracks().get(i).name);
+			bySeparation.add(i);
+		}
+		bySeparation.sort(Comparator.comparingDouble(i -> f.tracks().get(i).separation));
+		for (int i : bySeparation) {
+			Deque<Integer> named = stagesByName.get(f.tracks().get(i).name);
+			Integer st = named == null ? null : named.pollLast();
 			if (st != null && st > 0) {
 				trackStage.put(i, st);
 			}
@@ -186,10 +197,15 @@ public final class FlightAnimation {
 			if (!p.internal && !p.kind.equals("fins")) {
 				pieceStart.merge(p.piece, p.x0, Math::min);
 			}
-			if (!trackStage.containsValue(p.stage)) {
+			// The airframe's length: fins or a motor sticking out aft make no section of their own.
+			if (!trackStage.containsValue(p.stage) && !p.internal && !p.kind.equals("fins")) {
 				stack0 = Math.min(stack0, p.x0);
 				stack1 = Math.max(stack1, p.x1);
 			}
+		}
+		if (stack1 <= stack0) {
+			stack0 = 0;
+			stack1 = length;
 		}
 		double lo = stack0, hi = stack1;
 		joints.removeIf(x -> x <= lo + 1e-3 || x >= hi - 1e-3);
@@ -272,6 +288,72 @@ public final class FlightAnimation {
 			}
 			on = burning;
 		}
+	}
+
+	// ------------------------------------------------------------------------------------------- the view
+
+	/**
+	 * The scene as the interactive view stages it, so the view's replay and this video agree: where the pad is, how the
+	 * camera looks across the drift, which nozzles burn, where the stack comes apart under the chutes, which stages
+	 * drop off, and the pacing (animation seconds per flight second every 0.1 s, for the default length). Metres,
+	 * seconds, the rocket frame (x from the nose tip) and the world frame (east, north, up).
+	 */
+	public Map<String, Object> plan() {
+		Map<String, Object> p = new LinkedHashMap<>();
+		p.put("lift", lift);
+		p.put("length", length);
+		p.put("maxR", maxR);
+		p.put("cg0", cg0);
+		p.put("railLength", railLength);
+		p.put("axis0", axis0);
+		p.put("drift", new double[] { drift[0], drift[1] });
+		p.put("side", new double[] { side[0], side[1] });
+		p.put("burnout", f.burnout());
+		p.put("apogee", f.apogeeTime());
+		p.put("maxThrust", f.maxThrust());
+		p.put("sections", sections);
+		List<Map<String, Object>> nz = new ArrayList<>();
+		nozzles.forEach((st, list) -> {
+			for (double[] n : list) {
+				Map<String, Object> m = new LinkedHashMap<>();
+				m.put("stage", st);
+				m.put("sideBooster", sideBoosters.contains(st));
+				m.put("at", new double[] { n[0], n[1], n[2] });
+				m.put("r", n[3]);
+				nz.add(m);
+			}
+		});
+		p.put("nozzles", nz);
+		List<Map<String, Object>> dropped = new ArrayList<>();
+		trackStage.forEach((track, st) -> {
+			if (stagePivot.containsKey(st)) {
+				Map<String, Object> m = new LinkedHashMap<>();
+				m.put("track", track);
+				m.put("stage", st);
+				m.put("pivot", stagePivot.get(st)); // {middle, forward end, aft end}
+				dropped.add(m);
+			}
+		});
+		p.put("dropped", dropped);
+		double[] pace = new double[(gridD.length + 9) / 10];
+		for (int i = 0; i < pace.length; i++) {
+			pace[i] = Math.round(gridD[Math.min(gridD.length - 1, i * 10)] * 1000) / 1000.0;
+		}
+		p.put("pace", pace);
+		return p;
+	}
+
+	/** The main-stack section a part of the view's model flies with when the stack hangs apart; -1 for dropped stages. */
+	public int sectionOf(Model3d.Part part, Map<Integer, Double> pieceStart) {
+		if (trackStage.containsValue(part.stage)) {
+			return -1;
+		}
+		double x = pieceStart.getOrDefault(part.piece, part.x0) + 1e-4;
+		int s = 0;
+		while (s + 1 < sections.size() && x >= sections.get(s + 1)[0]) {
+			s++;
+		}
+		return s;
 	}
 
 	// ------------------------------------------------------------------------------------------- schedule
@@ -675,30 +757,33 @@ public final class FlightAnimation {
 		int[] px = new int[w * h];
 		double camAlt = cam.eye[2];
 		double dark = Math.min(1, camAlt / 9000);
-		int[] zenith = mix(new int[] { 74, 134, 204 }, new int[] { 22, 52, 112 }, dark);
-		int[] horizon = mix(new int[] { 203, 222, 240 }, new int[] { 170, 196, 226 }, dark);
+		int zenith = pack(mix(new int[] { 74, 134, 204 }, new int[] { 22, 52, 112 }, dark));
+		int horizon = pack(mix(new int[] { 203, 222, 240 }, new int[] { 170, 196, 226 }, dark));
+		int gravel = pack(new int[] { 176, 168, 150 });
+		Fields fields = new Fields();
+		// Per pixel this runs a million times a frame: packed colours, no allocation, the pad test on r^2.
 		for (int y = 0; y < h; y++) {
+			double v = (h / 2.0 - y - 0.5) / focal;
+			double rx = cam.fwd[0] + v * cam.up[0], ry = cam.fwd[1] + v * cam.up[1], rz = cam.fwd[2] + v * cam.up[2];
 			for (int x = 0; x < w; x++) {
-				double u = (x + 0.5 - w / 2.0) / focal, v = (h / 2.0 - y - 0.5) / focal;
-				double dx = cam.fwd[0] + u * cam.right[0] + v * cam.up[0];
-				double dy = cam.fwd[1] + u * cam.right[1] + v * cam.up[1];
-				double dz = cam.fwd[2] + u * cam.right[2] + v * cam.up[2];
+				double u = (x + 0.5 - w / 2.0) / focal;
+				double dx = rx + u * cam.right[0], dy = ry + u * cam.right[1], dz = rz + u * cam.right[2];
 				double l = Math.sqrt(dx * dx + dy * dy + dz * dz);
 				dz /= l;
 				int c;
 				if (dz >= -1e-4) {
 					double s = Math.pow(Math.min(1, dz * 1.6), 0.6);
-					c = pack(mix(horizon, zenith, s));
+					c = mix(horizon, zenith, s);
 				} else {
 					double s = camAlt / -dz; // distance along the ray to the ground
 					double gx = cam.eye[0] + s * dx / l, gy = cam.eye[1] + s * dy / l;
-					int[] ground = field(gx, gy);
-					double pr = Math.hypot(gx, gy);
-					if (pr < 25) {
-						ground = mix(new int[] { 176, 168, 150 }, ground, smooth((pr - 18) / 7));
+					int ground = fields.at(gx, gy);
+					double r2 = gx * gx + gy * gy;
+					if (r2 < 625) {
+						ground = mix(gravel, ground, smooth((Math.sqrt(r2) - 18) / 7));
 					}
 					double fog = 1 - Math.exp(-s / 9000);
-					c = pack(mix(ground, horizon, fog));
+					c = mix(ground, horizon, fog);
 				}
 				px[y * w + x] = c;
 			}
@@ -706,20 +791,45 @@ public final class FlightAnimation {
 		return px;
 	}
 
-	/** Farm fields 150 m on a side, each a slightly different green or tan. */
-	static int[] field(double x, double y) {
-		long ix = (long) Math.floor(x / 150), iy = (long) Math.floor(y / 150);
-		long hsh = ix * 73856093L ^ iy * 19349663L;
-		hsh = (hsh ^ (hsh >>> 13)) * 0x5bd1e995L;
-		double v = ((hsh >>> 8) & 1023) / 1023.0;
-		int[] a = { 120, 150, 88 }, b = { 164, 158, 104 }, c = { 96, 128, 76 };
-		int[] col = v < 0.5 ? mix(a, c, v * 2) : mix(a, b, (v - 0.5) * 2);
-		// Darker field edges (hedgerows / tracks) give a sense of scale and speed.
-		double ex = Math.abs(x / 150 - Math.rint(x / 150)) * 150, ey = Math.abs(y / 150 - Math.rint(y / 150)) * 150;
-		if (Math.min(ex, ey) < 1.5) {
-			col = mix(col, new int[] { 86, 98, 64 }, 0.6);
+	private static final int FIELD_A = 120 << 16 | 150 << 8 | 88, FIELD_B = 164 << 16 | 158 << 8 | 104,
+			FIELD_C = 96 << 16 | 128 << 8 | 76, HEDGE = 86 << 16 | 98 << 8 | 64;
+
+	/** Farm fields 150 m on a side, each a slightly different green or tan (packed RGB). */
+	static int field(double x, double y) {
+		return new Fields().at(x, y);
+	}
+
+	/**
+	 * {@link #field} for a whole frame: neighbouring pixels mostly fall in the same field, so the last field's colour is
+	 * kept, and the hedgerow test uses the same floor as the field index (no rint). Not thread-safe: one per frame.
+	 */
+	static final class Fields {
+		private long lastX = Long.MIN_VALUE, lastY = Long.MIN_VALUE;
+		private int lastCol;
+
+		int at(double x, double y) {
+			double fx = x / 150, fy = y / 150;
+			double flx = Math.floor(fx), fly = Math.floor(fy);
+			long ix = (long) flx, iy = (long) fly;
+			int col;
+			if (ix == lastX && iy == lastY) {
+				col = lastCol;
+			} else {
+				long hsh = ix * 73856093L ^ iy * 19349663L;
+				hsh = (hsh ^ (hsh >>> 13)) * 0x5bd1e995L;
+				double v = ((hsh >>> 8) & 1023) / 1023.0;
+				col = v < 0.5 ? mix(FIELD_A, FIELD_C, v * 2) : mix(FIELD_A, FIELD_B, (v - 0.5) * 2);
+				lastX = ix;
+				lastY = iy;
+				lastCol = col;
+			}
+			// Darker field edges (hedgerows / tracks) give a sense of scale and speed.
+			double rx = fx - flx, ry = fy - fly;
+			if (Math.min(Math.min(rx, 1 - rx), Math.min(ry, 1 - ry)) * 150 < 1.5) {
+				col = mix(col, HEDGE, 0.6);
+			}
+			return col;
 		}
-		return col;
 	}
 
 	private void drawSmoke(Graphics2D g, Raster3d r, double t) {
@@ -1413,6 +1523,14 @@ public final class FlightAnimation {
 
 	private static int[] mix(int[] a, int[] b, double t) {
 		return new int[] { (int) (a[0] + (b[0] - a[0]) * t), (int) (a[1] + (b[1] - a[1]) * t), (int) (a[2] + (b[2] - a[2]) * t) };
+	}
+
+	/** {@link #mix(int[], int[], double)} on packed RGB, same rounding. */
+	private static int mix(int a, int b, double t) {
+		int r = (int) ((a >> 16 & 255) + ((b >> 16 & 255) - (a >> 16 & 255)) * t);
+		int g = (int) ((a >> 8 & 255) + ((b >> 8 & 255) - (a >> 8 & 255)) * t);
+		int bl = (int) ((a & 255) + ((b & 255) - (a & 255)) * t);
+		return r << 16 | g << 8 | bl;
 	}
 
 	private static int pack(int[] c) {

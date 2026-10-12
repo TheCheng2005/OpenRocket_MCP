@@ -1,0 +1,2258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenRocket design view</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface: var(--color-background-primary, #fcfcfb);
+  --raised: var(--color-background-secondary, #f3f2ee);
+  --ink: var(--color-text-primary, #0b0b0b);
+  --ink2: var(--color-text-secondary, #52514e);
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --ring: var(--color-border-primary, rgba(11, 11, 11, 0.12));
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+  --good: #0ca30c; --warn: #fab219; --crit: #d03b3b; --info: #898781;
+  --accent: #2a78d6;
+  --view-a: #e9eef5; --view-b: #fafaf9;
+  --sky-a: #c9dcf0; --sky-b: #f3f6f9;
+  --font: var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif);
+  --radius: var(--border-radius-md, 8px);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: var(--color-background-primary, #1a1a19);
+  --raised: var(--color-background-secondary, #262624);
+  --ink: var(--color-text-primary, #f0efec);
+  --ink2: var(--color-text-secondary, #c3c2b7);
+  --grid: #2c2c2a; --axis: #45453f;
+  --ring: var(--color-border-primary, rgba(255, 255, 255, 0.12));
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  --accent: #3987e5;
+  --view-a: #232830; --view-b: #171716;
+  --sky-a: #172231; --sky-b: #1b1b1a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--surface); color: var(--ink); font: 13px/1.4 var(--font); }
+body { -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+.app { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 12px; }
+body.fill .app { height: 100vh; }
+.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.top h1 { font-size: 15px; font-weight: 600; margin: 0; line-height: 1.3; }
+.sub { color: var(--ink2); font-size: 12px; }
+.actions { display: flex; gap: 6px; flex: none; }
+.btn { border: 1px solid var(--ring); background: var(--surface); border-radius: 6px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--raised); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); gap: 6px; }
+.tile { border: 1px solid var(--ring); border-radius: var(--radius); padding: 5px 9px 6px; min-width: 0; }
+.tile .l { color: var(--ink2); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .v { font-size: 17px; font-weight: 600; white-space: nowrap; }
+.tile .u { font-size: 12px; color: var(--ink2); font-weight: 400; margin-left: 2px; }
+.tile .s { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+button.tile { text-align: left; background: none; cursor: pointer; }
+button.tile:hover { background: var(--raised); }
+.banner { border: 1px solid var(--ring); border-left: 3px solid var(--crit); border-radius: 6px; padding: 6px 10px; font-size: 12px; }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--ring); }
+.tabs button { border: 0; background: none; padding: 6px 10px; color: var(--ink2); border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+.pill { display: inline-block; margin-left: 5px; padding: 0 6px; border-radius: 9px; font-size: 11px; font-weight: 600; background: var(--raised); color: var(--ink2); }
+.panel { height: 470px; overflow: auto; }
+body.fill .panel { height: auto; flex: 1 1 auto; min-height: 300px; }
+#tab-model { overflow: hidden; display: flex; flex-direction: column; gap: 8px; }
+.model { display: grid; grid-template-columns: minmax(0, 1fr) 248px; gap: 10px; flex: 1 1 auto; min-height: 0; }
+@media (max-width: 660px) {
+  .model { grid-template-columns: 1fr; grid-template-rows: 300px auto; flex: none; }
+  .parts { height: 260px; }
+  #tab-model { overflow: auto; }
+}
+.viewport { position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--ring); touch-action: none; min-height: 0; background: linear-gradient(var(--view-a), var(--view-b)); }
+.viewport.fly { background: linear-gradient(var(--sky-a), var(--sky-b)); }
+#gl { display: block; width: 100%; height: 100%; cursor: grab; outline: none; }
+#gl.dragging { cursor: grabbing; }
+.overlay { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.overlay text { font: 11px var(--font); }
+.vtools { position: absolute; left: 8px; top: 8px; right: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; pointer-events: none; }
+.vtools > * { pointer-events: auto; }
+.seg { display: inline-flex; border: 1px solid var(--ring); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: none; padding: 3px 9px; cursor: pointer; color: var(--ink2); }
+.seg button + button { border-left: 1px solid var(--ring); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.chk { display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--ring); border-radius: 6px; padding: 2px 8px; color: var(--ink2); cursor: pointer; }
+.chk input { margin: 0; accent-color: var(--accent); }
+.hud { position: absolute; right: 8px; bottom: 8px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--ring); border-radius: 6px; padding: 3px 8px; font-size: 12px; font-variant-numeric: tabular-nums; pointer-events: none; max-width: calc(100% - 16px); }
+.hud b { font-weight: 600; }
+.captions { position: absolute; left: 8px; top: 44px; display: flex; flex-direction: column; gap: 5px; align-items: flex-start; pointer-events: none; max-width: min(320px, calc(100% - 190px)); }
+.caption { background: rgba(12, 18, 28, 0.72); color: #fff; border-left: 3px solid #ffd43b; border-radius: 7px; padding: 4px 10px 5px; }
+.caption b { display: block; font-size: 12.5px; letter-spacing: .05em; text-transform: uppercase; }
+.caption span { font-size: 11px; color: #d0d8e4; }
+.inset text { font: 10px var(--font); }
+.chk select { border: 0; background: none; padding: 0; color: var(--ink); }
+.videopanel { position: absolute; inset: 44px 10px 10px; background: var(--surface); border: 1px solid var(--ring); border-radius: var(--radius); padding: 10px 12px; overflow: auto; z-index: 4; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); }
+.videopanel h3 { margin: 0 0 4px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+.videopanel img { width: 100%; border-radius: 6px; margin-top: 8px; }
+.videopanel .files { font-size: 12px; color: var(--ink2); word-break: break-all; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); padding: 2px 7px; border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 3; }
+.nogl { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink2); padding: 20px; text-align: center; }
+.parts { border: 1px solid var(--ring); border-radius: var(--radius); display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+.plist { overflow: auto; flex: 1 1 45%; min-height: 80px; padding: 2px 0; }
+.pgroup { padding: 6px 9px 2px; font-size: 11px; color: var(--muted); font-weight: 600; }
+.prow { display: flex; align-items: center; gap: 7px; padding: 3px 9px; cursor: pointer; border: 0; background: none; width: 100%; text-align: left; }
+.prow:hover { background: var(--raised); }
+.prow[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.sw { width: 10px; height: 10px; border-radius: 2px; flex: none; box-shadow: inset 0 0 0 1px var(--ring); }
+.prow .n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow .m { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pinfo { border-top: 1px solid var(--ring); overflow: auto; flex: 1 1 55%; padding: 8px 9px; }
+.pinfo h2 { font-size: 13px; margin: 0; display: flex; align-items: center; gap: 6px; }
+.pinfo .meta { color: var(--ink2); font-size: 11px; margin: 1px 0 6px; }
+.props { width: 100%; border-collapse: collapse; font-size: 12px; }
+.props td { padding: 2px 0; vertical-align: top; }
+.props td.k { color: var(--ink2); padding-right: 8px; white-space: nowrap; max-width: 104px; overflow: hidden; text-overflow: ellipsis; }
+.props td.val { word-break: break-word; }
+.props td.val.edit { cursor: text; border-radius: 3px; }
+.props td.val.edit:hover { background: var(--raised); box-shadow: inset 0 0 0 1px var(--ring); }
+.props input, .props select { width: 100%; border: 1px solid var(--accent); border-radius: 4px; padding: 1px 4px; background: var(--surface); }
+.hint { color: var(--muted); font-size: 11px; margin-top: 6px; }
+.toast { color: var(--ink2); font-size: 11px; margin-top: 6px; }
+.toast.err { color: var(--crit); }
+.scrub { display: grid; grid-template-columns: auto minmax(120px, 1fr) 210px; align-items: center; gap: 4px 8px; }
+.scrub input[type=range] { accent-color: var(--accent); width: 100%; margin: 0; }
+.tlabel { font-variant-numeric: tabular-nums; color: var(--ink2); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chips { grid-column: 1 / -1; display: flex; gap: 4px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--ring); background: var(--surface); border-radius: 12px; padding: 0 8px; font-size: 11px; color: var(--ink2); cursor: pointer; }
+.chip:hover { background: var(--raised); color: var(--ink); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.readout { position: sticky; top: 0; z-index: 2; background: var(--surface); border: 1px solid var(--ring); border-radius: var(--radius); padding: 5px 9px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 2px 14px; font-variant-numeric: tabular-nums; margin-bottom: 8px; }
+.readout span { color: var(--ink2); white-space: nowrap; }
+.readout b { color: var(--ink); font-weight: 600; }
+.charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 10px; }
+.chart { border: 1px solid var(--ring); border-radius: var(--radius); padding: 6px 8px 2px; min-width: 0; }
+.chart h3 { margin: 0; font-size: 12px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; }
+.chart h3 .unit { color: var(--muted); font-weight: 400; }
+.legend { display: flex; gap: 10px; font-size: 11px; color: var(--ink2); margin-left: auto; font-weight: 400; }
+.key { display: inline-block; width: 12px; height: 2px; vertical-align: middle; margin-right: 4px; border-radius: 1px; }
+.chart svg { display: block; width: 100%; overflow: visible; touch-action: none; cursor: crosshair; }
+svg text { font: 10.5px var(--font); fill: var(--muted); }
+svg .lbl { fill: var(--ink2); }
+.gridline { stroke: var(--grid); stroke-width: 1; shape-rendering: crispEdges; }
+.axisline { stroke: var(--axis); stroke-width: 1; shape-rendering: crispEdges; }
+.evline { stroke: var(--muted); stroke-dasharray: 2 3; stroke-width: 1; opacity: .75; }
+.cross { stroke: var(--ink2); stroke-width: 1; }
+.brush { fill: var(--accent); opacity: .12; }
+.traj { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+.checks { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+.checks col.c1 { width: 78px; } .checks col.c2 { width: 27%; } .checks col.c3 { width: 30%; } .checks col.c5 { width: 13%; }
+.checks td { overflow-wrap: anywhere; }
+.checks th { text-align: left; font-weight: 600; color: var(--ink2); padding: 4px 8px; border-bottom: 1px solid var(--ring); position: sticky; top: 0; background: var(--surface); }
+.checks td { padding: 5px 8px; border-bottom: 1px solid var(--ring); vertical-align: top; }
+.checks td.ref { color: var(--muted); font-size: 11px; }
+.status { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-weight: 600; }
+.icon { width: 15px; height: 15px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; flex: none; }
+.icon.PASS { background: var(--good); } .icon.FAIL { background: var(--crit); } .icon.WARN { background: var(--warn); color: #3a2a00; } .icon.INFO { background: var(--info); }
+.linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font-size: 11px; }
+.linkbtn:hover { text-decoration: underline; }
+details.manual { margin-top: 10px; font-size: 12px; color: var(--ink2); }
+details.manual summary { cursor: pointer; color: var(--ink); }
+.foot { color: var(--muted); font-size: 11px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.msg { padding: 40px 20px; text-align: center; color: var(--ink2); }
+.spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--ring); border-top-color: var(--ink2); border-radius: 50%; animation: spin 0.9s linear infinite; vertical-align: -2px; margin-right: 8px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+</style>
+</head>
+<body>
+<div id="msg" class="msg"><span class="spin"></span>Loading the design view…</div>
+<div id="app" class="app" hidden>
+  <header class="top">
+    <div><h1 id="name"></h1><div id="subtitle" class="sub"></div></div>
+    <div class="actions">
+      <button id="b-undo" class="btn" title="Undo the last change to the design" hidden>Undo</button>
+      <button id="b-refresh" class="btn" title="Re-simulate with the design as it is now" hidden>Refresh</button>
+      <button id="b-full" class="btn" title="Full screen">Full screen</button>
+    </div>
+  </header>
+  <section id="metrics" class="metrics" aria-label="Key numbers"></section>
+  <div id="problems" class="banner" hidden></div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="model" aria-selected="true">Rocket</button>
+    <button role="tab" data-tab="flight">Flight plots</button>
+    <button role="tab" data-tab="trajectory">Trajectory</button>
+    <button role="tab" data-tab="checks">Rule checks<span id="checks-pill" class="pill"></span></button>
+  </nav>
+  <section id="tab-model" class="panel" role="tabpanel">
+    <div class="model">
+      <div id="viewport" class="viewport">
+        <canvas id="gl" tabindex="0" aria-label="3-D model of the rocket: drag to rotate, scroll to zoom, click a part"></canvas>
+        <svg id="overlay" class="overlay"></svg>
+        <div class="vtools">
+          <div class="seg" role="group" aria-label="View">
+            <button data-view="3d" aria-pressed="true" title="Rotate with the mouse, scroll to zoom">3-D</button>
+            <button data-view="side" title="Side view to scale with CG, CP and a ruler">Side</button>
+            <button data-view="fly" title="Replay the simulated flight in 3-D">Fly</button>
+          </div>
+          <label class="chk" id="t-cut" title="Cut the airframe open to show the parts inside"><input type="checkbox" id="cut"> Cut-away</label>
+          <label class="chk" id="t-explode" title="Pull the airframe sections apart"><input type="range" id="explode" min="0" max="1" step="0.01" value="0" style="width:70px"> Exploded</label>
+          <div class="seg" id="t-flycam" role="group" aria-label="Camera" hidden>
+            <button data-flycam="chase" aria-pressed="true" title="The video's chase camera (drag to swing it round)">Chase</button>
+            <button data-flycam="orbit" title="Circles the rocket as it plays; drag to look from anywhere">Orbit</button>
+            <button data-flycam="pad" title="From the ground beside the pad, zoomed in like a long lens">Pad</button>
+            <button data-flycam="whole" title="The whole trajectory, the rocket drawn larger">Whole flight</button>
+          </div>
+          <label class="chk" id="t-speed" hidden title="Playback speed">Speed
+            <select id="speed"><option value="auto">like the video</option><option value="1">real time</option><option value="4">4x</option><option value="16">16x</option></select></label>
+          <button id="b-video" class="btn" hidden title="Render this flight as a GIF and MP4 with key-moment stills, saved beside the design (animate_flight)">Make video</button>
+        </div>
+        <div id="captions" class="captions" aria-live="polite"></div>
+        <div id="videopanel" class="videopanel" hidden></div>
+        <div id="hud" class="hud"></div>
+        <div id="tip3d" class="tip" hidden></div>
+      </div>
+      <aside class="parts">
+        <div id="plist" class="plist" role="listbox" aria-label="Parts"></div>
+        <div id="pinfo" class="pinfo"></div>
+      </aside>
+    </div>
+    <div class="scrub">
+      <button id="play" class="btn" title="Play the flight">Play</button>
+      <input type="range" id="time" min="0" max="1" step="0.01" value="0" aria-label="Flight time">
+      <span id="tlabel" class="tlabel"></span>
+      <div id="chips" class="chips"></div>
+    </div>
+  </section>
+  <section id="tab-flight" class="panel" role="tabpanel" hidden>
+    <div class="row">
+      <div class="seg" role="group" aria-label="Time range">
+        <button data-range="ascent" aria-pressed="true">Ascent</button>
+        <button data-range="all">Whole flight</button>
+      </div>
+      <span class="sub">Drag across a plot to zoom; double-click to reset; click to set the time.</span>
+    </div>
+    <div id="readout" class="readout"></div>
+    <div id="charts" class="charts"></div>
+  </section>
+  <section id="tab-trajectory" class="panel" role="tabpanel" hidden>
+    <div id="traj" class="traj"></div>
+  </section>
+  <section id="tab-checks" class="panel" role="tabpanel" hidden>
+    <div class="row">
+      <div class="seg" role="group" aria-label="Filter">
+        <button data-filter="all" aria-pressed="true">All</button>
+        <button data-filter="FAIL">Failures</button>
+        <button data-filter="WARN">Warnings</button>
+        <button data-filter="PASS">Passes</button>
+      </div>
+      <span id="checks-summary" class="sub"></span>
+    </div>
+    <table class="checks"><colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"></colgroup><thead><tr><th>Status</th><th>Check</th><th>Value</th><th>Requirement</th><th>Ref</th></tr></thead><tbody id="checks-body"></tbody></table>
+    <details id="manual" class="manual"><summary>Manual checks to plan</summary><ul id="manual-list"></ul></details>
+  </section>
+  <footer class="foot"><span id="foot-l"></span><span id="foot-r">OpenRocket simulation · estimates, not a substitute for ground tests and RSO review</span></footer>
+</div>
+<!--OR-DATA-->
+<script>
+"use strict";
+(function () {
+  // ------------------------------------------------------------------ small helpers
+  const $ = (s, root) => (root || document).querySelector(s);
+  const $$ = (s, root) => Array.from((root || document).querySelectorAll(s));
+  function h(tag, attrs, ...kids) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v == null || v === false) continue;
+      if (k === "class") e.className = v;
+      else if (k === "style") e.style.cssText = v;
+      else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v === true ? "" : v);
+    }
+    for (const k of kids.flat()) if (k != null && k !== false) e.append(k instanceof Node ? k : document.createTextNode(String(k)));
+    return e;
+  }
+  const SVGNS = "http://www.w3.org/2000/svg";
+  function s(tag, attrs, text) {
+    const e = document.createElementNS(SVGNS, tag);
+    for (const [k, v] of Object.entries(attrs || {})) if (v != null) e.setAttribute(k, v);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const fin = (v) => typeof v === "number" && isFinite(v);
+  function num(v, sig) {
+    if (!fin(v)) return "–";
+    const a = Math.abs(v);
+    const d = a >= 1000 ? 0 : a >= 100 ? (sig === 4 ? 1 : 0) : a >= 10 ? 1 : a >= 1 ? 2 : 3;
+    return v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: d });
+  }
+  const fmtT = (t) => (t < 10 ? t.toFixed(2) : t < 100 ? t.toFixed(1) : t.toFixed(0)) + " s";
+  const LEN = { m: 1, mm: 1000, cm: 100, in: 1 / 0.0254, ft: 1 / 0.3048, km: 0.001, mi: 1 / 1609.344 };
+  const conv = (m, unit) => m * (LEN[unit] || 1);
+  const SPEED = { "m/s": 1, "ft/s": 1 / 0.3048, "km/h": 3.6, mph: 2.236936 };
+
+  // ------------------------------------------------------------------ state
+  const S = {
+    data: null, host: false, ctx: {}, T: 0, hoverT: null, tab: "model", sel: -1, xr: null, range: "ascent",
+    filter: "all", playing: false, viewer: null, charts: [], traj: [], busy: false
+  };
+
+  // ------------------------------------------------------------------ theme and sizing
+  function applyTheme(theme) {
+    const dark = theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    if (S.viewer) S.viewer.dirty();
+    if (S.data) redrawCharts();
+  }
+  function applyHostContext(c) {
+    if (!c) return;
+    Object.assign(S.ctx, c);
+    const vars = c.styles && c.styles.variables;
+    if (vars) for (const [k, v] of Object.entries(vars)) if (v) document.documentElement.style.setProperty(k, v);
+    if (c.styles && c.styles.css && c.styles.css.fonts && !$("#host-fonts")) document.head.append(h("style", { id: "host-fonts" }, c.styles.css.fonts));
+    if (c.theme) applyTheme(c.theme);
+    if (c.displayMode) setFill(c.displayMode === "fullscreen");
+    const cd = c.containerDimensions;
+    if (cd && "height" in cd) setFill(true);
+  }
+  function setFill(on) {
+    document.body.classList.toggle("fill", !!on || !S.host);
+    $("#b-full").textContent = on && S.host ? "Exit full screen" : "Full screen";
+    if (S.viewer) S.viewer.resize();
+    setTimeout(redrawCharts, 0);
+  }
+  let lastW = 0, lastH = 0, sizeQueued = false;
+  function reportSize() {
+    if (!S.host || sizeQueued) return;
+    sizeQueued = true;
+    requestAnimationFrame(() => {
+      sizeQueued = false;
+      const html = document.documentElement, old = html.style.height;
+      html.style.height = "max-content";
+      const height = Math.ceil(html.getBoundingClientRect().height);
+      html.style.height = old;
+      const width = Math.ceil(window.innerWidth);
+      if (width !== lastW || height !== lastH) {
+        lastW = width; lastH = height;
+        notify("ui/notifications/size-changed", { width, height });
+      }
+    });
+  }
+
+  // ------------------------------------------------------------------ host connection (MCP Apps, JSON-RPC over postMessage)
+  let rpcId = 0;
+  const pending = new Map();
+  function post(msg) { window.parent.postMessage(msg, "*"); }
+  function notify(method, params) { post({ jsonrpc: "2.0", method, params: params || {} }); }
+  function request(method, params, timeoutMs) {
+    const id = ++rpcId;
+    post({ jsonrpc: "2.0", id, method, params: params || {} });
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { if (pending.delete(id)) reject(new Error(method + " timed out")); }, timeoutMs || 120000);
+      pending.set(id, { resolve: (r) => { clearTimeout(timer); resolve(r); }, reject: (e) => { clearTimeout(timer); reject(e); } });
+    });
+  }
+  async function callTool(name, args) {
+    const r = await request("tools/call", { name, arguments: args });
+    const text = (r.content || []).filter((c) => c.type === "text").map((c) => c.text).join("\n");
+    if (r.isError) throw new Error(text.replace(/^Error:\s*/, "") || name + " failed");
+    return { text, data: r.structuredContent };
+  }
+  function onMessage(ev) {
+    if (ev.source !== window.parent) return;
+    const m = ev.data;
+    if (!m || m.jsonrpc !== "2.0") return;
+    if (m.id != null && !m.method) {
+      const p = pending.get(m.id);
+      if (!p) return;
+      pending.delete(m.id);
+      if (m.error) p.reject(new Error(m.error.message || "request failed")); else p.resolve(m.result || {});
+      return;
+    }
+    const reply = (result) => { if (m.id != null) post({ jsonrpc: "2.0", id: m.id, result: result || {} }); };
+    switch (m.method) {
+      case "ui/notifications/tool-input": S.toolArgs = (m.params && m.params.arguments) || {}; break;
+      case "ui/notifications/tool-result": onToolResult(m.params || {}); break;
+      case "ui/notifications/tool-cancelled": showMessage("The request was cancelled."); break;
+      case "ui/notifications/host-context-changed": applyHostContext(m.params); break;
+      case "ui/resource-teardown": S.playing = false; reply({}); break;
+      case "ping": reply({}); break;
+      default: if (m.id != null) post({ jsonrpc: "2.0", id: m.id, error: { code: -32601, message: "Method not found: " + m.method } });
+    }
+  }
+  async function connect() {
+    window.addEventListener("message", onMessage);
+    try {
+      const r = await request("ui/initialize", {
+        appInfo: { name: "OpenRocket design view", version: "1.0.0" },
+        appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] },
+        protocolVersion: "2026-01-26"
+      }, 8000);
+      S.host = true;
+      S.hostCaps = r.hostCapabilities || {};
+      applyHostContext(r.hostContext || {});
+      notify("ui/notifications/initialized", {});
+      new ResizeObserver(reportSize).observe(document.documentElement);
+      reportSize();
+    } catch (e) {
+      showMessage("This view needs data: open it from Claude (show_design), or open the HTML file that show_design writes.");
+    }
+  }
+  async function onToolResult(r) {
+    const text = (r.content || []).filter((c) => c.type === "text").map((c) => c.text).join("\n");
+    if (r.isError) { showMessage(text.replace(/^Error:\s*/, "")); return; }
+    const sc = r.structuredContent || {};
+    if (sc.rocket) { load(sc); return; }
+    S.viewRef = { viewId: sc.viewId, designId: sc.designId, simulation: sc.simulation };
+    if (sc.tab) S.tab = sc.tab;
+    try {
+      const d = await callTool("workbench_data", S.viewRef);
+      load(d.data);
+    } catch (e) {
+      showMessage(e.message);
+    }
+  }
+  function showMessage(text) {
+    const m = $("#msg");
+    m.textContent = text;
+    m.hidden = false;
+    $("#app").hidden = true;
+    reportSize();
+  }
+
+  // ------------------------------------------------------------------ data
+  function decode(b64) {
+    const bin = atob(b64), n = bin.length, u8 = new Uint8Array(n);
+    for (let i = 0; i < n; i++) u8[i] = bin.charCodeAt(i);
+    return new Float32Array(u8.buffer);
+  }
+  function smoothNormals(pos) {
+    const n = pos.length / 9, fn = new Float32Array(n * 3), out = new Float32Array(pos.length), map = new Map();
+    const key = (o) => Math.round(pos[o] * 2e4) + "," + Math.round(pos[o + 1] * 2e4) + "," + Math.round(pos[o + 2] * 2e4);
+    for (let i = 0; i < n; i++) {
+      const o = i * 9;
+      const ux = pos[o + 3] - pos[o], uy = pos[o + 4] - pos[o + 1], uz = pos[o + 5] - pos[o + 2];
+      const vx = pos[o + 6] - pos[o], vy = pos[o + 7] - pos[o + 1], vz = pos[o + 8] - pos[o + 2];
+      let x = uy * vz - uz * vy, y = uz * vx - ux * vz, z = ux * vy - uy * vx;
+      const l = Math.hypot(x, y, z);
+      if (l > 1e-14) { x /= l; y /= l; z /= l; } else { x = 0; y = 0; z = 1; }
+      fn[i * 3] = x; fn[i * 3 + 1] = y; fn[i * 3 + 2] = z;
+      for (let v = 0; v < 3; v++) {
+        const k = key(o + v * 3);
+        let a = map.get(k);
+        if (!a) map.set(k, (a = []));
+        a.push(i);
+      }
+    }
+    const crease = Math.cos(40 * Math.PI / 180);
+    for (let i = 0; i < n; i++) {
+      const o = i * 9, ax = fn[i * 3], ay = fn[i * 3 + 1], az = fn[i * 3 + 2];
+      for (let v = 0; v < 3; v++) {
+        let x = 0, y = 0, z = 0;
+        for (const j of map.get(key(o + v * 3))) {
+          const bx = fn[j * 3], by = fn[j * 3 + 1], bz = fn[j * 3 + 2];
+          if (ax * bx + ay * by + az * bz >= crease) { x += bx; y += by; z += bz; }
+        }
+        const l = Math.hypot(x, y, z) || 1;
+        out[o + v * 3] = x / l; out[o + v * 3 + 1] = y / l; out[o + v * 3 + 2] = z / l;
+      }
+    }
+    return out;
+  }
+  function interp(arr, t) {
+    const ts = S.data.flight.t;
+    if (!ts.length) return NaN;
+    if (t <= ts[0]) return firstValid(arr, 0, 1);
+    if (t >= ts[ts.length - 1]) return firstValid(arr, ts.length - 1, -1);
+    let lo = 0, hi = ts.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ts[m] <= t) lo = m; else hi = m; }
+    const a = arr[lo], b = arr[hi];
+    if (a == null || b == null) return a == null ? (b == null ? NaN : b) : a;
+    return a + (b - a) * (t - ts[lo]) / ((ts[hi] - ts[lo]) || 1);
+  }
+  function firstValid(arr, i, step) {
+    for (; i >= 0 && i < arr.length; i += step) if (arr[i] != null) return arr[i];
+    return NaN;
+  }
+  function eventAt(t) {
+    let last = null;
+    for (const e of S.data.flight.events) if (e.branch === 0 && e.t <= t + 1e-6) last = e;
+    return last;
+  }
+  const apogeeT = () => { const e = S.data.flight.events.find((x) => x.kind === "apogee"); return e ? e.t : tEnd(); };
+  const tEnd = () => { const t = S.data.flight.t; return t.length ? t[t.length - 1] : 1; };
+
+  function load(data) {
+    const first = !S.data;
+    const keepSel = S.sel >= 0 && S.data ? S.data.rocket.parts[S.sel] : null;
+    S.data = data;
+    if (data.viewId) S.viewRef = { viewId: data.viewId, designId: data.design.designId, simulation: data.design.simulation };
+    for (const p of data.rocket.parts) {
+      p.pos = p.mesh ? decode(p.mesh) : new Float32Array(0);
+      p.nor = smoothNormals(p.pos);
+      delete p.mesh;
+    }
+    S.sel = -1;
+    if (keepSel) S.sel = data.rocket.parts.findIndex((p) => (keepSel.id && p.id === keepSel.id) || p.name === keepSel.name);
+    if (first && data.tab) S.tab = data.tab;
+    $("#msg").hidden = true;
+    $("#app").hidden = false;
+    renderHeader();
+    renderParts();
+    renderPartInfo();
+    renderChecks();
+    if (!S.viewer) S.viewer = new Viewer($("#gl"), $("#overlay"));
+    S.viewer.setData(data, first);
+    $("#time").max = tEnd();
+    if (first) S.T = 0;
+    S.T = Math.min(S.T, tEnd());
+    renderChips();
+    buildCharts();
+    buildTrajectory();
+    selectTab(S.tab);
+    setT(S.T);
+    reportSize();
+  }
+
+  // ------------------------------------------------------------------ header, metrics, parts, checks
+  function renderHeader() {
+    const d = S.data.design;
+    $("#name").textContent = d.name;
+    $("#subtitle").textContent = [d.simulation, S.data.rocket.lengthText + " long", S.data.rocket.diameterText + " diameter",
+      S.data.rocket.launchMass + " at liftoff"].join(" · ");
+    $("#b-refresh").hidden = !S.host;
+    $("#b-undo").hidden = !S.host;
+    const m = $("#metrics");
+    m.replaceChildren();
+    const metrics = [], descents = S.data.metrics.filter((x) => x.key.startsWith("descent-"));
+    for (const x of S.data.metrics) {
+      if (x.key.startsWith("descent-")) {
+        if (x !== descents[0]) continue;
+        const last = descents[descents.length - 1], others = descents.slice(0, -1);
+        metrics.push(descents.length === 1 ? x : { key: "descent", label: last.label, value: last.value, unit: last.unit,
+          sub: others.map((d) => d.label.replace(/ descent$/, "").toLowerCase() + " " + num(d.value)).join(", ") });
+        continue;
+      }
+      metrics.push(x);
+    }
+    for (const x of metrics) {
+      let v = x.text != null ? x.text : num(x.value), unit = x.unit || "", sub = x.sub || "", label2 = x.label;
+      if (x.key === "stability") {
+        v = num(x.min); unit = "cal"; label2 = "Min stability";
+        sub = fin(x.floor) ? "rule min " + num(x.floor) : "max " + num(x.max);
+      }
+      const low = x.key === "stability" && fin(x.floor) && x.min < x.floor;
+      m.append(h("div", { class: "tile", title: x.key === "stability" ? "Stability margin from rail exit to apogee (airspeed above 100 ft/s): " + num(x.min) + " to " + num(x.max) + " cal" : null },
+        h("div", { class: "l", title: label2 }, label2), h("div", { class: "v" + (low ? " status" : "") }, low ? h("span", { class: "icon FAIL", title: "Below the rule minimum" }, "✕") : null, v, unit ? h("span", { class: "u" }, unit) : null),
+        sub ? h("div", { class: "s" }, sub) : null));
+    }
+    const c = S.data.checks;
+    if (c) {
+      const items = c.checks || [];
+      const fail = items.filter((i) => i.status === "FAIL").length, warn = items.filter((i) => i.status === "WARN").length;
+      const status = fail ? "FAIL" : warn ? "WARN" : "PASS";
+      m.append(h("button", { class: "tile", title: "Open the rule checks", onclick: () => selectTab("checks") },
+        h("div", { class: "l" }, "Rule checks"),
+        h("div", { class: "v status" }, h("span", { class: "icon " + status }, status === "PASS" ? "✓" : status === "FAIL" ? "✕" : "!"),
+          fail ? fail + " fail" : warn ? warn + " warn" : "pass"),
+        h("div", { class: "s" }, fail && warn ? warn + " warning" + (warn > 1 ? "s" : "") : items.length + " checks")));
+      $("#checks-pill").textContent = fail ? fail : warn ? warn : "✓";
+    }
+    const pr = $("#problems");
+    pr.hidden = !(S.data.problems && S.data.problems.length);
+    if (!pr.hidden) pr.replaceChildren(h("b", {}, "Simulation problems: "), S.data.problems.join(" "));
+    $("#foot-l").textContent = (S.data.design.ruleSet || "") + " · units: " + S.data.units.distance + ", " + S.data.units.velocity;
+  }
+
+  function renderParts() {
+    const list = $("#plist");
+    list.replaceChildren();
+    const parts = S.data.rocket.parts;
+    const groups = [["Airframe", parts.filter((p) => !p.internal)], ["Inside", parts.filter((p) => p.internal)]];
+    for (const [title, ps] of groups) {
+      if (!ps.length) continue;
+      list.append(h("div", { class: "pgroup" }, title));
+      for (const p of ps) {
+        list.append(h("button", { class: "prow", role: "option", "aria-selected": String(p.i === S.sel), "data-i": p.i,
+          onclick: () => select(p.i === S.sel ? -1 : p.i) },
+          h("span", { class: "sw", style: "background:" + p.color }), h("span", { class: "n" }, p.name), h("span", { class: "m" }, short(p.mass))));
+      }
+    }
+  }
+  const short = (txt) => String(txt || "").replace(/\s*\(.*\)$/, "");
+  function select(i, fromView) {
+    S.sel = i;
+    for (const r of $$(".prow")) r.setAttribute("aria-selected", String(+r.dataset.i === i));
+    if (i >= 0 && !fromView) { const r = $('.prow[data-i="' + i + '"]'); if (r) r.scrollIntoView({ block: "nearest" }); }
+    renderPartInfo();
+    $("#pinfo").scrollTop = 0;
+    if (S.viewer) S.viewer.dirty();
+    if (S.host && i >= 0) {
+      const p = S.data.rocket.parts[i];
+      request("ui/update-model-context", { content: [{ type: "text", text: "In the design view the user selected the " + p.name + " (" + p.type + ", "
+        + short(p.mass) + ", " + p.stage + ")." }] }).catch(() => {});
+    }
+  }
+  function renderPartInfo(toast, err) {
+    const box = $("#pinfo");
+    box.replaceChildren();
+    if (S.sel < 0) {
+      box.append(h("div", { class: "hint" }, "Click a part in the model or the list to see its properties" + (S.host ? " and change them." : ".")));
+      const r = S.data.rocket;
+      box.append(h("table", { class: "props" }, ...[
+        ["Length", r.lengthText], ["Diameter", r.diameterText], ["Liftoff mass", r.launchMass],
+        ["CG at liftoff", num(conv(r.cgLaunch, S.data.units.length)) + " " + S.data.units.length],
+        ["CP (Mach 0.3)", num(conv(r.cp, S.data.units.length)) + " " + S.data.units.length],
+        ["Static margin", num(r.marginLaunch) + " cal at liftoff, " + num(r.marginBurnout) + " at burnout"]
+      ].map(([k, v]) => h("tr", {}, h("td", { class: "k" }, k), h("td", { class: "val" }, short(v))))));
+      if (toast) box.append(h("div", { class: "toast" + (err ? " err" : "") }, toast));
+      return;
+    }
+    const p = S.data.rocket.parts[S.sel];
+    box.append(h("h2", {}, h("span", { class: "sw", style: "background:" + p.color }), p.name));
+    box.append(h("div", { class: "meta" }, [p.type, short(p.mass), p.stage].filter(Boolean).join(" · ")));
+    const editable = S.host && p.id;
+    const rows = Object.entries(p.props || {}).map(([k, v]) => {
+      const td = h("td", { class: "val" + (editable ? " edit" : ""), title: editable ? "Click to change" : null }, display(v));
+      if (editable) td.addEventListener("click", () => beginEdit(td, p, k, v));
+      return h("tr", {}, h("td", { class: "k", title: k }, label(k)), td);
+    });
+    box.append(h("table", { class: "props" }, rows));
+    if (toast) box.append(h("div", { class: "toast" + (err ? " err" : "") }, toast));
+    if (S.host) box.append(h("div", { class: "hint" }, h("button", { class: "linkbtn", onclick: () => ask("Let's look at the " + p.name + " (" + p.type + "): is it right for this rocket, and what would you change?") }, "Ask Claude about this part")));
+    else if (p.id) box.append(h("div", { class: "hint" }, "Open this view from Claude to change values."));
+  }
+  // "axialOffset" -> "Axial offset", "cD" -> "CD", "cDAutomatic" -> "CD automatic"
+  const label = (k) => {
+    const t = (k.charAt(0).toUpperCase() + k.slice(1)).replace(/([a-z])([A-Z])/g, "$1 $2").replace(/([A-Z])([A-Z][a-z])/g, "$1 $2");
+    return t.split(" ").map((w, i) => (i && /^[A-Z][a-z]/.test(w) ? w.toLowerCase() : w)).join(" ");
+  };
+  function display(v) {
+    if (v == null) return "–";
+    if (typeof v === "boolean") return v ? "yes" : "no";
+    const t = String(v), m = t.match(/^(\S+) \(one of (.*)\)$/);
+    return m ? m[1] : short(t.replace(/; set by name.*$/, ")").replace(/\)\)$/, ")")) || t;
+  }
+  function beginEdit(td, p, key, v) {
+    if (td.querySelector("input,select")) return;
+    let input;
+    const t = String(v), m = t.match(/^(\S+) \(one of (.*)\)$/);
+    if (typeof v === "boolean") {
+      input = h("select", {}, h("option", { value: "true" }, "yes"), h("option", { value: "false" }, "no"));
+      input.value = String(v);
+    } else if (m) {
+      input = h("select", {}, m[2].split(/,\s*/).map((o) => h("option", { value: o }, o)));
+      input.value = m[1];
+    } else {
+      input = h("input", { type: "text", value: display(v) });
+    }
+    td.replaceChildren(input);
+    input.focus();
+    if (input.select) input.select();
+    let done = false;
+    const commit = () => {
+      if (done) return;
+      done = true;
+      const val = input.value.trim();
+      if (val === display(v) || val === "") { renderPartInfo(); return; }
+      const value = typeof v === "boolean" ? val === "true" : /^-?\d+(\.\d+)?$/.test(val) ? Number(val) : val;
+      editPart(p, key, value);
+    };
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { done = true; renderPartInfo(); } });
+    input.addEventListener("change", () => { if (input.tagName === "SELECT") commit(); });
+    input.addEventListener("blur", () => setTimeout(commit, 0));
+  }
+  async function editPart(p, key, value) {
+    if (S.busy) return;
+    setBusy(true);
+    try {
+      const r = await callTool("edit_components", { designId: S.data.design.designId, changes: [{ component: p.id, properties: { [key]: value } }] });
+      let note = "Changed " + label(key).toLowerCase() + ".";
+      try { const j = JSON.parse(r.text); if (j.applied) note = [].concat(j.applied).join("; "); } catch (e) { /* plain text */ }
+      await refresh();
+      renderPartInfo(note);
+      const ap = S.data.metrics.find((x) => x.key === "apogee"), st = S.data.metrics.find((x) => x.key === "stability");
+      request("ui/update-model-context", { content: [{ type: "text", text: "In the design view the user changed the " + p.name + ": " + note
+        + (ap ? " Apogee is now " + num(ap.value) + " " + ap.unit + "." : "") + (st ? " Ascent stability " + st.text + "." : "") + " (undo reverts it)" }] }).catch(() => {});
+    } catch (e) {
+      renderPartInfo(e.message, true);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function refresh() {
+    const d = await callTool("workbench_data", Object.assign({}, S.viewRef, { refresh: true }));
+    load(d.data);
+  }
+  function setBusy(on) {
+    S.busy = on;
+    for (const b of ["#b-refresh", "#b-undo"]) $(b).disabled = on;
+    document.body.style.cursor = on ? "progress" : "";
+  }
+  function ask(text) {
+    request("ui/message", { role: "user", content: [{ type: "text", text }] }).catch(() => {});
+  }
+
+  function renderChecks() {
+    const c = S.data.checks;
+    const body = $("#checks-body");
+    body.replaceChildren();
+    if (!c) { $("#checks-summary").textContent = "No rule checks."; return; }
+    $("#checks-summary").textContent = (c.ruleSet ? c.ruleSet + ": " : "") + c.summary;
+    const order = { FAIL: 0, WARN: 1, INFO: 2, PASS: 3 };
+    const items = (c.checks || []).map((x, i) => [x, i]).sort((a, b) => order[a[0].status] - order[b[0].status] || a[1] - b[1]).map((x) => x[0]);
+    for (const x of items) {
+      if (S.filter !== "all" && x.status !== S.filter) continue;
+      const icon = x.status === "PASS" ? "✓" : x.status === "FAIL" ? "✕" : x.status === "WARN" ? "!" : "i";
+      const label2 = { PASS: "Pass", FAIL: "Fail", WARN: "Warning", INFO: "Info" }[x.status] || x.status;
+      const askBtn = S.host && (x.status === "FAIL" || x.status === "WARN")
+        ? h("div", {}, h("button", { class: "linkbtn", onclick: () => ask("How do we fix this rule check: " + x.item + " (" + x.value + "; requirement: " + x.requirement + ")?") }, "Ask Claude how to fix"))
+        : null;
+      body.append(h("tr", {}, h("td", {}, h("span", { class: "status" }, h("span", { class: "icon " + x.status }, icon), label2)),
+        h("td", {}, x.item, askBtn), h("td", {}, x.value || ""), h("td", {}, x.requirement || ""), h("td", { class: "ref" }, x.ref || "")));
+    }
+    const man = c.manualChecks || [];
+    $("#manual").hidden = !man.length;
+    $("#manual-list").replaceChildren(...man.map((m) => h("li", {}, m)));
+  }
+
+  // ------------------------------------------------------------------ tabs and time
+  function selectTab(tab) {
+    S.tab = ["model", "flight", "trajectory", "checks"].includes(tab) ? tab : "model";
+    for (const b of $$(".tabs button")) b.setAttribute("aria-selected", String(b.dataset.tab === S.tab));
+    for (const id of ["model", "flight", "trajectory", "checks"]) $("#tab-" + id).hidden = id !== S.tab;
+    if (S.tab === "model" && S.viewer) S.viewer.resize();
+    if (S.tab === "flight" || S.tab === "trajectory") redrawCharts();
+    reportSize();
+  }
+  function renderChips() {
+    const box = $("#chips");
+    box.replaceChildren();
+    const keep = ["burnout", "separation", "ignition", "apogee", "deploy", "landing"];
+    for (const e of S.data.flight.events) {
+      if (e.branch !== 0 || !keep.includes(e.kind)) continue;
+      box.append(h("button", { class: "chip", title: (e.detail || e.title) + " at " + fmtT(e.t), onclick: () => setT(e.t) }, e.title));
+    }
+  }
+  function setT(t) {
+    S.T = clamp(t, 0, tEnd());
+    $("#time").value = S.T;
+    const e = eventAt(S.T);
+    $("#tlabel").textContent = "t = " + fmtT(S.T) + (e ? " · after " + e.title.toLowerCase() : "");
+    if (S.viewer) S.viewer.dirty();
+    updateHud();
+    for (const c of S.charts) c.cross(S.hoverT != null ? S.hoverT : S.T);
+    for (const c of S.traj) c.cross(S.T);
+    updateReadout(S.hoverT != null ? S.hoverT : S.T);
+  }
+  function updateHud() {
+    const f = S.data.flight, u = S.data.units, t = S.T;
+    const parts = [];
+    if (S.viewer && S.viewer.mode === "fly") {
+      parts.push(["T+", fmtT(t)], ["altitude", num(conv(interp(f.path.up, t), u.distance)) + " " + u.distance]);
+      if (f.series.speed) parts.push(["speed", num(interp(f.series.speed.values, t)) + " " + u.velocity]);
+      if (f.series.mach) parts.push(["Mach", num(interp(f.series.mach.values, t))]);
+      if (S.playing) { const r = playRate(); parts.push(["", (r < 1.05 && r > 0.95 ? "real time" : r < 1 ? "slowed " + num(1 / r) + "x" : num(r) + "x")]); }
+    } else {
+      const cg = interp(f.cg, t), cp = interp(f.cp, t);
+      parts.push(["t", fmtT(t)], ["CG", num(conv(cg, u.length)) + " " + u.length]);
+      if (fin(cp)) parts.push(["CP", num(conv(cp, u.length)) + " " + u.length]);
+      const st = f.series.stability ? interp(f.series.stability.values, t) : NaN;
+      if (fin(st)) parts.push(["margin", num(st) + " cal"]);
+    }
+    const hud = $("#hud");
+    hud.replaceChildren(...parts.flatMap(([k, v], i) => [i ? " · " : "", k + " ", h("b", {}, v)]));
+  }
+  function updateReadout(t) {
+    const r = $("#readout");
+    if (!S.data) return;
+    const f = S.data.flight, kids = [h("span", {}, "t ", h("b", {}, fmtT(t)))];
+    for (const c of f.charts) for (const k of c.series) {
+      const v = interp(f.series[k].values, t);
+      kids.push(h("span", {}, f.series[k].label + " ", h("b", {}, num(v)), c.unit ? " " + c.unit : ""));
+    }
+    const e = eventAt(t);
+    if (e) kids.push(h("span", {}, "after ", h("b", {}, e.title)));
+    r.replaceChildren(...kids);
+  }
+
+  // ------------------------------------------------------------------ 4x4 matrices (column-major)
+  const V = {
+    sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+    add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
+    mul: (a, k) => [a[0] * k, a[1] * k, a[2] * k],
+    dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+    cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+    norm: (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
+  };
+  const M = {
+    persp(fy, a, n, f) { const t = 1 / Math.tan(fy / 2), o = new Float32Array(16); o[0] = t / a; o[5] = t; o[10] = (f + n) / (n - f); o[11] = -1; o[14] = 2 * f * n / (n - f); return o; },
+    ortho(l, r, b, t, n, f) { const o = new Float32Array(16); o[0] = 2 / (r - l); o[5] = 2 / (t - b); o[10] = -2 / (f - n); o[12] = -(r + l) / (r - l); o[13] = -(t + b) / (t - b); o[14] = -(f + n) / (f - n); o[15] = 1; return o; },
+    look(e, c, u) {
+      const z = V.norm(V.sub(e, c)), x = V.norm(V.cross(u, z)), y = V.cross(z, x), o = new Float32Array(16);
+      o[0] = x[0]; o[4] = x[1]; o[8] = x[2]; o[1] = y[0]; o[5] = y[1]; o[9] = y[2]; o[2] = z[0]; o[6] = z[1]; o[10] = z[2];
+      o[12] = -V.dot(x, e); o[13] = -V.dot(y, e); o[14] = -V.dot(z, e); o[15] = 1; return o;
+    },
+    mul(a, b) { const o = new Float32Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) { let x = 0; for (let k = 0; k < 4; k++) x += a[k * 4 + r] * b[c * 4 + k]; o[c * 4 + r] = x; } return o; },
+    basis(a, b, c, p, k) { k = k || 1; return new Float32Array([a[0] * k, a[1] * k, a[2] * k, 0, b[0] * k, b[1] * k, b[2] * k, 0, c[0] * k, c[1] * k, c[2] * k, 0, p[0], p[1], p[2], 1]); },
+    trans(x, y, z) { return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]); },
+    apply(m, v) { const x = v[0], y = v[1], z = v[2], w = m[3] * x + m[7] * y + m[11] * z + m[15]; return [(m[0] * x + m[4] * y + m[8] * z + m[12]) / w, (m[1] * x + m[5] * y + m[9] * z + m[13]) / w, (m[2] * x + m[6] * y + m[10] * z + m[14]) / w, w]; }
+  };
+  function rgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; }
+  function cssColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  // ------------------------------------------------------------------ 3-D viewer (WebGL)
+  const CUT_KINDS = new Set(["nose", "body", "transition", "tube", "struct", "fins"]);
+  const VS = "attribute vec3 aPos; attribute vec3 aNor; uniform mat4 uVP; uniform mat4 uM; varying vec3 vN; varying vec3 vR; varying vec3 vW;"
+    + "void main(){ vR = aPos; vec4 w = uM * vec4(aPos, 1.0); vW = w.xyz; vN = mat3(uM) * aNor; gl_Position = uVP * w; }";
+  const FS = "precision mediump float; varying vec3 vN; varying vec3 vR; varying vec3 vW;"
+    + "uniform vec3 uColor; uniform vec3 uEye; uniform vec3 uViewDir; uniform float uOrtho; uniform vec3 uLight; uniform vec2 uCutN; uniform float uCut;"
+    + "uniform float uSel; uniform vec3 uSelColor; uniform float uDim; uniform vec3 uFade;"
+    + "uniform float uEmissive;"
+    + "void main(){ if (uCut > 0.5 && dot(vR.yz, uCutN) > 0.0) discard;"
+    + " if (uEmissive > 0.5) { gl_FragColor = vec4(uColor, 1.0); return; }"
+    + " vec3 n = normalize(vN); vec3 v = uOrtho > 0.5 ? -uViewDir : normalize(uEye - vW); float back = 0.0; if (dot(n, v) < 0.0) { n = -n; back = 1.0; }"
+    + " float diff = max(dot(n, uLight), 0.0); float hemi = 0.5 + 0.5 * n.z; vec3 hv = normalize(uLight + v);"
+    + " float spec = pow(max(dot(n, hv), 0.0), 48.0) * 0.22 * (1.0 - back);"
+    + " vec3 c = uColor * (0.30 + 0.16 * hemi + 0.60 * diff) * (1.0 + 0.18 * uSel) * (1.0 - 0.25 * back) + spec;"
+    + " float rim = pow(1.0 - abs(dot(n, v)), 2.0);"
+    + " c += uSelColor * uSel * (0.25 + 0.9 * rim);"
+    + " gl_FragColor = vec4(mix(c, uFade, uDim), 1.0); }";
+  const PICK_FS = "precision mediump float; varying vec3 vN; varying vec3 vR; varying vec3 vW; uniform vec3 uId; uniform vec2 uCutN; uniform float uCut;"
+    + "void main(){ if (uCut > 0.5 && dot(vR.yz, uCutN) > 0.0) discard; gl_FragColor = vec4(uId, 1.0); }";
+  const LVS = "attribute vec3 aPos; uniform mat4 uVP; void main(){ gl_Position = uVP * vec4(aPos, 1.0); }";
+  const LFS = "precision mediump float; uniform vec4 uColor; void main(){ gl_FragColor = uColor; }";
+  // Sky and ground of the replay, per pixel as in the flight animation: the ray through each pixel either rises (sky,
+  // horizon to zenith) or meets the ground, which is farm fields 150 m on a side with hedgerows, gravel round the pad and
+  // haze with distance. An endless plane, drawn behind everything without depth.
+  const GVS = "attribute vec2 aPos; varying vec2 vNdc; void main(){ vNdc = aPos; gl_Position = vec4(aPos, 0.0, 1.0); }";
+  const GFS = "#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n"
+    + "varying vec2 vNdc; uniform vec3 uEye, uFwd, uRight, uUp, uZenith, uHorizon; uniform vec2 uTan; uniform float uPx;"
+    + "float hash(vec2 c) { return fract(sin(dot(c, vec2(12.9898, 78.233))) * 43758.5453); }"
+    + "void main(){ vec3 d = uFwd + vNdc.x * uTan.x * uRight + vNdc.y * uTan.y * uUp; float l = length(d), dz = d.z / l;"
+    + " if (dz >= -1e-4) { gl_FragColor = vec4(mix(uHorizon, uZenith, pow(min(1.0, dz * 1.6), 0.6)), 1.0); return; }"
+    + " float s = uEye.z / -dz; vec2 g = uEye.xy + s * d.xy / l;"
+    + " float m = s * uPx / max(-dz, 0.02);" // metres of ground one pixel covers along the view
+    + " vec3 A = vec3(0.471, 0.588, 0.345), B = vec3(0.643, 0.620, 0.408), C = vec3(0.376, 0.502, 0.298), H = vec3(0.337, 0.384, 0.251);"
+    + " vec2 f = g / 150.0, cell = floor(f), r = f - cell; float v = hash(cell);"
+    + " vec3 col = v < 0.5 ? mix(A, C, v * 2.0) : mix(A, B, (v - 0.5) * 2.0);"
+    + " col = mix(col, 0.5 * A + 0.25 * B + 0.25 * C, clamp(m / 120.0 - 0.2, 0.0, 1.0));" // fields smaller than a pixel blend
+    + " float e = min(min(r.x, 1.0 - r.x), min(r.y, 1.0 - r.y)) * 150.0;"
+    + " float hedge = mix(clamp((1.5 - e) / max(m, 1e-3) + 0.5, 0.0, 1.0), 0.04, clamp(m / 12.0, 0.0, 1.0));"
+    + " col = mix(col, H, 0.6 * hedge);"
+    + " col = mix(vec3(0.690, 0.659, 0.588), col, smoothstep(18.0, 25.0, length(g)));"
+    + " gl_FragColor = vec4(mix(col, uHorizon, 1.0 - exp(-s / 9000.0)), 1.0); }";
+  // Smoke: camera-facing ribbons with an alpha per vertex.
+  const TVS = "attribute vec3 aPos; attribute float aA; uniform mat4 uVP; varying float vA; void main(){ vA = aA; gl_Position = uVP * vec4(aPos, 1.0); }";
+  const TFS = "precision mediump float; varying float vA; uniform vec3 uColor; void main(){ gl_FragColor = vec4(uColor, vA); }";
+
+  // ------------------------------------------------------------------ flight replay: the flight animation's staging
+  // The same scene as animate_flight (FlightAnimation.plan): pad and rail, the chase camera across the drift, flames at
+  // the burning nozzles, the smoke trail, canopies that inflate, the stack hanging apart under them, dropped stages on
+  // their own tracks, and the video's pacing.
+  const smooth = (x) => { const c = clamp(x, 0, 1); return c * c * (3 - 2 * c); };
+  const lerp3 = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+  // Raster3d.alongAxis: rotation (row-major 3 x 3) taking the local x axis to `axis`, rolled about it.
+  function alongAxis(axis, roll) {
+    const x = V.norm(axis), ref = Math.abs(x[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    const y = V.norm(V.cross(ref, x)), z = V.cross(x, y), c = Math.cos(roll), sn = Math.sin(roll);
+    const y2 = [y[0] * c + z[0] * sn, y[1] * c + z[1] * sn, y[2] * c + z[2] * sn];
+    const z2 = [z[0] * c - y[0] * sn, z[1] * c - y[1] * sn, z[2] * c - y[2] * sn];
+    return [x[0], y2[0], z2[0], x[1], y2[1], z2[1], x[2], y2[2], z2[2]];
+  }
+  const rmul = (r, v) => [r[0] * v[0] + r[1] * v[1] + r[2] * v[2], r[3] * v[0] + r[4] * v[1] + r[5] * v[2], r[6] * v[0] + r[7] * v[1] + r[8] * v[2]];
+  // Model matrix from a row-major rotation, scales along the local axes and an origin.
+  const placed = (r, o, sx, sy, sz) => M.basis([r[0] * sx, r[3] * sx, r[6] * sx], [r[1] * sy, r[4] * sy, r[7] * sy], [r[2] * sz, r[5] * sz, r[8] * sz], o);
+  function trackAt(ts, col, t) {
+    const n = ts ? ts.length : 0;
+    if (!n || !col) return NaN;
+    if (t <= ts[0]) return firstValid(col, 0, 1);
+    if (t >= ts[n - 1]) return firstValid(col, n - 1, -1);
+    let lo = 0, hi = n - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ts[m] <= t) lo = m; else hi = m; }
+    const a = col[lo], b = col[hi];
+    if (a == null || b == null) return a == null ? (b == null ? firstValid(col, lo, -1) : b) : a;
+    return a + (b - a) * (t - ts[lo]) / ((ts[hi] - ts[lo]) || 1);
+  }
+  function trackPos(tr, t) {
+    const e = trackAt(tr.t, tr.east, t), n = trackAt(tr.t, tr.north, t), z = trackAt(tr.t, tr.up, t);
+    return [fin(e) ? e : 0, fin(n) ? n : 0, fin(z) ? Math.max(0, z) : 0];
+  }
+  // Nose direction from the recorded attitude, interpolated as a vector (the heading wraps round); else the path.
+  function trackAxis(tr, t) {
+    const ts = tr.t, n = ts.length;
+    const at = (i) => tr.theta && tr.theta[i] != null && tr.phi[i] != null
+      ? [Math.cos(tr.theta[i]) * Math.cos(tr.phi[i]), Math.cos(tr.theta[i]) * Math.sin(tr.phi[i]), Math.sin(tr.theta[i])] : null;
+    let lo = 0, hi = n - 1;
+    if (t <= ts[0]) hi = 0; else if (t >= ts[n - 1]) lo = n - 1; else while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ts[m] <= t) lo = m; else hi = m; }
+    const a = at(lo), b = at(hi);
+    if (a && b) {
+      const u = hi > lo ? (t - ts[lo]) / ((ts[hi] - ts[lo]) || 1) : 0;
+      return V.norm(lerp3(a, b, clamp(u, 0, 1)));
+    }
+    const p = trackPos(tr, t - 0.05), q = trackPos(tr, t + 0.05), d = V.sub(q, p);
+    return Math.hypot(d[0], d[1], d[2]) > 1e-6 ? V.norm(d) : [0, 0, 1];
+  }
+  const GORES = [["#ff7a1a", "#1f2a3c"], ["#d7263d", "#f4f4f4"], ["#1f6feb", "#f4f4f4"]], STAGE_GORES = [["#2e9e5b", "#f4f4f4"], ["#8e5cc9", "#f4f4f4"]];
+
+  function boxTris(lo, hi) {
+    const c = [];
+    for (let i = 0; i < 8; i++) c.push([(i & 1) ? hi[0] : lo[0], (i & 2) ? hi[1] : lo[1], (i & 4) ? hi[2] : lo[2]]);
+    const out = [];
+    for (const f of [[0, 2, 3, 1], [4, 5, 7, 6], [0, 1, 5, 4], [2, 6, 7, 3], [0, 4, 6, 2], [1, 3, 7, 5]]) {
+      out.push([...c[f[0]], ...c[f[1]], ...c[f[2]]], [...c[f[0]], ...c[f[2]], ...c[f[3]]]);
+    }
+    return out;
+  }
+  // A cone along +x from its base (radius r at x = 0) to its tip at x = len.
+  function coneTris(len, r, seg) {
+    const out = [];
+    for (let j = 0; j < seg; j++) {
+      const a0 = 2 * Math.PI * j / seg, a1 = 2 * Math.PI * (j + 1) / seg;
+      const p0 = [0, r * Math.cos(a0), r * Math.sin(a0)], p1 = [0, r * Math.cos(a1), r * Math.sin(a1)];
+      out.push([...p0, ...p1, len, 0, 0], [...p0, 0, 0, 0, ...p1]);
+    }
+    return out;
+  }
+  // A canopy of unit diameter, apex along +x, as two sets of gores (alternating colours).
+  function domeTris(gores) {
+    const out = [[], []], rings = 8, per = 4;
+    const pt = (pa, a) => { const rr = 0.5 * Math.sin(pa); return [0.42 * Math.cos(pa), rr * Math.cos(a), rr * Math.sin(a)]; };
+    for (let g = 0; g < gores; g++) for (let k = 0; k < per; k++) {
+      const a0 = 2 * Math.PI * (g * per + k) / (gores * per), a1 = 2 * Math.PI * (g * per + k + 1) / (gores * per);
+      for (let i = 0; i < rings; i++) {
+        const p0 = Math.PI / 2 * i / rings, p1 = Math.PI / 2 * (i + 1) / rings;
+        const q00 = pt(p0, a0), q01 = pt(p0, a1), q10 = pt(p1, a0), q11 = pt(p1, a1);
+        out[g % 2].push([...q00, ...q10, ...q11], [...q00, ...q11, ...q01]);
+      }
+    }
+    return out;
+  }
+
+  class Replay {
+    constructor(data) {
+      const f = data.flight, a = f.anim || null;
+      this.data = data;
+      this.a = a;
+      this.main = { t: f.t, east: f.path.east, north: f.path.north, up: f.path.up, theta: f.path.theta, phi: f.path.phi, roll: f.path.roll, cg: f.cg };
+      this.L = a ? a.length : data.rocket.length;
+      this.maxR = a ? a.maxR : data.rocket.diameter / 2;
+      this.lift = a ? a.lift : 0.3;
+      this.cg0 = a ? a.cg0 : data.rocket.cgLaunch;
+      this.drift = a ? [a.drift[0], a.drift[1], 0] : [1, 0, 0];
+      this.side = a ? [a.side[0], a.side[1], 0] : [0, 1, 0];
+      this.axis0 = a ? a.axis0 : trackAxis(this.main, 0);
+      this.apogee = a ? a.apogee : apogeeT();
+      this.burnout = a ? a.burnout : (f.events.filter((e) => e.kind === "burnout").pop() || { t: 3 }).t;
+      this.sections = a && a.sections.length ? a.sections : [[0, this.L]];
+      this.nozzles = a ? a.nozzles : [];
+      this.deploys = f.events.filter((e) => e.kind === "deploy" && e.branch === 0);
+      this.dropped = (a ? a.dropped : []).map((d) => Object.assign({}, d, { tr: (f.stages || []).find((x) => x.track === d.track) })).filter((d) => d.tr);
+      this.stageDeploys = new Map(this.dropped.map((d) => [d.track, f.events.filter((e) => e.kind === "deploy" && e.branch === d.track)]));
+      this.gores = new Map();
+      let ci = 0, si = 0;
+      for (const e of f.events) if (e.kind === "deploy") this.gores.set(e, e.branch === 0 ? GORES[ci++ % GORES.length] : STAGE_GORES[si++ % STAGE_GORES.length]);
+      const th = f.series.thrust ? f.series.thrust.values : null;
+      this.thrust = th;
+      this.maxThrust = th ? th.reduce((m, v) => (v != null && v > m ? v : m), 0) : 0;
+      // Animation time at each flight time (the video's pacing), for captions; and the pacing itself.
+      this.pace = a && a.pace && a.pace.length ? a.pace : null;
+      if (this.pace) {
+        this.cum = [0];
+        for (let i = 1; i < this.pace.length; i++) this.cum.push(this.cum[i - 1] + 0.05 * (this.pace[i] + this.pace[i - 1]));
+      }
+      // Smoke along the flight path while a motor burns (a gap when none does, as between stages).
+      this.smoke = [];
+      let on = false;
+      for (let t = 0; t <= this.burnout + 1e-9 && t <= tEnd(); t += 0.04) {
+        const burning = this.thrustFrac(t) > 0.01;
+        if (burning) { const q = trackPos(this.main, t); this.smoke.push([t, q[0], q[1], q[2] + this.lift]); }
+        else if (on) this.smoke.push([t, NaN, NaN, NaN]);
+        on = burning;
+      }
+      this.smokeDiam = Math.max(0.05, ...this.burning(0).map((nz) => 4.4 * nz.r));
+    }
+    thrustFrac(t) {
+      if (!this.thrust || !(this.maxThrust > 0)) return 0;
+      const v = interp(this.thrust, t);
+      return fin(v) ? v / this.maxThrust : 0;
+    }
+    // Flight seconds per second of playback "like the video".
+    rate(t) {
+      if (!this.pace) return t < this.burnout + 1 ? 1 : t < this.apogee ? 3 : 8;
+      const i = clamp(Math.round(t / 0.1), 0, this.pace.length - 1);
+      return 1 / Math.max(0.02, this.pace[i]);
+    }
+    animAt(t) {
+      if (!this.cum) return t;
+      const x = clamp(t / 0.1, 0, this.cum.length - 1), i = Math.floor(x);
+      return i >= this.cum.length - 1 ? this.cum[this.cum.length - 1] : this.cum[i] + (this.cum[i + 1] - this.cum[i]) * (x - i);
+    }
+    droppedStage(stage, t) { return this.dropped.some((d) => d.stage === stage && t >= d.tr.separation); }
+    // Nozzles burning at t: the lowest stage still attached and any side boosters still attached.
+    burning(t) {
+      let lowest = -1;
+      for (const nz of this.nozzles) if (!this.droppedStage(nz.stage, t) && !nz.sideBooster) lowest = Math.max(lowest, nz.stage);
+      return this.nozzles.filter((nz) => !this.droppedStage(nz.stage, t) && (nz.stage === lowest || nz.sideBooster));
+    }
+    stagingBump(t) {
+      let bump = 0;
+      for (const d of this.dropped) { const sep = d.tr.separation; bump = Math.max(bump, smooth((t - sep) / 0.3) * (1 - smooth((t - sep - 1.2) / 1.0))); }
+      return bump;
+    }
+    // Everything at flight time t: a model matrix per part, flames, canopies, lines (cords and shroud lines), the
+    // point the camera looks at and the size of what it frames.
+    frame(t) {
+      const tc = Math.max(0, t), out = { mats: new Map(), flames: [], canopies: [], lines: [] };
+      const tDep = this.deploys.length ? this.deploys[0].t : NaN;
+      const kHang = isNaN(tDep) ? 0 : smooth((tc - tDep) / 1.2);
+      const p0 = trackPos(this.main, tc), pos = [p0[0], p0[1], p0[2] + this.lift];
+      let maxSec = 0, canopyD = 0;
+      for (const sc of this.sections) maxSec = Math.max(maxSec, sc[1] - sc[0]);
+      for (const e of this.deploys) if (e.t <= tc) canopyD = Math.max(canopyD, e.size || 0);
+      const hangH = 0.95 * maxSec + this.maxR + 0.3, sysH = hangH + 0.4 * this.L + 1.4 * canopyD;
+      out.size = this.L + kHang * (sysH - this.L);
+      out.target = [p0[0], p0[1], p0[2] + this.lift * (1 - kHang) + kHang * sysH * 0.55];
+      out.pos = pos;
+      const roll = (trackAt(this.main.t, this.main.roll, tc) || 0) * (1 - kHang);
+      const ax = t <= 0 ? this.axis0 : trackAxis(this.main, tc), nax = V.mul(ax, -1);
+      let cgx = trackAt(this.main.t, this.main.cg, tc);
+      if (!fin(cgx)) cgx = this.cg0;
+      const rot = alongAxis(nax, roll), origin = V.sub(pos, rmul(rot, [cgx, 0, 0]));
+      const harness = V.add(p0, [0, 0, hangH]), n = this.sections.length, dr = this.drift, sec = [];
+      for (let k = 0; k < n; k++) {
+        let rs = rot, os = origin;
+        if (kHang > 0) {
+          let attachX, tail;
+          if (n === 1) { attachX = cgx; tail = dr; }
+          else if (k === 0) { attachX = this.sections[0][1]; tail = V.norm([0.5 * dr[0], 0.5 * dr[1], 0.87]); }
+          else {
+            attachX = this.sections[k][0];
+            const phi = (50 + 18 * (k - 1)) * Math.PI / 180;
+            tail = V.norm([Math.cos(phi) * dr[0], Math.cos(phi) * dr[1], -Math.sin(phi)]);
+          }
+          const off = n === 1 ? 0 : (k - (n - 1) / 2) * 2.5 * this.maxR;
+          const hangAt = V.add(harness, [dr[0] * off, dr[1] * off, 0]), flightAt = V.add(origin, rmul(rot, [attachX, 0, 0]));
+          rs = alongAxis(V.norm(lerp3(nax, tail, kHang)), roll);
+          const at = lerp3(flightAt, hangAt, kHang);
+          os = V.sub(at, rmul(rs, [attachX, 0, 0]));
+          if (kHang > 0.3) out.lines.push([at, harness, 0.012, "#e8d9b5"]);
+        }
+        sec.push([rs, os]);
+      }
+      const stagePose = new Map();
+      for (const d of this.dropped) stagePose.set(d.stage, tc >= d.tr.separation ? this.droppedPose(d, tc, out) : [rot, origin]);
+      for (const p of this.data.rocket.parts) {
+        if (p.internal && p.kind !== "motor") continue; // inside the airframe (the video leaves them out too)
+        const pose = p.section === -1 || (p.section == null && stagePose.has(p.stageNo)) ? stagePose.get(p.stageNo) || sec[0]
+          : sec[clamp(p.section || 0, 0, n - 1)];
+        out.mats.set(p.i, placed(pose[0], pose[1], 1, 1, 1));
+      }
+      const frac = this.thrustFrac(tc);
+      if (frac > 0.01 && kHang === 0) {
+        const flick = 1 + 0.08 * Math.sin(tc * 97) + 0.05 * Math.sin(tc * 41);
+        for (const nz of this.burning(tc)) {
+          const fl = nz.r * 2 * (3 + 7 * frac) * flick, at = V.add(origin, rmul(rot, nz.at));
+          out.flames.push(placed(rot, at, fl, nz.r * 1.1, nz.r * 1.1));
+        }
+      }
+      // Canopies: the newest above the harness, earlier ones (a drogue that stays attached) beside it.
+      let beside = 0;
+      for (let i = this.deploys.length - 1; i >= 0; i--) {
+        const e = this.deploys[i];
+        if (e.t > tc || !(e.size > 0)) continue;
+        const lines = e.streamer ? 0 : 0.9 * e.size, sway = 0.12 * Math.sin(0.7 * tc + i), off = beside === 0 ? 0 : beside + 0.6 * e.size;
+        const base = [harness[0] + dr[0] * (sway * lines + off), harness[1] + dr[1] * (sway * lines + off), harness[2] + 0.4 * this.L + lines];
+        beside = off + 0.6 * Math.max(this.canopy(out, e, tc, base, harness, i), 0.3);
+      }
+      return out;
+    }
+    droppedPose(d, tc, out) {
+      const b = d.tr, span = d.pivot;
+      let pivot = trackAt(b.t, b.cg, tc);
+      if (!fin(pivot) || pivot < span[1] || pivot > span[2]) pivot = span[0];
+      const bp = trackPos(b, tc), own = this.stageDeploys.get(d.track) || [];
+      const kB = own.length ? smooth((tc - own[0].t) / 1.2) : 0;
+      const tail = V.norm(lerp3(V.mul(trackAxis(b, tc), -1), this.drift, kB));
+      const half = Math.max(pivot - span[1], span[2] - pivot);
+      bp[2] += this.maxR + kB * 0.1 * half;
+      const br = alongAxis(tail, (trackAt(b.t, b.roll, tc) || 0) * (1 - kB)), bo = V.sub(bp, rmul(br, [pivot, 0, 0]));
+      const hook = V.add(bp, [0, 0, this.maxR]);
+      let beside = 0;
+      for (let i = own.length - 1; i >= 0; i--) {
+        const e = own[i];
+        if (e.t > tc || !(e.size > 0)) continue;
+        const off = beside === 0 ? 0 : beside + 0.6 * e.size;
+        const base = V.add(hook, [this.drift[0] * off, this.drift[1] * off, 0.4 * half + (e.streamer ? 0 : 0.9 * e.size)]);
+        beside = off + 0.6 * Math.max(this.canopy(out, e, tc, base, hook, i), 0.3);
+      }
+      return [br, bo];
+    }
+    // A canopy (or streamer) with its rim centred on base: shroud lines to a confluence point and a cord on to the
+    // harness. It inflates over about a second. Returns the diameter drawn.
+    canopy(out, e, tc, base, harness, i) {
+      const d = e.size * Math.max(0.06, smooth((tc - e.t - 0.1) / 0.9));
+      const colors = this.gores.get(e) || GORES[0];
+      if (e.streamer) {
+        out.lines.push([harness, base, 0.012, "#e8d9b5"], [base, V.add(base, [0, 0, d]), Math.max(0.03, e.size * 0.08), colors[0]]);
+        return d;
+      }
+      const sway = 0.12 * Math.sin(0.7 * tc + i), up = V.norm([-this.drift[0] * sway, -this.drift[1] * sway, 1]), rr = alongAxis(up, 0);
+      const conf = V.sub(base, [0, 0, 0.9 * e.size]);
+      for (let g = 0; g < 8; g++) {
+        const th = 2 * Math.PI * g / 8;
+        out.lines.push([V.add(base, rmul(rr, [0, 0.5 * d * Math.cos(th), 0.5 * d * Math.sin(th)])), conf, 0.004, "#dcdcdc"]);
+      }
+      out.lines.push([conf, harness, 0.012, "#e8d9b5"]);
+      out.canopies.push({ m: placed(rr, base, d, d, d), colors });
+      return d;
+    }
+    // The video's stage camera: a chase view of the first dropped stage still flying (or just landed), its own canopy
+    // framed with it. Null when no stage is off.
+    stageCam(t) {
+      const tc = Math.max(0, t), d = this.dropped.find((x) => tc >= x.tr.separation && tc <= x.tr.t[x.tr.t.length - 1] + 2.5);
+      if (!d) return null;
+      const span = d.pivot, len = span[2] - span[1];
+      let deployed = 0;
+      for (const e of this.stageDeploys.get(d.track) || []) if (e.t <= tc) deployed = Math.max(deployed, e.size || 0);
+      const size = len + (deployed > 0 ? 0.4 * len + 1.4 * deployed : 0), p = trackPos(d.tr, tc);
+      const target = [p[0], p[1], p[2] + this.maxR + (deployed > 0 ? 0.45 * size : 0)];
+      const dir = V.norm([this.side[0] * 0.92 - this.drift[0] * 0.38, this.side[1] * 0.92 - this.drift[1] * 0.38, 0.12]);
+      const eye = V.add(target, V.mul(dir, 2.6 * size));
+      eye[2] = Math.max(eye[2], 1.2);
+      const a = trackPos(d.tr, tc - 0.05), b = trackPos(d.tr, tc + 0.05);
+      return { eye, target, fov: 40, name: d.tr.name, landed: tc >= d.tr.t[d.tr.t.length - 1], alt: p[2],
+        speed: Math.hypot(...V.sub(b, a)) / 0.1, range: Math.hypot(p[0], p[1]) };
+    }
+    // Where the camera is: the video's chase camera across the drift, an orbit, a spectator by the pad, or the whole
+    // flight. user: {az, el, zoom} offsets from dragging and scrolling.
+    camera(mode, t, fr, user) {
+      const tc = Math.max(0, t);
+      if (mode === "whole") return null;
+      const dir0 = V.norm([this.side[0] * 0.92 - this.drift[0] * 0.38, this.side[1] * 0.92 - this.drift[1] * 0.38, 0]);
+      const turn = (v, deg) => { const a = deg * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a); return [v[0] * c - v[1] * sn, v[0] * sn + v[1] * c, 0]; };
+      if (mode === "pad") {
+        const dist = Math.max(150, this.L * 40), base = turn(dir0, user.az);
+        const eye = [base[0] * dist, base[1] * dist, 1.7];
+        const range = Math.max(1, Math.hypot(...V.sub(fr.target, eye)));
+        const fov = clamp(2 * Math.atan(fr.size * 1.6 * user.zoom / range) * 180 / Math.PI, 0.25, 50);
+        return { eye, target: fr.target, fov };
+      }
+      if (mode === "orbit") {
+        // Circles the rocket, 10 degrees per second of playback, starting from the chase camera's side.
+        const ar = Math.atan2(dir0[1], dir0[0]) + (user.az + 10 * this.animAt(tc)) * Math.PI / 180;
+        const er = clamp(12 + user.el, -80, 85) * Math.PI / 180, dist = fr.size * 3.2 * user.zoom;
+        const eye = V.add(fr.target, V.mul([Math.cos(er) * Math.cos(ar), Math.cos(er) * Math.sin(ar), Math.sin(er)], dist));
+        eye[2] = Math.max(eye[2], 1.2);
+        return { eye, target: fr.target, fov: 40 };
+      }
+      const el = (-9 + 22 * smooth((tc - this.apogee + 1) / 3) + user.el) * Math.PI / 180;
+      const dist = 2.5 * fr.size * (1 + 0.9 * Math.max(0, 1 - tc / 1.5)) * (1 + 1.6 * this.stagingBump(tc)) * user.zoom;
+      const dir = turn(dir0, user.az);
+      const eye = [fr.target[0] + dist * Math.cos(el) * dir[0], fr.target[1] + dist * Math.cos(el) * dir[1], fr.target[2] + dist * Math.sin(el)];
+      eye[2] = Math.max(eye[2], 2.2);
+      return { eye, target: fr.target, fov: 40 };
+    }
+  }
+
+  class Viewer {
+    constructor(canvas, overlay) {
+      this.canvas = canvas;
+      this.overlay = overlay;
+      this.mode = "3d";
+      this.cut = false;
+      this.explode = 0;
+      this.flyCam = "chase";
+      this.user = { az: 0, el: 0, zoom: 1 };
+      this.cam = { az: -100, el: 16, dist: 3, target: [0, 0, 0], half: 1 };
+      this.hover = -1;
+      const gl = canvas.getContext("webgl", { antialias: true, alpha: true, premultipliedAlpha: true });
+      this.gl = gl;
+      if (!gl) {
+        canvas.parentNode.append(h("div", { class: "nogl" }, "3-D needs WebGL, which this browser has turned off. The plots, trajectory and checks still work."));
+        return;
+      }
+      this.prog = this.program(VS, FS);
+      this.pick = this.program(VS, PICK_FS);
+      this.lines = this.program(LVS, LFS);
+      this.groundP = this.program(GVS, GFS);
+      this.trailP = this.program(TVS, TFS);
+      this.trailP.aA = gl.getAttribLocation(this.trailP.p, "aA");
+      this.trailBuf = gl.createBuffer();
+      this.lineBufs = [];
+      this.bindControls();
+      new ResizeObserver(() => this.resize()).observe(canvas);
+    }
+    program(vs, fs) {
+      const gl = this.gl, p = gl.createProgram();
+      for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
+        const sh = gl.createShader(type);
+        gl.shaderSource(sh, src);
+        gl.compileShader(sh);
+        if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+        gl.attachShader(p, sh);
+      }
+      gl.linkProgram(p);
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+      const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+      for (let i = 0; i < n; i++) { const name = gl.getActiveUniform(p, i).name; u[name] = gl.getUniformLocation(p, name); }
+      return { p, u, aPos: gl.getAttribLocation(p, "aPos"), aNor: gl.getAttribLocation(p, "aNor") };
+    }
+    // Leaves only these vertex attribute arrays enabled (a stale one from another program fails the draw).
+    only(...locs) { for (let i = 0; i < 8; i++) if (!locs.includes(i)) this.gl.disableVertexAttribArray(i); }
+    buffer(arr) { const gl = this.gl, b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW); return b; }
+    setData(data, reset) {
+      this.data = data;
+      if (!this.gl) return;
+      for (const b of this.bufs || []) { this.gl.deleteBuffer(b.pos); this.gl.deleteBuffer(b.nor); }
+      this.bufs = data.rocket.parts.map((p) => ({ part: p, pos: this.buffer(p.pos), nor: this.buffer(p.nor), count: p.pos.length / 3 }));
+      this.L = data.rocket.length;
+      this.needsFrame = reset;
+      this.R = Math.max(data.rocket.diameter / 2, ...data.rocket.parts.filter((p) => !p.internal).map((p) => maxR(p.pos)));
+      this.pieces = Math.max(1, ...data.rocket.parts.map((p) => p.piece + 1));
+      this.replay = new Replay(data);
+      this.flyCache = null;
+      this.insetPts = null;
+      this.buildWorld();
+      if (reset) this.cam = { az: -112, el: 20, dist: this.L * 1.4, target: [this.L / 2, 0, 0], half: this.L * 0.36 };
+      this.resize();
+    }
+    buildWorld() {
+      const gl = this.gl, f = this.data.flight, R = this.replay, lift = R.lift;
+      for (const b of this.lineBufs) gl.deleteBuffer(b.buf);
+      for (const m of this.meshes || []) { gl.deleteBuffer(m.pos); gl.deleteBuffer(m.nor); }
+      this.lineBufs = [];
+      this.meshes = [];
+      const path = [];
+      for (let i = 0; i < f.t.length; i++) if (f.path.east[i] != null && f.path.up[i] != null) path.push(f.path.east[i], f.path.north[i], Math.max(0, f.path.up[i]) + lift, f.t[i]);
+      this.path = path;
+      const strip = new Float32Array(path.length / 4 * 3);
+      for (let i = 0, j = 0; i < path.length; i += 4) { strip[j++] = path[i]; strip[j++] = path[i + 1]; strip[j++] = path[i + 2]; }
+      this.lineBufs.push({ buf: this.buffer(strip), count: strip.length / 3, mode: gl.LINE_STRIP, kind: "path" });
+      for (const st of f.stages || []) {
+        const a = [];
+        for (let i = 0; i < st.t.length; i++) if (st.east[i] != null && st.t[i] >= st.separation) a.push(st.east[i], st.north[i], Math.max(0, st.up[i]) + R.maxR);
+        if (a.length > 3) this.lineBufs.push({ buf: this.buffer(new Float32Array(a)), count: a.length / 3, mode: gl.LINE_STRIP, kind: "stage" });
+      }
+      let ext = 300, reach = 100;
+      for (let i = 0; i < path.length; i += 4) {
+        ext = Math.max(ext, Math.abs(path[i]) * 1.3, Math.abs(path[i + 1]) * 1.3, path[i + 2] * 0.6);
+        reach = Math.max(reach, Math.hypot(path[i], path[i + 1], path[i + 2]));
+      }
+      this.extent = ext;
+      this.reach = reach; // the farthest the flight gets from the pad
+      if (!this.screen) this.screen = this.buffer(new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]));
+      const mesh = (tris, color, emissive) => {
+        const pos = new Float32Array(tris.flat());
+        const m = { pos: this.buffer(pos), nor: this.buffer(smoothNormals(pos)), count: pos.length / 3, color, emissive };
+        this.meshes.push(m);
+        return m;
+      };
+      // The pad, and the rail beside the rocket along its launch direction (as in the video).
+      this.pad = mesh(boxTris([-1, -1, 0], [1, 1, 0.12]), "#a9a79f");
+      const rr = alongAxis(R.axis0, 0), sr = 0.02, railLen = Math.max(0.5, R.a ? R.a.railLength : 2);
+      this.rail = mesh(boxTris([0, -sr, -sr], [railLen, sr, sr]).map((t) => {
+        const q = [];
+        for (let v = 0; v < 3; v++) {
+          const p = rmul(rr, [t[3 * v], t[3 * v + 1], t[3 * v + 2]]);
+          q.push(p[0] - R.side[0] * (R.maxR + sr), p[1] - R.side[1] * (R.maxR + sr), p[2] + 0.12);
+        }
+        return q;
+      }), "#6c717a");
+      this.flameOuter = mesh(coneTris(1, 1, 16), "#ff8a1f", true);
+      this.flameInner = mesh(coneTris(0.6, 0.55, 16), "#fff0a0", true);
+      const dome = domeTris(12);
+      this.gore = [mesh(dome[0], null), mesh(dome[1], null)];
+    }
+    resetView() {
+      const L = this.L;
+      this.cam = { az: -112, el: 20, dist: this.fitDist(L), target: [L / 2, 0, 0], half: L * 0.36 };
+      this.frame3d();
+    }
+    // Far enough that the whole length (exploded or not) fits the width, with a margin, at a three-quarter angle.
+    fitDist(span) {
+      const a = (this.canvas.clientWidth || 4) / (this.canvas.clientHeight || 3), t = Math.tan(17.5 * Math.PI / 180);
+      return Math.max(0.62 * span / (t * a), 0.3 * span / t);
+    }
+    frame3d() {
+      const span = this.L + this.explodeShift(this.pieces - 1);
+      this.cam.target = [span / 2, 0, 0];
+      this.cam.dist = this.fitDist(span);
+      this.dirty();
+    }
+    setMode(m) {
+      this.mode = m;
+      $("#viewport").classList.toggle("fly", m === "fly");
+      if (m === "side") { this.cut = true; $("#cut").checked = true; this.frameSide(); }
+      $("#t-cut").hidden = m === "fly";
+      $("#t-explode").hidden = m === "fly";
+      $("#t-flycam").hidden = m !== "fly";
+      $("#t-speed").hidden = m !== "fly";
+      $("#b-video").hidden = m !== "fly" || !S.host;
+      if (m !== "fly") $("#captions").replaceChildren();
+      updateHud();
+      this.dirty();
+    }
+    explodeShift(piece) { return piece * this.explode * this.L * 0.14; }
+    frameSide() {
+      const span = this.L + this.explodeShift(this.pieces - 1), a = (this.canvas.clientWidth || 1) / (this.canvas.clientHeight || 1);
+      this.cam.target = [span / 2, 0, 0];
+      this.cam.half = Math.max(span * 0.56 / a, this.R * 6);
+    }
+    resize() {
+      if (!this.gl) return;
+      const dpr = Math.min(2, window.devicePixelRatio || 1), w = this.canvas.clientWidth, hgt = this.canvas.clientHeight;
+      if (!w || !hgt) return;
+      this.canvas.width = Math.round(w * dpr);
+      this.canvas.height = Math.round(hgt * dpr);
+      this.overlay.setAttribute("viewBox", "0 0 " + w + " " + hgt);
+      if (this.needsFrame) { this.needsFrame = false; this.resetView(); if (this.mode === "side") this.frameSide(); }
+      this.dirty();
+    }
+    dirty() { if (!this.queued && this.gl) { this.queued = true; requestAnimationFrame(() => { this.queued = false; this.draw(); }); } }
+    view() {
+      const w = this.canvas.clientWidth || 1, hgt = this.canvas.clientHeight || 1, a = w / hgt, c = this.cam;
+      if (this.mode === "side") {
+        const half = c.half, t = c.target;
+        const eye = [t[0], t[1] - this.L * 4, t[2]];
+        const vp = M.mul(M.ortho(-half * a, half * a, -half, half, 0.01, this.L * 10), M.look(eye, t, [0, 0, 1]));
+        return { vp, eye, dir: [0, 1, 0], ortho: true, w, h: hgt };
+      }
+      let target = c.target, dist = c.dist, az = c.az, el = c.el;
+      if (this.mode === "fly") {
+        const fr = this.fly(), u = this.user;
+        let cam = this.replay.camera(this.flyCam, S.T, fr, u);
+        if (!cam) {
+          // The whole flight: the trajectory (pad included) from across the drift, far enough that its bounding sphere
+          // fits the frame; the rocket is drawn larger to be seen.
+          let lo = [0, 0, 0], hi = [0, 0, 0];
+          for (let i = 0; i < this.path.length; i += 4) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], this.path[i + k]); hi[k] = Math.max(hi[k], this.path[i + k]); }
+          const mid = V.mul(V.add(lo, hi), 0.5), rad = Math.max(60, Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / 2);
+          const half = Math.atan(Math.tan(17.5 * Math.PI / 180) * Math.min(1, a)), d2 = rad / Math.sin(half) * 1.3 * u.zoom;
+          const R = this.replay, base = Math.atan2(R.side[1] * 0.92 - R.drift[1] * 0.38, R.side[0] * 0.92 - R.drift[0] * 0.38);
+          const ar2 = base + u.az * Math.PI / 180, er2 = clamp(8 + u.el, -5, 89) * Math.PI / 180;
+          cam = { eye: V.add(mid, V.mul([Math.cos(er2) * Math.cos(ar2), Math.cos(er2) * Math.sin(ar2), Math.sin(er2)], d2)), target: mid, fov: 35 };
+          cam.eye[2] = Math.max(cam.eye[2], 2);
+        }
+        return this.camView(cam, w, hgt);
+      }
+      const ar = az * Math.PI / 180, er = el * Math.PI / 180;
+      const eye = V.add(target, V.mul([Math.cos(er) * Math.cos(ar), Math.cos(er) * Math.sin(ar), Math.sin(er)], dist));
+      const near = Math.max(0.005, dist / 200), far = this.mode === "fly" ? dist + this.extent * 6 : dist * 20 + this.L * 4;
+      const vp = M.mul(M.persp(35 * Math.PI / 180, a, near, far), M.look(eye, target, [0, 0, 1]));
+      return { vp, eye, dir: V.norm(V.sub(target, eye)), ortho: false, w, h: hgt, fov: 35 };
+    }
+    // A replay camera's projection for a w x h (CSS px) picture.
+    camView(cam, w, hgt) {
+      const a = w / hgt, range = Math.hypot(...V.sub(cam.target, cam.eye));
+      const near = Math.max(0.02, range / 400), far = Math.hypot(...cam.eye) + this.reach * 1.1 + 200;
+      const vp = M.mul(M.persp(cam.fov * Math.PI / 180, a, near, far), M.look(cam.eye, cam.target, [0, 0, 1]));
+      return { vp, eye: cam.eye, dir: V.norm(V.sub(cam.target, cam.eye)), ortho: false, w, h: hgt, fov: cam.fov, aspect: a };
+    }
+    // The replay's scene at the current time (cached per time and camera mode), the rocket enlarged in the whole-flight
+    // view so it can be seen.
+    fly() {
+      if (this.flyCache && this.flyCache.t === S.T && this.flyCache.cam === this.flyCam) return this.flyCache.fr;
+      const fr = this.replay.frame(S.T);
+      if (this.flyCam === "whole") {
+        const k = Math.max(1, this.extent / (this.L * 25)), c = fr.pos;
+        const G = M.mul(M.trans(c[0], c[1], c[2]), M.mul(new Float32Array([k, 0, 0, 0, 0, k, 0, 0, 0, 0, k, 0, 0, 0, 0, 1]), M.trans(-c[0], -c[1], -c[2])));
+        for (const [i, m] of fr.mats) fr.mats.set(i, M.mul(G, m));
+        fr.flames = fr.flames.map((m) => M.mul(G, m));
+        for (const cp of fr.canopies) cp.m = M.mul(G, cp.m);
+        fr.lines = fr.lines.map(([a, b, w, col]) => [M.apply(G, a).slice(0, 3), M.apply(G, b).slice(0, 3), w * k, col]);
+      }
+      this.flyCache = { t: S.T, cam: this.flyCam, fr };
+      return fr;
+    }
+    modelOf(part) {
+      return M.trans(this.explodeShift(part.piece), 0, 0);
+    }
+    cutNormal(v) {
+      // The half of the airframe toward the camera is cut away (rocket frame y-z plane).
+      const d = [-v.dir[0], -v.dir[1], -v.dir[2]], l = Math.hypot(d[1], d[2]);
+      return l < 1e-6 ? [0, -1] : [d[1] / l, d[2] / l];
+    }
+    draw() {
+      const gl = this.gl;
+      if (!gl || !this.bufs || $("#tab-model").hidden) return;
+      const v = this.view();
+      this.lastView = v;
+      gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.enable(gl.DEPTH_TEST);
+      if (this.mode === "fly") { this.drawFly(v); return; }
+      const P = this.prog, dark = document.documentElement.dataset.theme === "dark";
+      gl.useProgram(P.p);
+      gl.uniformMatrix4fv(P.u.uVP, false, v.vp);
+      gl.uniform3fv(P.u.uEye, v.eye);
+      gl.uniform3fv(P.u.uViewDir, v.dir);
+      gl.uniform1f(P.u.uOrtho, v.ortho ? 1 : 0);
+      gl.uniform3fv(P.u.uLight, V.norm(V.add(V.mul(v.dir, -0.55), [0.25, -0.35, 0.85])));
+      gl.uniform2fv(P.u.uCutN, this.cutNormal(v));
+      gl.uniform3fv(P.u.uSelColor, rgb(dark ? "#3987e5" : "#2a78d6"));
+      gl.uniform3fv(P.u.uFade, dark ? [0.16, 0.17, 0.19] : [0.9, 0.91, 0.93]);
+      gl.uniform1f(P.u.uEmissive, 0);
+      for (const b of this.bufs) {
+        const p = b.part;
+        gl.uniformMatrix4fv(P.u.uM, false, this.modelOf(p));
+        gl.uniform3fv(P.u.uColor, rgb(p.color));
+        gl.uniform1f(P.u.uCut, this.cut && CUT_KINDS.has(p.kind) ? 1 : 0);
+        gl.uniform1f(P.u.uSel, p.i === S.sel ? 1 : p.i === this.hover ? 0.4 : 0);
+        gl.uniform1f(P.u.uDim, S.sel >= 0 && p.i !== S.sel ? 0.55 : 0);
+        this.attrs(P, b.pos, b.nor);
+        gl.drawArrays(gl.TRIANGLES, 0, b.count);
+      }
+      this.drawOverlay(v);
+    }
+    // The replay: sky, ground, pad and rail, smoke, the path, the rocket (in pieces under the chutes), flames and
+    // canopies; the stage camera in the lower left while a dropped stage flies; then cords, captions and the trajectory
+    // map over it.
+    drawFly(v) {
+      const gl = this.gl, fr = this.fly(), W = this.canvas.clientWidth || 1, H = this.canvas.clientHeight || 1;
+      this.drawWorld(v, fr, this.canvas.height);
+      const sc = this.flyCam === "whole" ? null : this.replay.stageCam(S.T);
+      this.stageView = null;
+      if (sc && W > 360) {
+        const iw = Math.round(Math.min(300, W * 0.4)), ih = Math.round(iw * 9 / 16), x0 = 10, y0 = H - 10 - ih, dpr = this.canvas.width / W;
+        const sv = Object.assign(this.camView(sc, iw, ih), { x0, y0, cam: sc });
+        const box = [Math.round(x0 * dpr), Math.round((H - y0 - ih) * dpr), Math.round(iw * dpr), Math.round(ih * dpr)];
+        gl.viewport(...box);
+        gl.enable(gl.SCISSOR_TEST);
+        gl.scissor(...box);
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+        this.drawWorld(sv, fr, box[3]);
+        gl.disable(gl.SCISSOR_TEST);
+        gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+        this.stageView = sv;
+      }
+      this.drawOverlay(v, fr);
+      this.drawCaptions();
+    }
+    // Everything in the replay's world seen through view v; pxH is the picture's height in device pixels.
+    drawWorld(v, fr, pxH) {
+      const gl = this.gl;
+      // Sky and ground, darker blue the higher the camera (as in the video).
+      const dark = clamp(v.eye[2] / 9000, 0, 1), mix = (a, b) => a.map((x, i) => (x + (b[i] - x) * dark) / 255);
+      const G = this.groundP, fwd = v.dir, right = V.norm(V.cross(fwd, Math.abs(fwd[2]) > 0.999 ? [0, 1, 0] : [0, 0, 1])), ty = Math.tan(v.fov * Math.PI / 360);
+      gl.useProgram(G.p);
+      gl.uniform3fv(G.u.uEye, v.eye);
+      gl.uniform3fv(G.u.uFwd, fwd);
+      gl.uniform3fv(G.u.uRight, right);
+      gl.uniform3fv(G.u.uUp, V.cross(right, fwd));
+      gl.uniform2f(G.u.uTan, ty * v.aspect, ty);
+      gl.uniform1f(G.u.uPx, 2 * ty / (pxH || 1));
+      gl.uniform3fv(G.u.uZenith, mix([74, 134, 204], [22, 52, 112]));
+      gl.uniform3fv(G.u.uHorizon, mix([203, 222, 240], [170, 196, 226]));
+      this.only(G.aPos);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.screen);
+      gl.enableVertexAttribArray(G.aPos);
+      gl.vertexAttribPointer(G.aPos, 2, gl.FLOAT, false, 0, 0);
+      gl.disable(gl.DEPTH_TEST);
+      gl.depthMask(false);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      gl.depthMask(true);
+      gl.enable(gl.DEPTH_TEST);
+      const P = this.prog;
+      gl.useProgram(P.p);
+      gl.uniformMatrix4fv(P.u.uVP, false, v.vp);
+      gl.uniform3fv(P.u.uEye, v.eye);
+      gl.uniform3fv(P.u.uViewDir, v.dir);
+      gl.uniform1f(P.u.uOrtho, 0);
+      // Sun behind the camera, above and to the left, so the side we see is lit (as in the video).
+      gl.uniform3fv(P.u.uLight, V.norm([-v.dir[0] - 0.5 * v.dir[1], -v.dir[1] + 0.5 * v.dir[0], 0.9]));
+      gl.uniform1f(P.u.uCut, 0);
+      gl.uniform1f(P.u.uSel, 0);
+      gl.uniform1f(P.u.uDim, 0);
+      const draw = (m, mesh, color) => {
+        gl.uniformMatrix4fv(P.u.uM, false, m);
+        gl.uniform3fv(P.u.uColor, rgb(color || mesh.color));
+        gl.uniform1f(P.u.uEmissive, mesh.emissive ? 1 : 0);
+        this.attrs(P, mesh.pos, mesh.nor);
+        gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
+      };
+      const I = M.trans(0, 0, 0);
+      draw(I, this.pad);
+      draw(I, this.rail);
+      for (const b of this.bufs) {
+        const m = fr.mats.get(b.part.i);
+        if (m) draw(m, b, b.part.color);
+      }
+      for (const m of fr.flames) { draw(m, this.flameOuter); draw(m, this.flameInner); }
+      for (const cp of fr.canopies) { draw(cp.m, this.gore[0], cp.colors[0]); draw(cp.m, this.gore[1], cp.colors[1]); }
+      gl.uniform1f(P.u.uEmissive, 0);
+      this.drawSmoke(v);
+      // The flight path where it helps to see the whole arc (from the pad, of the whole flight); in the close views it
+      // would only cross the picture (the video leaves it out too).
+      if (v === this.lastView && (this.flyCam === "whole" || this.flyCam === "pad")) this.drawLines(v);
+    }
+    drawSmoke(v) {
+      const gl = this.gl, R = this.replay, tc = Math.max(0, S.T), data = [];
+      let prev = null;
+      // The trail's points so far, and the rocket now while it still burns (the trail reaches the nozzle).
+      const pts = R.smoke.filter((sp) => sp[0] <= tc);
+      if (pts.length && R.thrustFrac(tc) > 0.01) { const q = trackPos(R.main, tc); pts.push([tc, q[0], q[1], q[2] + R.lift]); }
+      for (const sp of pts) {
+        if (isNaN(sp[1])) { prev = null; continue; }
+        const age = tc - sp[0], alpha = (0.8 - age * 0.02) * 0.85;
+        const p = [sp[1], sp[2], sp[3]];
+        if (prev && alpha > 0.02) {
+          const w0 = (R.smokeDiam + prev.age * 0.6) / 2, w1 = (R.smokeDiam + age * 0.6) / 2;
+          const d = V.sub(p, prev.p), toEye = V.sub(v.eye, p), side = V.norm(V.cross(d, toEye));
+          if (Math.hypot(...d) > 1e-6) {
+            const a0 = V.add(prev.p, V.mul(side, w0)), b0 = V.sub(prev.p, V.mul(side, w0)), a1 = V.add(p, V.mul(side, w1)), b1 = V.sub(p, V.mul(side, w1));
+            data.push(...a0, prev.alpha, ...b0, prev.alpha, ...a1, alpha, ...b0, prev.alpha, ...b1, alpha, ...a1, alpha);
+          }
+        }
+        prev = { p, age, alpha: Math.max(0, alpha) };
+      }
+      if (!data.length) return;
+      const T = this.trailP;
+      gl.useProgram(T.p);
+      gl.uniformMatrix4fv(T.u.uVP, false, v.vp);
+      gl.uniform3f(T.u.uColor, 1, 1, 1);
+      this.only(T.aPos, T.aA);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.trailBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(T.aPos);
+      gl.vertexAttribPointer(T.aPos, 3, gl.FLOAT, false, 16, 0);
+      gl.enableVertexAttribArray(T.aA);
+      gl.vertexAttribPointer(T.aA, 1, gl.FLOAT, false, 16, 12);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      gl.drawArrays(gl.TRIANGLES, 0, data.length / 4);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+      gl.disableVertexAttribArray(T.aA);
+    }
+    drawCaptions() {
+      // The video's banners: each event for 2.6 s of playback, at most the newest two, never long after it happened.
+      const R = this.replay, box = $("#captions"), t = S.T, a = R.animAt(t), show = [];
+      for (const e of this.data.flight.events) {
+        if (e.branch !== 0 && e.kind !== "deploy" && e.kind !== "landing") continue;
+        const ae = R.animAt(e.t);
+        if (t >= e.t && a - ae < 2.6 && t - e.t < 8) show.push([e, Math.min(1, (a - ae) / 0.25, (ae + 2.6 - a) / 0.5)]);
+      }
+      box.replaceChildren(...show.slice(-2).map(([e, op]) => h("div", { class: "caption", style: "opacity:" + clamp(op, 0, 1).toFixed(2) },
+        h("b", {}, e.title), h("span", {}, "T+" + e.t.toFixed(1) + " s" + (e.detail ? " · " + e.detail : "")))));
+    }
+    attrs(P, pos, nor) {
+      const gl = this.gl;
+      this.only(P.aPos, P.aNor);
+      gl.bindBuffer(gl.ARRAY_BUFFER, pos);
+      gl.enableVertexAttribArray(P.aPos);
+      gl.vertexAttribPointer(P.aPos, 3, gl.FLOAT, false, 0, 0);
+      if (P.aNor >= 0) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, nor);
+        gl.enableVertexAttribArray(P.aNor);
+        gl.vertexAttribPointer(P.aNor, 3, gl.FLOAT, false, 0, 0);
+      }
+    }
+    drawLines(v) {
+      const gl = this.gl, L = this.lines;
+      gl.useProgram(L.p);
+      gl.uniformMatrix4fv(L.u.uVP, false, v.vp);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      this.only(L.aPos);
+      let flown = 0;
+      while (flown < this.path.length / 4 && this.path[flown * 4 + 3] <= S.T) flown++;
+      for (const b of this.lineBufs) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, b.buf);
+        gl.enableVertexAttribArray(L.aPos);
+        gl.vertexAttribPointer(L.aPos, 3, gl.FLOAT, false, 0, 0);
+        const col = b.kind === "path" ? [0.16, 0.47, 0.84] : [0.92, 0.41, 0.2];
+        if (b.kind === "path") {
+          // The flown path solid, what is still to come faint.
+          gl.uniform4f(L.u.uColor, col[0], col[1], col[2], 0.9);
+          if (flown > 1) gl.drawArrays(b.mode, 0, flown);
+          gl.uniform4f(L.u.uColor, col[0], col[1], col[2], 0.25);
+          if (b.count - Math.max(0, flown - 1) > 1) gl.drawArrays(b.mode, Math.max(0, flown - 1), b.count - Math.max(0, flown - 1));
+        } else {
+          gl.uniform4f(L.u.uColor, col[0], col[1], col[2], 0.8);
+          gl.drawArrays(b.mode, 0, b.count);
+        }
+      }
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+    }
+    project(v, p) {
+      const q = M.apply(v.vp, p);
+      if (q[3] <= 0) return null;
+      return [(q[0] * 0.5 + 0.5) * v.w, (0.5 - q[1] * 0.5) * v.h, q[3]];
+    }
+    drawOverlay(v, fr) {
+      const o = this.overlay, u = S.data.units;
+      o.replaceChildren();
+      const ink = cssColor("--ink"), ink2 = cssColor("--ink2");
+      if (fr) {
+        this.drawCords(o, v, fr);
+        if (this.flyCam === "whole") {
+          // Where the rocket is on the whole trajectory.
+          const p = this.project(v, fr.pos);
+          if (p) o.append(s("circle", { cx: p[0], cy: p[1], r: 9, fill: "none", stroke: "#fff", "stroke-width": 2 }),
+            s("circle", { cx: p[0], cy: p[1], r: 9, fill: "none", stroke: "#ffd43b", "stroke-width": 1, "stroke-dasharray": "3 3" }));
+        }
+        const sv = this.stageView;
+        if (sv) {
+          // The stage camera's frame, its cords, and a title bar with the stage's height and speed.
+          const W = sv.w, Hh = sv.h, c = sv.cam, D = (m) => num(conv(m, u.distance)) + " " + u.distance;
+          const clip = s("clipPath", { id: "stagecam-clip" });
+          clip.append(s("rect", { width: W, height: Hh, rx: 10 }));
+          const g = s("g", { transform: "translate(" + sv.x0 + "," + sv.y0 + ")" }), inner = s("g", { "clip-path": "url(#stagecam-clip)" });
+          this.drawCords(inner, sv, fr);
+          inner.append(s("rect", { width: W, height: 20, fill: "rgba(12,18,28,0.65)" }), s("rect", { y: Hh - 20, width: W, height: 20, fill: "rgba(12,18,28,0.55)" }));
+          g.append(clip, inner, s("rect", { width: W, height: Hh, rx: 10, fill: "none", stroke: "rgba(255,255,255,0.55)", "stroke-width": 1 }),
+            s("text", { x: 10, y: 14, style: "fill:#ffb86b;font-weight:700;font-size:11px;letter-spacing:.04em" }, (c.name || "stage").toUpperCase() + " CAM"),
+            s("text", { x: 10, y: Hh - 6, style: "fill:#fff;font-size:11px" },
+              c.landed ? "landed, " + D(c.range) + " from the pad" : D(c.alt) + " up · " + num(c.speed * (SPEED[u.velocity] || 1)) + " " + u.velocity));
+          o.append(g);
+        }
+        this.drawInset(o);
+        return;
+      }
+      const f = this.data.flight, t = S.T;
+      const cg = fin(interp(f.cg, t)) ? interp(f.cg, t) : this.data.rocket.cgLaunch;
+      const cpv = interp(f.cp, t), cp = fin(cpv) && cpv > 0 ? cpv : this.data.rocket.cp;
+      const shiftOf = (x) => { // the airframe piece a station belongs to moves with the explosion
+        let piece = 0;
+        for (const p of this.data.rocket.parts) if (!p.internal && x >= p.x0 - 1e-6 && x <= p.x1 + 1e-6) piece = p.piece;
+        return this.explodeShift(piece);
+      };
+      const off = this.R * 1.9;
+      const markAt = (x) => this.project(v, [x + shiftOf(x), 0, this.mode === "side" ? off : 0]);
+      const cgP = markAt(cg), cpP = fin(cp) ? markAt(cp) : null;
+      if (this.mode === "side") {
+        // Ruler under the rocket, in the team's length unit.
+        const unit = u.length, total = conv(this.L, unit), step = niceStep(total / 10);
+        const y0 = this.project(v, [0, 0, -off]), y1 = this.project(v, [this.L + this.explodeShift(this.pieces - 1), 0, -off]);
+        if (y0 && y1) {
+          o.append(s("line", { x1: y0[0], y1: y0[1], x2: y1[0], y2: y1[1], stroke: ink2, "stroke-width": 1 }));
+          for (let k = 0; k <= total + 1e-9; k += step) {
+            const x = k / conv(1, unit), q = this.project(v, [x + shiftOf(x), 0, -off]);
+            if (!q) continue;
+            const major = Math.abs(k / (step * 2) - Math.round(k / (step * 2))) < 1e-6;
+            o.append(s("line", { x1: q[0], y1: q[1], x2: q[0], y2: q[1] + (major ? 6 : 3), stroke: ink2, "stroke-width": 1 }));
+            if (major) o.append(s("text", { x: q[0], y: q[1] + 17, "text-anchor": "middle" }, num(k)));
+          }
+          o.append(s("text", { x: y1[0] + 6, y: y1[1] + 4, class: "lbl" }, unit));
+        }
+      }
+      if (cgP && cpP) {
+        const y = Math.min(cgP[1], cpP[1]) - 16;
+        o.append(s("line", { x1: cgP[0], y1: y, x2: cpP[0], y2: y, stroke: ink2, "stroke-width": 1, "stroke-dasharray": "3 2" }));
+        const st = S.data.flight.series.stability ? interp(S.data.flight.series.stability.values, t) : NaN;
+        const marg = fin(st) ? st : (cp - cg) / this.data.rocket.diameter;
+        o.append(s("text", { x: (cgP[0] + cpP[0]) / 2, y: y - 4, "text-anchor": "middle", class: "lbl" }, num(marg) + " cal"));
+      }
+      if (cgP) o.append(cgSymbol(cgP[0], cgP[1], ink), s("text", { x: cgP[0], y: cgP[1] + 22, "text-anchor": "middle", class: "lbl" }, "CG"));
+      if (cpP) o.append(cpSymbol(cpP[0], cpP[1], cssColor("--s2")), s("text", { x: cpP[0], y: cpP[1] + 22, "text-anchor": "middle", class: "lbl" }, "CP"));
+    }
+    // Cords and shroud lines, as wide as they would look at their distance.
+    drawCords(o, v, fr) {
+      const focal = v.h / 2 / Math.tan((v.fov || 40) * Math.PI / 360);
+      for (const [a, b, wm, col] of fr.lines) {
+        const p = this.project(v, a), q = this.project(v, b);
+        if (!p || !q || p[2] < 0.3 || q[2] < 0.3) continue;
+        const px = clamp(wm * focal / ((p[2] + q[2]) / 2), 0.8, 30);
+        o.append(s("line", { x1: p[0], y1: p[1], x2: q[0], y2: q[1], stroke: col, "stroke-width": px.toFixed(2), "stroke-linecap": "round" }));
+      }
+    }
+    // The whole trajectory, small, in the corner: altitude against distance along the drift, the flown part solid.
+    drawInset(o) {
+      const R = this.replay, f = this.data.flight, W = 150, H = 92, x0 = (this.canvas.clientWidth || 300) - W - 10, y0 = 46;
+      if (!this.insetPts) {
+        const pts = [];
+        for (let i = 0; i < f.t.length; i++) if (f.path.east[i] != null && f.path.up[i] != null) pts.push([f.t[i], f.path.east[i] * R.drift[0] + f.path.north[i] * R.drift[1], Math.max(0, f.path.up[i])]);
+        const xs = pts.map((p) => p[1]), zs = pts.map((p) => p[2]);
+        const xl = Math.min(0, ...xs), xh = Math.max(1, ...xs), zh = Math.max(1, ...zs), k = Math.min((W - 16) / (xh - xl || 1), (H - 16) / zh);
+        this.insetPts = pts.map((p) => [p[0], 8 + (p[1] - xl) * k, H - 8 - p[2] * k]);
+      }
+      const pts = this.insetPts, t = S.T, g = s("g", { transform: "translate(" + x0 + "," + y0 + ")", class: "inset" });
+      g.append(s("rect", { width: W, height: H, rx: 8, fill: "rgba(12,18,28,0.55)" }));
+      const line = (a) => a.map((p, i) => (i ? "L" : "M") + p[1].toFixed(1) + "," + p[2].toFixed(1)).join("");
+      const done = pts.filter((p) => p[0] <= t);
+      g.append(s("path", { d: line(pts), fill: "none", stroke: "rgba(255,255,255,0.3)", "stroke-width": 1.2 }));
+      if (done.length > 1) g.append(s("path", { d: line(done), fill: "none", stroke: "#ffd43b", "stroke-width": 2 }));
+      const cur = done.length ? done[done.length - 1] : pts[0];
+      if (cur) g.append(s("circle", { cx: cur[1], cy: cur[2], r: 3.5, fill: "#fff" }));
+      g.append(s("text", { x: 8, y: 14, fill: "rgba(255,255,255,0.8)", style: "fill:rgba(255,255,255,0.85)" }, "trajectory"));
+      o.append(g);
+    }
+    pickAt(px, py) {
+      const gl = this.gl;
+      if (!gl || !this.bufs) return -1;
+      const w = this.canvas.width, hgt = this.canvas.height;
+      if (!this.fbo || this.fboW !== w || this.fboH !== hgt) {
+        if (this.fbo) { gl.deleteFramebuffer(this.fbo); gl.deleteTexture(this.texC); gl.deleteRenderbuffer(this.rbD); }
+        this.fbo = gl.createFramebuffer();
+        this.texC = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, this.texC);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, hgt, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        this.rbD = gl.createRenderbuffer();
+        gl.bindRenderbuffer(gl.RENDERBUFFER, this.rbD);
+        gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, hgt);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texC, 0);
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.rbD);
+        this.fboW = w; this.fboH = hgt;
+      }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+      gl.viewport(0, 0, w, hgt);
+      gl.disable(gl.DITHER);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.enable(gl.DEPTH_TEST);
+      const v = this.view(), P = this.pick;
+      gl.useProgram(P.p);
+      gl.uniformMatrix4fv(P.u.uVP, false, v.vp);
+      gl.uniform2fv(P.u.uCutN, this.cutNormal(v));
+      this.only(P.aPos);
+      for (const b of this.bufs) {
+        const id = b.part.i + 1;
+        gl.uniformMatrix4fv(P.u.uM, false, this.modelOf(b.part));
+        gl.uniform3f(P.u.uId, (id >> 16 & 255) / 255, (id >> 8 & 255) / 255, (id & 255) / 255);
+        gl.uniform1f(P.u.uCut, this.cut && CUT_KINDS.has(b.part.kind) ? 1 : 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, b.pos);
+        gl.enableVertexAttribArray(P.aPos);
+        gl.vertexAttribPointer(P.aPos, 3, gl.FLOAT, false, 0, 0);
+        gl.drawArrays(gl.TRIANGLES, 0, b.count);
+      }
+      const px2 = new Uint8Array(4);
+      gl.readPixels(Math.round(px), Math.round(hgt - py), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px2);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.enable(gl.DITHER);
+      if (px2[3] === 0) return -1;
+      return ((px2[0] << 16) | (px2[1] << 8) | px2[2]) - 1;
+    }
+    bindControls() {
+      const c = this.canvas, pts = new Map();
+      let drag = null;
+      const local = (e) => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+      c.addEventListener("pointerdown", (e) => {
+        c.setPointerCapture(e.pointerId);
+        pts.set(e.pointerId, local(e));
+        drag = { x: e.clientX, y: e.clientY, moved: 0, pan: e.button !== 0 || e.shiftKey || this.mode === "side", pinch: pts.size === 2 ? null : undefined };
+        c.classList.add("dragging");
+      });
+      c.addEventListener("pointermove", (e) => {
+        const p = local(e);
+        if (!drag) { this.hoverAt(p); return; }
+        const prev = pts.get(e.pointerId);
+        pts.set(e.pointerId, p);
+        if (pts.size === 2) {
+          const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+          if (drag.pinch) this.zoom(drag.pinch / d);
+          drag.pinch = d;
+          drag.moved = 99;
+          return;
+        }
+        const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+        drag.x = e.clientX; drag.y = e.clientY;
+        drag.moved += Math.abs(dx) + Math.abs(dy);
+        if (prev && drag.moved > 3) this.dragBy(dx, dy, drag.pan);
+      });
+      const end = (e) => {
+        pts.delete(e.pointerId);
+        c.classList.remove("dragging");
+        if (drag && drag.moved <= 3 && e.type === "pointerup") {
+          const [x, y] = local(e), dpr = c.width / (c.clientWidth || 1);
+          const i = this.mode === "fly" ? -1 : this.pickAt(x * dpr, y * dpr);
+          select(i === S.sel ? -1 : i, true);
+        }
+        if (!pts.size) drag = null;
+      };
+      c.addEventListener("pointerup", end);
+      c.addEventListener("pointercancel", end);
+      c.addEventListener("pointerleave", () => { if (!drag && this.hover !== -1) { this.hover = -1; $("#tip3d").hidden = true; this.dirty(); } });
+      c.addEventListener("wheel", (e) => { e.preventDefault(); this.zoom(Math.exp(e.deltaY * 0.0015)); }, { passive: false });
+      c.addEventListener("dblclick", () => {
+        if (this.mode === "fly") { this.user = { az: 0, el: 0, zoom: 1 }; this.dirty(); return; }
+        this.resetView();
+        if (this.mode === "side") this.frameSide();
+      });
+      c.addEventListener("keydown", (e) => {
+        const k = { ArrowLeft: [-12, 0], ArrowRight: [12, 0], ArrowUp: [0, -12], ArrowDown: [0, 12] }[e.key];
+        if (k) { e.preventDefault(); this.dragBy(k[0], k[1], e.shiftKey || this.mode === "side"); }
+        if (e.key === "+" || e.key === "=") this.zoom(0.85);
+        if (e.key === "-") this.zoom(1.18);
+      });
+    }
+    hoverAt(p) {
+      if (this.mode === "fly" || this.hoverQueued) return;
+      this.hoverQueued = true;
+      requestAnimationFrame(() => {
+        this.hoverQueued = false;
+        const dpr = this.canvas.width / (this.canvas.clientWidth || 1), i = this.pickAt(p[0] * dpr, p[1] * dpr), tip = $("#tip3d");
+        if (i !== this.hover) { this.hover = i; this.dirty(); }
+        if (i >= 0) {
+          const part = this.data.rocket.parts[i];
+          tip.textContent = part.name + " · " + short(part.mass);
+          tip.style.left = p[0] + 12 + "px";
+          tip.style.top = p[1] - 8 + "px";
+          tip.hidden = false;
+        } else tip.hidden = true;
+      });
+    }
+    dragBy(dx, dy, pan) {
+      const c = this.cam;
+      if (this.mode === "side") {
+        const k = (2 * c.half) / (this.canvas.clientHeight || 1);
+        c.target = [c.target[0] - dx * k, c.target[1], c.target[2] + dy * k];
+      } else if (this.mode === "fly") {
+        const u = this.user;
+        u.az -= dx * 0.4;
+        u.el = clamp(u.el + dy * 0.3, this.flyCam === "orbit" ? -90 : -30, 80);
+      } else if (pan) {
+        const v = this.view(), right = V.norm(V.cross(v.dir, [0, 0, 1])), up = V.cross(right, v.dir), k = c.dist * 0.0018;
+        c.target = V.add(c.target, V.add(V.mul(right, -dx * k), V.mul(up, dy * k)));
+      } else {
+        c.az -= dx * 0.4; c.el = clamp(c.el + dy * 0.3, -89, 89);
+      }
+      this.dirty();
+    }
+    zoom(f) {
+      const c = this.cam;
+      if (this.mode === "side") c.half = clamp(c.half * f, this.L * 0.02, this.L * 3);
+      else if (this.mode === "fly") this.user.zoom = clamp(this.user.zoom * f, 0.15, 12);
+      else c.dist = clamp(c.dist * f, this.L * 0.08, this.L * 12);
+      this.dirty();
+    }
+  }
+  function maxR(pos) { let r = 0; for (let i = 0; i < pos.length; i += 3) r = Math.max(r, Math.hypot(pos[i + 1], pos[i + 2])); return r; }
+  function cgSymbol(x, y, color) {
+    const g = s("g", { transform: "translate(" + x + "," + y + ")" });
+    g.append(s("circle", { r: 7, fill: cssColor("--surface"), stroke: color, "stroke-width": 1.5 }),
+      s("path", { d: "M0,0 L7,0 A7,7 0 0 1 0,7 Z M0,0 L-7,0 A7,7 0 0 1 0,-7 Z", fill: color }));
+    return g;
+  }
+  function cpSymbol(x, y, color) {
+    const g = s("g", { transform: "translate(" + x + "," + y + ")" });
+    g.append(s("circle", { r: 7, fill: cssColor("--surface"), stroke: color, "stroke-width": 2 }), s("circle", { r: 2.5, fill: color }));
+    return g;
+  }
+  function niceStep(raw) {
+    const p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p;
+    return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
+  }
+  function ticks(lo, hi, n) {
+    if (!(hi > lo)) { hi = lo + 1; }
+    const step = niceStep((hi - lo) / (n || 5)), out = [];
+    for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-6; v += step) out.push(Math.abs(v) < step * 1e-9 ? 0 : v);
+    return { step, ticks: out, lo: Math.floor(lo / step + 1e-9) * step, hi: Math.ceil(hi / step - 1e-9) * step };
+  }
+
+  // ------------------------------------------------------------------ flight plots (SVG)
+  const EV_SHORT = { liftoff: "Liftoff", rail: "Rail", mach1: "M1", maxv: "Vmax", burnout: "Burnout", apogee: "Apogee", landing: "Landing", separation: "Sep", ignition: "Ign" };
+  const EV_RANK = { burnout: 0, apogee: 1, deploy: 2, separation: 3, ignition: 4, landing: 5, rail: 6, mach1: 7, maxv: 8, liftoff: 9 };
+  class LineChart {
+    constructor(box, spec) {
+      this.spec = spec;
+      this.box = box;
+      const legend = spec.series.length > 1 ? h("span", { class: "legend" }, spec.series.map((x) => h("span", {}, h("span", { class: "key", style: "background:var(" + x.color + ")" }), x.label))) : null;
+      this.el = h("div", { class: "chart" }, h("h3", {}, spec.title, spec.unit ? h("span", { class: "unit" }, spec.unit) : null, legend));
+      this.svg = s("svg", { height: 150, role: "img", "aria-label": spec.title + " against time" });
+      this.el.append(this.svg);
+      box.append(this.el);
+      this.bind();
+    }
+    draw() {
+      const svg = this.svg, W = svg.clientWidth || this.el.clientWidth - 16 || 300, H = 150, m = { l: 44, r: 10, t: 14, b: 20 };
+      svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+      svg.replaceChildren();
+      const f = S.data.flight, [x0, x1] = S.xr, ts = f.t;
+      let lo = Infinity, hi = -Infinity;
+      for (const sr of this.spec.series) for (let i = 0; i < ts.length; i++) {
+        const v = sr.values[i];
+        if (v == null || ts[i] < x0 || ts[i] > x1) continue;
+        lo = Math.min(lo, v); hi = Math.max(hi, v);
+      }
+      if (this.spec.ref != null) { lo = Math.min(lo, this.spec.ref); hi = Math.max(hi, this.spec.ref); }
+      if (!isFinite(lo)) { lo = 0; hi = 1; }
+      if (lo > 0 && lo < 0.35 * hi) lo = 0;
+      if (hi < 0 && hi > 0.35 * lo) hi = 0;
+      const ty = ticks(lo, hi, 4);
+      lo = ty.lo; hi = ty.hi;
+      const tx = ticks(x0, x1, Math.max(3, Math.round((W - m.l - m.r) / 70)));
+      const X = (t) => m.l + (t - x0) / (x1 - x0 || 1) * (W - m.l - m.r), Y = (v) => H - m.b - (v - lo) / (hi - lo || 1) * (H - m.t - m.b);
+      this.X = X; this.m = m; this.W = W; this.H = H; this.Y = Y;
+      for (const v of ty.ticks) {
+        svg.append(s("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), class: v === 0 ? "axisline" : "gridline" }));
+        svg.append(s("text", { x: m.l - 6, y: Y(v) + 3.5, "text-anchor": "end" }, num(v)));
+      }
+      for (const v of tx.ticks) if (v >= x0 - 1e-9 && v <= x1 + 1e-9) svg.append(s("text", { x: X(v), y: H - 5, "text-anchor": "middle" }, num(v) + (v === tx.ticks[tx.ticks.length - 1] ? " s" : "")));
+      svg.append(s("line", { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, class: "axisline" }));
+      // Events: a dashed line each, labels where they fit (most important first).
+      const evs = f.events.filter((e) => e.branch === 0 && e.t >= x0 && e.t <= x1);
+      const taken = [];
+      for (const e of [...evs].sort((a, b) => (EV_RANK[a.kind] ?? 9) - (EV_RANK[b.kind] ?? 9))) {
+        const x = X(e.t);
+        svg.append(s("line", { x1: x, x2: x, y1: m.t, y2: H - m.b, class: "evline" }));
+        const txt = e.kind === "deploy" ? (e.device || "Deploy") : (EV_SHORT[e.kind] || e.title), w = txt.length * 5.6 + 6;
+        if (taken.some(([a, b]) => x + w / 2 > a && x - w / 2 < b) || x - w / 2 < m.l - 4 || x + w / 2 > W) continue;
+        taken.push([x - w / 2, x + w / 2]);
+        svg.append(s("text", { x, y: m.t - 3, "text-anchor": "middle" }, txt));
+      }
+      if (this.spec.ref != null) {
+        svg.append(s("line", { x1: m.l, x2: W - m.r, y1: Y(this.spec.ref), y2: Y(this.spec.ref), stroke: cssColor("--ink2"), "stroke-dasharray": "5 3", "stroke-width": 1 }));
+        svg.append(s("text", { x: W - m.r - 2, y: Y(this.spec.ref) - 4, "text-anchor": "end", class: "lbl" }, this.spec.refLabel));
+      }
+      const clip = "c" + Math.random().toString(36).slice(2);
+      const cp = s("clipPath", { id: clip });
+      cp.append(s("rect", { x: m.l, y: m.t - 2, width: W - m.l - m.r, height: H - m.t - m.b + 4 }));
+      svg.append(cp);
+      for (const sr of this.spec.series) {
+        let d = "", pen = false;
+        for (let i = 0; i < ts.length; i++) {
+          if (ts[i] < x0 && !(ts[i + 1] >= x0)) continue;
+          if (ts[i] > x1 && ts[i - 1] > x1) break;
+          const v = sr.values[i];
+          if (v == null) { pen = false; continue; }
+          d += (pen ? "L" : "M") + X(ts[i]).toFixed(1) + "," + Y(clamp(v, lo - (hi - lo), hi + (hi - lo))).toFixed(1);
+          pen = true;
+        }
+        svg.append(s("path", { d, fill: "none", stroke: cssColor(sr.color), "stroke-width": 2, "stroke-linejoin": "round", "clip-path": "url(#" + clip + ")" }));
+      }
+      this.crossG = s("g");
+      svg.append(this.crossG);
+      this.brushR = s("rect", { class: "brush", y: m.t, height: H - m.t - m.b, width: 0, x: 0 });
+      svg.append(this.brushR);
+      this.cross(S.hoverT != null ? S.hoverT : S.T);
+    }
+    cross(t) {
+      if (!this.crossG || !this.X) return;
+      const g = this.crossG, [x0, x1] = S.xr;
+      g.replaceChildren();
+      if (t < x0 || t > x1) return;
+      const x = this.X(t);
+      g.append(s("line", { x1: x, x2: x, y1: this.m.t, y2: this.H - this.m.b, class: "cross" }));
+      for (const sr of this.spec.series) {
+        const v = interp(sr.values, t);
+        if (!fin(v)) continue;
+        g.append(s("circle", { cx: x, cy: this.Y(v), r: 3.5, fill: cssColor(sr.color), stroke: cssColor("--surface"), "stroke-width": 2 }));
+      }
+    }
+    bind() {
+      const svg = this.svg;
+      let down = null;
+      const tAt = (e) => { const r = svg.getBoundingClientRect(), x = (e.clientX - r.left) * (this.W / r.width); return S.xr[0] + (x - this.m.l) / (this.W - this.m.l - this.m.r) * (S.xr[1] - S.xr[0]); };
+      svg.addEventListener("pointermove", (e) => {
+        const t = clamp(tAt(e), S.xr[0], S.xr[1]);
+        if (down) {
+          const a = this.X(Math.min(down, t)), b = this.X(Math.max(down, t));
+          this.brushR.setAttribute("x", a);
+          this.brushR.setAttribute("width", b - a);
+        }
+        S.hoverT = t;
+        for (const c of S.charts) c.cross(t);
+        updateReadout(t);
+      });
+      svg.addEventListener("pointerleave", () => { if (!down) { S.hoverT = null; setT(S.T); } });
+      svg.addEventListener("pointerdown", (e) => { svg.setPointerCapture(e.pointerId); down = clamp(tAt(e), S.xr[0], S.xr[1]); });
+      svg.addEventListener("pointerup", (e) => {
+        if (down == null) return;
+        const t = clamp(tAt(e), S.xr[0], S.xr[1]), a = Math.min(down, t), b = Math.max(down, t);
+        this.brushR.setAttribute("width", 0);
+        down = null;
+        if (this.X(b) - this.X(a) > 8) { S.xr = [a, b]; for (const x of $$("[data-range]")) x.setAttribute("aria-pressed", "false"); redrawCharts(); }
+        else { S.hoverT = null; setT(t); }
+      });
+      svg.addEventListener("dblclick", () => setRange(S.range));
+    }
+  }
+  function setRange(r) {
+    S.range = r;
+    S.xr = r === "all" ? [0, tEnd()] : [0, Math.min(tEnd(), apogeeT() * 1.08 + 0.5)];
+    for (const b of $$("[data-range]")) b.setAttribute("aria-pressed", String(b.dataset.range === r));
+    redrawCharts();
+  }
+  function buildCharts() {
+    const box = $("#charts"), f = S.data.flight;
+    box.replaceChildren();
+    S.charts = [];
+    if (!S.xr || S.xr[1] > tEnd()) setRangeSilently(S.range);
+    const stab = S.data.metrics.find((x) => x.key === "stability");
+    for (const c of f.charts) {
+      const spec = { title: c.title, unit: c.unit, series: c.series.map((k, i) => ({ label: f.series[k].label, values: f.series[k].values, color: "--s" + (i + 1) })) };
+      if (c.series[0] === "stability" && stab && fin(stab.floor)) { spec.ref = stab.floor; spec.refLabel = "rule minimum " + num(stab.floor) + " cal"; }
+      S.charts.push(new LineChart(box, spec));
+    }
+  }
+  function setRangeSilently(r) { S.range = r; S.xr = r === "all" ? [0, tEnd()] : [0, Math.min(tEnd(), apogeeT() * 1.08 + 0.5)]; }
+  function redrawCharts() {
+    if (!S.data) return;
+    if (S.tab === "flight") for (const c of S.charts) c.draw();
+    if (S.tab === "trajectory") for (const c of S.traj) c.draw();
+    updateReadout(S.hoverT != null ? S.hoverT : S.T);
+  }
+
+  // ------------------------------------------------------------------ trajectory (profile and ground track)
+  class XYChart {
+    constructor(box, spec) {
+      this.spec = spec;
+      this.el = h("div", { class: "chart" }, h("h3", {}, spec.title, h("span", { class: "unit" }, spec.unit),
+        spec.legend ? h("span", { class: "legend" }, spec.legend.map(([c, t]) => h("span", {}, h("span", { class: "key", style: "background:var(" + c + ")" }), t))) : null));
+      this.svg = s("svg", { height: spec.height || 260, role: "img", "aria-label": spec.title });
+      this.el.append(this.svg);
+      box.append(this.el);
+      this.svg.addEventListener("pointermove", (e) => this.hover(e));
+      this.svg.addEventListener("pointerleave", () => this.cross(S.T));
+      this.svg.addEventListener("click", () => { if (this.hoverT != null) setT(this.hoverT); });
+    }
+    draw() {
+      const svg = this.svg, W = svg.clientWidth || 300, H = this.spec.height || 260, m = { l: 50, r: 14, t: 14, b: 26 }, sp = this.spec;
+      svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+      svg.replaceChildren();
+      let xlo = Infinity, xhi = -Infinity, ylo = Infinity, yhi = -Infinity;
+      for (const ln of sp.lines) for (const [x, y] of ln.pts) { xlo = Math.min(xlo, x); xhi = Math.max(xhi, x); ylo = Math.min(ylo, y); yhi = Math.max(yhi, y); }
+      for (const [x, y] of sp.include || []) { xlo = Math.min(xlo, x); xhi = Math.max(xhi, x); ylo = Math.min(ylo, y); yhi = Math.max(yhi, y); }
+      if (!isFinite(xlo)) return;
+      const padx = (xhi - xlo) * 0.06 || 10, pady = (yhi - ylo) * 0.06 || 10;
+      xlo -= padx; xhi += padx; ylo -= sp.ground ? 0 : pady; yhi += pady;
+      const pw = W - m.l - m.r, ph = H - m.t - m.b;
+      if (sp.equal) {
+        const k = Math.max((xhi - xlo) / pw, (yhi - ylo) / ph), cx = (xlo + xhi) / 2, cy = (ylo + yhi) / 2;
+        xlo = cx - k * pw / 2; xhi = cx + k * pw / 2; ylo = cy - k * ph / 2; yhi = cy + k * ph / 2;
+      }
+      const tx = ticks(xlo, xhi, Math.max(3, Math.round(pw / 80))), ty = ticks(ylo, yhi, 5);
+      const X = (x) => m.l + (x - xlo) / (xhi - xlo) * pw, Y = (y) => H - m.b - (y - ylo) / (yhi - ylo) * ph;
+      this.X = X; this.Y = Y;
+      for (const v of ty.ticks) if (v >= ylo && v <= yhi) { svg.append(s("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), class: v === 0 ? "axisline" : "gridline" })); svg.append(s("text", { x: m.l - 6, y: Y(v) + 3.5, "text-anchor": "end" }, num(v))); }
+      for (const v of tx.ticks) if (v >= xlo && v <= xhi) { svg.append(s("line", { x1: X(v), x2: X(v), y1: m.t, y2: H - m.b, class: v === 0 ? "axisline" : "gridline" })); svg.append(s("text", { x: X(v), y: H - m.b + 14, "text-anchor": "middle" }, num(v))); }
+      svg.append(s("text", { x: W - m.r, y: H - 2, "text-anchor": "end", class: "lbl" }, sp.xLabel));
+      svg.append(s("text", { x: m.l, y: m.t - 4, class: "lbl" }, sp.yLabel));
+      for (const ln of sp.lines) {
+        const d = ln.pts.map(([x, y], i) => (i ? "L" : "M") + X(x).toFixed(1) + "," + Y(y).toFixed(1)).join("");
+        svg.append(s("path", { d, fill: "none", stroke: cssColor(ln.color), "stroke-width": 2, "stroke-dasharray": ln.dash || null, "stroke-linejoin": "round" }));
+      }
+      // Markers at the same spot share one label; each label takes the first free corner around its marker.
+      const items = [];
+      for (const mk of sp.marks || []) {
+        const x = X(mk.x), y = Y(mk.y), same = items.find((it) => Math.hypot(it.x - x, it.y - y) < 7);
+        if (same) { same.label += " · " + mk.label; if (mk.shape === "x") same.shape = "x"; continue; }
+        items.push({ x, y, label: mk.label, shape: mk.shape });
+      }
+      for (const it of items) {
+        const x = it.x, y = it.y;
+        if (it.shape === "x") svg.append(s("path", { d: "M" + (x - 4) + "," + (y - 4) + "L" + (x + 4) + "," + (y + 4) + "M" + (x - 4) + "," + (y + 4) + "L" + (x + 4) + "," + (y - 4), stroke: cssColor("--ink"), "stroke-width": 2 }));
+        else svg.append(s("circle", { cx: x, cy: y, r: 4, fill: cssColor("--surface"), stroke: cssColor("--ink"), "stroke-width": 1.5 }));
+      }
+      const placed = [], spots = [[8, -7, false], [8, 15, false], [-8, -7, true], [-8, 15, true], [0, -12, null], [0, 22, null]];
+      const boxOf = (it, [dx, dy, end], w) => { const x0 = end === null ? it.x - w / 2 : end ? it.x + dx - w : it.x + dx, y0 = it.y + dy - 10; return [x0, y0, x0 + w, y0 + 13]; };
+      for (const it of items) {
+        const w = it.label.length * 5.9 + 4;
+        const fits = spots.filter((sp2) => { const b = boxOf(it, sp2, w); return b[0] >= 0 && b[2] <= W && b[1] >= m.t - 12 && b[3] <= H - m.b - 2; });
+        const free = fits.find((sp2) => {
+          const box = boxOf(it, sp2, w);
+          return !placed.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])
+            && !items.some((o) => o.x > box[0] - 5 && o.x < box[2] + 5 && o.y > box[1] - 5 && o.y < box[3] + 5);
+        }) || fits[0] || spots[0];
+        placed.push(boxOf(it, free, w));
+        svg.append(s("text", { x: it.x + free[0], y: it.y + free[1], class: "lbl", "text-anchor": free[2] === null ? "middle" : free[2] ? "end" : "start" }, it.label));
+      }
+      if (sp.arrow) {
+        // Where the wind blows toward, with an arrowhead; the label says where it comes from.
+        const a = sp.arrow, x = W - m.r - 52, y = m.t + 30, L = 16, ux = Math.cos(a.rad), uy = -Math.sin(a.rad), col = cssColor("--ink2");
+        const tip = [x + ux * L, y + uy * L], back = [x - ux * L, y - uy * L], wx = -uy * 5, wy = ux * 5;
+        svg.append(s("line", { x1: back[0], y1: back[1], x2: tip[0] - ux * 6, y2: tip[1] - uy * 6, stroke: col, "stroke-width": 1.5 }));
+        svg.append(s("path", { d: "M" + tip[0] + "," + tip[1] + "L" + (tip[0] - ux * 8 + wx) + "," + (tip[1] - uy * 8 + wy) + "L" + (tip[0] - ux * 8 - wx) + "," + (tip[1] - uy * 8 - wy) + "Z", fill: col }));
+        svg.append(s("text", { x, y: y + 32, "text-anchor": "middle", class: "lbl" }, a.label));
+      }
+      this.crossG = s("g");
+      svg.append(this.crossG);
+      this.cross(S.T);
+    }
+    hover(e) {
+      if (!this.X) return;
+      const r = this.svg.getBoundingClientRect(), px = (e.clientX - r.left) * (this.svg.viewBox.baseVal.width / r.width), py = (e.clientY - r.top) * (this.svg.viewBox.baseVal.height / r.height);
+      const main = this.spec.lines[0];
+      let best = -1, bd = Infinity;
+      for (let i = 0; i < main.pts.length; i++) { const d = Math.hypot(this.X(main.pts[i][0]) - px, this.Y(main.pts[i][1]) - py); if (d < bd) { bd = d; best = i; } }
+      this.hoverT = bd < 40 ? main.t[best] : null;
+      this.cross(this.hoverT != null ? this.hoverT : S.T, this.hoverT != null);
+    }
+    cross(t, label) {
+      if (!this.crossG) return;
+      const g = this.crossG, sp = this.spec, main = sp.lines[0];
+      g.replaceChildren();
+      const x = sp.at(t);
+      if (!x) return;
+      const X = this.X(x[0]), Y = this.Y(x[1]);
+      g.append(s("circle", { cx: X, cy: Y, r: 5, fill: cssColor(main.color), stroke: cssColor("--surface"), "stroke-width": 2 }));
+      if (label) {
+        const u = S.data.units;
+        const txt = fmtT(t) + " · " + num(conv(Math.max(0, interp(S.data.flight.path.up, t)), u.distance)) + " " + u.distance;
+        g.append(s("text", { x: X + 8, y: Y + 14, class: "lbl" }, txt));
+      }
+    }
+  }
+  function buildTrajectory() {
+    const box = $("#traj"), f = S.data.flight, u = S.data.units, D = (m) => conv(m, u.distance);
+    box.replaceChildren();
+    S.traj = [];
+    const n = f.t.length, land = [f.path.east[n - 1] || 0, f.path.north[n - 1] || 0];
+    const dl = Math.hypot(land[0], land[1]);
+    const dir = dl > 1 ? [land[0] / dl, land[1] / dl] : [1, 0];
+    const down = (e, nn) => e * dir[0] + nn * dir[1];
+    const main = { t: [], pts: [], gpts: [], color: "--s1" };
+    for (let i = 0; i < n; i++) {
+      const e = f.path.east[i], nn = f.path.north[i], up = f.path.up[i];
+      if (e == null || up == null) continue;
+      main.t.push(f.t[i]);
+      main.pts.push([D(down(e, nn)), D(Math.max(0, up))]);
+      main.gpts.push([D(e), D(nn)]);
+    }
+    const stages = (f.stages || []).map((st) => {
+      const pts = [], gpts = [];
+      for (let i = 0; i < st.t.length; i++) if (st.east[i] != null && st.t[i] >= st.separation) { pts.push([D(down(st.east[i], st.north[i])), D(Math.max(0, st.up[i]))]); gpts.push([D(st.east[i]), D(st.north[i])]); }
+      return { name: st.name, pts, gpts };
+    }).filter((x) => x.pts.length > 1);
+    const marks = [], gmarks = [];
+    for (const e of f.events) {
+      if (e.branch !== 0 || !["apogee", "deploy", "landing"].includes(e.kind)) continue;
+      const i = Math.max(0, main.t.findIndex((t) => t >= e.t));
+      if (!main.pts[i]) continue;
+      const lbl = e.kind === "deploy" ? (e.device || "Deploy") : e.title;
+      marks.push({ x: main.pts[i][0], y: main.pts[i][1], label: lbl, shape: e.kind === "landing" ? "x" : "o" });
+      if (e.kind !== "apogee") gmarks.push({ x: main.gpts[i][0], y: main.gpts[i][1], label: lbl, shape: e.kind === "landing" ? "x" : "o" });
+    }
+    gmarks.push({ x: 0, y: 0, label: "Pad", shape: "o" });
+    const at = (t, key) => { const e = interp(f.path.east, t), nn = interp(f.path.north, t), up = interp(f.path.up, t); return key === "g" ? [D(e), D(nn)] : [D(down(e, nn)), D(Math.max(0, up))]; };
+    const legend = stages.length ? [["--s1", "Sustainer"], ["--s2", "Dropped stage"]] : null;
+    S.traj.push(new XYChart(box, { title: "Altitude against distance downrange", unit: u.distance, xLabel: "downrange, " + u.distance, yLabel: "altitude, " + u.distance,
+      lines: [main, ...stages.map((x) => ({ pts: x.pts, color: "--s2", dash: "5 3" }))], marks, ground: true, include: [[0, 0]], at: (t) => at(t), legend, height: 280 }));
+    const w = f.wind || {};
+    const wr = fin(w.direction) ? (90 - (w.direction + 180)) * Math.PI / 180 : null; // the wind blows toward direction + 180 deg (compass)
+    S.traj.push(new XYChart(box, { title: "Ground track (north up)", unit: u.distance, xLabel: "east, " + u.distance, yLabel: "north, " + u.distance,
+      lines: [{ t: main.t, pts: main.gpts, color: "--s1" }, ...stages.map((x) => ({ pts: x.gpts, color: "--s2", dash: "5 3" }))], marks: gmarks, equal: true, include: [[0, 0]],
+      at: (t) => at(t, "g"), arrow: wr != null && w.speed > 0 ? { rad: wr, label: "wind from " + Math.round((w.direction % 360 + 360) % 360) + "°, " + num(w.speed) + " " + u.velocity } : null, height: 280 }));
+    S.traj[0].spec.lines[0].t = main.t;
+  }
+
+  // ------------------------------------------------------------------ playback
+  let lastFrame = 0;
+  function playStep(now) {
+    if (!S.playing) return;
+    const dt = Math.min(0.25, (now - (lastFrame || now)) / 1000);
+    lastFrame = now;
+    const t = S.T + dt * playRate();
+    if (t >= tEnd()) { setT(tEnd()); togglePlay(false); return; }
+    setT(t);
+    requestAnimationFrame(playStep);
+  }
+  // Flight seconds per second: the video's pacing (real time through the burn, slowed at apogee and each
+  // deployment, the rest sped up) or a fixed speed.
+  function playRate() {
+    if (S.speed && S.speed !== "auto") return Number(S.speed);
+    return S.viewer && S.viewer.replay ? S.viewer.replay.rate(S.T) : 1;
+  }
+  // animate_flight from the view: the GIF / MP4 and key-moment stills are written beside the design; the stills come
+  // back as an image to show here.
+  async function makeVideo() {
+    const panel = $("#videopanel"), btn = $("#b-video");
+    if (S.busy) return;
+    togglePlay(false);
+    btn.disabled = true;
+    setBusy(true);
+    panel.hidden = false;
+    panel.replaceChildren(h("h3", {}, "Making the video"), h("div", { class: "files" }, h("span", { class: "spin" }), "Rendering every frame of the flight; this takes a little while (longer with an MP4)."));
+    try {
+      const r = await request("tools/call", { name: "animate_flight", arguments: { designId: S.data.design.designId, simulation: S.data.design.simulation } }, 600000);
+      const text = (r.content || []).filter((c) => c.type === "text").map((c) => c.text).join("\n");
+      if (r.isError) throw new Error(text.replace(/^Error:\s*/, ""));
+      let j = {};
+      try { j = JSON.parse(text); } catch (e) { /* plain text */ }
+      const img = (r.content || []).find((c) => c.type === "image");
+      const close = h("button", { class: "btn", onclick: () => { panel.hidden = true; } }, "Close");
+      panel.replaceChildren(h("h3", {}, "Video ready", close),
+        h("div", { class: "files" }, [j.gif && "GIF: " + j.gif, j.mp4 && "MP4: " + j.mp4, j.length].filter(Boolean).map((x) => h("div", {}, x))),
+        img ? h("img", { src: "data:" + img.mimeType + ";base64," + img.data, alt: "Key moments of the flight" }) : null);
+      request("ui/update-model-context", { content: [{ type: "text", text: "From the design view the user rendered the flight video: " + [j.gif, j.mp4].filter(Boolean).join(", ") }] }).catch(() => {});
+    } catch (e) {
+      panel.replaceChildren(h("h3", {}, "No video", h("button", { class: "btn", onclick: () => { panel.hidden = true; } }, "Close")), h("div", { class: "toast err" }, e.message));
+    } finally {
+      btn.disabled = false;
+      setBusy(false);
+    }
+  }
+  function togglePlay(on) {
+    S.playing = on == null ? !S.playing : on;
+    $("#play").textContent = S.playing ? "Pause" : "Play";
+    if (S.playing) {
+      if (S.T >= tEnd() - 0.01) setT(0);
+      if (S.viewer && S.viewer.mode !== "fly") setView("fly");
+      lastFrame = 0;
+      requestAnimationFrame(playStep);
+    }
+  }
+  function setView(m) {
+    for (const b of $$("[data-view]")) b.setAttribute("aria-pressed", String(b.dataset.view === m));
+    S.viewer.setMode(m);
+  }
+
+  // ------------------------------------------------------------------ wiring
+  function wire() {
+    for (const b of $$(".tabs button")) b.addEventListener("click", () => selectTab(b.dataset.tab));
+    for (const b of $$("[data-view]")) b.addEventListener("click", () => { if (S.viewer) setView(b.dataset.view); });
+    for (const b of $$("[data-range]")) b.addEventListener("click", () => setRange(b.dataset.range));
+    for (const b of $$("[data-filter]")) b.addEventListener("click", () => { S.filter = b.dataset.filter; for (const x of $$("[data-filter]")) x.setAttribute("aria-pressed", String(x === b)); renderChecks(); });
+    $("#cut").addEventListener("change", (e) => { S.viewer.cut = e.target.checked; S.viewer.dirty(); });
+    $("#explode").addEventListener("input", (e) => { S.viewer.explode = +e.target.value; if (S.viewer.mode === "side") S.viewer.frameSide(); else S.viewer.frame3d(); });
+    for (const b of $$("[data-flycam]")) b.addEventListener("click", () => {
+      for (const x of $$("[data-flycam]")) x.setAttribute("aria-pressed", String(x === b));
+      S.viewer.flyCam = b.dataset.flycam;
+      S.viewer.user = { az: 0, el: 0, zoom: 1 };
+      S.viewer.dirty();
+    });
+    $("#speed").addEventListener("change", (e) => { S.speed = e.target.value; updateHud(); });
+    $("#b-video").addEventListener("click", makeVideo);
+    $("#time").addEventListener("input", (e) => { togglePlay(false); setT(+e.target.value); });
+    $("#play").addEventListener("click", () => togglePlay());
+    $("#b-refresh").addEventListener("click", async () => { setBusy(true); try { await refresh(); } catch (e) { renderPartInfo(e.message, true); } finally { setBusy(false); } });
+    $("#b-undo").addEventListener("click", async () => {
+      setBusy(true);
+      try {
+        const r = await callTool("undo", { designId: S.data.design.designId });
+        await refresh();
+        let note = "Undone.";
+        try { const j = JSON.parse(r.text); note = j.undone || j.summary || note; } catch (e) { /* text */ }
+        renderPartInfo(typeof note === "string" ? note : "Undone.");
+      } catch (e) { renderPartInfo(e.message, true); } finally { setBusy(false); }
+    });
+    $("#b-full").addEventListener("click", async () => {
+      if (S.host) {
+        const modes = S.ctx.availableDisplayModes || [];
+        const want = S.ctx.displayMode === "fullscreen" ? "inline" : "fullscreen";
+        if (modes.length && !modes.includes(want)) return;
+        try { const r = await request("ui/request-display-mode", { mode: want }); S.ctx.displayMode = r.mode; setFill(r.mode === "fullscreen"); } catch (e) { /* host said no */ }
+      } else if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {});
+    });
+    window.addEventListener("resize", () => { clearTimeout(S.rz); S.rz = setTimeout(() => { if (S.viewer) S.viewer.resize(); redrawCharts(); }, 80); });
+    matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (!S.ctx.theme) applyTheme(); });
+  }
+
+  wire();
+  const embedded = document.getElementById("or-data");
+  if (embedded) {
+    applyTheme();
+    setFill(false);
+    try { load(JSON.parse(embedded.textContent)); } catch (e) { showMessage("Could not read the design data: " + e.message); }
+  } else {
+    applyTheme();
+    connect();
+  }
+  window.__orView = S; // for tests
+})();
+</script>
+</body>
+</html>

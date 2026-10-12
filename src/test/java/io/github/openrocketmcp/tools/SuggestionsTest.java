@@ -49,7 +49,7 @@ class SuggestionsTest {
 			"flight_configuration", "list_files", "search_motors", "set_motor", "import_motor_file", "run_simulation",
 			"size_parachute", "search_parachutes", "opening_shock", "shear_pins", "export_flight_data", "wind_profile",
 			"apply_preset", "get_standards", "update_standards", "load_standards", "set_units", "redo", "history",
-			"capabilities", "recovery_sections");
+			"capabilities", "recovery_sections", "workbench_data");
 
 	@Test
 	void everyToolATeamWouldAskForIsDiscoverable() {
@@ -66,7 +66,7 @@ class SuggestionsTest {
 		List<String> first = Suggestions.next(ctx, "run_simulation", Map.of("flight", Map.of("maxMach", "1.5")));
 		assertEquals(2, first.size());
 		assertFalse(first.toString().contains("check_requirements"), "used already");
-		assertTrue(first.get(0).contains("monte_carlo"), first.toString());
+		assertTrue(first.toString().contains("show_design") && first.toString().contains("monte_carlo"), first.toString());
 		List<String> second = Suggestions.next(ctx, "run_simulation", Map.of("flight", Map.of("maxMach", "1.5")));
 		assertTrue(second.stream().noneMatch(first::contains), "not twice: " + second);
 		assertTrue(second.toString().contains("aero_heating"), "a fast flight gets the heating screen: " + second);

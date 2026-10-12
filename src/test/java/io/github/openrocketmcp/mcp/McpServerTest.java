@@ -108,6 +108,56 @@ class McpServerTest {
 	}
 
 	@Test
+	void interactiveViewPlumbing() {
+		JsonObject ui = JsonParser.parseString("{\"ui\":{\"resourceUri\":\"ui://t/view.html\",\"visibility\":[\"app\"]}}")
+				.getAsJsonObject();
+		ToolDef data = new ToolDef("view_data", "Data", "For the view.", Schema.object().build(), true, a -> {
+			CallContext.current().structured(Map.of("points", 3));
+			return "three points";
+		}, ui);
+		assertTrue(data.appOnly());
+		assertTrue(data.withHandler(a -> "x").appOnly(), "wrappers keep the metadata");
+		s.tool(data);
+		s.resource(new McpServer.Resource("ui://t/view.html", "View", "A view.", McpServer.UI_MIME, () -> "<!doctype html>",
+				JsonParser.parseString("{\"ui\":{\"prefersBorder\":true}}").getAsJsonObject(), false));
+
+		JsonObject listed = call("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}").getAsJsonObject("result");
+		JsonObject tool = null;
+		for (var t : listed.getAsJsonArray("tools")) {
+			if (t.getAsJsonObject().get("name").getAsString().equals("view_data")) {
+				tool = t.getAsJsonObject();
+			}
+		}
+		assertTrue(tool != null, "app-only tools stay listed (hosts hide them from the model)");
+		assertEquals("ui://t/view.html", tool.getAsJsonObject("_meta").getAsJsonObject("ui").get("resourceUri").getAsString());
+
+		JsonObject r = call("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"view_data\"}}")
+				.getAsJsonObject("result");
+		assertEquals(3, r.getAsJsonObject("structuredContent").get("points").getAsInt());
+		assertEquals("three points", r.getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString());
+
+		JsonObject resources = call("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"resources/list\"}").getAsJsonObject("result");
+		assertFalse(resources.toString().contains("ui://t/view.html"), "a view resource is reached through its tool only");
+		JsonObject read = call("{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"resources/read\",\"params\":{\"uri\":\"ui://t/view.html\"}}")
+				.getAsJsonObject("result").getAsJsonArray("contents").get(0).getAsJsonObject();
+		assertEquals(McpServer.UI_MIME, read.get("mimeType").getAsString());
+		assertTrue(read.getAsJsonObject("_meta").getAsJsonObject("ui").get("prefersBorder").getAsBoolean());
+	}
+
+	@Test
+	void knowsWhetherTheClientRendersViews() {
+		s.singleClient(true);
+		assertNull(s.uiClient(), "unknown until the client says");
+		call("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"capabilities\":{\"extensions\":"
+				+ "{\"io.modelcontextprotocol/ui\":{\"mimeTypes\":[\"text/html;profile=mcp-app\"]}}}}}");
+		assertEquals(Boolean.TRUE, s.uiClient());
+		call("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"initialize\",\"params\":{\"capabilities\":{}}}");
+		assertEquals(Boolean.FALSE, s.uiClient());
+		assertFalse(McpServer.rendersViews(JsonParser.parseString("{\"capabilities\":{\"extensions\":{\"io.modelcontextprotocol/ui\":"
+				+ "{\"mimeTypes\":[\"text/plain\"]}}}}").getAsJsonObject()), "only the HTML view profile counts");
+	}
+
+	@Test
 	void serveLoopWritesOneLinePerResponseOnly() throws Exception {
 		String in = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n"
 				+ "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n"

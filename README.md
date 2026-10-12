@@ -20,6 +20,16 @@ Claude: A 36 in chute lands the 2.84 lb section at 19.9 ft/s. The drogue opens a
 [**Examples**](docs/EXAMPLES.md) follows one 10,000 ft rocket from a blank page to launch day: the prompts a team types,
 the answers, and the plots. Everything on that page is real output.
 
+Say *"show us the rocket"* and an interactive view opens right in the chat: turn the rocket in 3-D, cut it open or pull
+it apart, click a part to see and change it, scrub through the flight and watch CG and CP move, fly it like the
+flight video (chase camera, flame and smoke, the parachutes opening, a dropped booster on its own camera) and render
+the video from there, and read every plot with one time cursor. Outside Claude Desktop and claude.ai it is an HTML file:
+[try the Maple 10K one](docs/examples/maple-10k-view.html) (download it and open it in a browser).
+
+<p>
+<img src="docs/examples/view-rocket.png" alt="The interactive design view: exploded cut-away 3-D model with the main parachute selected and its properties" width="49%">
+<img src="docs/examples/view-flight.png" alt="Linked flight plots with one time cursor and the events marked" width="49%">
+</p>
 <p>
 <img src="docs/examples/flight.gif" alt="3-D animation of the simulated flight: liftoff, burnout, apogee, drogue and main, touchdown" width="100%">
 </p>
@@ -31,6 +41,10 @@ the answers, and the plots. Everything on that page is real output.
 ## What you can ask
 
 **Working with Claude**
+- "Show us the rocket" — the interactive view above, in the chat: 3-D with cut-away and exploded views, a side view to
+  scale with CG, CP and a ruler, the flight replayed like the video (and *Make video* to render it), linked flight plots, the trajectory and
+  ground track, and the rule checks. Click a part to change it (re-simulated at once, and undoable), or ask Claude about
+  it or how to fix a failing check.
 - "Where do we stand?" — the rule check in short, what is not set up yet, and the next steps in order with the tool for
   each. A good first question in any session.
 - "What can you do?" — or nothing at all: Claude offers related things as you work ("I can also plot descent rate
@@ -234,6 +248,10 @@ materials. You can also just tell Claude ("our pins are 2-56 nylon, 35 lbf each"
 - Every number is an engineering estimate from OpenRocket and standard calculations. Claude says where each number
   comes from. It does **not** replace ground tests, flight tests, your mentors or the range safety officer.
 - Nothing is saved to your design file until you ask Claude to save it.
+- Simulations run about three times faster than OpenRocket's own engine (more on rockets with many internal parts),
+  with the same numbers to the last digit: the server skips work OpenRocket repeats at every step (the airframe's mass,
+  the motor's after burnout, the geometry check). Studies that fly many simulations (optimizers, Monte Carlo, shape
+  trades) finish 4 to 8 times sooner than before.
 - Inputs are checked: a value no rocket can have (a negative mass, a zero Cd, a 10^30 m/s wind) is refused with the range
   that is allowed, and a flight that cannot happen (no lift-off, tumbling under thrust, beyond Mach 3) is flagged
   before its numbers.

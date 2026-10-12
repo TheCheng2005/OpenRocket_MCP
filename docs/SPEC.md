@@ -535,6 +535,88 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   has wording, once per session, never for used tools, conditions, the standards switch). Two tests that compared a
   repeated call's full output now ignore the suggestions, which come with the first call only.
 
+### Faster simulations and the interactive view (v0.22.0)
+
+- **Efficiency pass** (profiled with Java Flight Recorder on the benchmark and the bundled designs):
+  - `or.FastSim`: OpenRocket's engine with three per-step recomputations cached. `Simulation.simulate` builds its
+    engine by reflection from a private class field; `FastSim.install` points it at `FastSim.Engine`, a
+    `BasicEventSimulationEngine` whose RK4, landing and tumble steppers cache `calculateStructureMass` (key: the
+    configuration object, its modification id, the rocket's modification id, the active stages) and
+    `calculateMotorMass` (same key plus every active motor's state and its thrust-curve time, clamped at the last data
+    point: OpenRocket's interpolation gives the same mass and CG past burnout and before ignition), and whose Barrowman
+    calculator does `checkGeometry` once per configuration and stage subtree, replaying its warnings. Listeners that
+    override the mass hooks turn the mass caches off. If OpenRocket's internals change, `install` leaves the standard
+    engine in place. `FastSimTest` flies all 54 simulations of the bundled designs both ways: every flight-data value,
+    event count and warning identical; 27 s -> 9 s.
+  - Effect: benchmark 64 s -> 40 s; `monte_carlo` (benchmark) 10.9 -> 2.5 s; steady-state `roll_analysis` 3.6 -> 0.5 s,
+    `compare_shapes` 3.2 -> 0.4 s, `optimize_fins` 3.4 -> 0.7 s, `optimize` 3.3 -> 0.85 s.
+  - Renderer (`Raster3d`, `FlightAnimation`): triangles are filled over each row's covered span (computed from the
+    linear barycentric weights, one pixel of margin) instead of the whole bounding box; 2x supersampling paths for the
+    background copy and the box filter; the animation background without per-pixel allocation, with the field colour
+    reused along a row. Pixel-identical output (compared on the 3-D views and the animation stills); default animation
+    21 -> 16 s.
+  - Missing files, permission errors and paths in the way now read as sentences instead of "internal error".
+- **Interactive view** (`report.Workbench`, `tools.WorkbenchTools`, `resources/ui/workbench.html`):
+  - MCP Apps 2026-01-26: `show_design` carries `_meta.ui.resourceUri` (+ the earlier flat key); `workbench_data` is
+    `visibility: ["app"]`. The resource `ui://openrocket/workbench.html` (`text/html;profile=mcp-app`, `_meta.ui`:
+    `prefersBorder`, empty CSP) is not listed in `resources/list`.
+  - Data: per-part triangle meshes (float32, base64) from `Model3d` with OpenRocket's masses and editable properties
+    (`Components.describe`), metrics, flight series in the team's units thinned to 1,200 points with events and peaks
+    kept, CG/CP and the 3-D path (position, attitude, roll), dropped stages, events, wind and the rule checks (with the
+    design-wind case). About 0.4-1.4 MB per design; it reaches only the view (`structuredContent` of an app-only call),
+    while the model reads a summary line.
+  - Views are snapshots (the last 8 per session) so a view scrolled back to shows what it showed; `refresh` rebuilds.
+    Edits from the view go through `edit_components` and `undo` like any other call (and so through the undo history),
+    and are reported to the model with `ui/update-model-context`.
+  - Plumbing: `ToolDef.meta`, `CallContext.structured`, unlisted resources with `_meta`, the client's view capability
+    (`McpServer.rendersViews`, wording only: app-only tools stay listed, since hosts hide them), CORS on the HTTP
+    transport for `--allow-origin` origins.
+  - Page: plain JavaScript, WebGL 1 (smoothed normals with a 40° crease, two-sided lighting, a fresnel highlight for
+    the selection, colour-ID picking into an 8-bit texture, a cut plane facing the camera), SVG plots following the
+    data-visualisation guide (one measure per plot, palette slots 1-3 validated for both themes, status colours only
+    for status with icon and label), host theme variables and fonts, size reporting, full screen. The same page with
+    the data embedded is the standalone file (`<\/` escaping inside the data block).
+  - Checked against the MCP Apps reference host (`examples/basic-host` of modelcontextprotocol/ext-apps): handshake,
+    data through the host, edit, refresh, model context, undo. `scripts/view_shots.mjs` checks every tab and view in
+    headless Chromium (SwiftShader WebGL) and takes the documentation screenshots; all bundled designs load without a
+    script error.
+- Tests: `FastSimTest`, `WorkbenchTest` (meshes, series alignment, peaks, rail-clearance AoA, safe embedding, no
+  network), protocol tests for metadata, structured content and unlisted resources, the `show_design` /
+  `workbench_data` flow end to end (snapshot, edit and refresh, closed design), CORS.
+
+### The flight video in the view (v0.23.0)
+
+- **Fly view = the flight video, live** (`resources/ui/workbench.html`, `report.Workbench`, `FlightAnimation.plan()`):
+  - `FlightAnimation.plan()` exports the scene the video stages: pad lift, length, radius, CG, rail length, launch
+    axis, drift and side directions, burnout and apogee times, the main stack's sections, every nozzle (stage, side
+    booster, position, radius), the dropped stages (track, stage, pivot span) and the pacing (animation seconds per
+    flight second every 0.1 s). `sectionOf` tells the view which section each part hangs with (-1: a dropped stage).
+    Stage tracks now carry attitude, roll and CG, so a dropped stage tumbles and pivots as in the video.
+  - The page ports the video's staging to WebGL (`Replay`): attitude interpolated as a vector, the chase camera
+    (elevation easing from -9° to +13° round apogee, pulled back at liftoff and at staging), flames sized by thrust,
+    smoke ribbons that widen and fade with age (reaching the nozzle while it burns), canopies inflating over a second
+    with alternating gore colours and shroud lines drawn to scale, the stack swinging apart under the newest canopy,
+    dropped stages on their own tracks with their own chutes, and a stage camera (a second viewport) while one flies.
+    Sky and ground are ray-cast per pixel like the video's background: fields with hedgerows, gravel round the pad,
+    haze with distance, the sky darkening with altitude; hedgerows and fields fade to their average where a pixel
+    covers more than one, so the far ground does not shimmer.
+  - Cameras: chase (drag to swing, scroll to zoom), orbit (circles the rocket with playback), pad (a long lens from
+    the ground) and whole flight (the trajectory's bounding sphere in frame, the rocket drawn larger and ringed). The
+    flight path is drawn in the pad and whole-flight views only.
+  - Playback "like the video" uses the exported pacing; 1x, 4x and 16x are fixed rates. Captions follow the video's
+    timing (2.6 s of playback each, at most two).
+  - *Make video* (in a host): `tools/call animate_flight` with the view's design and simulation; the panel lists the
+    GIF and MP4 and shows the stills; the model is told through `ui/update-model-context`. Checked in the MCP Apps
+    reference host (34 s for the Maple 10K with an MP4).
+- **Video fixes found on the way** (`FlightAnimation`):
+  - Stages that share a name each map to their own track (the lowest stage takes the first separation); before, the
+    three-stage example's two "Booster stage" tracks both drew the bottom booster and the middle stage stayed on.
+  - The main stack's extent ignores fins and motors sticking out aft, so no sliver section is made behind the
+    airframe.
+- Tests: `WorkbenchTest` (pacing, nozzles, sections and each part's section; the two-stage booster's track and parts),
+  `FlightAnimationTest` (same-named stages, no sliver sections); `scripts/view_shots.mjs` drives every camera, a
+  caption and playback in headless Chromium.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

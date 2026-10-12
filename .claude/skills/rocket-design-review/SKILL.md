@@ -36,6 +36,9 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
      it writes a template), then `check_requirements` again.
    - Electronics -> `add_avionics_bay` (one altimeter per circuit, own battery and switch each, tracker on its own
      battery); fix any "not enough room" warning before trusting stability, since it moves mass.
+   - Let the team explore it -> `show_design` opens an interactive view in the chat (3-D with cut-away and exploded
+     views, CG/CP through the flight, the flight played like the video with a free camera and a *Make video* button,
+     linked plots, trajectory, rule checks; parts can be clicked and changed). Offer it after the first simulation and whenever a picture beats a table. It also writes an HTML file.
    - Show the vehicle -> `draw_rocket` (a cut-away: check the chutes, electronics and motor sit where the team expects);
      `render_3d` for a 3-D exploded view with the parts list and masses (per stage on a two-stage rocket);
      `animate_flight` for a video of the simulated flight (staging and a booster camera on two-stage rockets).
