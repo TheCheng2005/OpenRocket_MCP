@@ -90,6 +90,67 @@ class WorkbenchTest {
 	}
 
 	@Test
+	@SuppressWarnings("unchecked")
+	void replayIsStagedLikeTheVideo() {
+		Map<String, Object> f = (Map<String, Object>) data.get("flight");
+		Map<String, Object> anim = (Map<String, Object>) f.get("anim");
+		assertTrue(anim != null, "the flight animation's staging comes with the flight");
+		// Pacing every 0.1 s of flight (animation seconds per flight second): real time through the burn, the long
+		// descent sped up, slowed again round apogee.
+		double[] pace = (double[]) anim.get("pace");
+		List<Double> t = (List<Double>) f.get("t");
+		assertEquals(t.get(t.size() - 1) / 0.1, pace.length, 3);
+		assertEquals(1.0, pace[5], 1e-9, "real time half a second into the burn");
+		double apogee = (double) anim.get("apogee");
+		double atApogee = pace[(int) Math.round(apogee / 0.1)], descent = pace[(pace.length + (int) Math.round(apogee / 0.1)) / 2];
+		assertTrue(atApogee >= 0.5 && descent < atApogee, "apogee " + atApogee + ", descent " + descent);
+		List<Map<String, Object>> nozzles = (List<Map<String, Object>>) anim.get("nozzles");
+		assertFalse(nozzles.isEmpty(), "a nozzle to put the flame at");
+		Map<String, Object> rocket = (Map<String, Object>) data.get("rocket");
+		double length = (double) rocket.get("length");
+		for (Map<String, Object> n : nozzles) {
+			double[] at = (double[]) n.get("at");
+			assertTrue(at[0] > length / 2 && at[0] <= length + 0.3 && (double) n.get("r") > 0, "nozzle at the aft end: " + at[0]);
+		}
+		// Sections of the stack between separation joints, end to end; every part flies with one of them.
+		List<double[]> sections = (List<double[]>) anim.get("sections");
+		assertTrue(sections.size() >= 2, "dual deployment comes apart: " + sections.size());
+		for (int i = 1; i < sections.size(); i++) {
+			assertEquals(sections.get(i - 1)[1], sections.get(i)[0], 1e-9);
+		}
+		for (Map<String, Object> p : (List<Map<String, Object>>) rocket.get("parts")) {
+			int sec = (Integer) p.get("section");
+			assertTrue(sec >= 0 && sec < sections.size(), p.get("name") + " section " + sec);
+			assertEquals(0, (Integer) p.get("stageNo"), String.valueOf(p.get("name")));
+		}
+		assertTrue(((List<?>) anim.get("dropped")).isEmpty(), "a single stage drops nothing");
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void droppedStageFliesItsOwnTrack() throws Exception {
+		Designs ds = new Designs();
+		Designs.Design d = ds.openExample("Two stage high power");
+		Simulation sim = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults(), false);
+		Sims.ensure(sim);
+		Map<String, Object> two = Workbench.data(d.name(), d.id, sim, Map.of("summary", "ok", "checks", List.of()), Standards.defaults());
+		Map<String, Object> f = (Map<String, Object>) two.get("flight");
+		List<Map<String, Object>> dropped = (List<Map<String, Object>>) ((Map<String, Object>) f.get("anim")).get("dropped");
+		assertEquals(1, dropped.size(), "the booster");
+		int track = (Integer) dropped.get(0).get("track"), stage = (Integer) dropped.get(0).get("stage");
+		Map<String, Object> booster = ((List<Map<String, Object>>) f.get("stages")).stream().filter(x -> x.get("track").equals(track))
+				.findFirst().orElseThrow();
+		for (String k : List.of("east", "north", "up", "theta", "phi", "roll", "cg")) {
+			assertEquals(((List<?>) booster.get("t")).size(), ((List<?>) booster.get(k)).size(), k);
+		}
+		List<Map<String, Object>> parts = (List<Map<String, Object>>) ((Map<String, Object>) two.get("rocket")).get("parts");
+		assertTrue(parts.stream().anyMatch(p -> p.get("stageNo").equals(stage)), "booster parts");
+		for (Map<String, Object> p : parts) {
+			assertEquals(p.get("stageNo").equals(stage), p.get("section").equals(-1), p.get("name") + " flies with the booster");
+		}
+	}
+
+	@Test
 	void standalonePageEmbedsTheDataSafely() {
 		String html = Workbench.standalone(data);
 		Matcher m = Pattern.compile("<script type=\"application/json\" id=\"or-data\">(.*?)</script>", Pattern.DOTALL).matcher(html);

@@ -59,8 +59,9 @@ public final class WorkbenchTools {
 
 		s.tool(new ToolDef("show_design", "Show the design interactively",
 				"Open an interactive view of the design and its simulated flight: the 3-D rocket (rotate, cut-away, exploded; "
-						+ "click a part to see and edit its properties), CG and CP moving through the flight, a 3-D replay of the "
-						+ "flight, linked plots (altitude, speed, acceleration, Mach, stability, thrust and drag, angle of attack, "
+						+ "click a part to see and edit its properties), CG and CP moving through the flight, the flight played like "
+						+ "animate_flight's video with a camera the team can move (and a button that renders the video), linked "
+						+ "plots (altitude, speed, acceleration, Mach, stability, thrust and drag, angle of attack, "
 						+ "mass) with events marked, the trajectory and ground track, and the rule checks. In Claude Desktop and "
 						+ "claude.ai the view appears in the chat; it is also written as a standalone HTML file to open in a browser "
 						+ "or send to the team. Use it whenever someone wants to see, explore or present the rocket or its flight "

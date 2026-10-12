@@ -6,7 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -165,6 +168,30 @@ class FlightAnimationTest {
 				ImageIO.write(View3d.render(s.getActiveConfiguration(), example, View3d.Mode.EXPLODED, 25, 22, 1400).image(), "png",
 						Path.of("build/scratch/" + example.replace(' ', '_') + "-exploded.png").toFile());
 			}
+		}
+	}
+
+	/** Stages that share a name (two "Booster stage"s) each fly their own track; the lowest comes off first. */
+	@Test
+	@SuppressWarnings("unchecked")
+	void sameNamedStagesEachDropOnTheirOwnTrack() throws Exception {
+		Designs.Design d = new Designs().openExample("Three stage");
+		Simulation s = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults());
+		Sims.run(s);
+		FlightTrack.Flight fl = FlightTrack.of(s);
+		FlightAnimation a = new FlightAnimation(fl, s.getActiveConfiguration(), 2, new FlightAnimation.Options(480, 5, 12, "t", ""));
+		Map<String, Object> plan = a.plan();
+		Map<Integer, Double> separation = new HashMap<>();
+		for (Map<String, Object> x : (List<Map<String, Object>>) plan.get("dropped")) {
+			separation.put((Integer) x.get("stage"), fl.tracks().get((Integer) x.get("track")).separation);
+		}
+		assertEquals(Set.of(1, 2), separation.keySet(), "each booster is its own stage");
+		assertTrue(separation.get(2) < separation.get(1), "the lowest stage comes off first");
+		// The sustainer's sections cover its airframe, not fins sticking out aft of it.
+		List<double[]> sections = (List<double[]>) plan.get("sections");
+		double end = sections.get(sections.size() - 1)[1];
+		for (double[] sec : sections) {
+			assertTrue(sec[1] - sec[0] > 0.1 * end, "no sliver section: " + sec[0] + ".." + sec[1]);
 		}
 	}
 

@@ -8,6 +8,7 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -84,9 +85,11 @@ public final class Workbench {
 		design.put("ruleSet", std.rulesName());
 		out.put("design", design);
 		out.put("units", units());
-		out.put("rocket", rocket(fc));
+		FlightTrack.Flight track = FlightTrack.of(sim);
+		FlightAnimation anim = scene(track, fc, sim.getOptions().getLaunchRodLength(), designName);
+		out.put("rocket", rocket(fc, anim));
 		out.put("metrics", metrics(sim, fc, std));
-		out.put("flight", flight(sim));
+		out.put("flight", flight(sim, track, anim));
 		if (checks != null) {
 			out.put("checks", checks);
 		}
@@ -112,7 +115,16 @@ public final class Workbench {
 
 	// ------------------------------------------------------------------------------------------- rocket
 
-	static Map<String, Object> rocket(FlightConfiguration fc) {
+	/** The flight animation's scene (pad, pacing, sections, stages), or null if it cannot be staged. */
+	static FlightAnimation scene(FlightTrack.Flight f, FlightConfiguration fc, double railLength, String name) {
+		try {
+			return new FlightAnimation(f, fc, railLength, new FlightAnimation.Options(480, 5, 25, name, ""));
+		} catch (RuntimeException e) {
+			return null; // the view replays the flight without the animation's staging
+		}
+	}
+
+	static Map<String, Object> rocket(FlightConfiguration fc, FlightAnimation anim) {
 		Map<String, Object> r = new LinkedHashMap<>();
 		Analysis.Stability st = Analysis.stability(fc, 0.3);
 		r.put("length", fc.getLength());
@@ -127,7 +139,14 @@ public final class Workbench {
 		r.put("diameterText", Units.fmt(st.referenceDiameter(), Dim.LENGTH));
 		List<Map<String, Object>> parts = new ArrayList<>();
 		int i = 0;
-		for (Model3d.Part p : Model3d.build(fc, SEGMENTS)) {
+		List<Model3d.Part> built = Model3d.build(fc, SEGMENTS);
+		Map<Integer, Double> pieceStart = new HashMap<>();
+		for (Model3d.Part p : built) {
+			if (!p.internal && !p.kind.equals("fins")) {
+				pieceStart.merge(p.piece, p.x0, Math::min);
+			}
+		}
+		for (Model3d.Part p : built) {
 			Map<String, Object> m = new LinkedHashMap<>();
 			m.put("i", i++);
 			m.put("name", p.name);
@@ -136,6 +155,10 @@ public final class Workbench {
 			m.put("internal", p.internal);
 			m.put("piece", p.piece);
 			m.put("stage", p.stageName);
+			m.put("stageNo", p.stage);
+			if (anim != null) {
+				m.put("section", anim.sectionOf(p, pieceStart));
+			}
 			m.put("x0", p.x0);
 			m.put("x1", p.x1);
 			m.put("mass", Units.fmt(p.mass, Dim.MASS));
@@ -243,11 +266,10 @@ public final class Workbench {
 
 	// ------------------------------------------------------------------------------------------- flight
 
-	static Map<String, Object> flight(Simulation sim) {
+	static Map<String, Object> flight(Simulation sim, FlightTrack.Flight f, FlightAnimation anim) {
 		FlightData data = sim.getSimulatedData();
 		FlightDataBranch b0 = data.getBranch(0);
 		Branch br = Branch.of(b0);
-		FlightTrack.Flight f = FlightTrack.of(sim);
 		int[] idx = sample(br, f);
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("t", pick(br.time, idx, null));
@@ -304,9 +326,17 @@ public final class Workbench {
 			s.put("east", pick(t.east, j, null));
 			s.put("north", pick(t.north, j, null));
 			s.put("up", pick(t.alt, j, null));
+			s.put("theta", pick(t.theta, j, null));
+			s.put("phi", pick(t.phi, j, null));
+			s.put("roll", pick(t.roll, j, null));
+			s.put("cg", pick(t.cg, j, null));
+			s.put("track", k);
 			stages.add(s);
 		}
 		out.put("stages", stages);
+		if (anim != null) {
+			out.put("anim", anim.plan());
+		}
 		List<Map<String, Object>> events = new ArrayList<>();
 		for (FlightTrack.Event e : f.events()) {
 			Map<String, Object> ev = new LinkedHashMap<>();

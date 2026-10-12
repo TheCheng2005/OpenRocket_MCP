@@ -11,7 +11,10 @@ import java.awt.Shape;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -165,15 +168,23 @@ public final class FlightAnimation {
 		}
 		length = Math.max(0.1, fc.getLength());
 		maxR = Math.max(0.01, r);
-		// Stages dropped in flight fly their own track (branch names are the stage names).
-		Map<String, Integer> stageByName = new HashMap<>();
+		// Stages dropped in flight fly their own track (branch names are the stage names). Stages can share a name (two
+		// "Booster stage"s): the lowest goes first, so tracks of one name take its stages from the bottom up in the order
+		// they separate.
+		Map<String, Deque<Integer>> stagesByName = new HashMap<>();
 		for (RocketComponent c : fc.getRocket().getChildren()) {
 			if (c instanceof AxialStage st) {
-				stageByName.put(st.getName(), st.getStageNumber());
+				stagesByName.computeIfAbsent(st.getName(), x -> new ArrayDeque<>()).add(st.getStageNumber());
 			}
 		}
+		List<Integer> bySeparation = new ArrayList<>();
 		for (int i = 1; i < f.tracks().size(); i++) {
-			Integer st = stageByName.get(f.tracks().get(i).name);
+			bySeparation.add(i);
+		}
+		bySeparation.sort(Comparator.comparingDouble(i -> f.tracks().get(i).separation));
+		for (int i : bySeparation) {
+			Deque<Integer> named = stagesByName.get(f.tracks().get(i).name);
+			Integer st = named == null ? null : named.pollLast();
 			if (st != null && st > 0) {
 				trackStage.put(i, st);
 			}
@@ -186,10 +197,15 @@ public final class FlightAnimation {
 			if (!p.internal && !p.kind.equals("fins")) {
 				pieceStart.merge(p.piece, p.x0, Math::min);
 			}
-			if (!trackStage.containsValue(p.stage)) {
+			// The airframe's length: fins or a motor sticking out aft make no section of their own.
+			if (!trackStage.containsValue(p.stage) && !p.internal && !p.kind.equals("fins")) {
 				stack0 = Math.min(stack0, p.x0);
 				stack1 = Math.max(stack1, p.x1);
 			}
+		}
+		if (stack1 <= stack0) {
+			stack0 = 0;
+			stack1 = length;
 		}
 		double lo = stack0, hi = stack1;
 		joints.removeIf(x -> x <= lo + 1e-3 || x >= hi - 1e-3);
@@ -272,6 +288,72 @@ public final class FlightAnimation {
 			}
 			on = burning;
 		}
+	}
+
+	// ------------------------------------------------------------------------------------------- the view
+
+	/**
+	 * The scene as the interactive view stages it, so the view's replay and this video agree: where the pad is, how the
+	 * camera looks across the drift, which nozzles burn, where the stack comes apart under the chutes, which stages
+	 * drop off, and the pacing (animation seconds per flight second every 0.1 s, for the default length). Metres,
+	 * seconds, the rocket frame (x from the nose tip) and the world frame (east, north, up).
+	 */
+	public Map<String, Object> plan() {
+		Map<String, Object> p = new LinkedHashMap<>();
+		p.put("lift", lift);
+		p.put("length", length);
+		p.put("maxR", maxR);
+		p.put("cg0", cg0);
+		p.put("railLength", railLength);
+		p.put("axis0", axis0);
+		p.put("drift", new double[] { drift[0], drift[1] });
+		p.put("side", new double[] { side[0], side[1] });
+		p.put("burnout", f.burnout());
+		p.put("apogee", f.apogeeTime());
+		p.put("maxThrust", f.maxThrust());
+		p.put("sections", sections);
+		List<Map<String, Object>> nz = new ArrayList<>();
+		nozzles.forEach((st, list) -> {
+			for (double[] n : list) {
+				Map<String, Object> m = new LinkedHashMap<>();
+				m.put("stage", st);
+				m.put("sideBooster", sideBoosters.contains(st));
+				m.put("at", new double[] { n[0], n[1], n[2] });
+				m.put("r", n[3]);
+				nz.add(m);
+			}
+		});
+		p.put("nozzles", nz);
+		List<Map<String, Object>> dropped = new ArrayList<>();
+		trackStage.forEach((track, st) -> {
+			if (stagePivot.containsKey(st)) {
+				Map<String, Object> m = new LinkedHashMap<>();
+				m.put("track", track);
+				m.put("stage", st);
+				m.put("pivot", stagePivot.get(st)); // {middle, forward end, aft end}
+				dropped.add(m);
+			}
+		});
+		p.put("dropped", dropped);
+		double[] pace = new double[(gridD.length + 9) / 10];
+		for (int i = 0; i < pace.length; i++) {
+			pace[i] = Math.round(gridD[Math.min(gridD.length - 1, i * 10)] * 1000) / 1000.0;
+		}
+		p.put("pace", pace);
+		return p;
+	}
+
+	/** The main-stack section a part of the view's model flies with when the stack hangs apart; -1 for dropped stages. */
+	public int sectionOf(Model3d.Part part, Map<Integer, Double> pieceStart) {
+		if (trackStage.containsValue(part.stage)) {
+			return -1;
+		}
+		double x = pieceStart.getOrDefault(part.piece, part.x0) + 1e-4;
+		int s = 0;
+		while (s + 1 < sections.size() && x >= sections.get(s + 1)[0]) {
+			s++;
+		}
+		return s;
 	}
 
 	// ------------------------------------------------------------------------------------------- schedule

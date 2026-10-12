@@ -40,9 +40,17 @@ from the model by hosts that show views). Bold marks the main job of each tool.
     highlights it and lists its properties; in a host, clicking a value edits it through `edit_components` (enum and
     yes/no values become lists), re-simulates and updates the view; *Undo* calls `undo`. The model is told of selections
     and edits (`ui/update-model-context`); *Ask Claude about this part* sends a message to the chat.
-  - **Fly:** the simulated flight in 3-D (position, attitude and roll from OpenRocket), the path and dropped stages as
-    lines, the parachutes as canopies once deployed, a ground grid; follows the rocket or frames the whole flight.
-    *Play* runs it at 1x through the burn, 3x to apogee and 8x on the way down.
+  - **Fly:** the flight as `animate_flight` stages it, live and interactive: the pad and rail, fields to the horizon
+    with haze, the exhaust flame at the burning nozzles and the smoke trail, the parachutes inflating with their gores
+    and shroud lines, the stack hanging apart under them at its separation joints, dropped stages on their own tracks
+    (with a stage camera in the lower left while one flies), event captions and a trajectory map. Position, attitude
+    and roll are OpenRocket's. Cameras: *Chase* (the video's, across the drift), *Orbit* (circles the rocket),
+    *Pad* (a spectator by the pad with a long lens), *Whole flight* (the trajectory, the rocket drawn larger and
+    ringed); drag to swing the camera, scroll to zoom, double-click to reset. *Play* paces it like the video (real time
+    through the burn, slowed round apogee and each deployment, the rest sped up) or at 1x, 4x or 16x. In a host,
+    *Make video* runs `animate_flight` on the same design and simulation and shows the key-moment stills; the GIF and
+    MP4 are written beside the design. The scene comes from the video's own code (`FlightAnimation.plan()`: pad, rail,
+    sections, nozzles, dropped stages, pacing), so the two agree.
   - **Flight plots:** altitude, speed (total, vertical), acceleration, Mach, stability (with the rule minimum), thrust
     and drag, angle of attack (from rail clearance) and mass, one measure per plot, events marked. One time cursor
     across all plots with a readout of every value; drag to zoom, *Ascent* / *Whole flight* ranges. Up to 1,200 points
@@ -135,6 +143,10 @@ from the model by hosts that show views). Bold marks the main job of each tool.
       others.
   - **Timing:** playback is real time through the burn and slows around apogee and each deployment. The coast and
     descent are sped up to fit `duration` (25 s by default), and the playback rate is always on screen.
+  - **Live:** the same scene plays in `show_design`'s *Fly* view, where the camera can be moved and the flight scrubbed;
+    *Make video* there calls this tool.
+  - **Staging and sections:** stages that share a name (two "Booster stage"s) each get their own track, the lowest
+    first; the stack comes apart at the joints of its airframe (fins or a motor sticking out aft make no section).
 
 ### Motors
 

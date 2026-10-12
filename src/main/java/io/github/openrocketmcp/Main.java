@@ -53,7 +53,7 @@ import io.github.openrocketmcp.tools.WorkbenchTools;
 
 /** Entry point: stdio MCP server for OpenRocket. */
 public final class Main {
-	public static final String VERSION = "0.22.0";
+	public static final String VERSION = "0.23.0";
 
 	static final String INSTRUCTIONS = """
 			OpenRocket MCP: design, simulate and check high-power / competition rockets with OpenRocket's physics.
@@ -73,9 +73,10 @@ public final class Main {
 			- Use OpenRocket's data: search_parts / apply_preset for real catalog parts, wind_profile for winds aloft,
 			  draw_rocket to show the design. What-if tools never modify the design. Deployment airspeed comes from the simulation and includes horizontal velocity and wind.
 			- Show, don't just tell: show_design opens an interactive view in the chat (3-D rocket with cut-away and
-			  exploded views, CG/CP through the flight, a 3-D flight replay, linked flight plots, trajectory, rule checks;
-			  the team can click parts and change them). Offer it when someone wants to see or explore the rocket or a
-			  flight, and after a run when a picture would help. It also writes a standalone HTML file for other clients.
+			  exploded views, CG/CP through the flight, the flight played like animate_flight's video with a free camera,
+			  linked flight plots, trajectory, rule checks; the team can click parts and change them). Offer it when
+			  someone wants to see or explore the rocket or a flight, and after a run when a picture would help. It also
+			  writes a standalone HTML file for other clients.
 			- Pictures and video: render_3d for exploded / cut-away 3-D images with a parts list, animate_flight for a 3-D
 			  animation of the simulated flight (GIF, MP4 with ffmpeg, key-moment stills).
 			- Inputs accept units ("20 ft/s", "4 in", "15 psi"); bare numbers are SI. Output uses the team's unit setting.

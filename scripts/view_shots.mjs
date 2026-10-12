@@ -59,10 +59,23 @@ await setTime((await event("burnout")) || 0);
 await page.waitForTimeout(400);
 await shot("view-side.png");
 
-// Replay a few seconds after the last deployment.
+// The replay: every camera, a caption after burnout, a moment of playback; the screenshot from the chase camera a few
+// seconds after the last deployment.
 await page.click("[data-view=fly]");
+for (const cam of ["orbit", "pad", "whole", "chase"]) {
+  await page.click(`[data-flycam=${cam}]`);
+  await setTime((await event("apogee")) || 5);
+  await page.waitForTimeout(250);
+}
+const burnout = (await event("burnout")) || 1;
+await setTime(burnout + 0.3);
+await page.waitForTimeout(250);
+if (!(await page.$$("#captions .caption")).length) errors.push("no caption just after burnout");
+await page.click("#play");
+await page.waitForTimeout(800);
+await page.click("#play");
+if (!((await page.evaluate(() => window.__orView.T)) > burnout + 0.35)) errors.push("playback did not move the flight on");
 await setTime(((await event("deploy", true)) || 10) + 4);
-await page.evaluate(() => { const v = window.__orView.viewer; v.cam.faz = -35; v.cam.fel = 8; v.dirty(); });
 await page.waitForTimeout(400);
 await shot("view-fly.png");
 

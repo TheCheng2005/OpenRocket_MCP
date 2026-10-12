@@ -90,6 +90,16 @@ body.fill .panel { height: auto; flex: 1 1 auto; min-height: 300px; }
 .chk input { margin: 0; accent-color: var(--accent); }
 .hud { position: absolute; right: 8px; bottom: 8px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--ring); border-radius: 6px; padding: 3px 8px; font-size: 12px; font-variant-numeric: tabular-nums; pointer-events: none; max-width: calc(100% - 16px); }
 .hud b { font-weight: 600; }
+.captions { position: absolute; left: 8px; top: 44px; display: flex; flex-direction: column; gap: 5px; align-items: flex-start; pointer-events: none; max-width: min(320px, calc(100% - 190px)); }
+.caption { background: rgba(12, 18, 28, 0.72); color: #fff; border-left: 3px solid #ffd43b; border-radius: 7px; padding: 4px 10px 5px; }
+.caption b { display: block; font-size: 12.5px; letter-spacing: .05em; text-transform: uppercase; }
+.caption span { font-size: 11px; color: #d0d8e4; }
+.inset text { font: 10px var(--font); }
+.chk select { border: 0; background: none; padding: 0; color: var(--ink); }
+.videopanel { position: absolute; inset: 44px 10px 10px; background: var(--surface); border: 1px solid var(--ring); border-radius: var(--radius); padding: 10px 12px; overflow: auto; z-index: 4; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); }
+.videopanel h3 { margin: 0 0 4px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+.videopanel img { width: 100%; border-radius: 6px; margin-top: 8px; }
+.videopanel .files { font-size: 12px; color: var(--ink2); word-break: break-all; }
 .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); padding: 2px 7px; border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 3; }
 .nogl { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink2); padding: 20px; text-align: center; }
 .parts { border: 1px solid var(--ring); border-radius: var(--radius); display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
@@ -191,8 +201,18 @@ details.manual summary { cursor: pointer; color: var(--ink); }
           </div>
           <label class="chk" id="t-cut" title="Cut the airframe open to show the parts inside"><input type="checkbox" id="cut"> Cut-away</label>
           <label class="chk" id="t-explode" title="Pull the airframe sections apart"><input type="range" id="explode" min="0" max="1" step="0.01" value="0" style="width:70px"> Exploded</label>
-          <label class="chk" id="t-whole" hidden title="Frame the whole trajectory instead of following the rocket"><input type="checkbox" id="whole"> Whole flight</label>
+          <div class="seg" id="t-flycam" role="group" aria-label="Camera" hidden>
+            <button data-flycam="chase" aria-pressed="true" title="The video's chase camera (drag to swing it round)">Chase</button>
+            <button data-flycam="orbit" title="Circles the rocket as it plays; drag to look from anywhere">Orbit</button>
+            <button data-flycam="pad" title="From the ground beside the pad, zoomed in like a long lens">Pad</button>
+            <button data-flycam="whole" title="The whole trajectory, the rocket drawn larger">Whole flight</button>
+          </div>
+          <label class="chk" id="t-speed" hidden title="Playback speed">Speed
+            <select id="speed"><option value="auto">like the video</option><option value="1">real time</option><option value="4">4x</option><option value="16">16x</option></select></label>
+          <button id="b-video" class="btn" hidden title="Render this flight as a GIF and MP4 with key-moment stills, saved beside the design (animate_flight)">Make video</button>
         </div>
+        <div id="captions" class="captions" aria-live="polite"></div>
+        <div id="videopanel" class="videopanel" hidden></div>
         <div id="hud" class="hud"></div>
         <div id="tip3d" class="tip" hidden></div>
       </div>
@@ -274,6 +294,7 @@ details.manual summary { cursor: pointer; color: var(--ink); }
   const fmtT = (t) => (t < 10 ? t.toFixed(2) : t < 100 ? t.toFixed(1) : t.toFixed(0)) + " s";
   const LEN = { m: 1, mm: 1000, cm: 100, in: 1 / 0.0254, ft: 1 / 0.3048, km: 0.001, mi: 1 / 1609.344 };
   const conv = (m, unit) => m * (LEN[unit] || 1);
+  const SPEED = { "m/s": 1, "ft/s": 1 / 0.3048, "km/h": 3.6, mph: 2.236936 };
 
   // ------------------------------------------------------------------ state
   const S = {
@@ -736,6 +757,7 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       parts.push(["T+", fmtT(t)], ["altitude", num(conv(interp(f.path.up, t), u.distance)) + " " + u.distance]);
       if (f.series.speed) parts.push(["speed", num(interp(f.series.speed.values, t)) + " " + u.velocity]);
       if (f.series.mach) parts.push(["Mach", num(interp(f.series.mach.values, t))]);
+      if (S.playing) { const r = playRate(); parts.push(["", (r < 1.05 && r > 0.95 ? "real time" : r < 1 ? "slowed " + num(1 / r) + "x" : num(r) + "x")]); }
     } else {
       const cg = interp(f.cg, t), cp = interp(f.cp, t);
       parts.push(["t", fmtT(t)], ["CG", num(conv(cg, u.length)) + " " + u.length]);
@@ -791,7 +813,9 @@ details.manual summary { cursor: pointer; color: var(--ink); }
   const FS = "precision mediump float; varying vec3 vN; varying vec3 vR; varying vec3 vW;"
     + "uniform vec3 uColor; uniform vec3 uEye; uniform vec3 uViewDir; uniform float uOrtho; uniform vec3 uLight; uniform vec2 uCutN; uniform float uCut;"
     + "uniform float uSel; uniform vec3 uSelColor; uniform float uDim; uniform vec3 uFade;"
+    + "uniform float uEmissive;"
     + "void main(){ if (uCut > 0.5 && dot(vR.yz, uCutN) > 0.0) discard;"
+    + " if (uEmissive > 0.5) { gl_FragColor = vec4(uColor, 1.0); return; }"
     + " vec3 n = normalize(vN); vec3 v = uOrtho > 0.5 ? -uViewDir : normalize(uEye - vW); float back = 0.0; if (dot(n, v) < 0.0) { n = -n; back = 1.0; }"
     + " float diff = max(dot(n, uLight), 0.0); float hemi = 0.5 + 0.5 * n.z; vec3 hv = normalize(uLight + v);"
     + " float spec = pow(max(dot(n, hv), 0.0), 48.0) * 0.22 * (1.0 - back);"
@@ -801,9 +825,340 @@ details.manual summary { cursor: pointer; color: var(--ink); }
     + " gl_FragColor = vec4(mix(c, uFade, uDim), 1.0); }";
   const PICK_FS = "precision mediump float; varying vec3 vN; varying vec3 vR; varying vec3 vW; uniform vec3 uId; uniform vec2 uCutN; uniform float uCut;"
     + "void main(){ if (uCut > 0.5 && dot(vR.yz, uCutN) > 0.0) discard; gl_FragColor = vec4(uId, 1.0); }";
-  const LVS = "attribute vec3 aPos; uniform mat4 uVP; uniform vec3 uEye; varying float vD; void main(){ vD = distance(aPos, uEye); gl_Position = uVP * vec4(aPos, 1.0); }";
-  const LFS = "precision mediump float; uniform vec4 uColor; uniform float uFog; varying float vD;"
-    + "void main(){ float a = uColor.a * (uFog > 0.0 ? clamp(1.2 - vD / uFog, 0.0, 1.0) : 1.0); gl_FragColor = vec4(uColor.rgb, a); }";
+  const LVS = "attribute vec3 aPos; uniform mat4 uVP; void main(){ gl_Position = uVP * vec4(aPos, 1.0); }";
+  const LFS = "precision mediump float; uniform vec4 uColor; void main(){ gl_FragColor = uColor; }";
+  // Sky and ground of the replay, per pixel as in the flight animation: the ray through each pixel either rises (sky,
+  // horizon to zenith) or meets the ground, which is farm fields 150 m on a side with hedgerows, gravel round the pad and
+  // haze with distance. An endless plane, drawn behind everything without depth.
+  const GVS = "attribute vec2 aPos; varying vec2 vNdc; void main(){ vNdc = aPos; gl_Position = vec4(aPos, 0.0, 1.0); }";
+  const GFS = "#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n"
+    + "varying vec2 vNdc; uniform vec3 uEye, uFwd, uRight, uUp, uZenith, uHorizon; uniform vec2 uTan; uniform float uPx;"
+    + "float hash(vec2 c) { return fract(sin(dot(c, vec2(12.9898, 78.233))) * 43758.5453); }"
+    + "void main(){ vec3 d = uFwd + vNdc.x * uTan.x * uRight + vNdc.y * uTan.y * uUp; float l = length(d), dz = d.z / l;"
+    + " if (dz >= -1e-4) { gl_FragColor = vec4(mix(uHorizon, uZenith, pow(min(1.0, dz * 1.6), 0.6)), 1.0); return; }"
+    + " float s = uEye.z / -dz; vec2 g = uEye.xy + s * d.xy / l;"
+    + " float m = s * uPx / max(-dz, 0.02);" // metres of ground one pixel covers along the view
+    + " vec3 A = vec3(0.471, 0.588, 0.345), B = vec3(0.643, 0.620, 0.408), C = vec3(0.376, 0.502, 0.298), H = vec3(0.337, 0.384, 0.251);"
+    + " vec2 f = g / 150.0, cell = floor(f), r = f - cell; float v = hash(cell);"
+    + " vec3 col = v < 0.5 ? mix(A, C, v * 2.0) : mix(A, B, (v - 0.5) * 2.0);"
+    + " col = mix(col, 0.5 * A + 0.25 * B + 0.25 * C, clamp(m / 120.0 - 0.2, 0.0, 1.0));" // fields smaller than a pixel blend
+    + " float e = min(min(r.x, 1.0 - r.x), min(r.y, 1.0 - r.y)) * 150.0;"
+    + " float hedge = mix(clamp((1.5 - e) / max(m, 1e-3) + 0.5, 0.0, 1.0), 0.04, clamp(m / 12.0, 0.0, 1.0));"
+    + " col = mix(col, H, 0.6 * hedge);"
+    + " col = mix(vec3(0.690, 0.659, 0.588), col, smoothstep(18.0, 25.0, length(g)));"
+    + " gl_FragColor = vec4(mix(col, uHorizon, 1.0 - exp(-s / 9000.0)), 1.0); }";
+  // Smoke: camera-facing ribbons with an alpha per vertex.
+  const TVS = "attribute vec3 aPos; attribute float aA; uniform mat4 uVP; varying float vA; void main(){ vA = aA; gl_Position = uVP * vec4(aPos, 1.0); }";
+  const TFS = "precision mediump float; varying float vA; uniform vec3 uColor; void main(){ gl_FragColor = vec4(uColor, vA); }";
+
+  // ------------------------------------------------------------------ flight replay: the flight animation's staging
+  // The same scene as animate_flight (FlightAnimation.plan): pad and rail, the chase camera across the drift, flames at
+  // the burning nozzles, the smoke trail, canopies that inflate, the stack hanging apart under them, dropped stages on
+  // their own tracks, and the video's pacing.
+  const smooth = (x) => { const c = clamp(x, 0, 1); return c * c * (3 - 2 * c); };
+  const lerp3 = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+  // Raster3d.alongAxis: rotation (row-major 3 x 3) taking the local x axis to `axis`, rolled about it.
+  function alongAxis(axis, roll) {
+    const x = V.norm(axis), ref = Math.abs(x[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    const y = V.norm(V.cross(ref, x)), z = V.cross(x, y), c = Math.cos(roll), sn = Math.sin(roll);
+    const y2 = [y[0] * c + z[0] * sn, y[1] * c + z[1] * sn, y[2] * c + z[2] * sn];
+    const z2 = [z[0] * c - y[0] * sn, z[1] * c - y[1] * sn, z[2] * c - y[2] * sn];
+    return [x[0], y2[0], z2[0], x[1], y2[1], z2[1], x[2], y2[2], z2[2]];
+  }
+  const rmul = (r, v) => [r[0] * v[0] + r[1] * v[1] + r[2] * v[2], r[3] * v[0] + r[4] * v[1] + r[5] * v[2], r[6] * v[0] + r[7] * v[1] + r[8] * v[2]];
+  // Model matrix from a row-major rotation, scales along the local axes and an origin.
+  const placed = (r, o, sx, sy, sz) => M.basis([r[0] * sx, r[3] * sx, r[6] * sx], [r[1] * sy, r[4] * sy, r[7] * sy], [r[2] * sz, r[5] * sz, r[8] * sz], o);
+  function trackAt(ts, col, t) {
+    const n = ts ? ts.length : 0;
+    if (!n || !col) return NaN;
+    if (t <= ts[0]) return firstValid(col, 0, 1);
+    if (t >= ts[n - 1]) return firstValid(col, n - 1, -1);
+    let lo = 0, hi = n - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ts[m] <= t) lo = m; else hi = m; }
+    const a = col[lo], b = col[hi];
+    if (a == null || b == null) return a == null ? (b == null ? firstValid(col, lo, -1) : b) : a;
+    return a + (b - a) * (t - ts[lo]) / ((ts[hi] - ts[lo]) || 1);
+  }
+  function trackPos(tr, t) {
+    const e = trackAt(tr.t, tr.east, t), n = trackAt(tr.t, tr.north, t), z = trackAt(tr.t, tr.up, t);
+    return [fin(e) ? e : 0, fin(n) ? n : 0, fin(z) ? Math.max(0, z) : 0];
+  }
+  // Nose direction from the recorded attitude, interpolated as a vector (the heading wraps round); else the path.
+  function trackAxis(tr, t) {
+    const ts = tr.t, n = ts.length;
+    const at = (i) => tr.theta && tr.theta[i] != null && tr.phi[i] != null
+      ? [Math.cos(tr.theta[i]) * Math.cos(tr.phi[i]), Math.cos(tr.theta[i]) * Math.sin(tr.phi[i]), Math.sin(tr.theta[i])] : null;
+    let lo = 0, hi = n - 1;
+    if (t <= ts[0]) hi = 0; else if (t >= ts[n - 1]) lo = n - 1; else while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ts[m] <= t) lo = m; else hi = m; }
+    const a = at(lo), b = at(hi);
+    if (a && b) {
+      const u = hi > lo ? (t - ts[lo]) / ((ts[hi] - ts[lo]) || 1) : 0;
+      return V.norm(lerp3(a, b, clamp(u, 0, 1)));
+    }
+    const p = trackPos(tr, t - 0.05), q = trackPos(tr, t + 0.05), d = V.sub(q, p);
+    return Math.hypot(d[0], d[1], d[2]) > 1e-6 ? V.norm(d) : [0, 0, 1];
+  }
+  const GORES = [["#ff7a1a", "#1f2a3c"], ["#d7263d", "#f4f4f4"], ["#1f6feb", "#f4f4f4"]], STAGE_GORES = [["#2e9e5b", "#f4f4f4"], ["#8e5cc9", "#f4f4f4"]];
+
+  function boxTris(lo, hi) {
+    const c = [];
+    for (let i = 0; i < 8; i++) c.push([(i & 1) ? hi[0] : lo[0], (i & 2) ? hi[1] : lo[1], (i & 4) ? hi[2] : lo[2]]);
+    const out = [];
+    for (const f of [[0, 2, 3, 1], [4, 5, 7, 6], [0, 1, 5, 4], [2, 6, 7, 3], [0, 4, 6, 2], [1, 3, 7, 5]]) {
+      out.push([...c[f[0]], ...c[f[1]], ...c[f[2]]], [...c[f[0]], ...c[f[2]], ...c[f[3]]]);
+    }
+    return out;
+  }
+  // A cone along +x from its base (radius r at x = 0) to its tip at x = len.
+  function coneTris(len, r, seg) {
+    const out = [];
+    for (let j = 0; j < seg; j++) {
+      const a0 = 2 * Math.PI * j / seg, a1 = 2 * Math.PI * (j + 1) / seg;
+      const p0 = [0, r * Math.cos(a0), r * Math.sin(a0)], p1 = [0, r * Math.cos(a1), r * Math.sin(a1)];
+      out.push([...p0, ...p1, len, 0, 0], [...p0, 0, 0, 0, ...p1]);
+    }
+    return out;
+  }
+  // A canopy of unit diameter, apex along +x, as two sets of gores (alternating colours).
+  function domeTris(gores) {
+    const out = [[], []], rings = 8, per = 4;
+    const pt = (pa, a) => { const rr = 0.5 * Math.sin(pa); return [0.42 * Math.cos(pa), rr * Math.cos(a), rr * Math.sin(a)]; };
+    for (let g = 0; g < gores; g++) for (let k = 0; k < per; k++) {
+      const a0 = 2 * Math.PI * (g * per + k) / (gores * per), a1 = 2 * Math.PI * (g * per + k + 1) / (gores * per);
+      for (let i = 0; i < rings; i++) {
+        const p0 = Math.PI / 2 * i / rings, p1 = Math.PI / 2 * (i + 1) / rings;
+        const q00 = pt(p0, a0), q01 = pt(p0, a1), q10 = pt(p1, a0), q11 = pt(p1, a1);
+        out[g % 2].push([...q00, ...q10, ...q11], [...q00, ...q11, ...q01]);
+      }
+    }
+    return out;
+  }
+
+  class Replay {
+    constructor(data) {
+      const f = data.flight, a = f.anim || null;
+      this.data = data;
+      this.a = a;
+      this.main = { t: f.t, east: f.path.east, north: f.path.north, up: f.path.up, theta: f.path.theta, phi: f.path.phi, roll: f.path.roll, cg: f.cg };
+      this.L = a ? a.length : data.rocket.length;
+      this.maxR = a ? a.maxR : data.rocket.diameter / 2;
+      this.lift = a ? a.lift : 0.3;
+      this.cg0 = a ? a.cg0 : data.rocket.cgLaunch;
+      this.drift = a ? [a.drift[0], a.drift[1], 0] : [1, 0, 0];
+      this.side = a ? [a.side[0], a.side[1], 0] : [0, 1, 0];
+      this.axis0 = a ? a.axis0 : trackAxis(this.main, 0);
+      this.apogee = a ? a.apogee : apogeeT();
+      this.burnout = a ? a.burnout : (f.events.filter((e) => e.kind === "burnout").pop() || { t: 3 }).t;
+      this.sections = a && a.sections.length ? a.sections : [[0, this.L]];
+      this.nozzles = a ? a.nozzles : [];
+      this.deploys = f.events.filter((e) => e.kind === "deploy" && e.branch === 0);
+      this.dropped = (a ? a.dropped : []).map((d) => Object.assign({}, d, { tr: (f.stages || []).find((x) => x.track === d.track) })).filter((d) => d.tr);
+      this.stageDeploys = new Map(this.dropped.map((d) => [d.track, f.events.filter((e) => e.kind === "deploy" && e.branch === d.track)]));
+      this.gores = new Map();
+      let ci = 0, si = 0;
+      for (const e of f.events) if (e.kind === "deploy") this.gores.set(e, e.branch === 0 ? GORES[ci++ % GORES.length] : STAGE_GORES[si++ % STAGE_GORES.length]);
+      const th = f.series.thrust ? f.series.thrust.values : null;
+      this.thrust = th;
+      this.maxThrust = th ? th.reduce((m, v) => (v != null && v > m ? v : m), 0) : 0;
+      // Animation time at each flight time (the video's pacing), for captions; and the pacing itself.
+      this.pace = a && a.pace && a.pace.length ? a.pace : null;
+      if (this.pace) {
+        this.cum = [0];
+        for (let i = 1; i < this.pace.length; i++) this.cum.push(this.cum[i - 1] + 0.05 * (this.pace[i] + this.pace[i - 1]));
+      }
+      // Smoke along the flight path while a motor burns (a gap when none does, as between stages).
+      this.smoke = [];
+      let on = false;
+      for (let t = 0; t <= this.burnout + 1e-9 && t <= tEnd(); t += 0.04) {
+        const burning = this.thrustFrac(t) > 0.01;
+        if (burning) { const q = trackPos(this.main, t); this.smoke.push([t, q[0], q[1], q[2] + this.lift]); }
+        else if (on) this.smoke.push([t, NaN, NaN, NaN]);
+        on = burning;
+      }
+      this.smokeDiam = Math.max(0.05, ...this.burning(0).map((nz) => 4.4 * nz.r));
+    }
+    thrustFrac(t) {
+      if (!this.thrust || !(this.maxThrust > 0)) return 0;
+      const v = interp(this.thrust, t);
+      return fin(v) ? v / this.maxThrust : 0;
+    }
+    // Flight seconds per second of playback "like the video".
+    rate(t) {
+      if (!this.pace) return t < this.burnout + 1 ? 1 : t < this.apogee ? 3 : 8;
+      const i = clamp(Math.round(t / 0.1), 0, this.pace.length - 1);
+      return 1 / Math.max(0.02, this.pace[i]);
+    }
+    animAt(t) {
+      if (!this.cum) return t;
+      const x = clamp(t / 0.1, 0, this.cum.length - 1), i = Math.floor(x);
+      return i >= this.cum.length - 1 ? this.cum[this.cum.length - 1] : this.cum[i] + (this.cum[i + 1] - this.cum[i]) * (x - i);
+    }
+    droppedStage(stage, t) { return this.dropped.some((d) => d.stage === stage && t >= d.tr.separation); }
+    // Nozzles burning at t: the lowest stage still attached and any side boosters still attached.
+    burning(t) {
+      let lowest = -1;
+      for (const nz of this.nozzles) if (!this.droppedStage(nz.stage, t) && !nz.sideBooster) lowest = Math.max(lowest, nz.stage);
+      return this.nozzles.filter((nz) => !this.droppedStage(nz.stage, t) && (nz.stage === lowest || nz.sideBooster));
+    }
+    stagingBump(t) {
+      let bump = 0;
+      for (const d of this.dropped) { const sep = d.tr.separation; bump = Math.max(bump, smooth((t - sep) / 0.3) * (1 - smooth((t - sep - 1.2) / 1.0))); }
+      return bump;
+    }
+    // Everything at flight time t: a model matrix per part, flames, canopies, lines (cords and shroud lines), the
+    // point the camera looks at and the size of what it frames.
+    frame(t) {
+      const tc = Math.max(0, t), out = { mats: new Map(), flames: [], canopies: [], lines: [] };
+      const tDep = this.deploys.length ? this.deploys[0].t : NaN;
+      const kHang = isNaN(tDep) ? 0 : smooth((tc - tDep) / 1.2);
+      const p0 = trackPos(this.main, tc), pos = [p0[0], p0[1], p0[2] + this.lift];
+      let maxSec = 0, canopyD = 0;
+      for (const sc of this.sections) maxSec = Math.max(maxSec, sc[1] - sc[0]);
+      for (const e of this.deploys) if (e.t <= tc) canopyD = Math.max(canopyD, e.size || 0);
+      const hangH = 0.95 * maxSec + this.maxR + 0.3, sysH = hangH + 0.4 * this.L + 1.4 * canopyD;
+      out.size = this.L + kHang * (sysH - this.L);
+      out.target = [p0[0], p0[1], p0[2] + this.lift * (1 - kHang) + kHang * sysH * 0.55];
+      out.pos = pos;
+      const roll = (trackAt(this.main.t, this.main.roll, tc) || 0) * (1 - kHang);
+      const ax = t <= 0 ? this.axis0 : trackAxis(this.main, tc), nax = V.mul(ax, -1);
+      let cgx = trackAt(this.main.t, this.main.cg, tc);
+      if (!fin(cgx)) cgx = this.cg0;
+      const rot = alongAxis(nax, roll), origin = V.sub(pos, rmul(rot, [cgx, 0, 0]));
+      const harness = V.add(p0, [0, 0, hangH]), n = this.sections.length, dr = this.drift, sec = [];
+      for (let k = 0; k < n; k++) {
+        let rs = rot, os = origin;
+        if (kHang > 0) {
+          let attachX, tail;
+          if (n === 1) { attachX = cgx; tail = dr; }
+          else if (k === 0) { attachX = this.sections[0][1]; tail = V.norm([0.5 * dr[0], 0.5 * dr[1], 0.87]); }
+          else {
+            attachX = this.sections[k][0];
+            const phi = (50 + 18 * (k - 1)) * Math.PI / 180;
+            tail = V.norm([Math.cos(phi) * dr[0], Math.cos(phi) * dr[1], -Math.sin(phi)]);
+          }
+          const off = n === 1 ? 0 : (k - (n - 1) / 2) * 2.5 * this.maxR;
+          const hangAt = V.add(harness, [dr[0] * off, dr[1] * off, 0]), flightAt = V.add(origin, rmul(rot, [attachX, 0, 0]));
+          rs = alongAxis(V.norm(lerp3(nax, tail, kHang)), roll);
+          const at = lerp3(flightAt, hangAt, kHang);
+          os = V.sub(at, rmul(rs, [attachX, 0, 0]));
+          if (kHang > 0.3) out.lines.push([at, harness, 0.012, "#e8d9b5"]);
+        }
+        sec.push([rs, os]);
+      }
+      const stagePose = new Map();
+      for (const d of this.dropped) stagePose.set(d.stage, tc >= d.tr.separation ? this.droppedPose(d, tc, out) : [rot, origin]);
+      for (const p of this.data.rocket.parts) {
+        if (p.internal && p.kind !== "motor") continue; // inside the airframe (the video leaves them out too)
+        const pose = p.section === -1 || (p.section == null && stagePose.has(p.stageNo)) ? stagePose.get(p.stageNo) || sec[0]
+          : sec[clamp(p.section || 0, 0, n - 1)];
+        out.mats.set(p.i, placed(pose[0], pose[1], 1, 1, 1));
+      }
+      const frac = this.thrustFrac(tc);
+      if (frac > 0.01 && kHang === 0) {
+        const flick = 1 + 0.08 * Math.sin(tc * 97) + 0.05 * Math.sin(tc * 41);
+        for (const nz of this.burning(tc)) {
+          const fl = nz.r * 2 * (3 + 7 * frac) * flick, at = V.add(origin, rmul(rot, nz.at));
+          out.flames.push(placed(rot, at, fl, nz.r * 1.1, nz.r * 1.1));
+        }
+      }
+      // Canopies: the newest above the harness, earlier ones (a drogue that stays attached) beside it.
+      let beside = 0;
+      for (let i = this.deploys.length - 1; i >= 0; i--) {
+        const e = this.deploys[i];
+        if (e.t > tc || !(e.size > 0)) continue;
+        const lines = e.streamer ? 0 : 0.9 * e.size, sway = 0.12 * Math.sin(0.7 * tc + i), off = beside === 0 ? 0 : beside + 0.6 * e.size;
+        const base = [harness[0] + dr[0] * (sway * lines + off), harness[1] + dr[1] * (sway * lines + off), harness[2] + 0.4 * this.L + lines];
+        beside = off + 0.6 * Math.max(this.canopy(out, e, tc, base, harness, i), 0.3);
+      }
+      return out;
+    }
+    droppedPose(d, tc, out) {
+      const b = d.tr, span = d.pivot;
+      let pivot = trackAt(b.t, b.cg, tc);
+      if (!fin(pivot) || pivot < span[1] || pivot > span[2]) pivot = span[0];
+      const bp = trackPos(b, tc), own = this.stageDeploys.get(d.track) || [];
+      const kB = own.length ? smooth((tc - own[0].t) / 1.2) : 0;
+      const tail = V.norm(lerp3(V.mul(trackAxis(b, tc), -1), this.drift, kB));
+      const half = Math.max(pivot - span[1], span[2] - pivot);
+      bp[2] += this.maxR + kB * 0.1 * half;
+      const br = alongAxis(tail, (trackAt(b.t, b.roll, tc) || 0) * (1 - kB)), bo = V.sub(bp, rmul(br, [pivot, 0, 0]));
+      const hook = V.add(bp, [0, 0, this.maxR]);
+      let beside = 0;
+      for (let i = own.length - 1; i >= 0; i--) {
+        const e = own[i];
+        if (e.t > tc || !(e.size > 0)) continue;
+        const off = beside === 0 ? 0 : beside + 0.6 * e.size;
+        const base = V.add(hook, [this.drift[0] * off, this.drift[1] * off, 0.4 * half + (e.streamer ? 0 : 0.9 * e.size)]);
+        beside = off + 0.6 * Math.max(this.canopy(out, e, tc, base, hook, i), 0.3);
+      }
+      return [br, bo];
+    }
+    // A canopy (or streamer) with its rim centred on base: shroud lines to a confluence point and a cord on to the
+    // harness. It inflates over about a second. Returns the diameter drawn.
+    canopy(out, e, tc, base, harness, i) {
+      const d = e.size * Math.max(0.06, smooth((tc - e.t - 0.1) / 0.9));
+      const colors = this.gores.get(e) || GORES[0];
+      if (e.streamer) {
+        out.lines.push([harness, base, 0.012, "#e8d9b5"], [base, V.add(base, [0, 0, d]), Math.max(0.03, e.size * 0.08), colors[0]]);
+        return d;
+      }
+      const sway = 0.12 * Math.sin(0.7 * tc + i), up = V.norm([-this.drift[0] * sway, -this.drift[1] * sway, 1]), rr = alongAxis(up, 0);
+      const conf = V.sub(base, [0, 0, 0.9 * e.size]);
+      for (let g = 0; g < 8; g++) {
+        const th = 2 * Math.PI * g / 8;
+        out.lines.push([V.add(base, rmul(rr, [0, 0.5 * d * Math.cos(th), 0.5 * d * Math.sin(th)])), conf, 0.004, "#dcdcdc"]);
+      }
+      out.lines.push([conf, harness, 0.012, "#e8d9b5"]);
+      out.canopies.push({ m: placed(rr, base, d, d, d), colors });
+      return d;
+    }
+    // The video's stage camera: a chase view of the first dropped stage still flying (or just landed), its own canopy
+    // framed with it. Null when no stage is off.
+    stageCam(t) {
+      const tc = Math.max(0, t), d = this.dropped.find((x) => tc >= x.tr.separation && tc <= x.tr.t[x.tr.t.length - 1] + 2.5);
+      if (!d) return null;
+      const span = d.pivot, len = span[2] - span[1];
+      let deployed = 0;
+      for (const e of this.stageDeploys.get(d.track) || []) if (e.t <= tc) deployed = Math.max(deployed, e.size || 0);
+      const size = len + (deployed > 0 ? 0.4 * len + 1.4 * deployed : 0), p = trackPos(d.tr, tc);
+      const target = [p[0], p[1], p[2] + this.maxR + (deployed > 0 ? 0.45 * size : 0)];
+      const dir = V.norm([this.side[0] * 0.92 - this.drift[0] * 0.38, this.side[1] * 0.92 - this.drift[1] * 0.38, 0.12]);
+      const eye = V.add(target, V.mul(dir, 2.6 * size));
+      eye[2] = Math.max(eye[2], 1.2);
+      const a = trackPos(d.tr, tc - 0.05), b = trackPos(d.tr, tc + 0.05);
+      return { eye, target, fov: 40, name: d.tr.name, landed: tc >= d.tr.t[d.tr.t.length - 1], alt: p[2],
+        speed: Math.hypot(...V.sub(b, a)) / 0.1, range: Math.hypot(p[0], p[1]) };
+    }
+    // Where the camera is: the video's chase camera across the drift, an orbit, a spectator by the pad, or the whole
+    // flight. user: {az, el, zoom} offsets from dragging and scrolling.
+    camera(mode, t, fr, user) {
+      const tc = Math.max(0, t);
+      if (mode === "whole") return null;
+      const dir0 = V.norm([this.side[0] * 0.92 - this.drift[0] * 0.38, this.side[1] * 0.92 - this.drift[1] * 0.38, 0]);
+      const turn = (v, deg) => { const a = deg * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a); return [v[0] * c - v[1] * sn, v[0] * sn + v[1] * c, 0]; };
+      if (mode === "pad") {
+        const dist = Math.max(150, this.L * 40), base = turn(dir0, user.az);
+        const eye = [base[0] * dist, base[1] * dist, 1.7];
+        const range = Math.max(1, Math.hypot(...V.sub(fr.target, eye)));
+        const fov = clamp(2 * Math.atan(fr.size * 1.6 * user.zoom / range) * 180 / Math.PI, 0.25, 50);
+        return { eye, target: fr.target, fov };
+      }
+      if (mode === "orbit") {
+        // Circles the rocket, 10 degrees per second of playback, starting from the chase camera's side.
+        const ar = Math.atan2(dir0[1], dir0[0]) + (user.az + 10 * this.animAt(tc)) * Math.PI / 180;
+        const er = clamp(12 + user.el, -80, 85) * Math.PI / 180, dist = fr.size * 3.2 * user.zoom;
+        const eye = V.add(fr.target, V.mul([Math.cos(er) * Math.cos(ar), Math.cos(er) * Math.sin(ar), Math.sin(er)], dist));
+        eye[2] = Math.max(eye[2], 1.2);
+        return { eye, target: fr.target, fov: 40 };
+      }
+      const el = (-9 + 22 * smooth((tc - this.apogee + 1) / 3) + user.el) * Math.PI / 180;
+      const dist = 2.5 * fr.size * (1 + 0.9 * Math.max(0, 1 - tc / 1.5)) * (1 + 1.6 * this.stagingBump(tc)) * user.zoom;
+      const dir = turn(dir0, user.az);
+      const eye = [fr.target[0] + dist * Math.cos(el) * dir[0], fr.target[1] + dist * Math.cos(el) * dir[1], fr.target[2] + dist * Math.sin(el)];
+      eye[2] = Math.max(eye[2], 2.2);
+      return { eye, target: fr.target, fov: 40 };
+    }
+  }
 
   class Viewer {
     constructor(canvas, overlay) {
@@ -812,7 +1167,8 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       this.mode = "3d";
       this.cut = false;
       this.explode = 0;
-      this.whole = false;
+      this.flyCam = "chase";
+      this.user = { az: 0, el: 0, zoom: 1 };
       this.cam = { az: -100, el: 16, dist: 3, target: [0, 0, 0], half: 1 };
       this.hover = -1;
       const gl = canvas.getContext("webgl", { antialias: true, alpha: true, premultipliedAlpha: true });
@@ -824,6 +1180,10 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       this.prog = this.program(VS, FS);
       this.pick = this.program(VS, PICK_FS);
       this.lines = this.program(LVS, LFS);
+      this.groundP = this.program(GVS, GFS);
+      this.trailP = this.program(TVS, TFS);
+      this.trailP.aA = gl.getAttribLocation(this.trailP.p, "aA");
+      this.trailBuf = gl.createBuffer();
       this.lineBufs = [];
       this.bindControls();
       new ResizeObserver(() => this.resize()).observe(canvas);
@@ -843,6 +1203,8 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       for (let i = 0; i < n; i++) { const name = gl.getActiveUniform(p, i).name; u[name] = gl.getUniformLocation(p, name); }
       return { p, u, aPos: gl.getAttribLocation(p, "aPos"), aNor: gl.getAttribLocation(p, "aNor") };
     }
+    // Leaves only these vertex attribute arrays enabled (a stale one from another program fails the draw).
+    only(...locs) { for (let i = 0; i < 8; i++) if (!locs.includes(i)) this.gl.disableVertexAttribArray(i); }
     buffer(arr) { const gl = this.gl, b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW); return b; }
     setData(data, reset) {
       this.data = data;
@@ -853,45 +1215,63 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       this.needsFrame = reset;
       this.R = Math.max(data.rocket.diameter / 2, ...data.rocket.parts.filter((p) => !p.internal).map((p) => maxR(p.pos)));
       this.pieces = Math.max(1, ...data.rocket.parts.map((p) => p.piece + 1));
+      this.replay = new Replay(data);
+      this.flyCache = null;
+      this.insetPts = null;
       this.buildWorld();
-      if (reset) this.cam = { az: -112, el: 20, dist: this.L * 1.4, target: [this.L / 2, 0, 0], half: this.L * 0.36, fdist: this.L * 4.5, faz: -60, fel: 12 };
+      if (reset) this.cam = { az: -112, el: 20, dist: this.L * 1.4, target: [this.L / 2, 0, 0], half: this.L * 0.36 };
       this.resize();
     }
     buildWorld() {
-      const gl = this.gl, f = this.data.flight;
+      const gl = this.gl, f = this.data.flight, R = this.replay, lift = R.lift;
       for (const b of this.lineBufs) gl.deleteBuffer(b.buf);
+      for (const m of this.meshes || []) { gl.deleteBuffer(m.pos); gl.deleteBuffer(m.nor); }
       this.lineBufs = [];
+      this.meshes = [];
       const path = [];
-      for (let i = 0; i < f.t.length; i++) if (f.path.east[i] != null && f.path.up[i] != null) path.push(f.path.east[i], f.path.north[i], Math.max(0, f.path.up[i]), f.t[i]);
+      for (let i = 0; i < f.t.length; i++) if (f.path.east[i] != null && f.path.up[i] != null) path.push(f.path.east[i], f.path.north[i], Math.max(0, f.path.up[i]) + lift, f.t[i]);
       this.path = path;
       const strip = new Float32Array(path.length / 4 * 3);
       for (let i = 0, j = 0; i < path.length; i += 4) { strip[j++] = path[i]; strip[j++] = path[i + 1]; strip[j++] = path[i + 2]; }
       this.lineBufs.push({ buf: this.buffer(strip), count: strip.length / 3, mode: gl.LINE_STRIP, kind: "path" });
       for (const st of f.stages || []) {
         const a = [];
-        for (let i = 0; i < st.t.length; i++) if (st.east[i] != null && st.t[i] >= st.separation) a.push(st.east[i], st.north[i], Math.max(0, st.up[i]));
+        for (let i = 0; i < st.t.length; i++) if (st.east[i] != null && st.t[i] >= st.separation) a.push(st.east[i], st.north[i], Math.max(0, st.up[i]) + R.maxR);
         if (a.length > 3) this.lineBufs.push({ buf: this.buffer(new Float32Array(a)), count: a.length / 3, mode: gl.LINE_STRIP, kind: "stage" });
       }
-      let ext = 300;
-      for (let i = 0; i < path.length; i += 4) ext = Math.max(ext, Math.abs(path[i]) * 1.3, Math.abs(path[i + 1]) * 1.3, path[i + 2] * 0.6);
-      const step = ext > 4000 ? 500 : ext > 1500 ? 200 : ext > 600 ? 100 : 50;
-      ext = Math.ceil(ext / step) * step;
-      const g = [];
-      for (let x = -ext; x <= ext + 1e-6; x += step) { g.push(x, -ext, 0, x, ext, 0, -ext, x, 0, ext, x, 0); }
-      this.lineBufs.push({ buf: this.buffer(new Float32Array(g)), count: g.length / 3, mode: gl.LINES, kind: "grid" });
-      this.extent = ext;
-      // A canopy for each deployment: a shallow dome, unit radius; scaled per device when drawn.
-      if (!this.dome) {
-        const tri = [], seg = 24, ring = 6;
-        const pt = (i, j) => { const a = i / seg * 2 * Math.PI, b = j / ring * Math.PI * 0.42; return [Math.cos(a) * Math.sin(b), Math.sin(a) * Math.sin(b), Math.cos(b) - Math.cos(Math.PI * 0.42)]; };
-        for (let i = 0; i < seg; i++) for (let j = 0; j < ring; j++) { const a = pt(i, j), b = pt(i + 1, j), c = pt(i + 1, j + 1), d = pt(i, j + 1); tri.push(...a, ...b, ...c, ...a, ...c, ...d); }
-        const pos = new Float32Array(tri);
-        this.dome = { pos: this.buffer(pos), nor: this.buffer(smoothNormals(pos)), count: pos.length / 3 };
+      let ext = 300, reach = 100;
+      for (let i = 0; i < path.length; i += 4) {
+        ext = Math.max(ext, Math.abs(path[i]) * 1.3, Math.abs(path[i + 1]) * 1.3, path[i + 2] * 0.6);
+        reach = Math.max(reach, Math.hypot(path[i], path[i + 1], path[i + 2]));
       }
+      this.extent = ext;
+      this.reach = reach; // the farthest the flight gets from the pad
+      if (!this.screen) this.screen = this.buffer(new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]));
+      const mesh = (tris, color, emissive) => {
+        const pos = new Float32Array(tris.flat());
+        const m = { pos: this.buffer(pos), nor: this.buffer(smoothNormals(pos)), count: pos.length / 3, color, emissive };
+        this.meshes.push(m);
+        return m;
+      };
+      // The pad, and the rail beside the rocket along its launch direction (as in the video).
+      this.pad = mesh(boxTris([-1, -1, 0], [1, 1, 0.12]), "#a9a79f");
+      const rr = alongAxis(R.axis0, 0), sr = 0.02, railLen = Math.max(0.5, R.a ? R.a.railLength : 2);
+      this.rail = mesh(boxTris([0, -sr, -sr], [railLen, sr, sr]).map((t) => {
+        const q = [];
+        for (let v = 0; v < 3; v++) {
+          const p = rmul(rr, [t[3 * v], t[3 * v + 1], t[3 * v + 2]]);
+          q.push(p[0] - R.side[0] * (R.maxR + sr), p[1] - R.side[1] * (R.maxR + sr), p[2] + 0.12);
+        }
+        return q;
+      }), "#6c717a");
+      this.flameOuter = mesh(coneTris(1, 1, 16), "#ff8a1f", true);
+      this.flameInner = mesh(coneTris(0.6, 0.55, 16), "#fff0a0", true);
+      const dome = domeTris(12);
+      this.gore = [mesh(dome[0], null), mesh(dome[1], null)];
     }
     resetView() {
       const L = this.L;
-      this.cam = { az: -112, el: 20, dist: this.fitDist(L), target: [L / 2, 0, 0], half: L * 0.36, fdist: L * 4.5, faz: -60, fel: 12 };
+      this.cam = { az: -112, el: 20, dist: this.fitDist(L), target: [L / 2, 0, 0], half: L * 0.36 };
       this.frame3d();
     }
     // Far enough that the whole length (exploded or not) fits the width, with a margin, at a three-quarter angle.
@@ -911,7 +1291,10 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       if (m === "side") { this.cut = true; $("#cut").checked = true; this.frameSide(); }
       $("#t-cut").hidden = m === "fly";
       $("#t-explode").hidden = m === "fly";
-      $("#t-whole").hidden = m !== "fly";
+      $("#t-flycam").hidden = m !== "fly";
+      $("#t-speed").hidden = m !== "fly";
+      $("#b-video").hidden = m !== "fly" || !S.host;
+      if (m !== "fly") $("#captions").replaceChildren();
       updateHud();
       this.dirty();
     }
@@ -932,27 +1315,6 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       this.dirty();
     }
     dirty() { if (!this.queued && this.gl) { this.queued = true; requestAnimationFrame(() => { this.queued = false; this.draw(); }); } }
-    // Rocket pose in the world at time t (fly mode): model matrix and the CG position.
-    pose(t) {
-      const f = this.data.flight;
-      const p = [interp(f.path.east, t), interp(f.path.north, t), Math.max(0, interp(f.path.up, t))];
-      let th = interp(f.path.theta, t), ph = interp(f.path.phi, t);
-      let nose;
-      if (fin(th) && fin(ph)) nose = [Math.cos(th) * Math.cos(ph), Math.cos(th) * Math.sin(ph), Math.sin(th)];
-      else { const a = this.posAt(t - 0.05), b = this.posAt(t + 0.05), d = V.sub(b, a); nose = Math.hypot(...d) > 1e-6 ? V.norm(d) : [0, 0, 1]; }
-      const ax = V.mul(nose, -1); // rocket +x (nose to tail) in the world
-      let side = V.cross([0, 0, 1], ax);
-      if (Math.hypot(...side) < 1e-6) side = [0, 1, 0];
-      side = V.norm(side);
-      let up = V.cross(ax, side);
-      const r = interp(f.path.roll, t) || 0, cr = Math.cos(r), sr = Math.sin(r);
-      const b = V.add(V.mul(side, cr), V.mul(up, sr)), c = V.add(V.mul(side, -sr), V.mul(up, cr));
-      const cg = fin(interp(f.cg, t)) ? interp(f.cg, t) : this.data.rocket.cgLaunch;
-      const k = this.whole ? Math.max(1, this.extent / (this.L * 30)) : 1;
-      const origin = V.sub(p, V.mul(ax, cg * k));
-      return { m: M.basis(ax, b, c, origin, k), p, k, ax };
-    }
-    posAt(t) { const f = this.data.flight; return [interp(f.path.east, t), interp(f.path.north, t), Math.max(0, interp(f.path.up, t))]; }
     view() {
       const w = this.canvas.clientWidth || 1, hgt = this.canvas.clientHeight || 1, a = w / hgt, c = this.cam;
       if (this.mode === "side") {
@@ -963,26 +1325,52 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       }
       let target = c.target, dist = c.dist, az = c.az, el = c.el;
       if (this.mode === "fly") {
-        if (this.whole) {
-          let lo = [Infinity, Infinity, 0], hi = [-Infinity, -Infinity, 0];
+        const fr = this.fly(), u = this.user;
+        let cam = this.replay.camera(this.flyCam, S.T, fr, u);
+        if (!cam) {
+          // The whole flight: the trajectory (pad included) from across the drift, far enough that its bounding sphere
+          // fits the frame; the rocket is drawn larger to be seen.
+          let lo = [0, 0, 0], hi = [0, 0, 0];
           for (let i = 0; i < this.path.length; i += 4) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], this.path[i + k]); hi[k] = Math.max(hi[k], this.path[i + k]); }
-          target = V.mul(V.add(lo, hi), 0.5);
-          dist = Math.max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], 200) * 1.25 * (c.fdist / (this.L * 4.5));
-        } else {
-          const pose = this.pose(S.T);
-          target = V.add(pose.p, [0, 0, this.canopyLift(pose) / 2]);
-          dist = c.fdist + this.canopyLift(pose) * 0.8;
+          const mid = V.mul(V.add(lo, hi), 0.5), rad = Math.max(60, Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / 2);
+          const half = Math.atan(Math.tan(17.5 * Math.PI / 180) * Math.min(1, a)), d2 = rad / Math.sin(half) * 1.3 * u.zoom;
+          const R = this.replay, base = Math.atan2(R.side[1] * 0.92 - R.drift[1] * 0.38, R.side[0] * 0.92 - R.drift[0] * 0.38);
+          const ar2 = base + u.az * Math.PI / 180, er2 = clamp(8 + u.el, -5, 89) * Math.PI / 180;
+          cam = { eye: V.add(mid, V.mul([Math.cos(er2) * Math.cos(ar2), Math.cos(er2) * Math.sin(ar2), Math.sin(er2)], d2)), target: mid, fov: 35 };
+          cam.eye[2] = Math.max(cam.eye[2], 2);
         }
-        az = c.faz; el = c.fel;
+        return this.camView(cam, w, hgt);
       }
       const ar = az * Math.PI / 180, er = el * Math.PI / 180;
       const eye = V.add(target, V.mul([Math.cos(er) * Math.cos(ar), Math.cos(er) * Math.sin(ar), Math.sin(er)], dist));
       const near = Math.max(0.005, dist / 200), far = this.mode === "fly" ? dist + this.extent * 6 : dist * 20 + this.L * 4;
       const vp = M.mul(M.persp(35 * Math.PI / 180, a, near, far), M.look(eye, target, [0, 0, 1]));
-      return { vp, eye, dir: V.norm(V.sub(target, eye)), ortho: false, w, h: hgt };
+      return { vp, eye, dir: V.norm(V.sub(target, eye)), ortho: false, w, h: hgt, fov: 35 };
     }
-    modelOf(part, pose) {
-      if (pose) return pose.m;
+    // A replay camera's projection for a w x h (CSS px) picture.
+    camView(cam, w, hgt) {
+      const a = w / hgt, range = Math.hypot(...V.sub(cam.target, cam.eye));
+      const near = Math.max(0.02, range / 400), far = Math.hypot(...cam.eye) + this.reach * 1.1 + 200;
+      const vp = M.mul(M.persp(cam.fov * Math.PI / 180, a, near, far), M.look(cam.eye, cam.target, [0, 0, 1]));
+      return { vp, eye: cam.eye, dir: V.norm(V.sub(cam.target, cam.eye)), ortho: false, w, h: hgt, fov: cam.fov, aspect: a };
+    }
+    // The replay's scene at the current time (cached per time and camera mode), the rocket enlarged in the whole-flight
+    // view so it can be seen.
+    fly() {
+      if (this.flyCache && this.flyCache.t === S.T && this.flyCache.cam === this.flyCam) return this.flyCache.fr;
+      const fr = this.replay.frame(S.T);
+      if (this.flyCam === "whole") {
+        const k = Math.max(1, this.extent / (this.L * 25)), c = fr.pos;
+        const G = M.mul(M.trans(c[0], c[1], c[2]), M.mul(new Float32Array([k, 0, 0, 0, 0, k, 0, 0, 0, 0, k, 0, 0, 0, 0, 1]), M.trans(-c[0], -c[1], -c[2])));
+        for (const [i, m] of fr.mats) fr.mats.set(i, M.mul(G, m));
+        fr.flames = fr.flames.map((m) => M.mul(G, m));
+        for (const cp of fr.canopies) cp.m = M.mul(G, cp.m);
+        fr.lines = fr.lines.map(([a, b, w, col]) => [M.apply(G, a).slice(0, 3), M.apply(G, b).slice(0, 3), w * k, col]);
+      }
+      this.flyCache = { t: S.T, cam: this.flyCam, fr };
+      return fr;
+    }
+    modelOf(part) {
       return M.trans(this.explodeShift(part.piece), 0, 0);
     }
     cutNormal(v) {
@@ -999,8 +1387,7 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.enable(gl.DEPTH_TEST);
-      const fly = this.mode === "fly", pose = fly ? this.pose(S.T) : null;
-      if (fly) this.drawLines(v);
+      if (this.mode === "fly") { this.drawFly(v); return; }
       const P = this.prog, dark = document.documentElement.dataset.theme === "dark";
       gl.useProgram(P.p);
       gl.uniformMatrix4fv(P.u.uVP, false, v.vp);
@@ -1011,21 +1398,154 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       gl.uniform2fv(P.u.uCutN, this.cutNormal(v));
       gl.uniform3fv(P.u.uSelColor, rgb(dark ? "#3987e5" : "#2a78d6"));
       gl.uniform3fv(P.u.uFade, dark ? [0.16, 0.17, 0.19] : [0.9, 0.91, 0.93]);
+      gl.uniform1f(P.u.uEmissive, 0);
       for (const b of this.bufs) {
         const p = b.part;
-        gl.uniformMatrix4fv(P.u.uM, false, this.modelOf(p, pose));
+        gl.uniformMatrix4fv(P.u.uM, false, this.modelOf(p));
         gl.uniform3fv(P.u.uColor, rgb(p.color));
-        gl.uniform1f(P.u.uCut, !fly && this.cut && CUT_KINDS.has(p.kind) ? 1 : 0);
+        gl.uniform1f(P.u.uCut, this.cut && CUT_KINDS.has(p.kind) ? 1 : 0);
         gl.uniform1f(P.u.uSel, p.i === S.sel ? 1 : p.i === this.hover ? 0.4 : 0);
-        gl.uniform1f(P.u.uDim, S.sel >= 0 && p.i !== S.sel && !fly ? 0.55 : 0);
+        gl.uniform1f(P.u.uDim, S.sel >= 0 && p.i !== S.sel ? 0.55 : 0);
         this.attrs(P, b.pos, b.nor);
         gl.drawArrays(gl.TRIANGLES, 0, b.count);
       }
-      if (fly) this.drawCanopies(v, pose);
-      this.drawOverlay(v, pose);
+      this.drawOverlay(v);
+    }
+    // The replay: sky, ground, pad and rail, smoke, the path, the rocket (in pieces under the chutes), flames and
+    // canopies; the stage camera in the lower left while a dropped stage flies; then cords, captions and the trajectory
+    // map over it.
+    drawFly(v) {
+      const gl = this.gl, fr = this.fly(), W = this.canvas.clientWidth || 1, H = this.canvas.clientHeight || 1;
+      this.drawWorld(v, fr, this.canvas.height);
+      const sc = this.flyCam === "whole" ? null : this.replay.stageCam(S.T);
+      this.stageView = null;
+      if (sc && W > 360) {
+        const iw = Math.round(Math.min(300, W * 0.4)), ih = Math.round(iw * 9 / 16), x0 = 10, y0 = H - 10 - ih, dpr = this.canvas.width / W;
+        const sv = Object.assign(this.camView(sc, iw, ih), { x0, y0, cam: sc });
+        const box = [Math.round(x0 * dpr), Math.round((H - y0 - ih) * dpr), Math.round(iw * dpr), Math.round(ih * dpr)];
+        gl.viewport(...box);
+        gl.enable(gl.SCISSOR_TEST);
+        gl.scissor(...box);
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+        this.drawWorld(sv, fr, box[3]);
+        gl.disable(gl.SCISSOR_TEST);
+        gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+        this.stageView = sv;
+      }
+      this.drawOverlay(v, fr);
+      this.drawCaptions();
+    }
+    // Everything in the replay's world seen through view v; pxH is the picture's height in device pixels.
+    drawWorld(v, fr, pxH) {
+      const gl = this.gl;
+      // Sky and ground, darker blue the higher the camera (as in the video).
+      const dark = clamp(v.eye[2] / 9000, 0, 1), mix = (a, b) => a.map((x, i) => (x + (b[i] - x) * dark) / 255);
+      const G = this.groundP, fwd = v.dir, right = V.norm(V.cross(fwd, Math.abs(fwd[2]) > 0.999 ? [0, 1, 0] : [0, 0, 1])), ty = Math.tan(v.fov * Math.PI / 360);
+      gl.useProgram(G.p);
+      gl.uniform3fv(G.u.uEye, v.eye);
+      gl.uniform3fv(G.u.uFwd, fwd);
+      gl.uniform3fv(G.u.uRight, right);
+      gl.uniform3fv(G.u.uUp, V.cross(right, fwd));
+      gl.uniform2f(G.u.uTan, ty * v.aspect, ty);
+      gl.uniform1f(G.u.uPx, 2 * ty / (pxH || 1));
+      gl.uniform3fv(G.u.uZenith, mix([74, 134, 204], [22, 52, 112]));
+      gl.uniform3fv(G.u.uHorizon, mix([203, 222, 240], [170, 196, 226]));
+      this.only(G.aPos);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.screen);
+      gl.enableVertexAttribArray(G.aPos);
+      gl.vertexAttribPointer(G.aPos, 2, gl.FLOAT, false, 0, 0);
+      gl.disable(gl.DEPTH_TEST);
+      gl.depthMask(false);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      gl.depthMask(true);
+      gl.enable(gl.DEPTH_TEST);
+      const P = this.prog;
+      gl.useProgram(P.p);
+      gl.uniformMatrix4fv(P.u.uVP, false, v.vp);
+      gl.uniform3fv(P.u.uEye, v.eye);
+      gl.uniform3fv(P.u.uViewDir, v.dir);
+      gl.uniform1f(P.u.uOrtho, 0);
+      // Sun behind the camera, above and to the left, so the side we see is lit (as in the video).
+      gl.uniform3fv(P.u.uLight, V.norm([-v.dir[0] - 0.5 * v.dir[1], -v.dir[1] + 0.5 * v.dir[0], 0.9]));
+      gl.uniform1f(P.u.uCut, 0);
+      gl.uniform1f(P.u.uSel, 0);
+      gl.uniform1f(P.u.uDim, 0);
+      const draw = (m, mesh, color) => {
+        gl.uniformMatrix4fv(P.u.uM, false, m);
+        gl.uniform3fv(P.u.uColor, rgb(color || mesh.color));
+        gl.uniform1f(P.u.uEmissive, mesh.emissive ? 1 : 0);
+        this.attrs(P, mesh.pos, mesh.nor);
+        gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
+      };
+      const I = M.trans(0, 0, 0);
+      draw(I, this.pad);
+      draw(I, this.rail);
+      for (const b of this.bufs) {
+        const m = fr.mats.get(b.part.i);
+        if (m) draw(m, b, b.part.color);
+      }
+      for (const m of fr.flames) { draw(m, this.flameOuter); draw(m, this.flameInner); }
+      for (const cp of fr.canopies) { draw(cp.m, this.gore[0], cp.colors[0]); draw(cp.m, this.gore[1], cp.colors[1]); }
+      gl.uniform1f(P.u.uEmissive, 0);
+      this.drawSmoke(v);
+      // The flight path where it helps to see the whole arc (from the pad, of the whole flight); in the close views it
+      // would only cross the picture (the video leaves it out too).
+      if (v === this.lastView && (this.flyCam === "whole" || this.flyCam === "pad")) this.drawLines(v);
+    }
+    drawSmoke(v) {
+      const gl = this.gl, R = this.replay, tc = Math.max(0, S.T), data = [];
+      let prev = null;
+      // The trail's points so far, and the rocket now while it still burns (the trail reaches the nozzle).
+      const pts = R.smoke.filter((sp) => sp[0] <= tc);
+      if (pts.length && R.thrustFrac(tc) > 0.01) { const q = trackPos(R.main, tc); pts.push([tc, q[0], q[1], q[2] + R.lift]); }
+      for (const sp of pts) {
+        if (isNaN(sp[1])) { prev = null; continue; }
+        const age = tc - sp[0], alpha = (0.8 - age * 0.02) * 0.85;
+        const p = [sp[1], sp[2], sp[3]];
+        if (prev && alpha > 0.02) {
+          const w0 = (R.smokeDiam + prev.age * 0.6) / 2, w1 = (R.smokeDiam + age * 0.6) / 2;
+          const d = V.sub(p, prev.p), toEye = V.sub(v.eye, p), side = V.norm(V.cross(d, toEye));
+          if (Math.hypot(...d) > 1e-6) {
+            const a0 = V.add(prev.p, V.mul(side, w0)), b0 = V.sub(prev.p, V.mul(side, w0)), a1 = V.add(p, V.mul(side, w1)), b1 = V.sub(p, V.mul(side, w1));
+            data.push(...a0, prev.alpha, ...b0, prev.alpha, ...a1, alpha, ...b0, prev.alpha, ...b1, alpha, ...a1, alpha);
+          }
+        }
+        prev = { p, age, alpha: Math.max(0, alpha) };
+      }
+      if (!data.length) return;
+      const T = this.trailP;
+      gl.useProgram(T.p);
+      gl.uniformMatrix4fv(T.u.uVP, false, v.vp);
+      gl.uniform3f(T.u.uColor, 1, 1, 1);
+      this.only(T.aPos, T.aA);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.trailBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(T.aPos);
+      gl.vertexAttribPointer(T.aPos, 3, gl.FLOAT, false, 16, 0);
+      gl.enableVertexAttribArray(T.aA);
+      gl.vertexAttribPointer(T.aA, 1, gl.FLOAT, false, 16, 12);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      gl.drawArrays(gl.TRIANGLES, 0, data.length / 4);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+      gl.disableVertexAttribArray(T.aA);
+    }
+    drawCaptions() {
+      // The video's banners: each event for 2.6 s of playback, at most the newest two, never long after it happened.
+      const R = this.replay, box = $("#captions"), t = S.T, a = R.animAt(t), show = [];
+      for (const e of this.data.flight.events) {
+        if (e.branch !== 0 && e.kind !== "deploy" && e.kind !== "landing") continue;
+        const ae = R.animAt(e.t);
+        if (t >= e.t && a - ae < 2.6 && t - e.t < 8) show.push([e, Math.min(1, (a - ae) / 0.25, (ae + 2.6 - a) / 0.5)]);
+      }
+      box.replaceChildren(...show.slice(-2).map(([e, op]) => h("div", { class: "caption", style: "opacity:" + clamp(op, 0, 1).toFixed(2) },
+        h("b", {}, e.title), h("span", {}, "T+" + e.t.toFixed(1) + " s" + (e.detail ? " · " + e.detail : "")))));
     }
     attrs(P, pos, nor) {
       const gl = this.gl;
+      this.only(P.aPos, P.aNor);
       gl.bindBuffer(gl.ARRAY_BUFFER, pos);
       gl.enableVertexAttribArray(P.aPos);
       gl.vertexAttribPointer(P.aPos, 3, gl.FLOAT, false, 0, 0);
@@ -1036,65 +1556,67 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       }
     }
     drawLines(v) {
-      const gl = this.gl, L = this.lines, dark = document.documentElement.dataset.theme === "dark";
+      const gl = this.gl, L = this.lines;
       gl.useProgram(L.p);
       gl.uniformMatrix4fv(L.u.uVP, false, v.vp);
-      gl.uniform3fv(L.u.uEye, v.eye);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       gl.depthMask(false);
-      if (L.aNor >= 0) gl.disableVertexAttribArray(L.aNor);
+      this.only(L.aPos);
+      let flown = 0;
+      while (flown < this.path.length / 4 && this.path[flown * 4 + 3] <= S.T) flown++;
       for (const b of this.lineBufs) {
         gl.bindBuffer(gl.ARRAY_BUFFER, b.buf);
         gl.enableVertexAttribArray(L.aPos);
         gl.vertexAttribPointer(L.aPos, 3, gl.FLOAT, false, 0, 0);
-        const col = b.kind === "path" ? rgb(cssColor("--s1")) : b.kind === "stage" ? rgb(cssColor("--s2")) : dark ? [0.55, 0.6, 0.65] : [0.45, 0.5, 0.55];
-        gl.uniform4f(L.u.uColor, col[0], col[1], col[2], b.kind === "grid" ? 0.35 : 0.95);
-        gl.uniform1f(L.u.uFog, b.kind === "grid" ? (this.whole ? 0 : Math.max(this.extent * 0.9, this.cam.fdist * 60)) : 0);
-        gl.drawArrays(b.mode, 0, b.count);
+        const col = b.kind === "path" ? [0.16, 0.47, 0.84] : [0.92, 0.41, 0.2];
+        if (b.kind === "path") {
+          // The flown path solid, what is still to come faint.
+          gl.uniform4f(L.u.uColor, col[0], col[1], col[2], 0.9);
+          if (flown > 1) gl.drawArrays(b.mode, 0, flown);
+          gl.uniform4f(L.u.uColor, col[0], col[1], col[2], 0.25);
+          if (b.count - Math.max(0, flown - 1) > 1) gl.drawArrays(b.mode, Math.max(0, flown - 1), b.count - Math.max(0, flown - 1));
+        } else {
+          gl.uniform4f(L.u.uColor, col[0], col[1], col[2], 0.8);
+          gl.drawArrays(b.mode, 0, b.count);
+        }
       }
       gl.depthMask(true);
       gl.disable(gl.BLEND);
     }
-    canopyLift(pose) {
-      let lift = 0;
-      for (const e of this.data.flight.events) if (e.kind === "deploy" && e.branch === 0 && S.T >= e.t && e.size) lift = Math.max(lift, Math.max(this.L * 1.2, e.size * 1.6) * pose.k);
-      return lift;
-    }
-    drawCanopies(v, pose) {
-      const gl = this.gl, P = this.prog;
-      gl.useProgram(P.p);
-      for (const e of this.data.flight.events) {
-        if (e.kind !== "deploy" || e.branch !== 0 || S.T < e.t || !e.size) continue;
-        const r = e.size / 2 * pose.k, lift = Math.max(this.L * 1.2, e.size * 1.6) * pose.k;
-        const top = V.add(pose.p, [0, 0, lift]);
-        gl.uniformMatrix4fv(P.u.uM, false, M.basis([1, 0, 0], [0, 1, 0], [0, 0, 1], top, r));
-        gl.uniform3fv(P.u.uColor, rgb(e.device && /drogue/i.test(e.device) ? "#e8743b" : "#f0a64a"));
-        gl.uniform1f(P.u.uCut, 0);
-        gl.uniform1f(P.u.uSel, 0);
-        gl.uniform1f(P.u.uDim, 0);
-        this.attrs(P, this.dome.pos, this.dome.nor);
-        gl.drawArrays(gl.TRIANGLES, 0, this.dome.count);
-      }
-    }
     project(v, p) {
       const q = M.apply(v.vp, p);
       if (q[3] <= 0) return null;
-      return [(q[0] * 0.5 + 0.5) * v.w, (0.5 - q[1] * 0.5) * v.h];
+      return [(q[0] * 0.5 + 0.5) * v.w, (0.5 - q[1] * 0.5) * v.h, q[3]];
     }
-    drawOverlay(v, pose) {
+    drawOverlay(v, fr) {
       const o = this.overlay, u = S.data.units;
       o.replaceChildren();
       const ink = cssColor("--ink"), ink2 = cssColor("--ink2");
-      if (pose) {
-        // Shroud lines from each open canopy to the rocket.
-        for (const e of this.data.flight.events) {
-          if (e.kind !== "deploy" || e.branch !== 0 || S.T < e.t || !e.size) continue;
-          const lift = Math.max(this.L * 1.2, e.size * 1.6) * pose.k, a = this.project(v, pose.p), b = this.project(v, V.add(pose.p, [0, 0, lift]));
-          if (a && b) o.append(s("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: ink2, "stroke-width": 1, opacity: 0.6 }));
+      if (fr) {
+        this.drawCords(o, v, fr);
+        if (this.flyCam === "whole") {
+          // Where the rocket is on the whole trajectory.
+          const p = this.project(v, fr.pos);
+          if (p) o.append(s("circle", { cx: p[0], cy: p[1], r: 9, fill: "none", stroke: "#fff", "stroke-width": 2 }),
+            s("circle", { cx: p[0], cy: p[1], r: 9, fill: "none", stroke: "#ffd43b", "stroke-width": 1, "stroke-dasharray": "3 3" }));
         }
-        const pad = this.project(v, [0, 0, 0]);
-        if (pad) o.append(s("circle", { cx: pad[0], cy: pad[1], r: 3, fill: ink2 }), s("text", { x: pad[0] + 6, y: pad[1] + 4, class: "lbl" }, "pad"));
+        const sv = this.stageView;
+        if (sv) {
+          // The stage camera's frame, its cords, and a title bar with the stage's height and speed.
+          const W = sv.w, Hh = sv.h, c = sv.cam, D = (m) => num(conv(m, u.distance)) + " " + u.distance;
+          const clip = s("clipPath", { id: "stagecam-clip" });
+          clip.append(s("rect", { width: W, height: Hh, rx: 10 }));
+          const g = s("g", { transform: "translate(" + sv.x0 + "," + sv.y0 + ")" }), inner = s("g", { "clip-path": "url(#stagecam-clip)" });
+          this.drawCords(inner, sv, fr);
+          inner.append(s("rect", { width: W, height: 20, fill: "rgba(12,18,28,0.65)" }), s("rect", { y: Hh - 20, width: W, height: 20, fill: "rgba(12,18,28,0.55)" }));
+          g.append(clip, inner, s("rect", { width: W, height: Hh, rx: 10, fill: "none", stroke: "rgba(255,255,255,0.55)", "stroke-width": 1 }),
+            s("text", { x: 10, y: 14, style: "fill:#ffb86b;font-weight:700;font-size:11px;letter-spacing:.04em" }, (c.name || "stage").toUpperCase() + " CAM"),
+            s("text", { x: 10, y: Hh - 6, style: "fill:#fff;font-size:11px" },
+              c.landed ? "landed, " + D(c.range) + " from the pad" : D(c.alt) + " up · " + num(c.speed * (SPEED[u.velocity] || 1)) + " " + u.velocity));
+          o.append(g);
+        }
+        this.drawInset(o);
         return;
       }
       const f = this.data.flight, t = S.T;
@@ -1134,6 +1656,37 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       if (cgP) o.append(cgSymbol(cgP[0], cgP[1], ink), s("text", { x: cgP[0], y: cgP[1] + 22, "text-anchor": "middle", class: "lbl" }, "CG"));
       if (cpP) o.append(cpSymbol(cpP[0], cpP[1], cssColor("--s2")), s("text", { x: cpP[0], y: cpP[1] + 22, "text-anchor": "middle", class: "lbl" }, "CP"));
     }
+    // Cords and shroud lines, as wide as they would look at their distance.
+    drawCords(o, v, fr) {
+      const focal = v.h / 2 / Math.tan((v.fov || 40) * Math.PI / 360);
+      for (const [a, b, wm, col] of fr.lines) {
+        const p = this.project(v, a), q = this.project(v, b);
+        if (!p || !q || p[2] < 0.3 || q[2] < 0.3) continue;
+        const px = clamp(wm * focal / ((p[2] + q[2]) / 2), 0.8, 30);
+        o.append(s("line", { x1: p[0], y1: p[1], x2: q[0], y2: q[1], stroke: col, "stroke-width": px.toFixed(2), "stroke-linecap": "round" }));
+      }
+    }
+    // The whole trajectory, small, in the corner: altitude against distance along the drift, the flown part solid.
+    drawInset(o) {
+      const R = this.replay, f = this.data.flight, W = 150, H = 92, x0 = (this.canvas.clientWidth || 300) - W - 10, y0 = 46;
+      if (!this.insetPts) {
+        const pts = [];
+        for (let i = 0; i < f.t.length; i++) if (f.path.east[i] != null && f.path.up[i] != null) pts.push([f.t[i], f.path.east[i] * R.drift[0] + f.path.north[i] * R.drift[1], Math.max(0, f.path.up[i])]);
+        const xs = pts.map((p) => p[1]), zs = pts.map((p) => p[2]);
+        const xl = Math.min(0, ...xs), xh = Math.max(1, ...xs), zh = Math.max(1, ...zs), k = Math.min((W - 16) / (xh - xl || 1), (H - 16) / zh);
+        this.insetPts = pts.map((p) => [p[0], 8 + (p[1] - xl) * k, H - 8 - p[2] * k]);
+      }
+      const pts = this.insetPts, t = S.T, g = s("g", { transform: "translate(" + x0 + "," + y0 + ")", class: "inset" });
+      g.append(s("rect", { width: W, height: H, rx: 8, fill: "rgba(12,18,28,0.55)" }));
+      const line = (a) => a.map((p, i) => (i ? "L" : "M") + p[1].toFixed(1) + "," + p[2].toFixed(1)).join("");
+      const done = pts.filter((p) => p[0] <= t);
+      g.append(s("path", { d: line(pts), fill: "none", stroke: "rgba(255,255,255,0.3)", "stroke-width": 1.2 }));
+      if (done.length > 1) g.append(s("path", { d: line(done), fill: "none", stroke: "#ffd43b", "stroke-width": 2 }));
+      const cur = done.length ? done[done.length - 1] : pts[0];
+      if (cur) g.append(s("circle", { cx: cur[1], cy: cur[2], r: 3.5, fill: "#fff" }));
+      g.append(s("text", { x: 8, y: 14, fill: "rgba(255,255,255,0.8)", style: "fill:rgba(255,255,255,0.85)" }, "trajectory"));
+      o.append(g);
+    }
     pickAt(px, py) {
       const gl = this.gl;
       if (!gl || !this.bufs) return -1;
@@ -1160,16 +1713,16 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.enable(gl.DEPTH_TEST);
-      const v = this.view(), P = this.pick, fly = this.mode === "fly", pose = fly ? this.pose(S.T) : null;
+      const v = this.view(), P = this.pick;
       gl.useProgram(P.p);
       gl.uniformMatrix4fv(P.u.uVP, false, v.vp);
       gl.uniform2fv(P.u.uCutN, this.cutNormal(v));
-      if (P.aNor >= 0) gl.disableVertexAttribArray(P.aNor);
+      this.only(P.aPos);
       for (const b of this.bufs) {
         const id = b.part.i + 1;
-        gl.uniformMatrix4fv(P.u.uM, false, this.modelOf(b.part, pose));
+        gl.uniformMatrix4fv(P.u.uM, false, this.modelOf(b.part));
         gl.uniform3f(P.u.uId, (id >> 16 & 255) / 255, (id >> 8 & 255) / 255, (id & 255) / 255);
-        gl.uniform1f(P.u.uCut, !fly && this.cut && CUT_KINDS.has(b.part.kind) ? 1 : 0);
+        gl.uniform1f(P.u.uCut, this.cut && CUT_KINDS.has(b.part.kind) ? 1 : 0);
         gl.bindBuffer(gl.ARRAY_BUFFER, b.pos);
         gl.enableVertexAttribArray(P.aPos);
         gl.vertexAttribPointer(P.aPos, 3, gl.FLOAT, false, 0, 0);
@@ -1223,7 +1776,11 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       c.addEventListener("pointercancel", end);
       c.addEventListener("pointerleave", () => { if (!drag && this.hover !== -1) { this.hover = -1; $("#tip3d").hidden = true; this.dirty(); } });
       c.addEventListener("wheel", (e) => { e.preventDefault(); this.zoom(Math.exp(e.deltaY * 0.0015)); }, { passive: false });
-      c.addEventListener("dblclick", () => { this.resetView(); if (this.mode === "side") this.frameSide(); });
+      c.addEventListener("dblclick", () => {
+        if (this.mode === "fly") { this.user = { az: 0, el: 0, zoom: 1 }; this.dirty(); return; }
+        this.resetView();
+        if (this.mode === "side") this.frameSide();
+      });
       c.addEventListener("keydown", (e) => {
         const k = { ArrowLeft: [-12, 0], ArrowRight: [12, 0], ArrowUp: [0, -12], ArrowDown: [0, 12] }[e.key];
         if (k) { e.preventDefault(); this.dragBy(k[0], k[1], e.shiftKey || this.mode === "side"); }
@@ -1253,7 +1810,9 @@ details.manual summary { cursor: pointer; color: var(--ink); }
         const k = (2 * c.half) / (this.canvas.clientHeight || 1);
         c.target = [c.target[0] - dx * k, c.target[1], c.target[2] + dy * k];
       } else if (this.mode === "fly") {
-        c.faz -= dx * 0.4; c.fel = clamp(c.fel + dy * 0.3, -10, 89);
+        const u = this.user;
+        u.az -= dx * 0.4;
+        u.el = clamp(u.el + dy * 0.3, this.flyCam === "orbit" ? -90 : -30, 80);
       } else if (pan) {
         const v = this.view(), right = V.norm(V.cross(v.dir, [0, 0, 1])), up = V.cross(right, v.dir), k = c.dist * 0.0018;
         c.target = V.add(c.target, V.add(V.mul(right, -dx * k), V.mul(up, dy * k)));
@@ -1265,7 +1824,7 @@ details.manual summary { cursor: pointer; color: var(--ink); }
     zoom(f) {
       const c = this.cam;
       if (this.mode === "side") c.half = clamp(c.half * f, this.L * 0.02, this.L * 3);
-      else if (this.mode === "fly") c.fdist = clamp(c.fdist * f, this.L * 0.8, this.L * 400);
+      else if (this.mode === "fly") this.user.zoom = clamp(this.user.zoom * f, 0.15, 12);
       else c.dist = clamp(c.dist * f, this.L * 0.08, this.L * 12);
       this.dirty();
     }
@@ -1584,14 +2143,47 @@ details.manual summary { cursor: pointer; color: var(--ink); }
   let lastFrame = 0;
   function playStep(now) {
     if (!S.playing) return;
-    const dt = Math.min(0.1, (now - (lastFrame || now)) / 1000);
+    const dt = Math.min(0.25, (now - (lastFrame || now)) / 1000);
     lastFrame = now;
-    const burn = (S.data.flight.events.find((e) => e.kind === "burnout") || { t: 3 }).t;
-    const rate = S.T < burn + 1 ? 1 : S.T < apogeeT() ? 3 : 8;
-    const t = S.T + dt * rate;
+    const t = S.T + dt * playRate();
     if (t >= tEnd()) { setT(tEnd()); togglePlay(false); return; }
     setT(t);
     requestAnimationFrame(playStep);
+  }
+  // Flight seconds per second: the video's pacing (real time through the burn, slowed at apogee and each
+  // deployment, the rest sped up) or a fixed speed.
+  function playRate() {
+    if (S.speed && S.speed !== "auto") return Number(S.speed);
+    return S.viewer && S.viewer.replay ? S.viewer.replay.rate(S.T) : 1;
+  }
+  // animate_flight from the view: the GIF / MP4 and key-moment stills are written beside the design; the stills come
+  // back as an image to show here.
+  async function makeVideo() {
+    const panel = $("#videopanel"), btn = $("#b-video");
+    if (S.busy) return;
+    togglePlay(false);
+    btn.disabled = true;
+    setBusy(true);
+    panel.hidden = false;
+    panel.replaceChildren(h("h3", {}, "Making the video"), h("div", { class: "files" }, h("span", { class: "spin" }), "Rendering every frame of the flight; this takes a little while (longer with an MP4)."));
+    try {
+      const r = await request("tools/call", { name: "animate_flight", arguments: { designId: S.data.design.designId, simulation: S.data.design.simulation } }, 600000);
+      const text = (r.content || []).filter((c) => c.type === "text").map((c) => c.text).join("\n");
+      if (r.isError) throw new Error(text.replace(/^Error:\s*/, ""));
+      let j = {};
+      try { j = JSON.parse(text); } catch (e) { /* plain text */ }
+      const img = (r.content || []).find((c) => c.type === "image");
+      const close = h("button", { class: "btn", onclick: () => { panel.hidden = true; } }, "Close");
+      panel.replaceChildren(h("h3", {}, "Video ready", close),
+        h("div", { class: "files" }, [j.gif && "GIF: " + j.gif, j.mp4 && "MP4: " + j.mp4, j.length].filter(Boolean).map((x) => h("div", {}, x))),
+        img ? h("img", { src: "data:" + img.mimeType + ";base64," + img.data, alt: "Key moments of the flight" }) : null);
+      request("ui/update-model-context", { content: [{ type: "text", text: "From the design view the user rendered the flight video: " + [j.gif, j.mp4].filter(Boolean).join(", ") }] }).catch(() => {});
+    } catch (e) {
+      panel.replaceChildren(h("h3", {}, "No video", h("button", { class: "btn", onclick: () => { panel.hidden = true; } }, "Close")), h("div", { class: "toast err" }, e.message));
+    } finally {
+      btn.disabled = false;
+      setBusy(false);
+    }
   }
   function togglePlay(on) {
     S.playing = on == null ? !S.playing : on;
@@ -1616,7 +2208,14 @@ details.manual summary { cursor: pointer; color: var(--ink); }
     for (const b of $$("[data-filter]")) b.addEventListener("click", () => { S.filter = b.dataset.filter; for (const x of $$("[data-filter]")) x.setAttribute("aria-pressed", String(x === b)); renderChecks(); });
     $("#cut").addEventListener("change", (e) => { S.viewer.cut = e.target.checked; S.viewer.dirty(); });
     $("#explode").addEventListener("input", (e) => { S.viewer.explode = +e.target.value; if (S.viewer.mode === "side") S.viewer.frameSide(); else S.viewer.frame3d(); });
-    $("#whole").addEventListener("change", (e) => { S.viewer.whole = e.target.checked; S.viewer.dirty(); });
+    for (const b of $$("[data-flycam]")) b.addEventListener("click", () => {
+      for (const x of $$("[data-flycam]")) x.setAttribute("aria-pressed", String(x === b));
+      S.viewer.flyCam = b.dataset.flycam;
+      S.viewer.user = { az: 0, el: 0, zoom: 1 };
+      S.viewer.dirty();
+    });
+    $("#speed").addEventListener("change", (e) => { S.speed = e.target.value; updateHud(); });
+    $("#b-video").addEventListener("click", makeVideo);
     $("#time").addEventListener("input", (e) => { togglePlay(false); setT(+e.target.value); });
     $("#play").addEventListener("click", () => togglePlay());
     $("#b-refresh").addEventListener("click", async () => { setBusy(true); try { await refresh(); } catch (e) { renderPartInfo(e.message, true); } finally { setBusy(false); } });

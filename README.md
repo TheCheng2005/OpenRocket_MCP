@@ -21,8 +21,9 @@ Claude: A 36 in chute lands the 2.84 lb section at 19.9 ft/s. The drogue opens a
 the answers, and the plots. Everything on that page is real output.
 
 Say *"show us the rocket"* and an interactive view opens right in the chat: turn the rocket in 3-D, cut it open or pull
-it apart, click a part to see and change it, scrub through the flight and watch CG and CP move, replay the flight in
-3-D, and read every plot with one time cursor. Outside Claude Desktop and claude.ai it is an HTML file:
+it apart, click a part to see and change it, scrub through the flight and watch CG and CP move, fly it like the
+flight video (chase camera, flame and smoke, the parachutes opening, a dropped booster on its own camera) and render
+the video from there, and read every plot with one time cursor. Outside Claude Desktop and claude.ai it is an HTML file:
 [try the Maple 10K one](docs/examples/maple-10k-view.html) (download it and open it in a browser).
 
 <p>
@@ -41,7 +42,7 @@ it apart, click a part to see and change it, scrub through the flight and watch 
 
 **Working with Claude**
 - "Show us the rocket" — the interactive view above, in the chat: 3-D with cut-away and exploded views, a side view to
-  scale with CG, CP and a ruler, a 3-D replay of the flight with the parachutes, linked flight plots, the trajectory and
+  scale with CG, CP and a ruler, the flight replayed like the video (and *Make video* to render it), linked flight plots, the trajectory and
   ground track, and the rule checks. Click a part to change it (re-simulated at once, and undoable), or ask Claude about
   it or how to fix a failing check.
 - "Where do we stand?" — the rule check in short, what is not set up yet, and the next steps in order with the tool for
