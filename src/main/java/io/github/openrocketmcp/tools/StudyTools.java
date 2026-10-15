@@ -20,6 +20,7 @@ import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.Diff;
 import io.github.openrocketmcp.or.Heating;
 import io.github.openrocketmcp.or.Loads;
+import io.github.openrocketmcp.or.MaterialStudy;
 import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Roll;
 import io.github.openrocketmcp.or.Sections;
@@ -74,6 +75,40 @@ public final class StudyTools {
 					}
 					return Shapes.study(base, d.doc, nose, a.has("noseLengths") ? a.qtyList("noseLengths", Dim.LENGTH) : null,
 							a.bool("fins", true), a.num("designMach", Double.NaN), minStab);
+				}));
+
+		s.tool(new ToolDef("compare_materials", "Material trade study",
+				"Simulate building parts from different materials: the fins, the airframe tubes, the nose cone, or named "
+						+ "components, each candidate material (and optionally each stock thickness) flown in OpenRocket on a copy of the "
+						+ "design. For every option: launch mass, apogee, ascent stability and rail exit, plus the material checks - fin "
+						+ "flutter margin (shear modulus), fin root bending (strength), aerodynamic heating against the service "
+						+ "temperature, and tube wall stress and buckling (strength, Young's modulus). Options that pass every check come "
+						+ "first, by apogee. Densities are OpenRocket's; moduli, strengths and temperatures are the team standards' "
+						+ "(structures.*) with sources. Weighed (mass-overridden) parts change by the computed difference. Does not "
+						+ "edit the design; use edit_components to apply a choice.",
+				SimTools.simSelect(Schema.object())
+						.array("parts", "What to build from each material: \"fins\", \"body tubes\" (the airframe tubes), \"nose cone\", "
+								+ "or component ids / names (default [\"fins\"]).", Schema.type("string", null), false)
+						.array("materials", "OpenRocket material names to compare, e.g. [\"Fiberglass\", \"Carbon fiber\", \"Aluminum\"] "
+								+ "(default: common choices for those parts). The current material is always included.",
+								Schema.type("string", null), false)
+						.array("thicknesses", "Stock thicknesses to try with every material (fin sheet, tube wall or nose shell), e.g. "
+								+ "[\"1/8 in\", \"3/16 in\"] (default: as designed).", Schema.quantityItem(), false)
+						.num("minStability", "Flag options below this minimum ascent stability (default: the rule-set floor).", false)
+						.build(),
+				true, a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId", null));
+					Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
+							ctx.standards(), false);
+					MaterialStudy.Selection sel = MaterialStudy.select(base.getRocket(), a.has("parts") ? a.strList("parts") : List.of("fins"));
+					double minStab = a.num("minStability", Double.NaN);
+					if (Double.isNaN(minStab)) {
+						double f = Requirements.stabilityFloor(ctx.standards(),
+								base.getRocket().getFlightConfiguration(base.getFlightConfigurationId()))[0];
+						minStab = f > 0 ? f : Double.NaN;
+					}
+					return MaterialStudy.study(base, d.doc, ctx.standards(), sel, a.has("materials") ? a.strList("materials") : null,
+							a.has("thicknesses") ? a.qtyList("thicknesses", Dim.LENGTH) : null, minStab);
 				}));
 
 		s.tool(new ToolDef("recovery_sections", "Recovery sections from the design",

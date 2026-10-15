@@ -6,7 +6,7 @@ plain-language overview.
 
 ## Tools
 
-The 81 tools, grouped by what a team is doing (one of them, `workbench_data`, serves the interactive view and is hidden
+The 82 tools, grouped by what a team is doing (one of them, `workbench_data`, serves the interactive view and is hidden
 from the model by hosts that show views). Bold marks the main job of each tool.
 
 ### Session
@@ -152,7 +152,9 @@ from the model by hosts that show views). Bold marks the main job of each tool.
 
 - `search_motors`: filter by diameter, class, **certification level** and manufacturer.
 - `rank_motors`: **simulates the candidates** for target apogee, maximum apogee, or the smallest motor that meets the
-  rail-exit rules.
+  rail-exit rules. Candidates match the mount's bore; when no motor does (the airframe itself as the mount, e.g. a
+  110 mm hybrid chamber), the largest motors that fit are ranked and the result says so (`minDiameter` picks another
+  size).
 - `set_motor`: includes air-start ignition.
 - `import_motor_file`: .eng or .rse files.
 - `create_custom_motor`: **liquid, hybrid and static-fire thrust curves**, with the tank CG shift.
@@ -302,6 +304,20 @@ from the model by hosts that show views). Bold marks the main job of each tool.
 
 - `fin_flutter`: the flutter speed of every fin set along the simulated flight (NACA TN 4197 with the corrected
   constant). It gives the worst margin and the thickness or shear modulus that fixes it. `check_requirements` runs it too.
+- `compare_materials`: a **material trade study**. `parts` is `fins`, `body tubes` (the stages' airframe tubes), `nose
+  cone` or component names; `materials` are OpenRocket material names (default: common choices for those parts), and
+  `thicknesses` adds stock sizes. Each option is flown on a copy of the design and reports:
+  - launch mass, apogee, ascent stability and rail exit (mass from geometry x OpenRocket's density; a weighed part's
+    mass override moves by the computed difference, so the hardware it includes stays);
+  - fin flutter margin (shear modulus) and fin root bending (strength, the `fin_fea` hand estimate);
+  - tube wall stress at the joints (`structural_loads`) and axial buckling of a thin cylinder (Young's modulus, NASA
+    SP-8007 knockdown);
+  - the surface temperature against the material's service temperature (a CHECK, since it is an adiabatic bound).
+
+  Options whose material passes come first, then those meeting the stability floor, by apogee. A material without
+  data in the standards reads UNCHECKED rather than passing. Moduli, strengths and temperatures come from
+  `structures.*` in the standards with their sources: put your coupon data there. Tanks and motor cases are sized by
+  pressure (`pressure_vessel`), not by these flight loads.
 - `fin_fea`: a **finite-element check of a fin with CalculiX**.
   - **Model:** 8-node shells clamped at the root, with in-plane engineering constants from the team standards.
   - **Load:** the worst flight load (a gust at max q, or the largest simulated q × angle of attack) on the most loaded

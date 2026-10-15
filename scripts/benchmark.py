@@ -318,6 +318,15 @@ def scenario_structures(s, d):
     check(sc, "half the thickness -> ~0.35x margin (Vf ~ t^1.5)", 0.3 < ratio < 0.4, f"{ratio:.3f}")
     check(sc, "a failing fin gets a thickness / modulus fix", thin["status"] == "PASS" or "toReachRequiredMargin" in thin,
           thin["status"])
+    # 'Should the fins be G10, carbon or aluminum, and how thick?' - flown and checked per material.
+    mat = s.call("compare_materials", {"designId": d, "materials": ["Carbon fiber", "Aluminum"], "thicknesses": ["1/8 in", "3/16 in"]})
+    pick = lambda name, mm: next((o for o in mat["options"] if o["option"].startswith(f"{name}, {mm} mm")), None)
+    al, cf, cf2 = pick("Aluminum", "3.175"), pick("Carbon fiber", "3.175"), pick("Carbon fiber", "4.762")
+    check(sc, "materials: stiffer aluminum fins have the larger flutter margin than carbon at the same thickness",
+          al and cf and num(al["finFlutterMargin"]) > num(cf["finFlutterMargin"]), json.dumps([o["option"] for o in mat["options"]])[:300])
+    check(sc, "materials: thicker stock raises the margin and the mass",
+          cf2 and num(cf2["finFlutterMargin"]) > num(cf["finFlutterMargin"]) and num(cf2["launchMass"]) > num(cf["launchMass"]),
+          json.dumps(cf2)[:300])
     req = s.call("check_requirements", {"designId": d, "includeWindCase": False})
     items = [c for c in req["checks"] if c["item"].startswith("Fin flutter margin")]
     check(sc, "check_requirements includes the flutter margin", len(items) == 1 and fin["minMargin"].split()[0] in items[0]["value"],

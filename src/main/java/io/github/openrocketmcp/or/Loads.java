@@ -286,6 +286,18 @@ public final class Loads {
 	/** As above; when {@code csv} is given, one row per joint with the raw load cases is appended to it. */
 	public static Map<String, Object> analyze(Simulation sim, double gustSpeed, double safetyFactor, double allowable,
 			StringBuilder csv) {
+		return analyze(sim, gustSpeed, safetyFactor, allowable, csv, null);
+	}
+
+	/** Wall stress at each joint, by joint name: {axial + bending stress, axial compression stress, radius, wall} (SI). */
+	public static Map<String, double[]> wallStresses(Simulation sim, double gustSpeed) {
+		Map<String, double[]> out = new LinkedHashMap<>();
+		analyze(sim, gustSpeed, 1, Double.NaN, null, out);
+		return out;
+	}
+
+	private static Map<String, Object> analyze(Simulation sim, double gustSpeed, double safetyFactor, double allowable,
+			StringBuilder csv, Map<String, double[]> stresses) {
 		FlightConfiguration full = sim.getRocket().getFlightConfiguration(sim.getFlightConfigurationId());
 		FlightDataBranch b = sim.getSimulatedData().getBranch(0);
 		Branch br = Branch.of(b);
@@ -414,6 +426,9 @@ public final class Loads {
 				if (!Double.isNaN(allowable)) {
 					r.put("margin", Units.num(allowable / (stress * safetyFactor) - 1)
 							+ (allowable >= stress * safetyFactor ? " (OK)" : " (NEGATIVE)"));
+				}
+				if (stresses != null) {
+					stresses.put(jt.name(), new double[] { stress, Math.max(0, w.axial.axial()) / area, jt.radius(), jt.thickness() });
 				}
 				if (stress > worstStress) {
 					worstStress = stress;
