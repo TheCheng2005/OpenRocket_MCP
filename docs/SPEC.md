@@ -617,6 +617,28 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   `FlightAnimationTest` (same-named stages, no sliver sections); `scripts/view_shots.mjs` drives every camera, a
   caption and playback in headless Chromium.
 
+### Materials (v0.24.0)
+
+- **`compare_materials`** (`or.MaterialStudy`): the chosen parts (`fins`, `body tubes` = the stages' own airframe
+  tubes including a motor-mount chamber, `nose cone`, or component names) built from each candidate OpenRocket
+  material, optionally at each stock thickness, and flown (ascent) on copies of the design in parallel.
+  - Mass: OpenRocket's geometry x density. A mass override on the part, or on a parent overriding its subcomponents,
+    moves by the computed difference, so a weighed part keeps the hardware its weigh-in includes.
+  - Checks per option: fin flutter margin along the flight (`Structures.flutter`, shear modulus); fin root bending
+    (`FinFea.rootStress` under `FinFea.designLoad`, strength / load safety factor); joint wall stress
+    (`Loads.wallStresses`, new: the numbers behind `structural_loads`) against the strength; axial buckling of a thin
+    cylinder, sigma_cr = gamma 0.605 E t / R with NASA SP-8007's gamma = 1 - 0.901 (1 - e^(-sqrt(R/t)/16)); and the
+    adiabatic surface temperature (stagnation for nose and fins, turbulent recovery for tubes) against the service
+    temperature, reported as CHECK since it is an upper bound.
+  - Ranking: material passes, then the stability floor, then apogee. Missing data in the standards reads UNCHECKED
+    (never a pass); every material's properties are listed with their sources. Tanks and cases: a note points to
+    `pressure_vessel`.
+- **`rank_motors`**: a mount wider than every motor (the airframe as the mount: a hybrid's 110 mm chamber) found no
+  candidates, because candidates had to be within 1 mm of the bore. It now ranks the largest motors that fit and says
+  so; `minDiameter` still chooses.
+- Found by using the server as a new team would on a 4.5 in hybrid design (`MotorToolsTest`, `MaterialStudyTest`,
+  benchmark checks on flutter versus material and thickness).
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

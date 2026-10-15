@@ -322,6 +322,25 @@ public final class MotorTools {
 			unique.putIfAbsent(m.getManufacturer().getSimpleName() + "|" + m.getDesignation().toUpperCase(Locale.ROOT), m);
 		}
 		List<ThrustCurveMotor> candidates = new ArrayList<>(unique.values());
+		if (candidates.isEmpty() && !a.has("minDiameter")) {
+			// A mount wider than any motor (the airframe itself as the mount, a 110 mm tube): the largest motors that
+			// fit, which then need a motor tube and centering rings.
+			Motors.Filter any = new Motors.Filter(Double.NaN, f.maxDiameter(), f.maxLength(), f.minClass(), f.maxClass(),
+					f.manufacturer(), f.designationContains(), f.type(), f.availableOnly());
+			List<ThrustCurveMotor> fit = Motors.search(any);
+			double widest = fit.stream().mapToDouble(ThrustCurveMotor::getDiameter).max().orElse(Double.NaN);
+			for (ThrustCurveMotor m : fit) {
+				if (m.getDiameter() >= widest - 0.0005) {
+					unique.putIfAbsent(m.getManufacturer().getSimpleName() + "|" + m.getDesignation().toUpperCase(Locale.ROOT), m);
+				}
+			}
+			candidates = new ArrayList<>(unique.values());
+			if (!candidates.isEmpty()) {
+				res.put("motorDiameter", Units.fmt(widest, Dim.LENGTH) + ": no motor matches the " + Units.fmt(mount.getMotorMountDiameter(),
+						Dim.LENGTH) + " mount, so the largest that fit were ranked (they need a motor tube and centering rings); "
+						+ "pass minDiameter to rank a smaller size.");
+			}
+		}
 		if (candidates.isEmpty()) {
 			throw new ToolException("No motors match the filters for a " + Units.fmt(mount.getMotorMountDiameter(), Dim.LENGTH)
 					+ " x " + Units.fmt(mount.getLength(), Dim.LENGTH) + " mount (overhang up to " + Units.fmt(maxOverhang, Dim.LENGTH)
