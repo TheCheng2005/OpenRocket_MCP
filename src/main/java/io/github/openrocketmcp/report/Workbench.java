@@ -146,6 +146,8 @@ public final class Workbench {
 				pieceStart.merge(p.piece, p.x0, Math::min);
 			}
 		}
+		double[] layout = explodedLayout(built, fc.getLength());
+		r.put("finOut", layout[0]);
 		for (Model3d.Part p : built) {
 			Map<String, Object> m = new LinkedHashMap<>();
 			m.put("i", i++);
@@ -161,6 +163,16 @@ public final class Workbench {
 			}
 			m.put("x0", p.x0);
 			m.put("x1", p.x1);
+			m.put("depth", p.depth);
+			m.put("cutOpen", p.section); // opened by a cut-away
+			if (!p.fins.isEmpty()) {
+				List<List<Double>> dirs = new ArrayList<>();
+				for (double[] d : p.finDirs) {
+					dirs.add(List.of(round(d[1]), round(d[2])));
+				}
+				m.put("plateDirs", dirs); // each fin's outward direction (y, z); its triangles follow in that order
+			}
+			m.put("explode", List.of(round(p.shift[0]), round(p.shift[1]), round(p.shift[2])));
 			m.put("mass", Units.fmt(p.mass, Dim.MASS));
 			if (p.component != null) {
 				m.put("id", Components.shortId(p.component));
@@ -177,6 +189,28 @@ public final class Workbench {
 		}
 		r.put("parts", parts);
 		return r;
+	}
+
+	/**
+	 * The exploded view's layout, as render_3d draws it: airframe pieces pulled apart along the axis, internal parts laid
+	 * out below their piece in lanes. Sets each part's offset at full explosion; returns {how far the fins slide out}.
+	 */
+	static double[] explodedLayout(List<Model3d.Part> parts, double length) {
+		double maxR = 1e-3;
+		int pieces = 0, stages = 0;
+		for (Model3d.Part p : parts) {
+			if (!p.internal) {
+				maxR = Math.max(maxR, p.rMax);
+				pieces = Math.max(pieces, p.piece + 1);
+			}
+			stages = Math.max(stages, p.axialStage);
+		}
+		length = Math.max(1e-3, length);
+		double gap = Math.max(3 * maxR, 0.06 * length);
+		// Room between laid-out parts as on a 1400 px wide picture.
+		double metresPerPixel = (length + (pieces + View3d.STAGE_GAP * stages) * gap) / 1300;
+		View3d.layOut(parts, gap, maxR, metresPerPixel, new ArrayList<>());
+		return new double[] { 1.2 * maxR };
 	}
 
 	private static Map<String, Object> motorProps(FlightConfiguration fc, String designation) {

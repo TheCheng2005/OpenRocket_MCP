@@ -33,9 +33,16 @@ from the model by hosts that show views). Bold marks the main job of each tool.
   embedded, to open in any browser or send to the team. The model reads only the headline numbers and the rule-check
   summary; the bulky data goes to the view. `tab` picks the first tab; the simulation and launch overrides are those of
   `run_simulation`.
-  - **Rocket:** WebGL model built from the design's geometry (every part and motor, OpenRocket's masses). Orbit, zoom
-    and pan; *Cut-away* removes the half of the airframe toward the camera; *Exploded* pulls the airframe pieces apart
-    with their contents; *Side* is an orthographic view to scale with a ruler in the team's length unit. CG and CP
+  - **Rocket:** WebGL model built from the design's geometry (every part and motor, tube fins, launch lugs and rail
+    buttons, OpenRocket's masses). Orbit, zoom and pan; *Cut-away* removes the half of the airframe toward the camera,
+    drawing the cut walls, rings and bulkheads as solid sections and opening any part that holds others (a sled round
+    its altimeters); fins on the near side are left out whole rather than sliced. *Exploded* is the `render_3d` layout,
+    eased in by the slider: the airframe pieces pull apart along the axis, the fins slide out, and every part inside is
+    laid out below the piece it goes in, named, with a dashed guide back to where it fits. *Side* is an orthographic
+    view to scale with a ruler (and works exploded too). Parts entered wider than the tube they sit in (a shoulder as
+    wide as the airframe, a mass item wider than the bore) are drawn inside it, and nested parts are drawn so touching
+    surfaces do not flicker. *Metric* / *Imperial* in the header switches every number in the view (m, mm, kg, N, m/s
+    or ft, in, lb, lbf, ft/s), whatever the team setting, and is remembered in that browser. CG and CP
     markers and the margin follow the time cursor (from the simulation). Clicking a part (or its row in the parts list)
     highlights it and lists its properties; in a host, clicking a value edits it through `edit_components` (enum and
     yes/no values become lists), re-simulates and updates the view; *Undo* calls `undo`. The model is told of selections
@@ -46,8 +53,9 @@ from the model by hosts that show views). Bold marks the main job of each tool.
     (with a stage camera in the lower left while one flies), event captions and a trajectory map. Position, attitude
     and roll are OpenRocket's. Cameras: *Chase* (the video's, across the drift), *Orbit* (circles the rocket),
     *Pad* (a spectator by the pad with a long lens), *Whole flight* (the trajectory, the rocket drawn larger and
-    ringed); drag to swing the camera, scroll to zoom, double-click to reset. *Play* paces it like the video (real time
-    through the burn, slowed round apogee and each deployment, the rest sped up) or at 1x, 4x or 16x. In a host,
+    ringed); drag to swing the camera, scroll to zoom, double-click to reset. *Play* (or space) runs it at any speed
+    from 0.25x to 5x (slider, presets, `[` / `]`), times the video's pacing (real time through the burn, slowed round
+    apogee and each deployment, the rest sped up) or, with *Video pacing* off, times real time. In a host,
     *Make video* runs `animate_flight` on the same design and simulation and shows the key-moment stills; the GIF and
     MP4 are written beside the design. The scene comes from the video's own code (`FlightAnimation.plan()`: pad, rail,
     sections, nozzles, dropped stages, pacing), so the two agree.

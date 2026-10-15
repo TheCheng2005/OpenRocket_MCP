@@ -41,8 +41,9 @@ the video from there, and read every plot with one time cursor. Outside Claude D
 ## What you can ask
 
 **Working with Claude**
-- "Show us the rocket" — the interactive view above, in the chat: 3-D with cut-away and exploded views, a side view to
-  scale with CG, CP and a ruler, the flight replayed like the video (and *Make video* to render it), linked flight plots, the trajectory and
+- "Show us the rocket" — the interactive view above, in the chat: 3-D with a cut-away that shows the walls in section
+  and an exploded view that lays every part out with its name, a side view to scale with CG, CP and a ruler, a
+  metric / imperial switch, the flight replayed like the video (and *Make video* to render it), linked flight plots, the trajectory and
   ground track, and the rule checks. Click a part to change it (re-simulated at once, and undoable), or ask Claude about
   it or how to fix a failing check.
 - "Where do we stand?" — the rule check in short, what is not set up yet, and the next steps in order with the tool for

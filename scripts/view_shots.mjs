@@ -25,7 +25,7 @@ if (!file) {
 const { chromium } = await playwright();
 // SwiftShader: WebGL without a GPU (CI machines, containers).
 const browser = await chromium.launch({ args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
-const page = await browser.newPage({ viewport: { width: 960, height: 760 }, deviceScaleFactor: 1 });
+const page = await browser.newPage({ viewport: { width: 960, height: 960 }, deviceScaleFactor: 1 });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
@@ -37,9 +37,14 @@ await page.goto("file://" + resolve(file));
 await page.waitForTimeout(1500);
 if (await page.$("#app[hidden]")) errors.push("the view did not load its data: " + (await page.textContent("#msg")));
 
-// Rocket: exploded cut-away with the main parachute selected.
+// The airframe sections keep the flight's own section numbers (the replay flies each part with its section); the
+// cut-away flag is separate.
+if (!(await page.evaluate(() => window.__orView.data.rocket.parts.every((p) => p.section == null || Number.isInteger(p.section)))))
+  errors.push("a part's flight section is not a number");
+
+// Rocket: exploded cut-away with the main parachute selected; the parts inside laid out below, named, with guides.
 await page.check("#cut");
-await page.evaluate(() => { const e = document.querySelector("#explode"); e.value = 0.55; e.dispatchEvent(new Event("input")); });
+await page.evaluate(() => { const e = document.querySelector("#explode"); e.value = 0.8; e.dispatchEvent(new Event("input")); });
 await page.evaluate(() => {
   // The main: the parachute of the last deployment (whatever it is called), else the heaviest chute.
   const d = window.__orView.data, parts = d.rocket.parts, chutes = parts.filter((p) => p.kind === "chute");
@@ -50,6 +55,17 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(400);
 await shot("view-rocket.png");
+if ((await page.$$("#overlay text")).length < 3) errors.push("the exploded view names no parts");
+const laidOut = await page.evaluate(() => window.__orView.data.rocket.parts.some((p) => p.internal && p.explode[2] < 0));
+if (laidOut && !(await page.$$("#overlay line[stroke-dasharray]")).length) errors.push("the exploded view has no guides to where parts fit");
+
+// Metric or imperial: everything switches and the choice is remembered.
+const subtitle = () => page.textContent("#subtitle");
+await page.click('[data-units="imperial"]');
+if (!/ in long/.test(await subtitle()) || !/ (lb|oz) /.test(await subtitle())) errors.push("imperial: " + (await subtitle()));
+if (!/ft/.test(await page.textContent("#metrics"))) errors.push("imperial tiles not in feet");
+await page.click('[data-units="metric"]');
+if (!/ mm long/.test(await subtitle()) || !/ k?g /.test(await subtitle())) errors.push("metric: " + (await subtitle()));
 
 // Side view to scale at burnout.
 await page.evaluate(() => { const r = document.querySelector('.prow[aria-selected="true"]'); if (r) r.click(); });
@@ -75,6 +91,17 @@ await page.click("#play");
 await page.waitForTimeout(800);
 await page.click("#play");
 if (!((await page.evaluate(() => window.__orView.T)) > burnout + 0.35)) errors.push("playback did not move the flight on");
+// Playback speed: presets, the slider (0.25x to 5x) and the keys; the video's pacing can be switched off.
+await page.click('.presets button[data-speed="2"]');
+if ((await page.textContent("#speed-out")) !== "2×") errors.push("the 2x preset did not set the speed");
+await page.keyboard.press("BracketRight");
+if ((await page.textContent("#speed-out")) !== "3×") errors.push("] did not step the speed up");
+await page.evaluate(() => { const e = document.querySelector("#speed"); e.value = -2; e.dispatchEvent(new Event("input")); });
+if ((await page.textContent("#speed-out")) !== "0.25×") errors.push("the slider does not reach 0.25x");
+await page.uncheck("#pacing");
+if (!/real time/.test(await page.textContent("#speed-note"))) errors.push("switching off the video pacing is not shown");
+await page.check("#pacing");
+await page.click('.presets button[data-speed="1"]');
 await setTime(((await event("deploy", true)) || 10) + 4);
 await page.waitForTimeout(400);
 await shot("view-fly.png");

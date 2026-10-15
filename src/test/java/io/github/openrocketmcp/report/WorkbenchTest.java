@@ -53,6 +53,45 @@ class WorkbenchTest {
 		assertTrue((double) rocket.get("cp") > (double) rocket.get("cgLaunch"), "a stable rocket: CP aft of CG");
 	}
 
+	/** The exploded view: pieces apart in order along the axis, parts inside laid out below, fins with their directions. */
+	@Test
+	@SuppressWarnings("unchecked")
+	void explodedLayoutAndCutAway() {
+		Map<String, Object> rocket = (Map<String, Object>) data.get("rocket");
+		List<Map<String, Object>> parts = (List<Map<String, Object>>) rocket.get("parts");
+		assertTrue((double) rocket.get("finOut") > 0);
+		double lastShift = -1;
+		int lastPiece = -1;
+		for (Map<String, Object> p : parts) {
+			List<Double> e = (List<Double>) p.get("explode");
+			assertEquals(3, e.size(), p.get("name") + " explode offset");
+			boolean internal = (boolean) p.get("internal");
+			int piece = (int) p.get("piece");
+			if (!internal && !"fins".equals(p.get("kind"))) {
+				assertEquals(0, e.get(2), 1e-12, "airframe stays on the axis");
+				if (piece > lastPiece) {
+					assertTrue(e.get(0) > lastShift, "each piece further aft: " + p.get("name"));
+					lastShift = e.get(0);
+					lastPiece = piece;
+				}
+				assertTrue((boolean) p.get("cutOpen"), "the cut-away opens the airframe");
+			}
+			if (internal) {
+				assertTrue(e.get(2) < 0, p.get("name") + " laid out below the airframe");
+				assertTrue((int) p.get("depth") >= 1);
+			}
+			if ("fins".equals(p.get("kind"))) {
+				List<List<Double>> dirs = (List<List<Double>>) p.get("plateDirs");
+				int tris = Base64.getDecoder().decode((String) p.get("mesh")).length / 36;
+				assertTrue(dirs.size() >= 3 && tris % dirs.size() == 0, "each fin an equal share of the triangles");
+				for (List<Double> dd : dirs) {
+					assertEquals(1, Math.hypot(dd.get(0), dd.get(1)), 1e-3);
+				}
+			}
+		}
+		assertTrue(parts.stream().anyMatch(p -> "chute".equals(p.get("kind")) && !(boolean) p.get("cutOpen")), "a parachute is shown whole");
+	}
+
 	@Test
 	@SuppressWarnings("unchecked")
 	void seriesLineUpWithTime() {

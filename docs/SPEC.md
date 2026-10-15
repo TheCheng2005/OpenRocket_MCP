@@ -653,6 +653,36 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   difference and could clamp at zero, making two thicknesses weigh the same); heavier than modelled still moves by the
   difference.
 
+### A clearer view and playback speed (v0.25.0)
+
+- The design view reads at a glance in a chat panel and on a desktop: a larger type scale (14 px body, 22 px figures),
+  headline tiles that wrap their labels instead of cutting them, the view controls in a toolbar above the 3-D scene
+  instead of on it, the parts list beside its properties under the model at chat width, the flight readout as a grid
+  of label / value cells, one plot per row at chat width (taller plots, event labels in ink), CG and CP labelled on
+  opposite sides of the airframe with the margin above, rule checks as cards on narrow screens, and map labels with
+  a surface halo that move away from crowded markers along a leader line. Below 900 px the page scrolls as a whole.
+- Playback speed from 0.25x to 5x: a log-scale slider snapping to round steps, presets (0.25, 0.5, 1, 2, 5x), `[` and
+  `]`, space to play and pause. The speed multiplies the video's pacing, or real time with *Video pacing* off; the HUD
+  shows the resulting rate against real time.
+
+### A truer 3-D model, and metric or imperial (v0.26.0)
+
+- Exploded is `render_3d`'s layout, eased in by the slider: pieces apart along the axis (more between stages), fins
+  sliding out, each internal part laid out below its piece in lanes (structure, then recovery and electronics, then
+  motors), with dashed guides back to where it fits and names placed where they do not overlap. The server sends each
+  part's offset at full explosion (`explode`), each fin's direction (`plateDirs`) and how far fins slide (`finOut`);
+  side and 3-D views frame the whole layout.
+- Cut-away: walls, rings and bulkheads read as solid sections (the inside of a cut part is drawn flat, a shade darker:
+  closed meshes, so back faces are exactly the cut material); parts that hold others in the same tube (a sled, a
+  hybrid's combustion chamber with its fuel grain) are opened too (`cutOpen`); fins toward the camera are left out
+  whole instead of sliced along the cut.
+- No flicker: parts entered wider than the bore they sit in are drawn inside it (following a nose cone's taper);
+  shoulders fit inside the tube they plug into; walls entered with no thickness get one; nested parts draw with a depth
+  offset by nesting level (`depth`), so a coupler in its tube or a motor in its mount never fights with it.
+- Tube fins, launch lugs and rail buttons are drawn (in the view, `render_3d` and `animate_flight`).
+- *Metric* / *Imperial* in the header: every number in the view is shown in one system (series, tiles, part
+  properties, rule checks, captions), converted in the page from the data's units; the choice is kept in the browser.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.
