@@ -25,7 +25,7 @@ if (!file) {
 const { chromium } = await playwright();
 // SwiftShader: WebGL without a GPU (CI machines, containers).
 const browser = await chromium.launch({ args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
-const page = await browser.newPage({ viewport: { width: 960, height: 760 }, deviceScaleFactor: 1 });
+const page = await browser.newPage({ viewport: { width: 960, height: 960 }, deviceScaleFactor: 1 });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
@@ -75,6 +75,17 @@ await page.click("#play");
 await page.waitForTimeout(800);
 await page.click("#play");
 if (!((await page.evaluate(() => window.__orView.T)) > burnout + 0.35)) errors.push("playback did not move the flight on");
+// Playback speed: presets, the slider (0.25x to 5x) and the keys; the video's pacing can be switched off.
+await page.click('.presets button[data-speed="2"]');
+if ((await page.textContent("#speed-out")) !== "2×") errors.push("the 2x preset did not set the speed");
+await page.keyboard.press("BracketRight");
+if ((await page.textContent("#speed-out")) !== "3×") errors.push("] did not step the speed up");
+await page.evaluate(() => { const e = document.querySelector("#speed"); e.value = -2; e.dispatchEvent(new Event("input")); });
+if ((await page.textContent("#speed-out")) !== "0.25×") errors.push("the slider does not reach 0.25x");
+await page.uncheck("#pacing");
+if (!/real time/.test(await page.textContent("#speed-note"))) errors.push("switching off the video pacing is not shown");
+await page.check("#pacing");
+await page.click('.presets button[data-speed="1"]');
 await setTime(((await event("deploy", true)) || 10) + 4);
 await page.waitForTimeout(400);
 await shot("view-fly.png");

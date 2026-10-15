@@ -46,8 +46,9 @@ from the model by hosts that show views). Bold marks the main job of each tool.
     (with a stage camera in the lower left while one flies), event captions and a trajectory map. Position, attitude
     and roll are OpenRocket's. Cameras: *Chase* (the video's, across the drift), *Orbit* (circles the rocket),
     *Pad* (a spectator by the pad with a long lens), *Whole flight* (the trajectory, the rocket drawn larger and
-    ringed); drag to swing the camera, scroll to zoom, double-click to reset. *Play* paces it like the video (real time
-    through the burn, slowed round apogee and each deployment, the rest sped up) or at 1x, 4x or 16x. In a host,
+    ringed); drag to swing the camera, scroll to zoom, double-click to reset. *Play* (or space) runs it at any speed
+    from 0.25x to 5x (slider, presets, `[` / `]`), times the video's pacing (real time through the burn, slowed round
+    apogee and each deployment, the rest sped up) or, with *Video pacing* off, times real time. In a host,
     *Make video* runs `animate_flight` on the same design and simulation and shows the key-moment stills; the GIF and
     MP4 are written beside the design. The scene comes from the video's own code (`FlightAnimation.plan()`: pad, rail,
     sections, nozzles, dropped stages, pacing), so the two agree.
