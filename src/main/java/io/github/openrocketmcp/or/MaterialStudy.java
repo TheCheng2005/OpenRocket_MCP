@@ -21,6 +21,7 @@ import info.openrocket.core.rocketcomponent.NoseCone;
 import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.SymmetricComponent;
+import info.openrocket.core.rocketcomponent.Transition;
 import info.openrocket.core.simulation.FlightDataBranch;
 import info.openrocket.core.simulation.FlightDataType;
 import io.github.openrocketmcp.mcp.CallContext;
@@ -42,7 +43,7 @@ public final class MaterialStudy {
 
 	/** Which parts a study changes. */
 	public enum Group {
-		FINS, TUBES, NOSE, NAMED
+		FINS, TUBES, NOSE, TRANSITIONS, AIRFRAME, NAMED
 	}
 
 	/** Default candidates per group, OpenRocket material names. */
@@ -51,11 +52,15 @@ public final class MaterialStudy {
 			case FINS -> List.of("Fiberglass", "Carbon fiber", "Aluminum", "Plywood (birch)");
 			case TUBES -> List.of("Fiberglass", "Carbon fiber", "Blue tube", "Kraft phenolic", "Aluminum");
 			case NOSE -> List.of("Fiberglass", "Carbon fiber", "PLA - 100% infill", "Aluminum");
+			case TRANSITIONS, AIRFRAME -> List.of("Fiberglass", "Carbon fiber", "Aluminum", "Blue tube");
 			default -> List.of("Fiberglass", "Carbon fiber", "Aluminum");
 		};
 	}
 
-	/** Parts selected by a keyword ("fins", "body tubes" / "airframe", "nose cone") or by component id / name. */
+	/**
+	 * Parts selected by a keyword ("fins", "body tubes", "nose cone", "transitions", or "airframe" for the whole
+	 * aerodynamic body: nose cone, body tubes and transitions) or by component id / name.
+	 */
 	public record Selection(Group group, List<String> ids, List<String> names) {
 	}
 
@@ -66,8 +71,10 @@ public final class MaterialStudy {
 			String k = ref.trim().toLowerCase(Locale.ROOT);
 			Group g = switch (k) {
 				case "fins", "fin", "fin sets", "fin set" -> Group.FINS;
-				case "body tubes", "body tube", "tubes", "airframe", "airframe tubes" -> Group.TUBES;
+				case "body tubes", "body tube", "tubes", "airframe tubes" -> Group.TUBES;
 				case "nose", "nose cone", "nosecone" -> Group.NOSE;
+				case "transitions", "transition", "boattail", "boat tail", "shoulders" -> Group.TRANSITIONS;
+				case "airframe", "aerobody", "aero body", "body", "outer mold line", "shell" -> Group.AIRFRAME;
 				default -> null;
 			};
 			List<RocketComponent> add = new ArrayList<>();
@@ -78,12 +85,17 @@ public final class MaterialStudy {
 							+ "transitions); internal parts are usually given as masses.");
 				}
 				add.add(c);
-				g = c instanceof FinSet ? Group.FINS : c instanceof NoseCone ? Group.NOSE : c instanceof BodyTube ? Group.TUBES : Group.NAMED;
+				g = c instanceof FinSet ? Group.FINS : c instanceof NoseCone ? Group.NOSE : c instanceof BodyTube ? Group.TUBES
+						: c instanceof Transition ? Group.TRANSITIONS : Group.NAMED;
 			} else {
 				for (RocketComponent c : r) {
-					// Airframe tubes are the stages' own body tubes (a hybrid's combustion chamber too), not inner tubes.
-					if (g == Group.FINS && c instanceof FinSet || g == Group.NOSE && c instanceof NoseCone
-							|| g == Group.TUBES && c instanceof BodyTube && c.getParent() instanceof AxialStage) {
+					// Airframe tubes are the stages' own body tubes (a hybrid's combustion chamber too), not inner tubes;
+					// a nose cone is also a transition in OpenRocket, so it is told apart first.
+					boolean stagePart = c.getParent() instanceof AxialStage;
+					boolean nose = c instanceof NoseCone, tube = c instanceof BodyTube && stagePart;
+					boolean transition = c instanceof Transition && !nose && stagePart;
+					if (g == Group.FINS && c instanceof FinSet || g == Group.NOSE && nose || g == Group.TUBES && tube
+							|| g == Group.TRANSITIONS && transition || g == Group.AIRFRAME && (nose || tube || transition)) {
 						add.add(c);
 					}
 				}
@@ -104,7 +116,7 @@ public final class MaterialStudy {
 
 	/** Material properties used, SI (NaN = not in the standards) and where each came from. */
 	public record Props(String name, double density, double shear, double youngs, double strength, double maxTemp,
-			List<String> sources) {
+			double poisson, List<String> sources) {
 	}
 
 	static Props props(Standards std, Material m) {
@@ -121,7 +133,8 @@ public final class MaterialStudy {
 				src.add(labels[i] + " " + Units.fmt(v[i], dims[i]) + " (" + x[1] + ")");
 			}
 		}
-		return new Props(m.getName(), m.getDensity(), v[0], v[1], v[2], v[3], src);
+		Object[] nu = std.materialValue("structures.poissonRatio", m.getName(), Dim.DIMENSIONLESS);
+		return new Props(m.getName(), m.getDensity(), v[0], v[1], v[2], v[3], nu == null ? 0.3 : (Double) nu[0], src);
 	}
 
 	/** One candidate: a material for every selected part, and optionally a thickness (fins, tube wall, nose shell). */
@@ -135,9 +148,10 @@ public final class MaterialStudy {
 	}
 
 	/**
-	 * Builds the edit that gives every selected part material m (and thickness t unless NaN). Where a part's mass is
-	 * overridden (a weighed part, or a parent overriding its subcomponents), the override changes by the computed mass
-	 * difference, so hardware the override includes is kept.
+	 * Builds the edit that gives every selected part material m (and thickness t unless NaN), keeping the team's
+	 * weigh-ins. A part weighed heavier than its model carries hardware: its override moves by the computed mass
+	 * difference. A part weighed lighter than its model is the model's shell made lighter (a thinner wall, a lighter
+	 * layup): its override scales with the computed mass. A parent overriding its subcomponents moves by the difference.
 	 */
 	static java.util.function.Consumer<Rocket> edit(Selection sel, Material m, double t, List<String> notes) {
 		return r -> {
@@ -154,16 +168,21 @@ public final class MaterialStudy {
 						sc.setThickness(t);
 					}
 				}
-				double delta = c.getComponentMass() - before;
+				double after = c.getComponentMass(), delta = after - before;
 				for (RocketComponent p = c; p != null && Math.abs(delta) > 1e-6; p = p.getParent()) {
-					if (p.isMassOverridden() && (p == c || p.isSubcomponentsOverriddenMass())) {
-						p.setOverrideMass(Math.max(0, p.getOverrideMass() + delta));
-						if (notes != null) {
-							notes.add("'" + p.getName() + "' has its mass overridden: changed by " + (delta >= 0 ? "+" : "")
-									+ Units.fmt(delta, Dim.MASS) + (p == c ? "" : " for " + c.getName()));
-						}
-						break;
+					if (!p.isMassOverridden() || p != c && !p.isSubcomponentsOverriddenMass()) {
+						continue;
 					}
+					double was = p.getOverrideMass();
+					boolean scale = p == c && was < before && before > 0;
+					p.setOverrideMass(Math.max(0, scale ? was * after / before : was + delta));
+					if (notes != null) {
+						double change = p.getOverrideMass() - was;
+						notes.add("'" + p.getName() + "' is weighed (mass overridden): " + (change >= 0 ? "+" : "")
+								+ Units.fmt(change, Dim.MASS) + (p == c ? "" : " for " + c.getName())
+								+ (scale ? " (scaled: weighed lighter than modelled)" : ""));
+					}
+					break;
 				}
 			}
 		};
@@ -300,29 +319,27 @@ public final class MaterialStudy {
 			if (!Double.isNaN(p.maxTemp())) {
 				tempMargin = min(tempMargin, p.maxTemp() - worst); // degrees below the limit
 			}
-			if (c instanceof BodyTube && (Double.isNaN(p.strength()) || Double.isNaN(p.youngs()))) {
-				unchecked.add("tube " + (Double.isNaN(p.strength()) ? "strength" : "buckling") + " (no "
-						+ (Double.isNaN(p.strength()) ? "strength" : "Young's modulus") + " for " + m.getName() + ")");
-			}
-			if (c instanceof BodyTube bt && !Double.isNaN(p.strength())) {
+			if (c instanceof SymmetricComponent shell) {
+				String kind = c instanceof BodyTube ? "tube" : c instanceof NoseCone ? "nose cone" : "transition";
+				if (Double.isNaN(p.strength()) || Double.isNaN(p.youngs())) {
+					unchecked.add(kind + " " + (Double.isNaN(p.strength()) ? "strength" : "buckling") + " (no "
+							+ (Double.isNaN(p.strength()) ? "strength" : "Young's modulus") + " for " + m.getName() + ")");
+				}
 				if (stresses == null) {
 					stresses = Loads.wallStresses(sim, gust);
 				}
+				double own = shell.getThickness();
 				for (Map.Entry<String, double[]> e : stresses.entrySet()) {
-					List<String> sides = List.of(e.getKey().split(" / "));
-					if (!sides.contains(bt.getName())) {
+					if (!List.of(e.getKey().split(" / ")).contains(c.getName()) || !(own > 0)) {
 						continue;
 					}
-					double[] s = e.getValue();
-					if (s[0] > 0) {
-						tube = min(tube, p.strength() / (s[0] * sf));
+					// The joint's stress uses the thinner neighbour's wall; this part's own wall carries it here.
+					double[] st = e.getValue();
+					if (!Double.isNaN(p.strength()) && st[0] > 0) {
+						tube = min(tube, p.strength() / (st[0] * st[3] / own * sf));
 					}
-					// Axially compressed thin cylinder with NASA SP-8007's knockdown: sigma = gamma 0.605 E t / R,
-					// gamma = 1 - 0.901 (1 - exp(-sqrt(R/t) / 16)).
-					if (!Double.isNaN(p.youngs()) && s[1] > 0 && s[3] > 0) {
-						double rt = s[2] / s[3], gamma = 1 - 0.901 * (1 - Math.exp(-Math.sqrt(rt) / 16));
-						double cr = gamma * 0.605 * p.youngs() * s[3] / s[2];
-						buckling = min(buckling, cr / (s[1] * sf));
+					if (!Double.isNaN(p.youngs()) && st[1] > 0) {
+						buckling = min(buckling, shellBuckling(shell, p, own, st[2]) / (st[1] * st[3] / own * sf));
 					}
 				}
 			}
@@ -330,6 +347,23 @@ public final class MaterialStudy {
 		return new Row(o, 0, launchMass, data.getMaxAltitude(), data.getMaxMachNumber(), w == null ? Double.NaN : w.min(),
 				w == null ? Double.NaN : w.max(), data.getLaunchRodVelocity(), flutter, finStress, tempMargin, maxTemp, tube, buckling,
 				new ArrayList<>(unchecked), notes, null);
+	}
+
+	/**
+	 * Critical axial stress of a thin shell, its own wall t at radius r. A tube: the cylinder's classical buckling stress
+	 * with NASA SP-8007's knockdown, sigma = gamma 0.605 E t / r with gamma = 1 - 0.901 (1 - exp(-sqrt(r/t) / 16)). A
+	 * nose cone or transition: NASA SP-8019's cone under axial load, P = gamma 2 pi E t^2 cos^2(alpha) / sqrt(3 (1 - nu^2))
+	 * with gamma = 0.33, as a stress over the wall at r (alpha the half-angle from the end radii and length).
+	 */
+	static double shellBuckling(SymmetricComponent c, Props p, double t, double r) {
+		if (c instanceof BodyTube) {
+			double gamma = 1 - 0.901 * (1 - Math.exp(-Math.sqrt(r / t) / 16));
+			return gamma * 0.605 * p.youngs() * t / r;
+		}
+		double alpha = Math.atan2(Math.abs(c.getAftRadius() - c.getForeRadius()), Math.max(1e-6, c.getLength()));
+		double pcr = 0.33 * 2 * Math.PI * p.youngs() * t * t * Math.cos(alpha) * Math.cos(alpha)
+				/ Math.sqrt(3 * (1 - p.poisson() * p.poisson()));
+		return pcr / (2 * Math.PI * r * t);
 	}
 
 	private static double min(double a, double b) {
@@ -346,10 +380,10 @@ public final class MaterialStudy {
 			f.add("fin root bending over the allowable");
 		}
 		if (r.tubeStressMargin() < 1) {
-			f.add("tube wall stress over the allowable");
+			f.add("wall stress over the allowable");
 		}
 		if (r.bucklingMargin() < 1) {
-			f.add("tube wall buckling");
+			f.add("wall buckling");
 		}
 		return f;
 	}
@@ -402,10 +436,10 @@ public final class MaterialStudy {
 										: ", " + Units.num(-r.tempMargin()) + " K ABOVE the material limit"));
 			}
 			if (!Double.isNaN(r.tubeStressMargin())) {
-				m.put("tubeWallStress", "strength / (stress x " + Units.num(sf) + ") = " + Units.num(r.tubeStressMargin()));
+				m.put("wallStress", "strength / (stress x " + Units.num(sf) + ") = " + Units.num(r.tubeStressMargin()));
 			}
 			if (!Double.isNaN(r.bucklingMargin())) {
-				m.put("tubeBuckling", "critical / (compression x " + Units.num(sf) + ") = " + Units.num(r.bucklingMargin()));
+				m.put("wallBuckling", "critical / (compression x " + Units.num(sf) + ") = " + Units.num(r.bucklingMargin()));
 			}
 			List<String> f = failures(r, flutterNeed);
 			List<String> made = new ArrayList<>();
@@ -453,7 +487,7 @@ public final class MaterialStudy {
 			props.add(m);
 		}
 		res.put("materials", props);
-		if (sel.group() == Group.TUBES || sel.group() == Group.NAMED) {
+		if (sel.group() == Group.TUBES || sel.group() == Group.AIRFRAME || sel.group() == Group.NAMED) {
 			res.put("pressureVessels", "Oxidizer tanks and motor cases are pressure vessels: their wall is sized by the operating "
 					+ "pressure (pressure_vessel), not by these flight loads, and a composite tank is a COPV with its own rules.");
 		}
@@ -465,8 +499,9 @@ public final class MaterialStudy {
 						+ " crosswind gust at max q or the largest simulated q x AoA, against the material strength / safety factor.",
 				"Heating: adiabatic stagnation (nose tip, fin leading edges) or turbulent recovery (tubes) temperature against the "
 						+ "material's service temperature; an upper bound (skins lag), so above it reads CHECK, not FAIL.",
-				"Tubes: thin-wall axial + bending stress at the joints (structural_loads) against the strength, and axial "
-						+ "buckling of a thin cylinder with NASA SP-8007's knockdown factor against Young's modulus.",
+				"Tubes, transitions and the nose cone: thin-wall axial + bending stress at their joints (structural_loads, on "
+						+ "the part's own wall) against the strength, and axial buckling against Young's modulus: a cylinder with "
+						+ "NASA SP-8007's knockdown, a cone (nose, transition) with NASA SP-8019's (0.33).",
 				"Strength, moduli and temperatures are typical values from the team standards (listed above with sources): "
 						+ "put your laminate's coupon data in structures.* to make the comparison yours."));
 		return res;

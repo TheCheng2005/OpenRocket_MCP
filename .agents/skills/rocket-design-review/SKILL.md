@@ -26,8 +26,8 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
      says a section's mass is overridden (weighed), mass edits under it are hidden until the override is updated.
    - Fins -> `fin_flutter` (margin along the flight; thickness or shear modulus fix). Required for fast / transonic
      vehicles; set the fin material's shear modulus in `structures.shearModulus` for composite layups.
-   - Material choice (fins, airframe tubes, nose) -> `compare_materials` with the team's candidates and stock
-     thicknesses: mass, apogee, stability, flutter, strength, buckling and heating per option. Missing data reads
+   - Material choice (fins, the airframe or its parts: tubes, nose cone, transitions) -> `compare_materials` with the
+     team's candidates and stock thicknesses: mass, apogee, stability, flutter, strength, buckling and heating per option. Missing data reads
      UNCHECKED; add coupon values to `structures.*`.
    - Target apogee -> `optimize` with objective target_apogee (ballast, or motor choice via `rank_motors`).
    - Wind / landing area -> `monte_carlo` for the landing ellipse and worst-case deployment loads; add massSd, dragSd,

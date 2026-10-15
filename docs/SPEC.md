@@ -639,6 +639,20 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
 - Found by using the server as a new team would on a 4.5 in hybrid design (`MotorToolsTest`, `MaterialStudyTest`,
   benchmark checks on flutter versus material and thickness).
 
+### Materials on the whole airframe (v0.24.1)
+
+- `compare_materials` parts: `airframe` (nose cone + stage body tubes + transitions), `transitions` (boattail,
+  shoulders; a nose cone, which OpenRocket also models as a transition, is kept apart) besides `fins`, `body tubes` and
+  `nose cone`.
+- Nose cones and transitions get the structural checks tubes had: wall stress at their joints on the part's own wall
+  (the joint stress from `Loads.wallStresses` uses the thinner neighbour; scaled by t_joint / t_part), and buckling
+  under the joint's axial compression: NASA SP-8019 for cones, P_cr = 0.33 x 2 pi E t^2 cos^2(alpha) / sqrt(3 (1 - nu^2)),
+  alpha from the end radii and length, nu from structures.poissonRatio. Tested against hand values (with SP-8007's
+  cylinder).
+- Weigh-ins: a part weighed lighter than modelled now scales with the computed mass (it used to move by the
+  difference and could clamp at zero, making two thicknesses weigh the same); heavier than modelled still moves by the
+  difference.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

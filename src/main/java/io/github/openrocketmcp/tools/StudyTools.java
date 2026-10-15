@@ -78,17 +78,19 @@ public final class StudyTools {
 				}));
 
 		s.tool(new ToolDef("compare_materials", "Material trade study",
-				"Simulate building parts from different materials: the fins, the airframe tubes, the nose cone, or named "
-						+ "components, each candidate material (and optionally each stock thickness) flown in OpenRocket on a copy of the "
-						+ "design. For every option: launch mass, apogee, ascent stability and rail exit, plus the material checks - fin "
-						+ "flutter margin (shear modulus), fin root bending (strength), aerodynamic heating against the service "
-						+ "temperature, and tube wall stress and buckling (strength, Young's modulus). Options that pass every check come "
-						+ "first, by apogee. Densities are OpenRocket's; moduli, strengths and temperatures are the team standards' "
+				"Simulate building parts from different materials: the fins, the airframe (nose cone, body tubes and "
+						+ "transitions together, or each group), or named components, each candidate material (and optionally each stock "
+						+ "thickness) flown in OpenRocket on a copy of the design. For every option: launch mass, apogee, ascent stability "
+						+ "and rail exit, plus the material checks - fin flutter margin (shear modulus), fin root bending (strength), wall "
+						+ "stress of tubes, transitions and the nose cone at their joints (strength), shell buckling (Young's modulus: "
+						+ "cylinders and cones), and aerodynamic heating against the service temperature. Options that pass every check "
+						+ "come first, by apogee. Densities are OpenRocket's; moduli, strengths and temperatures are the team standards' "
 						+ "(structures.*) with sources. Weighed (mass-overridden) parts change by the computed difference. Does not "
 						+ "edit the design; use edit_components to apply a choice.",
 				SimTools.simSelect(Schema.object())
-						.array("parts", "What to build from each material: \"fins\", \"body tubes\" (the airframe tubes), \"nose cone\", "
-								+ "or component ids / names (default [\"fins\"]).", Schema.type("string", null), false)
+						.array("parts", "What to build from each material: \"fins\", \"airframe\" (nose cone, body tubes and transitions), "
+								+ "\"body tubes\", \"nose cone\", \"transitions\" (boattail, shoulders), or component ids / names (default "
+								+ "[\"fins\"]).", Schema.type("string", null), false)
 						.array("materials", "OpenRocket material names to compare, e.g. [\"Fiberglass\", \"Carbon fiber\", \"Aluminum\"] "
 								+ "(default: common choices for those parts). The current material is always included.",
 								Schema.type("string", null), false)
