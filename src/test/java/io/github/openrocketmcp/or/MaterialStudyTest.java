@@ -107,4 +107,48 @@ class MaterialStudyTest {
 		assertEquals(expected, fins.getOverrideMass(), 1e-6, "geometry x the new density, plus what the weigh-in added");
 		assertEquals(1, notes.size(), notes.toString());
 	}
+
+	@Test
+	void aPartWeighedLighterThanModelledScales() throws Exception {
+		Designs.Design d = new Designs().openExample("Dual parachute");
+		Rocket r = d.doc.getRocket();
+		info.openrocket.core.rocketcomponent.NoseCone nose = null;
+		for (RocketComponent c : r) {
+			if (c instanceof info.openrocket.core.rocketcomponent.NoseCone n) {
+				nose = n;
+			}
+		}
+		double model = nose.getComponentMass();
+		nose.setMassOverridden(true);
+		nose.setOverrideMass(model / 2); // the real shell is half the modelled weight
+		MaterialStudy.Selection sel = MaterialStudy.select(r, List.of("nose cone"));
+		MaterialStudy.edit(sel, null, nose.getThickness() / 2, new ArrayList<>()).accept(r);
+		assertEquals(nose.getComponentMass() / 2, nose.getOverrideMass(), 1e-9, "half the wall, half the weighed mass");
+	}
+
+	@Test
+	void theAirframeIsNoseTubesAndTransitions() throws Exception {
+		Designs.Design d = new Designs().openExample("Dual parachute");
+		Rocket r = d.doc.getRocket();
+		info.openrocket.core.rocketcomponent.Transition boattail = new info.openrocket.core.rocketcomponent.Transition();
+		boattail.setName("Boattail");
+		r.getChild(0).addChild(boattail);
+		MaterialStudy.Selection all = MaterialStudy.select(r, List.of("airframe"));
+		assertTrue(all.names().contains("Boattail") && all.names().size() >= 3, all.names().toString());
+		assertEquals(MaterialStudy.Group.AIRFRAME, all.group());
+		assertEquals(List.of("Boattail"), MaterialStudy.select(r, List.of("transitions")).names(), "the nose cone is not a transition here");
+	}
+
+	/** Shell buckling against hand calculations (NASA SP-8007 cylinder, SP-8019 cone), fiberglass 18 GPa, 2 mm wall. */
+	@Test
+	void shellBucklingMatchesTheNasaFormulas() {
+		MaterialStudy.Props glass = new MaterialStudy.Props("Fiberglass", 1850, 2.9e9, 18e9, 240e6, 403, 0.12, List.of());
+		info.openrocket.core.rocketcomponent.BodyTube tube = new info.openrocket.core.rocketcomponent.BodyTube(1, 0.057, 0.002);
+		// gamma = 1 - 0.901 (1 - exp(-sqrt(27.5)/16)) = 0.7482; 0.7482 x 0.605 x 18 GPa x 2 / 55 = 296.3 MPa.
+		assertEquals(296.29e6, MaterialStudy.shellBuckling(tube, glass, 0.002, 0.055), 0.3e6);
+		info.openrocket.core.rocketcomponent.NoseCone nose = new info.openrocket.core.rocketcomponent.NoseCone(
+				info.openrocket.core.rocketcomponent.Transition.Shape.CONICAL, 0.43, 0.057);
+		// alpha = atan(57/430); P = 0.33 2 pi E t^2 cos^2(alpha) / sqrt(3 (1 - 0.12^2)) = 85.34 kN over 2 pi 57 mm x 2 mm.
+		assertEquals(119.11e6, MaterialStudy.shellBuckling(nose, glass, 0.002, 0.057), 0.2e6);
+	}
 }

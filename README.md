@@ -129,8 +129,8 @@ the video from there, and read every plot with one time cursor. Outside Claude D
 
 **Structures**
 - "Will our fins flutter?" — and how thick they need to be if they will.
-- "Should our fins be fiberglass, carbon or aluminum?" — each material (and stock thickness) flown on the rocket:
-  mass, apogee and stability, flutter, fin and tube strength, tube buckling and heating, side by side.
+- "Should our fins, airframe or nose cone be fiberglass, carbon or aluminum?" — each material (and stock thickness)
+  flown on the rocket: mass, apogee and stability, flutter, wall strength, shell buckling and heating, side by side.
 - "Will it get too hot?" — nose tip, fin edges and body temperatures at speed against your materials' limits.
 - "How straight do the fins need to be?" — roll rate from misaligned fins, and whether it risks a roll-pitch resonance.
 - Loads at every airframe joint during boost and at maximum speed, to size couplers and fasteners (also as a CSV for

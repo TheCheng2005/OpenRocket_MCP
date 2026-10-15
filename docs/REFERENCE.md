@@ -304,14 +304,17 @@ from the model by hosts that show views). Bold marks the main job of each tool.
 
 - `fin_flutter`: the flutter speed of every fin set along the simulated flight (NACA TN 4197 with the corrected
   constant). It gives the worst margin and the thickness or shear modulus that fixes it. `check_requirements` runs it too.
-- `compare_materials`: a **material trade study**. `parts` is `fins`, `body tubes` (the stages' airframe tubes), `nose
-  cone` or component names; `materials` are OpenRocket material names (default: common choices for those parts), and
+- `compare_materials`: a **material trade study**. `parts` is `fins`, `airframe` (the whole aerodynamic body: nose
+  cone, body tubes and transitions), `body tubes` (the stages' airframe tubes), `nose cone`, `transitions` (boattail,
+  shoulders) or component names; `materials` are OpenRocket material names (default: common choices for those parts), and
   `thicknesses` adds stock sizes. Each option is flown on a copy of the design and reports:
-  - launch mass, apogee, ascent stability and rail exit (mass from geometry x OpenRocket's density; a weighed part's
-    mass override moves by the computed difference, so the hardware it includes stays);
+  - launch mass, apogee, ascent stability and rail exit (mass from geometry x OpenRocket's density). A weighed part
+    keeps its weigh-in: heavier than modelled, the override moves by the computed difference (the hardware it includes
+    stays); lighter than modelled, it scales with the computed mass;
   - fin flutter margin (shear modulus) and fin root bending (strength, the `fin_fea` hand estimate);
-  - tube wall stress at the joints (`structural_loads`) and axial buckling of a thin cylinder (Young's modulus, NASA
-    SP-8007 knockdown);
+  - wall stress of tubes, transitions and the nose cone at their joints (`structural_loads`, on the part's own wall) and
+    shell buckling (Young's modulus): a cylinder with NASA SP-8007's knockdown, a cone (nose, transition) with NASA
+    SP-8019's;
   - the surface temperature against the material's service temperature (a CHECK, since it is an adiabatic bound).
 
   Options whose material passes come first, then those meeting the stability floor, by apogee. A material without
