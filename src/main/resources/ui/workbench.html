@@ -46,7 +46,7 @@ body.fill .app { height: 100vh; min-height: 900px; } /* a short window scrolls r
 .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .top h1 { font-size: 18px; font-weight: 600; margin: 0 0 2px; line-height: 1.3; }
 .sub { color: var(--ink2); font-size: 13px; }
-.actions { display: flex; gap: 6px; flex: none; }
+.actions { display: flex; gap: 6px; flex: none; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .btn { border: 1px solid var(--ring); background: var(--surface); border-radius: 7px; padding: 5px 12px; cursor: pointer; white-space: nowrap; }
 .btn:hover { background: var(--raised); }
 .btn:disabled { opacity: .5; cursor: default; }
@@ -77,6 +77,7 @@ body.fill .panel { height: auto; flex: 1 1 0; min-height: 340px; }
 #gl.dragging { cursor: grabbing; }
 .overlay { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
 .overlay text { font: 12px var(--font); paint-order: stroke; stroke: var(--view-b); stroke-width: 3px; stroke-linejoin: round; }
+.overlay text.on { fill: var(--accent); font-weight: 600; }
 .seg { display: inline-flex; border: 1px solid var(--ring); border-radius: 7px; overflow: hidden; background: var(--surface); }
 .seg button { border: 0; background: none; padding: 5px 12px; cursor: pointer; color: var(--ink2); }
 .seg button + button { border-left: 1px solid var(--ring); }
@@ -195,6 +196,8 @@ details.manual summary { cursor: pointer; color: var(--ink); }
   .checks td[data-label]::before { content: attr(data-label) ": "; color: var(--muted); }
 }
 @media (max-width: 560px) {
+  .top { flex-direction: column; align-items: stretch; }
+  .actions { justify-content: flex-start; }
   .model { grid-template-rows: 320px auto; }
   .parts { flex-direction: column; height: 460px; }
   .parts .pinfo { border-left: 0; border-top: 1px solid var(--ring); }
@@ -210,6 +213,10 @@ details.manual summary { cursor: pointer; color: var(--ink); }
     <div class="actions">
       <button id="b-undo" class="btn" title="Undo the last change to the design" hidden>Undo</button>
       <button id="b-refresh" class="btn" title="Re-simulate with the design as it is now" hidden>Refresh</button>
+      <div class="seg" role="group" aria-label="Units">
+        <button data-units="metric" title="Metric: mm, m, kg, N, m/s">Metric</button>
+        <button data-units="imperial" title="Imperial: in, ft, lb, lbf, ft/s">Imperial</button>
+      </div>
       <button id="b-full" class="btn" title="Full screen">Full screen</button>
     </div>
   </header>
@@ -229,7 +236,7 @@ details.manual summary { cursor: pointer; color: var(--ink); }
         <button data-view="fly" title="Replay the simulated flight in 3-D">Fly</button>
       </div>
       <label class="chk" id="t-cut" title="Cut the airframe open to show the parts inside"><input type="checkbox" id="cut"> Cut-away</label>
-      <label class="chk" id="t-explode" title="Pull the airframe sections apart">Exploded <input type="range" id="explode" min="0" max="1" step="0.01" value="0" style="width:90px"></label>
+      <label class="chk" id="t-explode" title="Pull the rocket apart: airframe sections along the axis, fins out, the parts inside laid out below with their names">Exploded <input type="range" id="explode" min="0" max="1" step="0.01" value="0" style="width:90px"></label>
       <div class="seg" id="t-flycam" role="group" aria-label="Camera" hidden>
         <button data-flycam="chase" aria-pressed="true" title="The video's chase camera (drag to swing it round)">Chase</button>
         <button data-flycam="orbit" title="Circles the rocket as it plays; drag to look from anywhere">Orbit</button>
@@ -336,11 +343,92 @@ details.manual summary { cursor: pointer; color: var(--ink); }
   const conv = (m, unit) => m * (LEN[unit] || 1);
   const SPEED = { "m/s": 1, "ft/s": 1 / 0.3048, "km/h": 3.6, mph: 2.236936 };
 
+  // ------------------------------------------------------------------ metric or imperial
+  // The data comes in the team's units (both, where the setting is "both": "57 mm (2.244 in)"); the view shows one
+  // system, chosen with the Metric / Imperial switch. SI per unit, and each unit's counterpart in the other system.
+  const SI = { m: 1, mm: 1e-3, cm: 1e-2, km: 1e3, in: 0.0254, ft: 0.3048, mi: 1609.344, "m/s": 1, "km/h": 1 / 3.6, "ft/s": 0.3048, mph: 0.44704,
+    "m/s2": 1, "ft/s2": 0.3048, kg: 1, g: 1e-3, lb: 0.45359237, oz: 0.028349523125, N: 1, kN: 1e3, lbf: 4.4482216152605,
+    m2: 1, cm2: 1e-4, mm2: 1e-6, in2: 0.00064516, ft2: 0.09290304, m3: 1, cm3: 1e-6, L: 1e-3, in3: 1.6387064e-5, ft3: 0.028316846592,
+    Pa: 1, kPa: 1e3, MPa: 1e6, GPa: 1e9, psi: 6894.757293168, ksi: 6894757.293168, J: 1, "ft-lbf": 1.3558179483314,
+    "kg/m3": 1, "lb/ft3": 16.01846337396, Ns: 1, "lbf-s": 4.4482216152605, C: 1, F: 1 };
+  const PAIR = { m: "ft", ft: "m", mm: "in", cm: "in", in: "mm", km: "mi", mi: "km", "m/s": "ft/s", "ft/s": "m/s", "km/h": "mph", mph: "km/h",
+    "m/s2": "ft/s2", "ft/s2": "m/s2", kg: "lb", lb: "kg", g: "oz", oz: "g", N: "lbf", kN: "lbf", lbf: "N", m2: "ft2", cm2: "in2", mm2: "in2",
+    ft2: "m2", in2: "cm2", m3: "ft3", cm3: "in3", L: "in3", in3: "cm3", ft3: "m3", Pa: "psi", kPa: "psi", MPa: "ksi", GPa: "ksi",
+    psi: "kPa", ksi: "MPa", J: "ft-lbf", "ft-lbf": "J", "kg/m3": "lb/ft3", "lb/ft3": "kg/m3", Ns: "lbf-s", "lbf-s": "Ns", C: "F", F: "C" };
+  const IMPERIAL = new Set(["in", "ft", "mi", "ft/s", "mph", "ft/s2", "lb", "oz", "lbf", "in2", "ft2", "in3", "ft3", "psi", "ksi", "ft-lbf", "lb/ft3", "lbf-s", "F"]);
+  const UNITS = {
+    metric: { length: "mm", distance: "m", velocity: "m/s", acceleration: "m/s2", mass: "kg", force: "N" },
+    imperial: { length: "in", distance: "ft", velocity: "ft/s", acceleration: "ft/s2", mass: "lb", force: "lbf" }
+  };
+  const inSystem = (unit) => !(unit in PAIR) || IMPERIAL.has(unit) === (S.sys === "imperial");
+  // The unit a value in `unit` is shown in, and the value in it.
+  const shownUnit = (unit) => inSystem(unit) ? unit : PAIR[unit];
+  function toShown(v, unit) {
+    if (!fin(v) || inSystem(unit)) return v;
+    const to = PAIR[unit];
+    if (unit === "C") return v * 9 / 5 + 32;
+    if (unit === "F") return (v - 32) * 5 / 9;
+    return v * SI[unit] / SI[to];
+  }
+  // 4 significant figures, as the server writes them.
+  function sig4(v) {
+    if (v === 0) return "0";
+    const a = Math.abs(v), d = a >= 1000 ? 0 : Math.max(0, 3 - Math.floor(Math.log10(a)));
+    return String(+v.toFixed(d));
+  }
+  const NUMRE = "-?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[-+]?\\d+)?";
+  const PAIR_RE = new RegExp("(" + NUMRE + ") ([^\\s();,]+) \\((" + NUMRE + ") ([^\\s();,]+)\\)", "g");
+  const ONE_RE = new RegExp("^(" + NUMRE + ") ([^\\s();,]+)$");
+  // A text in the chosen system: "57 mm (2.244 in)" keeps the half in it; a lone "57 mm" is converted.
+  function txt(t) {
+    if (typeof t !== "string") return t;
+    let out = t.replace(PAIR_RE, (all, a, ua, b, ub) => {
+      if (!(ua in PAIR) || !(ub in PAIR) || PAIR[ua] == null) return all;
+      return inSystem(ua) ? a + " " + ua : inSystem(ub) ? b + " " + ub : all;
+    });
+    const m = out.match(ONE_RE);
+    if (m && m[2] in PAIR && !inSystem(m[2])) {
+      let v = toShown(+m[1], m[2]), u = PAIR[m[2]];
+      // Small masses in ounces and grams, as the server does.
+      if (u === "lb" && Math.abs(v) < 1 && v) { v *= 16; u = "oz"; }
+      if (u === "kg" && Math.abs(v) < 1 && v) { v *= 1000; u = "g"; }
+      out = sig4(v) + " " + u;
+    }
+    return out;
+  }
+  // The data as shown: units, series, headline numbers and every value text in the chosen system. Geometry and the
+  // flight path stay in metres (shared, not copied).
+  function withUnits(raw) {
+    const d = Object.assign({}, raw), f = raw.flight;
+    d.units = Object.assign({}, raw.units, UNITS[S.sys]);
+    const series = {};
+    for (const c of f.charts) for (const k of c.series) {
+      const sr = f.series[k];
+      series[k] = inSystem(c.unit) ? sr : Object.assign({}, sr, { values: sr.values.map((v) => v == null ? v : toShown(v, c.unit)) });
+    }
+    for (const k of Object.keys(f.series)) if (!series[k]) series[k] = f.series[k];
+    d.flight = Object.assign({}, f, {
+      series, charts: f.charts.map((c) => Object.assign({}, c, { unit: shownUnit(c.unit) })),
+      events: f.events.map((e) => e.detail ? Object.assign({}, e, { detail: txt(e.detail) }) : e),
+      wind: f.wind ? Object.assign({}, f.wind, { speed: toShown(f.wind.speed, raw.units.velocity) }) : f.wind
+    });
+    d.metrics = raw.metrics.map((x) => Object.assign({}, x, x.unit ? { value: toShown(x.value, x.unit), unit: shownUnit(x.unit) } : {},
+      x.text ? { text: txt(x.text) } : {}, x.sub ? { sub: txt(x.sub) } : {}));
+    const r = raw.rocket;
+    d.rocket = Object.assign({}, r, { lengthText: txt(r.lengthText), diameterText: txt(r.diameterText), launchMass: txt(r.launchMass),
+      parts: r.parts.map((p) => Object.assign({}, p, { mass: txt(p.mass), props: Object.fromEntries(Object.entries(p.props || {}).map(([k, v]) => [k, txt(v)])) })) });
+    if (raw.checks) d.checks = Object.assign({}, raw.checks, { summary: txt(raw.checks.summary), manualChecks: (raw.checks.manualChecks || []).map(txt),
+      checks: (raw.checks.checks || []).map((x) => Object.assign({}, x, { item: txt(x.item), value: txt(x.value), requirement: txt(x.requirement) })) });
+    if (raw.problems) d.problems = raw.problems.map(txt);
+    return d;
+  }
+
   // ------------------------------------------------------------------ state
   const S = {
     data: null, host: false, ctx: {}, T: 0, hoverT: null, tab: "model", sel: -1, xr: null, range: "ascent",
-    filter: "all", playing: false, viewer: null, charts: [], traj: [], busy: false, speed: 1, pacing: true
+    filter: "all", playing: false, viewer: null, charts: [], traj: [], busy: false, speed: 1, pacing: true, raw: null, sys: null
   };
+  const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* private window */ } } };
 
   // ------------------------------------------------------------------ theme and sizing
   function applyTheme(theme) {
@@ -530,13 +618,18 @@ details.manual summary { cursor: pointer; color: var(--ink); }
   function load(data) {
     const first = !S.data;
     const keepSel = S.sel >= 0 && S.data ? S.data.rocket.parts[S.sel] : null;
-    S.data = data;
     if (data.viewId) S.viewRef = { viewId: data.viewId, designId: data.design.designId, simulation: data.design.simulation };
     for (const p of data.rocket.parts) {
       p.pos = p.mesh ? decode(p.mesh) : new Float32Array(0);
       p.nor = smoothNormals(p.pos);
       delete p.mesh;
+      prepPart(p, data.rocket);
     }
+    if (!S.sys) S.sys = store.get("or-units") || (UNITS.imperial.distance === data.units.distance ? "imperial" : "metric");
+    S.raw = data;
+    S.data = withUnits(data);
+    markUnits();
+    data = S.data;
     S.sel = -1;
     if (keepSel) S.sel = data.rocket.parts.findIndex((p) => (keepSel.id && p.id === keepSel.id) || p.name === keepSel.name);
     if (first && data.tab) S.tab = data.tab;
@@ -557,6 +650,36 @@ details.manual summary { cursor: pointer; color: var(--ink); }
     selectTab(S.tab);
     setT(S.T);
     reportSize();
+  }
+  // Metric or imperial: everything shown again in the other system (the 3-D scene and the time stay as they are).
+  function setUnits(sys) {
+    if (sys === S.sys || !S.raw) return;
+    S.sys = sys;
+    store.set("or-units", sys);
+    S.data = withUnits(S.raw);
+    markUnits();
+    if (S.viewer) S.viewer.data = S.data;
+    renderHeader();
+    renderParts();
+    renderPartInfo();
+    renderChecks();
+    renderChips();
+    buildCharts();
+    buildTrajectory();
+    selectTab(S.tab);
+    setT(S.T);
+  }
+  function markUnits() { for (const b of $$("[data-units]")) b.setAttribute("aria-pressed", String(b.dataset.units === S.sys)); }
+  // Per part, for the 3-D view: its box, how far it moves when exploded, and (fins) each fin's own range and direction.
+  function prepPart(p, r) {
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity], pos = p.pos;
+    for (let i = 0; i < pos.length; i += 3) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], pos[i + k]); hi[k] = Math.max(hi[k], pos[i + k]); }
+    p.lo = lo; p.hi = hi;
+    if (!p.explode) p.explode = [p.piece * r.length * 0.14, 0, 0]; // older data: pieces apart along the axis
+    if (p.cutOpen == null) p.cutOpen = CUT_KINDS.has(p.kind);
+    // Fins: each fin's outward direction (y, z); its triangles are an equal share of the part's, in order.
+    p.plateDirs = p.plateDirs || [];
+    p.plateCount = p.plateDirs.length ? pos.length / 3 / p.plateDirs.length : 0;
   }
 
   // ------------------------------------------------------------------ header, metrics, parts, checks
@@ -857,7 +980,7 @@ details.manual summary { cursor: pointer; color: var(--ink); }
   function cssColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
   // ------------------------------------------------------------------ 3-D viewer (WebGL)
-  const CUT_KINDS = new Set(["nose", "body", "transition", "tube", "struct", "fins"]);
+  const CUT_KINDS = new Set(["nose", "body", "transition", "tube", "struct"]);
   const VS = "attribute vec3 aPos; attribute vec3 aNor; uniform mat4 uVP; uniform mat4 uM; varying vec3 vN; varying vec3 vR; varying vec3 vW;"
     + "void main(){ vR = aPos; vec4 w = uM * vec4(aPos, 1.0); vW = w.xyz; vN = mat3(uM) * aNor; gl_Position = uVP * w; }";
   const FS = "precision mediump float; varying vec3 vN; varying vec3 vR; varying vec3 vW;"
@@ -866,6 +989,10 @@ details.manual summary { cursor: pointer; color: var(--ink); }
     + "uniform float uEmissive;"
     + "void main(){ if (uCut > 0.5 && dot(vR.yz, uCutN) > 0.0) discard;"
     + " if (uEmissive > 0.5) { gl_FragColor = vec4(uColor, 1.0); return; }"
+    // Where a part is cut open, what shows through the cut is the inside of its wall: drawn flat, a shade darker, as the
+    // section of a solid (the walls, rings and bulkheads read as material, not as paper-thin skins).
+    + " if (uCut > 0.5 && !gl_FrontFacing) { vec3 sc = uColor * 0.62 + 0.03; sc = mix(sc, uSelColor, 0.45 * uSel);"
+    + "  gl_FragColor = vec4(mix(sc, uFade, uDim), 1.0); return; }"
     + " vec3 n = normalize(vN); vec3 v = uOrtho > 0.5 ? -uViewDir : normalize(uEye - vW); float back = 0.0; if (dot(n, v) < 0.0) { n = -n; back = 1.0; }"
     + " float diff = max(dot(n, uLight), 0.0); float hemi = 0.5 + 0.5 * n.z; vec3 hv = normalize(uLight + v);"
     + " float spec = pow(max(dot(n, hv), 0.0), 48.0) * 0.22 * (1.0 - back);"
@@ -1264,7 +1391,6 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       this.L = data.rocket.length;
       this.needsFrame = reset;
       this.R = Math.max(data.rocket.diameter / 2, ...data.rocket.parts.filter((p) => !p.internal).map((p) => maxR(p.pos)));
-      this.pieces = Math.max(1, ...data.rocket.parts.map((p) => p.piece + 1));
       this.replay = new Replay(data);
       this.flyCache = null;
       this.insetPts = null;
@@ -1321,24 +1447,62 @@ details.manual summary { cursor: pointer; color: var(--ink); }
     }
     resetView() {
       const L = this.L;
-      this.cam = { az: -112, el: 20, dist: this.fitDist(L), target: [L / 2, 0, 0], half: L * 0.36 };
+      this.cam = { az: -112, el: 20, dist: L * 1.4, target: [L / 2, 0, 0], half: L * 0.36 };
       this.frame3d();
     }
-    // Far enough that the whole length (exploded or not) fits the width, with a margin, at a three-quarter angle.
-    fitDist(span) {
+    // Far enough that the whole length (exploded or not) fits the width, and the parts laid out below it the height,
+    // with a margin, at a three-quarter angle.
+    fitDist(span, tall) {
       const a = (this.canvas.clientWidth || 4) / (this.canvas.clientHeight || 3), t = Math.tan(17.5 * Math.PI / 180);
-      return Math.max(0.62 * span / (t * a), 0.3 * span / t);
+      return Math.max(0.62 * span / (t * a), 0.3 * span / t, 0.62 * (tall || 0) / t);
     }
     frame3d() {
-      const span = this.L + this.explodeShift(this.pieces - 1);
-      this.cam.target = [span / 2, 0, 0];
-      this.cam.dist = this.fitDist(span);
+      const b = this.bounds();
+      this.cam.target = [(b.lo[0] + b.hi[0]) / 2, (b.lo[1] + b.hi[1]) / 2, (b.lo[2] + b.hi[2]) / 2];
+      this.cam.dist = this.fitDist(b.hi[0] - b.lo[0], b.hi[2] - b.lo[2]);
       this.dirty();
+    }
+    // Where a part (or fin k of a fin set) sits at the current explosion: its offset from where it is installed (m).
+    offsetOf(part, k) {
+      const e = this.explode, x = part.explode;
+      if (k == null || !part.plateDirs.length) return [x[0] * e, x[1] * e, x[2] * e];
+      const d = part.plateDirs[k], out = (this.data.rocket.finOut || 0) * e;
+      return [x[0] * e, x[1] * e + d[0] * out, x[2] * e + d[1] * out];
+    }
+    // The box round everything as drawn now (rocket frame, m).
+    bounds() {
+      const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity], fo = (this.data.rocket.finOut || 0) * this.explode;
+      for (const p of this.data.rocket.parts) {
+        if (!p.pos.length) continue;
+        const o = this.offsetOf(p), g = p.plateDirs.length ? fo : 0;
+        for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], p.lo[k] + o[k] - (k ? g : 0)); hi[k] = Math.max(hi[k], p.hi[k] + o[k] + (k ? g : 0)); }
+      }
+      return isFinite(lo[0]) ? { lo, hi } : { lo: [0, -this.R, -this.R], hi: [this.L, this.R, this.R] };
+    }
+    // Draw calls for a part: [first vertex, count, fin], one per fin of a fin set. In a cut-away the fins on the near
+    // side are left out whole (slicing them along the cut would leave odd half-fins).
+    spans(b, cutN) {
+      const p = b.part;
+      if (!p.plateCount) return [[0, b.count, null]];
+      const out = [];
+      for (let k = 0; k < p.plateDirs.length; k++) {
+        const d = p.plateDirs[k];
+        if (this.cut && d[0] * cutN[0] + d[1] * cutN[1] > 0.3) continue;
+        out.push([k * p.plateCount, p.plateCount, k]);
+      }
+      return out;
+    }
+    // Parts nested inside others draw a little deeper, so where two surfaces meet (a coupler in its tube, a motor in its
+    // mount) the outer one wins instead of the two flickering.
+    depthOffset(p) {
+      const d = p.depth != null ? p.depth : p.internal ? 1 : 0;
+      this.gl.polygonOffset(d, d * 4);
     }
     setMode(m) {
       this.mode = m;
       $("#viewport").classList.toggle("fly", m === "fly");
       if (m === "side") { this.cut = true; $("#cut").checked = true; this.frameSide(); }
+      else if (m === "3d" && this.explode > 0) this.frame3d();
       $("#t-cut").hidden = m === "fly";
       $("#t-explode").hidden = m === "fly";
       $("#t-flycam").hidden = m !== "fly";
@@ -1347,11 +1511,20 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       updateHud();
       this.dirty();
     }
-    explodeShift(piece) { return piece * this.explode * this.L * 0.14; }
+    // Side view: the whole rocket (and the parts laid out below it when exploded) across the width, with room above for
+    // the CG and CP labels and below for the ruler.
     frameSide() {
-      const span = this.L + this.explodeShift(this.pieces - 1), a = (this.canvas.clientWidth || 1) / (this.canvas.clientHeight || 1);
-      this.cam.target = [span / 2, 0, 0];
-      this.cam.half = Math.max(span * 0.56 / a, this.R * 6);
+      const b = this.bounds(), hgt = this.canvas.clientHeight || 1, a = (this.canvas.clientWidth || 1) / hgt;
+      // Exploded, the names to the right of the parts need room too.
+      const wide = (b.hi[0] - b.lo[0]) * (this.explode > 0.3 ? 0.6 : 0.53);
+      const half0 = Math.max(wide / a, (b.hi[2] - b.lo[2]) * 0.5, this.R * 1.5);
+      const k = 2 * half0 / hgt; // metres per pixel
+      // Above: the CG and CP labels; below: the ruler and the readout along the bottom edge.
+      const top = b.hi[2] + 56 * k, bot = b.lo[2] - 84 * k;
+      const cx = (b.lo[0] + b.hi[0]) / 2 + (this.explode > 0.3 ? (b.hi[0] - b.lo[0]) * 0.05 : 0);
+      this.cam.target = [cx, 0, (top + bot) / 2];
+      this.cam.half = Math.max(half0, (top - bot) / 2);
+      this.dirty();
     }
     resize() {
       if (!this.gl) return;
@@ -1419,8 +1592,9 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       this.flyCache = { t: S.T, cam: this.flyCam, fr };
       return fr;
     }
-    modelOf(part) {
-      return M.trans(this.explodeShift(part.piece), 0, 0);
+    modelOf(part, k) {
+      const o = this.offsetOf(part, k);
+      return M.trans(o[0], o[1], o[2]);
     }
     cutNormal(v) {
       // The half of the airframe toward the camera is cut away (rocket frame y-z plane).
@@ -1448,16 +1622,22 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       gl.uniform3fv(P.u.uSelColor, rgb(dark ? "#3987e5" : "#2a78d6"));
       gl.uniform3fv(P.u.uFade, dark ? [0.16, 0.17, 0.19] : [0.9, 0.91, 0.93]);
       gl.uniform1f(P.u.uEmissive, 0);
+      const cutN = this.cutNormal(v);
+      gl.enable(gl.POLYGON_OFFSET_FILL);
       for (const b of this.bufs) {
         const p = b.part;
-        gl.uniformMatrix4fv(P.u.uM, false, this.modelOf(p));
         gl.uniform3fv(P.u.uColor, rgb(p.color));
-        gl.uniform1f(P.u.uCut, this.cut && CUT_KINDS.has(p.kind) ? 1 : 0);
+        gl.uniform1f(P.u.uCut, this.cut && p.cutOpen ? 1 : 0);
         gl.uniform1f(P.u.uSel, p.i === S.sel ? 1 : p.i === this.hover ? 0.4 : 0);
         gl.uniform1f(P.u.uDim, S.sel >= 0 && p.i !== S.sel ? 0.55 : 0);
+        this.depthOffset(p);
         this.attrs(P, b.pos, b.nor);
-        gl.drawArrays(gl.TRIANGLES, 0, b.count);
+        for (const [first, count, k] of this.spans(b, cutN)) {
+          gl.uniformMatrix4fv(P.u.uM, false, this.modelOf(p, k));
+          gl.drawArrays(gl.TRIANGLES, first, count);
+        }
       }
+      gl.disable(gl.POLYGON_OFFSET_FILL);
       this.drawOverlay(v);
     }
     // The replay: sky, ground, pad and rail, smoke, the path, the rocket (in pieces under the chutes), flames and
@@ -1671,33 +1851,37 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       const f = this.data.flight, t = S.T;
       const cg = fin(interp(f.cg, t)) ? interp(f.cg, t) : this.data.rocket.cgLaunch;
       const cpv = interp(f.cp, t), cp = fin(cpv) && cpv > 0 ? cpv : this.data.rocket.cp;
+      const parts = this.data.rocket.parts, e = this.explode, rBody = this.data.rocket.diameter / 2;
       const shiftOf = (x) => { // the airframe piece a station belongs to moves with the explosion
-        let piece = 0;
-        for (const p of this.data.rocket.parts) if (!p.internal && x >= p.x0 - 1e-6 && x <= p.x1 + 1e-6) piece = p.piece;
-        return this.explodeShift(piece);
+        let dx = 0;
+        for (const p of parts) if (!p.internal && p.kind !== "fins" && x >= p.x0 - 1e-6 && x <= p.x1 + 1e-6) dx = p.explode[0] * e;
+        return dx;
       };
-      const off = this.R * 1.9;
-      const markAt = (x) => this.project(v, [x + shiftOf(x), 0, this.mode === "side" ? off : 0]);
+      // Pulled well apart, the CG and CP of the assembled rocket mean little and crowd the parts' names: left out.
+      const markAt = (x) => e > 0.35 ? null : this.project(v, [x + shiftOf(x), 0, 0]);
       const cgP = markAt(cg), cpP = fin(cp) ? markAt(cp) : null;
-      if (this.mode === "side") {
-        // Ruler under the rocket, in the team's length unit.
-        const unit = u.length, total = conv(this.L, unit), step = niceStep(total / 10);
-        const y0 = this.project(v, [0, 0, -off]), y1 = this.project(v, [this.L + this.explodeShift(this.pieces - 1), 0, -off]);
-        if (y0 && y1) {
-          o.append(s("line", { x1: y0[0], y1: y0[1], x2: y1[0], y2: y1[1], stroke: ink2, "stroke-width": 1 }));
+      if (this.mode === "side" && e < 0.01) {
+        // Ruler under the rocket, in the length unit shown.
+        const unit = u.length, total = conv(this.L, unit), step = niceStep(total / 10), zr = this.bounds().lo[2];
+        const a0 = this.project(v, [0, 0, zr]), a1 = this.project(v, [this.L, 0, zr]);
+        if (a0 && a1) {
+          const y = a0[1] + 14;
+          o.append(s("line", { x1: a0[0], y1: y, x2: a1[0], y2: y, stroke: ink2, "stroke-width": 1 }));
           for (let k = 0; k <= total + 1e-9; k += step) {
-            const x = k / conv(1, unit), q = this.project(v, [x + shiftOf(x), 0, -off]);
+            const q = this.project(v, [k / conv(1, unit), 0, zr]);
             if (!q) continue;
             const major = Math.abs(k / (step * 2) - Math.round(k / (step * 2))) < 1e-6;
-            o.append(s("line", { x1: q[0], y1: q[1], x2: q[0], y2: q[1] + (major ? 6 : 3), stroke: ink2, "stroke-width": 1 }));
-            if (major) o.append(s("text", { x: q[0], y: q[1] + 17, "text-anchor": "middle" }, num(k)));
+            o.append(s("line", { x1: q[0], y1: y, x2: q[0], y2: y + (major ? 6 : 3), stroke: ink2, "stroke-width": 1 }));
+            if (major) o.append(s("text", { x: q[0], y: y + 17, "text-anchor": "middle" }, num(k)));
           }
-          o.append(s("text", { x: y1[0] + 6, y: y1[1] + 4, class: "lbl" }, unit));
+          o.append(s("text", { x: a1[0] + 6, y: y + 4, class: "lbl" }, unit));
         }
       }
+      if (e > 0.02) this.drawExploded(o, v, ink2);
       if (cgP && cpP) {
-        // The margin bracket above both marks, its label above it; CP labelled above its mark, CG below its own.
-        const y = Math.min(cgP[1], cpP[1]) - 26;
+        // The margin bracket above both marks and the body, its label above it; CP labelled above its mark, CG below.
+        const top = this.project(v, [cg + shiftOf(cg), 0, rBody]);
+        const y = Math.min(cgP[1] - 26, cpP[1] - 26, top ? top[1] - 12 : Infinity);
         o.append(s("line", { x1: cgP[0], y1: y, x2: cpP[0], y2: y, stroke: ink2, "stroke-width": 1, "stroke-dasharray": "3 2" }));
         const st = S.data.flight.series.stability ? interp(S.data.flight.series.stability.values, t) : NaN;
         const marg = fin(st) ? st : (cp - cg) / this.data.rocket.diameter;
@@ -1705,6 +1889,40 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       }
       if (cgP) o.append(cgSymbol(cgP[0], cgP[1], ink), s("text", { x: cgP[0], y: cgP[1] + 24, "text-anchor": "middle", class: "lbl" }, "CG"));
       if (cpP) o.append(cpSymbol(cpP[0], cpP[1], cssColor("--s2")), s("text", { x: cpP[0], y: cpP[1] - 12, "text-anchor": "middle", class: "lbl" }, "CP"));
+    }
+    // The exploded view's dashed guides from each part laid out below back up to where it fits, and the parts' names
+    // once they are well apart (left out where they would overlap one another).
+    drawExploded(o, v, ink2) {
+      const e = this.explode, parts = this.data.rocket.parts, boxes = [];
+      const g = s("g", { opacity: clamp(e * 2, 0, 1).toFixed(2) });
+      for (const p of parts) {
+        if (!p.internal || Math.abs(p.explode[2]) < 1e-9 || !p.pos.length) continue;
+        const off = this.offsetOf(p), cx = (p.lo[0] + p.hi[0]) / 2 + off[0], cy = (p.lo[1] + p.hi[1]) / 2, cz = (p.lo[2] + p.hi[2]) / 2;
+        const a = this.project(v, [cx, cy, cz]), b = this.project(v, [cx, cy + off[1], p.hi[2] + off[2]]);
+        if (a && b) g.append(s("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: ink2, "stroke-width": 1, "stroke-dasharray": "4 3", opacity: 0.7 }));
+      }
+      o.append(g);
+      if (e < 0.6) return;
+      const fits = (bx) => !boxes.some((q) => bx[0] < q[2] && bx[2] > q[0] && bx[1] < q[3] && bx[3] > q[1]);
+      // Biggest first, so the main parts keep their names when space is short.
+      const order = parts.filter((p) => p.pos.length).sort((a, b) => (b.hi[0] - b.lo[0]) * (b.hi[2] - b.lo[2]) - (a.hi[0] - a.lo[0]) * (a.hi[2] - a.lo[2]));
+      for (const p of order) {
+        const off = this.offsetOf(p), name = p.name.length > 26 ? p.name.slice(0, 25) + "…" : p.name, w = name.length * 6.4 + 6;
+        let at, anchor = "start";
+        if (p.internal) {
+          at = this.project(v, [p.hi[0] + off[0], (p.lo[1] + p.hi[1]) / 2 + off[1], (p.lo[2] + p.hi[2]) / 2 + off[2]]);
+          if (at) at = [at[0] + 6, at[1] + 4];
+        } else {
+          if (p.kind === "fins") continue;
+          at = this.project(v, [(p.lo[0] + p.hi[0]) / 2 + off[0], 0, p.hi[2] + off[2]]);
+          if (at) { at = [at[0], at[1] - 8]; anchor = "middle"; }
+        }
+        if (!at) continue;
+        const x0 = anchor === "middle" ? at[0] - w / 2 : at[0], bx = [x0, at[1] - 11, x0 + w, at[1] + 3];
+        if (!fits(bx)) continue;
+        boxes.push(bx);
+        o.append(s("text", { x: at[0], y: at[1], "text-anchor": anchor, class: "lbl" + (p.i === S.sel ? " on" : "") }, name));
+      }
     }
     // Cords and shroud lines, as wide as they would look at their distance.
     drawCords(o, v, fr) {
@@ -1763,21 +1981,26 @@ details.manual summary { cursor: pointer; color: var(--ink); }
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.enable(gl.DEPTH_TEST);
-      const v = this.view(), P = this.pick;
+      const v = this.view(), P = this.pick, cutN = this.cutNormal(v);
       gl.useProgram(P.p);
       gl.uniformMatrix4fv(P.u.uVP, false, v.vp);
-      gl.uniform2fv(P.u.uCutN, this.cutNormal(v));
+      gl.uniform2fv(P.u.uCutN, cutN);
       this.only(P.aPos);
+      gl.enable(gl.POLYGON_OFFSET_FILL);
       for (const b of this.bufs) {
         const id = b.part.i + 1;
-        gl.uniformMatrix4fv(P.u.uM, false, this.modelOf(b.part));
         gl.uniform3f(P.u.uId, (id >> 16 & 255) / 255, (id >> 8 & 255) / 255, (id & 255) / 255);
-        gl.uniform1f(P.u.uCut, this.cut && CUT_KINDS.has(b.part.kind) ? 1 : 0);
+        gl.uniform1f(P.u.uCut, this.cut && b.part.cutOpen ? 1 : 0);
+        this.depthOffset(b.part);
         gl.bindBuffer(gl.ARRAY_BUFFER, b.pos);
         gl.enableVertexAttribArray(P.aPos);
         gl.vertexAttribPointer(P.aPos, 3, gl.FLOAT, false, 0, 0);
-        gl.drawArrays(gl.TRIANGLES, 0, b.count);
+        for (const [first, count, k] of this.spans(b, cutN)) {
+          gl.uniformMatrix4fv(P.u.uM, false, this.modelOf(b.part, k));
+          gl.drawArrays(gl.TRIANGLES, first, count);
+        }
       }
+      gl.disable(gl.POLYGON_OFFSET_FILL);
       const px2 = new Uint8Array(4);
       gl.readPixels(Math.round(px), Math.round(hgt - py), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px2);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -2280,7 +2503,8 @@ details.manual summary { cursor: pointer; color: var(--ink); }
     for (const b of $$("[data-range]")) b.addEventListener("click", () => setRange(b.dataset.range));
     for (const b of $$("[data-filter]")) b.addEventListener("click", () => { S.filter = b.dataset.filter; for (const x of $$("[data-filter]")) x.setAttribute("aria-pressed", String(x === b)); renderChecks(); });
     $("#cut").addEventListener("change", (e) => { S.viewer.cut = e.target.checked; S.viewer.dirty(); });
-    $("#explode").addEventListener("input", (e) => { S.viewer.explode = +e.target.value; if (S.viewer.mode === "side") S.viewer.frameSide(); else S.viewer.frame3d(); });
+    $("#explode").addEventListener("input", (e) => { S.viewer.explode = +e.target.value; if (S.viewer.mode === "side") S.viewer.frameSide(); else if (S.viewer.mode === "3d") S.viewer.frame3d(); });
+    for (const b of $$("[data-units]")) b.addEventListener("click", () => setUnits(b.dataset.units));
     for (const b of $$("[data-flycam]")) b.addEventListener("click", () => {
       for (const x of $$("[data-flycam]")) x.setAttribute("aria-pressed", String(x === b));
       S.viewer.flyCam = b.dataset.flycam;

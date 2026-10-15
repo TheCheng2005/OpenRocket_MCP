@@ -665,6 +665,24 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   `]`, space to play and pause. The speed multiplies the video's pacing, or real time with *Video pacing* off; the HUD
   shows the resulting rate against real time.
 
+### A truer 3-D model, and metric or imperial (v0.26.0)
+
+- Exploded is `render_3d`'s layout, eased in by the slider: pieces apart along the axis (more between stages), fins
+  sliding out, each internal part laid out below its piece in lanes (structure, then recovery and electronics, then
+  motors), with dashed guides back to where it fits and names placed where they do not overlap. The server sends each
+  part's offset at full explosion (`explode`), each fin's direction (`plateDirs`) and how far fins slide (`finOut`);
+  side and 3-D views frame the whole layout.
+- Cut-away: walls, rings and bulkheads read as solid sections (the inside of a cut part is drawn flat, a shade darker:
+  closed meshes, so back faces are exactly the cut material); parts that hold others in the same tube (a sled, a
+  hybrid's combustion chamber with its fuel grain) are opened too (`cutOpen`); fins toward the camera are left out
+  whole instead of sliced along the cut.
+- No flicker: parts entered wider than the bore they sit in are drawn inside it (following a nose cone's taper);
+  shoulders fit inside the tube they plug into; walls entered with no thickness get one; nested parts draw with a depth
+  offset by nesting level (`depth`), so a coupler in its tube or a motor in its mount never fights with it.
+- Tube fins, launch lugs and rail buttons are drawn (in the view, `render_3d` and `animate_flight`).
+- *Metric* / *Imperial* in the header: every number in the view is shown in one system (series, tiles, part
+  properties, rule checks, captions), converted in the page from the data's units; the choice is kept in the browser.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

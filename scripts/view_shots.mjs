@@ -37,9 +37,14 @@ await page.goto("file://" + resolve(file));
 await page.waitForTimeout(1500);
 if (await page.$("#app[hidden]")) errors.push("the view did not load its data: " + (await page.textContent("#msg")));
 
-// Rocket: exploded cut-away with the main parachute selected.
+// The airframe sections keep the flight's own section numbers (the replay flies each part with its section); the
+// cut-away flag is separate.
+if (!(await page.evaluate(() => window.__orView.data.rocket.parts.every((p) => p.section == null || Number.isInteger(p.section)))))
+  errors.push("a part's flight section is not a number");
+
+// Rocket: exploded cut-away with the main parachute selected; the parts inside laid out below, named, with guides.
 await page.check("#cut");
-await page.evaluate(() => { const e = document.querySelector("#explode"); e.value = 0.55; e.dispatchEvent(new Event("input")); });
+await page.evaluate(() => { const e = document.querySelector("#explode"); e.value = 0.8; e.dispatchEvent(new Event("input")); });
 await page.evaluate(() => {
   // The main: the parachute of the last deployment (whatever it is called), else the heaviest chute.
   const d = window.__orView.data, parts = d.rocket.parts, chutes = parts.filter((p) => p.kind === "chute");
@@ -50,6 +55,17 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(400);
 await shot("view-rocket.png");
+if ((await page.$$("#overlay text")).length < 3) errors.push("the exploded view names no parts");
+const laidOut = await page.evaluate(() => window.__orView.data.rocket.parts.some((p) => p.internal && p.explode[2] < 0));
+if (laidOut && !(await page.$$("#overlay line[stroke-dasharray]")).length) errors.push("the exploded view has no guides to where parts fit");
+
+// Metric or imperial: everything switches and the choice is remembered.
+const subtitle = () => page.textContent("#subtitle");
+await page.click('[data-units="imperial"]');
+if (!/ in long/.test(await subtitle()) || !/ (lb|oz) /.test(await subtitle())) errors.push("imperial: " + (await subtitle()));
+if (!/ft/.test(await page.textContent("#metrics"))) errors.push("imperial tiles not in feet");
+await page.click('[data-units="metric"]');
+if (!/ mm long/.test(await subtitle()) || !/ k?g /.test(await subtitle())) errors.push("metric: " + (await subtitle()));
 
 // Side view to scale at burnout.
 await page.evaluate(() => { const r = document.querySelector('.prow[aria-selected="true"]'); if (r) r.click(); });
