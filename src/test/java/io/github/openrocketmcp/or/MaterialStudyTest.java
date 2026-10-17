@@ -83,6 +83,11 @@ class MaterialStudyTest {
 		assertTrue(r.has("pressureVessels"));
 		String err = call("compare_materials", "{\"materials\":[\"Unobtainium\"]}", true).get("text").getAsString();
 		assertTrue(err.contains("Unobtainium") && err.contains("Known"), err);
+		// One letter is not a material name (it used to match the first material containing it).
+		assertTrue(call("compare_materials", "{\"materials\":[\"x\"]}", true).get("text").getAsString().contains("Known"));
+		// No parts listed: the fins, as when parts is left out (it used to fail with an internal error).
+		assertEquals("Fins", call("compare_materials", "{\"parts\":[],\"materials\":[\"Fiberglass\"]}", false)
+				.getAsJsonArray("parts").get(0).getAsString());
 	}
 
 	@Test

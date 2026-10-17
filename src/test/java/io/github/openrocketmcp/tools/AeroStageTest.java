@@ -21,11 +21,20 @@ class AeroStageTest {
 	int id;
 
 	JsonObject call(String tool, String args) {
+		return call(tool, args, false);
+	}
+
+	JsonObject call(String tool, String args, boolean error) {
 		String line = "{\"jsonrpc\":\"2.0\",\"id\":" + (++id) + ",\"method\":\"tools/call\",\"params\":{\"name\":\"" + tool
 				+ "\",\"arguments\":" + args + "}}";
 		JsonObject r = server.handleLine(line).getAsJsonObject("result");
 		String text = r.getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString();
-		assertFalse(r.get("isError").getAsBoolean(), tool + ": " + text);
+		assertEquals(error, r.get("isError").getAsBoolean(), tool + ": " + text);
+		if (error) {
+			JsonObject o = new JsonObject();
+			o.addProperty("text", text);
+			return o;
+		}
 		return JsonParser.parseString(text).getAsJsonObject();
 	}
 
@@ -73,6 +82,15 @@ class AeroStageTest {
 		assertTrue(check.contains("Ascent stability with imported CP (RASAero sustainer), Sustainer"), check);
 		assertTrue(call("import_aero_table", "{\"mode\":\"show\"}").getAsJsonArray("tables").size() == 1);
 		call("import_aero_table", "{\"mode\":\"clear\",\"stage\":\"Sustainer\"}");
+		// A simulation named that does not exist is an error, and nothing is imported.
+		assertTrue(call("aero_analysis", "{\"stage\":\"Sustainer\",\"simulation\":\"nope\"}", true).get("text").getAsString().contains("nope"));
+		call("import_aero_table", "{\"stage\":\"Sustainer\",\"simulation\":\"nope\",\"csv\":\"" + csv + "\"}", true);
+		assertTrue(call("import_aero_table", "{\"mode\":\"show\"}").get("table").getAsString().startsWith("none"));
 		assertFalse(call("check_requirements", "{\"includeWindCase\":false}").toString().contains("imported CP"));
+		// A configuration with nothing to fly still takes (and shows) a table; only the flight comparison is left out.
+		call("flight_configuration", "{\"action\":\"create\",\"name\":\"Empty\"}");
+		JsonObject empty = call("import_aero_table", "{\"stage\":\"Sustainer\",\"configuration\":\"Empty\",\"csv\":\"" + csv + "\"}");
+		assertTrue(empty.get("effect").getAsString().startsWith("not simulated"), empty.toString());
+		assertTrue(call("import_aero_table", "{\"mode\":\"show\",\"stage\":\"Sustainer\",\"configuration\":\"Empty\"}").has("table"));
 	}
 }

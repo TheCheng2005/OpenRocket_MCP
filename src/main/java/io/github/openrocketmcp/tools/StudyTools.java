@@ -102,7 +102,8 @@ public final class StudyTools {
 					Designs.Design d = ctx.designs.get(a.str("designId", null));
 					Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
 							ctx.standards(), false);
-					MaterialStudy.Selection sel = MaterialStudy.select(base.getRocket(), a.has("parts") ? a.strList("parts") : List.of("fins"));
+					MaterialStudy.Selection sel = MaterialStudy.select(base.getRocket(),
+							a.has("parts") && !a.strList("parts").isEmpty() ? a.strList("parts") : List.of("fins"));
 					double minStab = a.num("minStability", Double.NaN);
 					if (Double.isNaN(minStab)) {
 						double f = Requirements.stabilityFloor(ctx.standards(),

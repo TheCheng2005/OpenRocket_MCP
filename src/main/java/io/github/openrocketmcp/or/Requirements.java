@@ -393,10 +393,10 @@ public final class Requirements {
 		for (Map.Entry<AxialStage, AeroTable.Table> e : AeroTable.all(sim.getRocket()).entrySet()) {
 			AeroTable.Table t = e.getValue();
 			int k = stages.indexOf(e.getKey());
-			if (!t.hasCp() || k < 0 || !fc.isStageActive(k)) {
+			boolean whole = k == stages.size() - 1; // the whole vehicle's table, whichever stages this configuration flies
+			if (!t.hasCp() || k < 0 || !whole && !fc.isStageActive(k)) {
 				continue;
 			}
-			boolean whole = k == stages.size() - 1;
 			FlightConfiguration stack = whole ? fc : Analysis.stack(fc, k);
 			AeroTable.Margin m = AeroTable.minMargin(sim, t, Analysis.maxDiameter(stack), e.getKey());
 			if (m == null) {

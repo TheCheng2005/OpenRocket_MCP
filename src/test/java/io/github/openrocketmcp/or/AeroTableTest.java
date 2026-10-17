@@ -83,6 +83,7 @@ class AeroTableTest {
 					Variants.of(base, d.doc, null, null)));
 			Simulation own = runs.get(0).sim(), table = runs.get(1).sim();
 			double sep = AeroTable.window(table, sustainer)[0];
+			assertEquals(sep, AeroTable.window(table, null)[1], 1e-9, "the whole vehicle flies until the booster separates");
 			Branch a = Branch.of(own.getSimulatedData().getBranch(0)), b = Branch.of(table.getSimulatedData().getBranch(0));
 			double altA = a.col(info.openrocket.core.simulation.FlightDataType.TYPE_ALTITUDE)[a.index(sep - 0.05)];
 			double altB = b.col(info.openrocket.core.simulation.FlightDataType.TYPE_ALTITUDE)[b.index(sep - 0.05)];

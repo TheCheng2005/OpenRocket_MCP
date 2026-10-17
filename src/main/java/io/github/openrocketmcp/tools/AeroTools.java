@@ -212,11 +212,14 @@ public final class AeroTools {
 		}
 		// The flight, for each stack's top speed (and the default Mach range). Without motors there is none.
 		Simulation sim = null;
-		if (fc.hasMotors()) {
+		if (fc.hasMotors() || a.has("simulation")) {
 			try {
 				sim = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(), ctx.standards(), false);
 				Sims.ensure(sim);
-			} catch (RuntimeException e) {
+			} catch (ToolException e) {
+				if (a.has("simulation")) {
+					throw e; // a simulation asked for by name that cannot be used is an error, not a quiet omission
+				}
 				sim = null;
 			}
 		}
@@ -290,7 +293,8 @@ public final class AeroTools {
 		if (a.has("machs")) {
 			machs = a.array("machs").asList().stream().mapToDouble(e -> e.getAsDouble()).toArray();
 		} else {
-			double top = a.has("maxMach") ? a.num("maxMach", 1.2) : Double.isNaN(flightMax) ? 1.2 : flightMax;
+			// At least to Mach 0.5, so a slow rocket still gets a curve.
+			double top = a.has("maxMach") ? a.num("maxMach", 1.2) : Double.isNaN(flightMax) ? 1.2 : Math.max(0.5, flightMax);
 			List<Double> list = new ArrayList<>();
 			for (double m : DEFAULT_MACHS) {
 				list.add(m);
@@ -328,6 +332,23 @@ public final class AeroTools {
 		List<AxialStage> stages = new ArrayList<>(rocket.getStageList());
 		AxialStage bottom = a.has("stage") ? Components.find(rocket, a.str("stage"), AxialStage.class, "stage") : null;
 		FlightConfiguration whole = Components.config(rocket, a.str("configuration", null));
+		if (bottom != null && !mode.equals("clear") && !whole.isStageActive(stages.indexOf(bottom))) {
+			throw new ToolException(bottom.getName() + " is not active in configuration " + whole.getName()
+					+ "; pick the configuration that flies it.");
+		}
+		// The flight to compare with: a simulation named that cannot be used is an error before anything changes.
+		Simulation base = null;
+		String noFlight = null;
+		if (!mode.equals("clear")) {
+			try {
+				base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(), ctx.standards(), false);
+			} catch (ToolException e) {
+				if (a.has("simulation")) {
+					throw e;
+				}
+				noFlight = e.getMessage();
+			}
+		}
 		if (mode.equals("clear")) {
 			if (bottom != null) {
 				AeroTable.clear(rocket, bottom);
@@ -367,8 +388,10 @@ public final class AeroTools {
 			}
 		} else {
 			String text = readText(ctx, a, "path", "csv");
-			double cpUnit = Units.toSi("1 " + a.str("cpUnit", "in"), Dim.LENGTH);
-			t = AeroTable.parse(text, a.has("path") ? ctx.path(a.str("path")).getFileName().toString() : a.str("source", "imported table"),
+			String unit = a.str("cpUnit", "in").isBlank() ? "in" : a.str("cpUnit", "in");
+			double cpUnit = Units.toSi("1 " + unit, Dim.LENGTH);
+			String source = a.str("source", "").isBlank() ? "imported table" : a.str("source", "");
+			t = AeroTable.parse(text, a.has("path") ? ctx.path(a.str("path")).getFileName().toString() : source,
 					cpUnit, a.bool("useDrag", true));
 			AeroTable.set(rocket, stackBottom, t);
 		}
@@ -400,13 +423,17 @@ public final class AeroTools {
 			cmp.add(r);
 		}
 		out.put("vsOpenRocket", cmp);
-		// Effect on the flight.
-		Simulation base = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(),
-				ctx.standards(), false);
-		List<Variants.Run> runs = Variants.runAll(List.of(
+		// Effect on the flight, when there is one to fly: the table is in place either way.
+		if (base == null) {
+			out.put("effect", "not simulated: " + noFlight);
+		}
+		List<Variants.Run> runs = base == null ? List.of() : Variants.runAll(List.of(
 				AeroTable.without(Variants.of(base, d.doc, null, null)),
 				Variants.of(base, d.doc, null, null)));
-		if (runs.get(0).ok() && runs.get(1).ok()) {
+		if (base != null && !(runs.get(0).ok() && runs.get(1).ok())) {
+			out.put("effect", "not simulated: the flight did not complete");
+		}
+		if (base != null && runs.get(0).ok() && runs.get(1).ok()) {
 			Map<String, Object> eff = new LinkedHashMap<>();
 			eff.put("apogeeOpenRocketDrag", Units.fmt(runs.get(0).sim().getSimulatedData().getMaxAltitude(), Dim.DISTANCE));
 			eff.put("apogeeImportedDrag", t.useDrag() ? Units.fmt(runs.get(1).sim().getSimulatedData().getMaxAltitude(), Dim.DISTANCE)

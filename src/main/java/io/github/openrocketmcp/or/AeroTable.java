@@ -538,7 +538,13 @@ public final class AeroTable {
 		}
 		List<AxialStage> st = new ArrayList<>(r.getStageList());
 		int k = bottom == null ? st.size() - 1 : st.indexOf(bottom);
-		double start = k == st.size() - 1 ? rail : separation(b, st.get(k + 1));
+		if (k == st.size() - 1) {
+			// The vehicle as it left the pad (whichever stages its configuration flies), until anything separates.
+			double sep = Sims.eventTime(b, FlightEvent.Type.STAGE_SEPARATION);
+			double end = Double.isNaN(sep) ? apogee : Math.min(sep, apogee);
+			return end > rail ? new double[] { rail, end } : null;
+		}
+		double start = separation(b, st.get(k + 1));
 		double end = k == 0 ? apogee : separation(b, st.get(k));
 		if (Double.isNaN(start)) {
 			return null; // the stage below never comes off: this stack never flies alone
