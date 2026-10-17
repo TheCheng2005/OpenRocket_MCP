@@ -238,6 +238,27 @@ def scenario_two_stage(s):
     check(sc, "air-start altitude inhibit given", any("altitude inhibit" in i for i in items))
     check(sc, "booster and sustainer thrust-to-weight checked", any("Booster thrust-to-weight" in i for i in items)
           and any("Upper-stage thrust-to-weight" in i for i in items))
+    # The sustainer alone through Mach, and a RASAero run of it used once the booster has gone.
+    sus = s.call("aero_analysis", {"designId": d, "stage": "Sustainer"})
+    whole = s.call("aero_analysis", {"designId": d, "machs": [0.3]})
+    check(sc, "aero_analysis gives the sustainer alone, with its top speed and margin in flight",
+          sus.get("when") == "after Booster separates" and "atMaxMach" in sus.get("inFlight", {})
+          and num(sus["vsMach"][1]["marginBurnout"]) != num(whole["vsMach"][0]["marginBurnout"]), json.dumps(sus)[:300])
+    lines = ["Mach,Alpha,CD Power-Off,CD Power-On,CP"]
+    for r in s.call("aero_analysis", {"designId": d, "stage": "Sustainer", "machs": [0.05, 0.3, 0.6, 0.9, 1.2]})["vsMach"]:
+        cp_in = float(r["cp"].split("(")[1].split()[0]) if "(" in r["cp"] else num(r["cp"]) / 25.4
+        lines.append(f'{r["mach"]},0,{1.2 * float(r["cd"]):.4f},{1.1 * float(r["cd"]):.4f},{cp_in:.2f}')
+    path = os.path.join(tempfile.mkdtemp(), "sustainer-rasaero.csv")
+    open(path, "w").write("\n".join(lines) + "\n")
+    imp = s.call("import_aero_table", {"designId": d, "path": path, "stage": "Sustainer"})
+    eff = imp.get("effect", {})
+    check(sc, "a RASAero run of the sustainer is used after separation (lower apogee, its CP checked)",
+          imp.get("when") == "after Booster separates" and eff.get("apogeeImportedDrag") != eff.get("apogeeOpenRocketDrag")
+          and "minAscentStabilityImportedCp" in eff, json.dumps(imp)[:300])
+    req2 = s.call("check_requirements", {"designId": d, "includeWindCase": False})
+    check(sc, "rule check has the sustainer's own imported-CP stability",
+          any(c["item"].endswith(", Sustainer") and "imported CP" in c["item"] for c in req2["checks"]))
+    s.call("import_aero_table", {"designId": d, "mode": "clear"})
     run = s.call("run_simulation", {"designId": d})
     check(sc, "each stage lands on its own", {b["branch"] for b in run["branches"]} == {"Sustainer", "Booster"},
           [b["branch"] for b in run["branches"]])

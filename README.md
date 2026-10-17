@@ -104,6 +104,8 @@ the video from there, and read every plot with one time cursor. Outside Claude D
 - A landing map for Google Earth: the pad, every simulated landing and the landing ellipse on the real terrain.
 - Use a wind forecast with winds at altitude, not just the ground wind.
 - "Where does our drag come from?" — drag of every part, and how it changes with speed.
+- "Is the sustainer still stable when it goes supersonic on its own?" — the sustainer alone after separation: its
+  margin through Mach and at its own top speed, beside your RASAero run of it.
 - "Animate the flight" — a short 3-D video of the simulated flight. It shows the flame and smoke, both parachutes
   opening, and a live readout of time, altitude, speed, Mach and distance from the pad. Captions call out burnout,
   apogee and each deployment. You get a GIF for chat and slides, an MP4 when ffmpeg is installed, and stills of the key
@@ -150,7 +152,8 @@ the video from there, and read every plot with one time cursor. Outside Claude D
 - "What changed since our last review?" — compare two versions of the design (another file, or an earlier commit)
   side by side: mass, stability, apogee, rule checks and every part that was added, removed or edited.
 - Pressure vessel margins and probation level for liquid and hybrid programmes.
-- Use RASAero data where Launch Canada asks for it. It is saved with your design.
+- Use RASAero data where Launch Canada asks for it, one run per stage stack on a two-stage rocket. It is saved with
+  your design.
 
 **Launch day**
 - "What will the winds be at our site on Saturday at 10 am?" — give the launch site's GPS coordinates and Claude pulls

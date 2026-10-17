@@ -33,6 +33,9 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
    - Wind / landing area -> `monte_carlo` for the landing ellipse and worst-case deployment loads; add massSd, dragSd,
      thrustSd, chuteCdSd (e.g. 0.05) for vehicle uncertainty and read `drivers` to see what dominates the spread.
    - Drag / apogee shortfall -> `aero_analysis` (drag breakdown per component, CD vs Mach) before changing shapes.
+   - Two-stage, above all supersonic -> `aero_analysis stage "<sustainer>"`: the sustainer alone, its margin through
+     Mach and at its own top speed (margin drops past ~Mach 1.2); import a RASAero run of the sustainer alone with
+     `import_aero_table stage` so it is used after separation and checked.
    - Launch-day winds -> `wind_profile` (forecast levels, or power_law from the ground wind) then `monte_carlo`.
    - Real parts -> `search_parts` + `apply_preset` (tubes, nose cones, couplers, rail buttons, chutes).
    - Mass budget / weigh-ins -> `mass_budget` (compare first; `apply` once the team confirms the numbers; no budget yet ->
@@ -51,7 +54,8 @@ Use the `openrocket` MCP tools; do not estimate numbers by hand when a tool comp
    - CFD / CAD -> `export_geometry` (STL, fin DXF, run matrix); CFD results back with `import_aero_table` (cpUnit "m").
      Tube / coupler FEA -> `structural_loads` with csvPath.
    - Sections and landing energy -> `recovery_sections`; joints and couplers -> `structural_loads`.
-   - RASAero data (required for diameter changes) -> `import_aero_table`, then `check_requirements`.
+   - RASAero data (required for diameter changes) -> `import_aero_table` (per stack on a staged rocket: `stage`), then
+     `check_requirements`.
    - Launch day -> ask for the site's GPS coordinates, `weather_forecast` (or `wind_profile` with winds the user gives),
      then `monte_carlo`, `check_requirements` and `flight_card`. Rail button layout and real rail exit speed ->
      `rail_buttons` (apply=true only after the user agrees).

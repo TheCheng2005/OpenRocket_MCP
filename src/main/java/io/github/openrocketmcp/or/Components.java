@@ -463,7 +463,7 @@ public final class Components {
 			if (mn.equals(n)) {
 				return m;
 			}
-			if (partial == null && mn.contains(n)) {
+			if (partial == null && n.length() >= 2 && mn.contains(n)) { // one letter would match almost anything
 				partial = m;
 			}
 		}

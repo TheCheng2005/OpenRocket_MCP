@@ -214,7 +214,7 @@ public final class AnalysisTools {
 				throw new ToolException(c.getName() + "." + prop + " is not a continuous (number) property.");
 			}
 			Dim dim = Components.dimOf(prop);
-			var table = AeroTable.of(d.doc.getRocket());
+			var table = AeroTable.any(d.doc.getRocket());
 			if (table != null && table.useDrag() && (c instanceof FinSet
 					|| c instanceof SymmetricComponent
 							&& !(c instanceof InternalComponent))) {

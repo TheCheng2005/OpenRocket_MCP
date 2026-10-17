@@ -8,14 +8,18 @@ import java.util.Map;
 import info.openrocket.core.aerodynamics.AerodynamicForces;
 import info.openrocket.core.aerodynamics.BarrowmanCalculator;
 import info.openrocket.core.aerodynamics.FlightConditions;
+import info.openrocket.core.document.Simulation;
 import info.openrocket.core.logging.Warning;
 import info.openrocket.core.logging.WarningSet;
 import info.openrocket.core.masscalc.MassCalculator;
 import info.openrocket.core.masscalc.RigidBody;
+import info.openrocket.core.rocketcomponent.AxialStage;
 import info.openrocket.core.rocketcomponent.ComponentAssembly;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.rocketcomponent.RocketComponent;
+import info.openrocket.core.simulation.FlightDataBranch;
+import info.openrocket.core.simulation.FlightDataType;
 import info.openrocket.core.util.Coordinate;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.Units;
@@ -145,6 +149,80 @@ public final class Aero {
 			}
 		}
 		return out;
+	}
+
+	/**
+	 * A stack in the simulated flight (main branch, while it flies: from rail exit or the separation of the stage
+	 * below it to its own separation or apogee, above 100 ft/s airspeed): its fastest point and the margin there, and
+	 * its lowest margin, from OpenRocket's in-flight stability and, with an imported table, from its CP and the
+	 * simulated CG. Null when the stack never flies on its own.
+	 */
+	public static Map<String, Object> inFlight(Simulation sim, FlightConfiguration stack, AxialStage bottom, AeroTable.Table t) {
+		double[] w = AeroTable.window(sim, bottom);
+		if (w == null) {
+			return null;
+		}
+		FlightDataBranch b = sim.getSimulatedData().getBranch(0);
+		Branch br = Branch.of(b);
+		double[] mach = br.col(FlightDataType.TYPE_MACH_NUMBER), stab = br.col(FlightDataType.TYPE_STABILITY);
+		double[] cg = br.col(FlightDataType.TYPE_CG_LOCATION), alt = br.col(FlightDataType.TYPE_ALTITUDE);
+		double d = Analysis.maxDiameter(stack);
+		int fast = -1, low = -1;
+		for (int i = Math.max(0, br.index(w[0])); i < br.size() && br.time[i] <= w[1] + 1e-9; i++) {
+			if (br.time[i] < w[0] - 1e-9 || br.airspeed(i) < 30.48 || Double.isNaN(mach[i])) {
+				continue;
+			}
+			if (fast < 0 || mach[i] > mach[fast]) {
+				fast = i;
+			}
+			if (!Double.isNaN(stab[i]) && (low < 0 || stab[i] < stab[low])) {
+				low = i;
+			}
+		}
+		if (fast < 0) {
+			return null;
+		}
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("flies", "t=" + Units.num(w[0]) + " to " + Units.num(w[1]) + " s");
+		out.put("maxMach", Units.num(mach[fast]));
+		Map<String, Object> at = new LinkedHashMap<>();
+		at.put("time", Units.fmt(br.time[fast], Dim.TIME));
+		at.put("altitude", Units.fmt(alt[fast], Dim.DISTANCE));
+		at.put("airspeed", Units.fmt(br.airspeed(fast), Dim.VELOCITY));
+		at.put("cg", Units.fmt(cg[fast], Dim.LENGTH) + " from the nose tip");
+		at.put("margin", Units.num(stab[fast]) + " cal (OpenRocket, in flight)");
+		if (t != null && t.hasCp()) {
+			at.put("cpImported", Units.fmt(t.cpAt(mach[fast]), Dim.LENGTH));
+			at.put("marginImportedCp", Units.num((t.cpAt(mach[fast]) - cg[fast]) / d) + " cal (" + t.source() + ")");
+		}
+		out.put("atMaxMach", at);
+		if (low >= 0) {
+			out.put("minMargin", Units.num(stab[low]) + " cal at t=" + Units.num(br.time[low]) + " s (Mach " + Units.num(mach[low]) + ")");
+		}
+		if (t != null && t.hasCp()) {
+			AeroTable.Margin m = AeroTable.minMargin(sim, t, d, bottom);
+			if (m != null) {
+				out.put("minMarginImportedCp", Units.num(m.min()) + " cal at t=" + Units.num(m.time()) + " s (Mach " + Units.num(m.mach()) + ")");
+			}
+		}
+		return out;
+	}
+
+	/** The fastest the stack gets while it flies, or NaN. */
+	public static double maxMach(Simulation sim, AxialStage bottom) {
+		double[] w = AeroTable.window(sim, bottom);
+		if (w == null) {
+			return Double.NaN;
+		}
+		Branch br = Branch.of(sim.getSimulatedData().getBranch(0));
+		double[] mach = br.col(FlightDataType.TYPE_MACH_NUMBER);
+		double top = Double.NaN;
+		for (int i = 0; i < br.size(); i++) {
+			if (br.time[i] >= w[0] - 1e-9 && br.time[i] <= w[1] + 1e-9 && !(mach[i] <= top)) {
+				top = Double.isNaN(mach[i]) ? top : mach[i];
+			}
+		}
+		return top;
 	}
 
 	public static Map<String, Object> render(Point p) {

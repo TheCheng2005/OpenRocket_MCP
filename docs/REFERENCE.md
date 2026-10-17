@@ -177,7 +177,15 @@ from the model by hosts that show views). Bold marks the main job of each tool.
 ### Aerodynamics and wind
 
 - `aero_analysis`: OpenRocket's aerodynamic model queried directly. It gives CD split into friction, pressure and base,
-  plus CP, CNα and static margin against Mach, the **drag of each component** and OpenRocket's geometry warnings.
+  plus CP, CNα and static margin against Mach, the **drag of each component** and OpenRocket's geometry warnings. The
+  Mach range runs to just past the simulated top speed.
+  - **Per stage:** `stage` gives what is left flying once the stages below it separate, e.g. the sustainer alone (its
+    own fins, CG and reference diameter); `"all"` gives every stack. Each stack also gets its flight: when it flies,
+    its top Mach, the margin there (OpenRocket's, with the simulated CG) and its lowest margin. A supersonic sustainer
+    usually loses margin past Mach 1.2 as its fins lose lift slope, and it is often the fastest part of the flight, so
+    this is the case to check.
+  - **With RASAero:** a table imported for the stack is shown beside OpenRocket's numbers at each Mach (CD power-off
+    and power-on, CP, and the margin with that CP and the same CG), and in the flight summary.
 - `wind_profile`: **winds aloft**. It sets OpenRocket's multi-level wind model from forecast or sounding levels, or from
   a power-law shear profile. Every tool then flies in it.
 
@@ -361,7 +369,11 @@ from the model by hosts that show views). Bold marks the main job of each tool.
 
 - `import_aero_table`: a **RASAero II** aero export, or any Mach/CD/CP CSV. Its drag replaces OpenRocket's in every
   simulation, power-on and power-off. Its CP is used for a stability check against the simulated CG, as Launch Canada
-  asks for diameter changes.
+  asks for diameter changes. On a staged rocket each table is for one stack: the whole vehicle by default, or with
+  `stage` what flies once the stages below separate (a RASAero run of the sustainer alone). Each stack's table applies
+  while that stack flies, and check_requirements checks each stack's CP over its own part of the flight. A dropped
+  booster, and any stack without a table, fly on OpenRocket's model. `show` lists the tables; `clear` with `stage`
+  removes one. save_design keeps them all next to the .ork.
 - `compare_flight`: an **altimeter log against the simulation**. It compares apogee, time to apogee, and drogue and main
   descent rates, draws an overlay plot, and finds the drag factor that reproduces your flight.
 

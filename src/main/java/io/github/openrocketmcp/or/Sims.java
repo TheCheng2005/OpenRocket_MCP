@@ -190,10 +190,9 @@ public final class Sims {
 		SimulationOptions o = sim.getOptions();
 		Rocket r = sim.getRocket();
 		FlightConfigurationId fcid = sim.getFlightConfigurationId();
-		AeroTable.Table t = AeroTable.of(r);
 		StringBuilder b = new StringBuilder();
 		b.append(r.getModID()).append('|').append(r.getFlightConfiguration(fcid).getModID()).append('|').append(o.getRandomSeed())
-				.append('|').append(o.getLaunchIntoWind()).append('|').append(t == null || !t.useDrag() ? 0 : System.identityHashCode(t));
+				.append('|').append(o.getLaunchIntoWind()).append('|').append(AeroTable.stamp(r));
 		// OpenRocket's deployment, motor and separation settings change without a change event, so no counter moves.
 		for (RocketComponent c : r) {
 			if (c instanceof RecoveryDevice rd) {

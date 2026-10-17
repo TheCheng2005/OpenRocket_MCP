@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -21,6 +22,8 @@ import com.google.gson.JsonParser;
 import info.openrocket.core.aerodynamics.AerodynamicForces;
 import info.openrocket.core.aerodynamics.FlightConditions;
 import info.openrocket.core.document.Simulation;
+import info.openrocket.core.rocketcomponent.AxialStage;
+import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.simulation.FlightDataBranch;
 import info.openrocket.core.simulation.FlightDataType;
@@ -33,9 +36,12 @@ import io.github.openrocketmcp.units.Units;
 
 /**
  * Imported aerodynamic tables (RASAero II "export aero data" CSV, or any Mach / CD [/ CP] table). The drag replaces
- * OpenRocket's axial drag in every simulation of the design (power-on / power-off as the motor burns) until the first
- * stage separation; the CP gives the stability margin against the simulated CG, as Launch Canada asks for airframes
- * with diameter changes.
+ * OpenRocket's axial drag in every simulation of the design (power-on / power-off as the motor burns); the CP gives the
+ * stability margin against the simulated CG, as Launch Canada asks for airframes with diameter changes.
+ *
+ * <p>A table describes one stack: the whole vehicle (the default), or, on a staged rocket, what is left flying once the
+ * stages below a given stage have separated (a RASAero run of the sustainer alone). Each applies while its stack flies;
+ * a stack without a table flies on OpenRocket's model.
  */
 public final class AeroTable {
 	private AeroTable() {
@@ -61,6 +67,7 @@ public final class AeroTable {
 		}
 	}
 
+	/** Keyed by rocket id (the whole vehicle) or rocket id + "#" + the id of the stack's lowest stage. */
 	private static final Map<String, Table> TABLES = new ConcurrentHashMap<>();
 	/** Simulations to fly on OpenRocket's own drag; weak, so candidates that are never flown do not pile up. */
 	private static final Set<Simulation> WITHOUT = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
@@ -69,18 +76,84 @@ public final class AeroTable {
 		TABLES.put(r.getID().toString(), t);
 	}
 
+	/** Every table of the rocket: the whole vehicle's and each stack's. */
 	public static void clear(Rocket r) {
-		TABLES.remove(r.getID().toString());
+		String id = r.getID().toString();
+		TABLES.keySet().removeIf(k -> k.equals(id) || k.startsWith(id + "#"));
 	}
 
-	/** The table of a rocket or any copy of it (copies keep the original ids). */
+	/** The whole vehicle's table of a rocket or any copy of it (copies keep the original ids). */
 	public static Table of(Rocket r) {
 		return TABLES.get(r.getID().toString());
+	}
+
+	/**
+	 * The table of the stack whose lowest stage is {@code bottom} (that stage and every stage above it). The stack that
+	 * leaves the pad (bottom = the last stage) is the whole vehicle.
+	 */
+	public static Table of(Rocket r, AxialStage bottom) {
+		return whole(r, bottom) ? of(r) : TABLES.get(r.getID() + "#" + bottom.getID());
+	}
+
+	public static void set(Rocket r, AxialStage bottom, Table t) {
+		if (whole(r, bottom)) {
+			set(r, t);
+		} else {
+			TABLES.put(r.getID() + "#" + bottom.getID(), t);
+		}
+	}
+
+	public static void clear(Rocket r, AxialStage bottom) {
+		if (whole(r, bottom)) {
+			TABLES.remove(r.getID().toString());
+		} else {
+			TABLES.remove(r.getID() + "#" + bottom.getID());
+		}
+	}
+
+	static boolean whole(Rocket r, AxialStage bottom) {
+		List<AxialStage> st = new ArrayList<>(r.getStageList());
+		return bottom == null || st.indexOf(bottom) == st.size() - 1;
+	}
+
+	/** The whole vehicle's table, else any stack's (for naming the data in use), or null. */
+	public static Table any(Rocket r) {
+		Table t = of(r);
+		return t != null ? t : all(r).values().stream().findFirst().orElse(null);
+	}
+
+	/** Every table of the rocket by the lowest stage of its stack, top stack first; the whole vehicle under its last stage. */
+	public static Map<AxialStage, Table> all(Rocket r) {
+		Map<AxialStage, Table> out = new LinkedHashMap<>();
+		for (AxialStage st : r.getStageList()) {
+			Table t = of(r, st);
+			if (t != null) {
+				out.put(st, t);
+			}
+		}
+		return out;
+	}
+
+	/** The stack flying in a configuration: its lowest stage when it is stages 0..n, else null (a dropped booster). */
+	public static AxialStage stackOf(FlightConfiguration fc) {
+		List<AxialStage> st = new ArrayList<>(fc.getRocket().getStageList());
+		int last = -1;
+		for (int i = 0; i < st.size(); i++) {
+			if (fc.isStageActive(i)) {
+				if (last != i - 1) {
+					return null;
+				}
+				last = i;
+			}
+		}
+		return last < 0 ? null : st.get(last);
 	}
 
 	// ------------------------------------------------------------------------------------ kept with the design
 
 	static final String FORMAT = "openrocket-mcp aero table 1";
+	/** Several stacks in one file: {format, tables: [{stage, stageId, ...one table}]}; the whole vehicle has no stage. */
+	static final String FORMAT2 = "openrocket-mcp aero tables 2";
 
 	/** The file an imported table is kept in next to a design: rocket.ork -> rocket.aero.json. */
 	public static Path sidecar(Path ork) {
@@ -89,8 +162,71 @@ public final class AeroTable {
 		return ork.resolveSibling(stem + ".aero.json");
 	}
 
+	/**
+	 * Every table of a rocket as the sidecar file: the single-table format when only the whole vehicle has one (as
+	 * before), else one file listing each stack's table. Null when the rocket has none.
+	 */
+	public static String toJson(Rocket r) {
+		Map<AxialStage, Table> all = all(r);
+		if (all.isEmpty()) {
+			return null;
+		}
+		if (all.size() == 1 && of(r) != null) {
+			return toJson(of(r));
+		}
+		JsonObject o = new JsonObject();
+		o.addProperty("format", FORMAT2);
+		JsonArray list = new JsonArray();
+		for (Map.Entry<AxialStage, Table> e : all.entrySet()) {
+			JsonObject t = tableJson(e.getValue());
+			t.remove("format");
+			if (!whole(r, e.getKey())) {
+				t.addProperty("stage", e.getKey().getName());
+				t.addProperty("stageId", e.getKey().getID().toString());
+			}
+			list.add(t);
+		}
+		o.add("tables", list);
+		return new GsonBuilder().setPrettyPrinting().serializeNulls().create().toJson(o);
+	}
+
+	/** Reads a sidecar file into the rocket's tables (a stack whose stage is gone is skipped and named in the result). */
+	public static List<String> load(Rocket r, String json) {
+		JsonObject o = JsonParser.parseString(json).getAsJsonObject();
+		List<String> skipped = new ArrayList<>();
+		if (o.has("format") && FORMAT2.equals(o.get("format").getAsString())) {
+			for (var e : o.getAsJsonArray("tables")) {
+				JsonObject t = e.getAsJsonObject();
+				Table table = fromJson(t);
+				if (!t.has("stageId")) {
+					set(r, table);
+					continue;
+				}
+				AxialStage st = null;
+				for (AxialStage s : r.getStageList()) {
+					if (s.getID().toString().equals(t.get("stageId").getAsString())
+							|| st == null && s.getName().equals(t.get("stage").getAsString())) {
+						st = s;
+					}
+				}
+				if (st == null) {
+					skipped.add(t.get("stage").getAsString());
+				} else {
+					set(r, st, table);
+				}
+			}
+			return skipped;
+		}
+		set(r, fromJson(json));
+		return skipped;
+	}
+
 	/** SI JSON (Mach, CD power off / on, CP in m from the nose tip or null), readable and diffable. */
 	public static String toJson(Table t) {
+		return new GsonBuilder().setPrettyPrinting().serializeNulls().create().toJson(tableJson(t));
+	}
+
+	static JsonObject tableJson(Table t) {
 		JsonObject o = new JsonObject();
 		o.addProperty("format", FORMAT);
 		o.addProperty("source", t.source());
@@ -109,7 +245,7 @@ public final class AeroTable {
 			rows.add(r);
 		}
 		o.add("rows", rows);
-		return new GsonBuilder().setPrettyPrinting().serializeNulls().create().toJson(o);
+		return o;
 	}
 
 	public static Table fromJson(String json) {
@@ -117,6 +253,10 @@ public final class AeroTable {
 		if (!o.has("format") || !FORMAT.equals(o.get("format").getAsString())) {
 			throw new ToolException("Not an aero table saved by openrocket-mcp.");
 		}
+		return fromJson(o);
+	}
+
+	static Table fromJson(JsonObject o) {
 		JsonArray rows = o.getAsJsonArray("rows");
 		int n = rows.size();
 		double[] mach = new double[n], off = new double[n], on = new double[n], cp = new double[n];
@@ -141,19 +281,37 @@ public final class AeroTable {
 		if (WITHOUT.remove(sim)) {
 			return null;
 		}
-		Table t = of(sim.getRocket());
-		return t == null || !t.useDrag() ? null : new DragOverride(t);
+		Map<AxialStage, Table> use = new LinkedHashMap<>();
+		all(sim.getRocket()).forEach((st, t) -> {
+			if (t.useDrag()) {
+				use.put(st, t);
+			}
+		});
+		return use.isEmpty() ? null : new DragOverride(use, of(sim.getRocket()));
 	}
 
-	/** Replaces the axial drag coefficient with the table's (power-on while any motor burns). */
+	/** A stamp that changes whenever the rocket's tables (or whether their drag applies) change. */
+	static String stamp(Rocket r) {
+		StringBuilder b = new StringBuilder();
+		all(r).forEach((st, t) -> b.append(st.getID()).append(':').append(t.useDrag() ? System.identityHashCode(t) : 0).append(','));
+		return b.toString();
+	}
+
+	/**
+	 * Replaces the axial drag coefficient with the table of the stack that is flying (power-on while any motor burns).
+	 * The whole vehicle's table applies while every stage it left the pad with is still on; a stack's table once the
+	 * stages below it have gone. A dropped booster (or a stack without a table) flies on OpenRocket's model.
+	 */
 	static final class DragOverride extends AbstractSimulationListener {
-		final Table t;
+		final Map<AxialStage, Table> byStack;
+		final Table whole;
 		double mach = Double.NaN;
 		boolean powered;
 		int stages = -1;
 
-		DragOverride(Table t) {
-			this.t = t;
+		DragOverride(Map<AxialStage, Table> byStack, Table whole) {
+			this.byStack = byStack;
+			this.whole = whole != null && whole.useDrag() ? whole : null;
 		}
 
 		@Override
@@ -174,8 +332,18 @@ public final class AeroTable {
 			if (stages < 0) {
 				stages = active;
 			}
-			if (active != stages || Double.isNaN(mach) || forces == null) {
-				return null; // the table describes the vehicle as imported; after staging use OpenRocket's model
+			if (Double.isNaN(mach) || forces == null) {
+				return null;
+			}
+			Table t;
+			if (active == stages) {
+				t = whole; // the vehicle as it left the pad
+			} else {
+				AxialStage st = stackOf(status.getConfiguration());
+				t = st == null ? null : byStack.get(st);
+			}
+			if (t == null) {
+				return null;
 			}
 			double cd = t.cd(mach, powered);
 			if (Double.isNaN(cd)) {
@@ -322,20 +490,24 @@ public final class AeroTable {
 	}
 
 	public static Margin minMargin(Simulation sim, Table t, double refDiameter) {
+		return minMargin(sim, t, refDiameter, null);
+	}
+
+	/**
+	 * The same while the stack whose lowest stage is {@code bottom} flies (null: the whole vehicle, rail exit to
+	 * apogee or its first separation): from the separation of the stage below it to its own separation or apogee.
+	 */
+	public static Margin minMargin(Simulation sim, Table t, double refDiameter, AxialStage bottom) {
 		if (!t.hasCp()) {
 			return null;
 		}
 		FlightDataBranch b = sim.getSimulatedData().getBranch(0);
 		Branch br = Branch.of(b);
-		double rail = Sims.eventTime(b, FlightEvent.Type.LAUNCHROD);
-		double end = Sims.eventTime(b, FlightEvent.Type.APOGEE);
-		double sep = Sims.eventTime(b, FlightEvent.Type.STAGE_SEPARATION);
-		if (!Double.isNaN(sep)) {
-			end = Math.min(end, sep);
-		}
-		if (Double.isNaN(rail) || Double.isNaN(end)) {
+		double[] w = window(sim, bottom);
+		if (w == null) {
 			return null;
 		}
+		double rail = w[0], end = w[1];
 		double[] cg = br.col(FlightDataType.TYPE_CG_LOCATION), mach = br.col(FlightDataType.TYPE_MACH_NUMBER);
 		double best = Double.POSITIVE_INFINITY, tb = Double.NaN, mb = Double.NaN;
 		for (int i = br.index(rail); i < br.size() && br.time[i] <= end; i++) {
@@ -350,6 +522,46 @@ public final class AeroTable {
 			}
 		}
 		return Double.isInfinite(best) ? null : new Margin(best, tb, mb);
+	}
+
+	/**
+	 * When a stack flies on the main branch: {start, end} (s). The whole vehicle from rail exit to its first separation
+	 * (or apogee); a stack from the separation of the stage below it to its own separation (or apogee). Null when that
+	 * stack never flies on its own.
+	 */
+	public static double[] window(Simulation sim, AxialStage bottom) {
+		FlightDataBranch b = sim.getSimulatedData().getBranch(0);
+		Rocket r = sim.getRocket();
+		double rail = Sims.eventTime(b, FlightEvent.Type.LAUNCHROD), apogee = Sims.eventTime(b, FlightEvent.Type.APOGEE);
+		if (Double.isNaN(rail) || Double.isNaN(apogee)) {
+			return null;
+		}
+		List<AxialStage> st = new ArrayList<>(r.getStageList());
+		int k = bottom == null ? st.size() - 1 : st.indexOf(bottom);
+		if (k == st.size() - 1) {
+			// The vehicle as it left the pad (whichever stages its configuration flies), until anything separates.
+			double sep = Sims.eventTime(b, FlightEvent.Type.STAGE_SEPARATION);
+			double end = Double.isNaN(sep) ? apogee : Math.min(sep, apogee);
+			return end > rail ? new double[] { rail, end } : null;
+		}
+		double start = separation(b, st.get(k + 1));
+		double end = k == 0 ? apogee : separation(b, st.get(k));
+		if (Double.isNaN(start)) {
+			return null; // the stage below never comes off: this stack never flies alone
+		}
+		if (Double.isNaN(end) || end > apogee) {
+			end = apogee;
+		}
+		return end > start ? new double[] { start, end } : null;
+	}
+
+	static double separation(FlightDataBranch b, AxialStage stage) {
+		for (FlightEvent e : b.getEvents()) {
+			if (e.getType() == FlightEvent.Type.STAGE_SEPARATION && e.getSource() != null && e.getSource().getID().equals(stage.getID())) {
+				return e.getTime();
+			}
+		}
+		return Double.NaN;
 	}
 
 	public static String describe(Table t) {

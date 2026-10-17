@@ -53,7 +53,7 @@ public final class Suggestions {
 			new Feature("ballast", "Stability, fins and aero", "How much nose weight do we need to meet the stability rules?"),
 			new Feature("optimize_fins", "Stability, fins and aero", "Optimize our fin shape for the least drag within the rules."),
 			new Feature("compare_shapes", "Stability, fins and aero", "Which nose cone and fin shapes fly best?"),
-			new Feature("aero_analysis", "Stability, fins and aero", "Where does our drag come from, and how does it change with speed?"),
+			new Feature("aero_analysis", "Stability, fins and aero", "Where does our drag come from, and how does it change with speed? (per stage: the sustainer alone)"),
 			new Feature("import_aero_table", "Stability, fins and aero", "Use our RASAero or CFD aerodynamic data in the simulations."),
 
 			new Feature("fin_flutter", "Structures and heating", "Will our fins flutter, and how thick do they need to be?"),

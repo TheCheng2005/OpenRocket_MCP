@@ -149,19 +149,19 @@ public final class Designs {
 		}
 	}
 
-	/** An imported RASAero / aero table lives next to the design (rocket.aero.json) and comes back on open. */
+	/** Imported RASAero / aero tables (whole vehicle and stage stacks) live next to the design (rocket.aero.json) and come back on open. */
 	static void loadAeroTable(Design d) throws IOException {
 		Path f = AeroTable.sidecar(d.path);
 		if (Files.exists(f)) {
-			AeroTable.set(d.doc.getRocket(), AeroTable.fromJson(Files.readString(f)));
+			AeroTable.load(d.doc.getRocket(), Files.readString(f));
 		}
 	}
 
 	static void saveAeroTable(Design d) throws IOException {
 		Path f = AeroTable.sidecar(d.path);
-		AeroTable.Table t = AeroTable.of(d.doc.getRocket());
-		if (t != null) {
-			Files.writeString(f, AeroTable.toJson(t));
+		String json = AeroTable.toJson(d.doc.getRocket());
+		if (json != null) {
+			Files.writeString(f, json);
 		} else {
 			Files.deleteIfExists(f); // the table was cleared since the design was opened
 		}
