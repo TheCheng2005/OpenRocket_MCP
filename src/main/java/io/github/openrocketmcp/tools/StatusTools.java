@@ -154,13 +154,22 @@ public final class StatusTools {
 				diameterChange = true;
 			}
 		}
-		AeroTable.Table table = AeroTable.of(d.doc.getRocket());
+		var rocket = d.doc.getRocket();
+		AeroTable.Table table = AeroTable.any(rocket);
 		if (diameterChange && table == null) {
 			items.add(new Item("Aerodynamics", "TODO", "The airframe changes diameter and no RASAero / CFD data is imported; Launch "
 					+ "Canada expects RASAero CP and CD for such airframes.", "import_aero_table (RASAero export, or CFD results from "
 							+ "export_geometry's run matrix).", 4));
 		} else if (table != null) {
 			items.add(new Item("Aerodynamics", "OK", "Imported aero data in use: " + table.source() + ".", null, 9));
+			// A staged rocket with data for the stack on the pad only: the upper stage flies on OpenRocket's model once alone.
+			java.util.List<info.openrocket.core.rocketcomponent.AxialStage> axial = new java.util.ArrayList<>(rocket.getStageList());
+			if (axial.size() > 1 && AeroTable.of(rocket, axial.get(0)) == null) {
+				items.add(new Item("Aerodynamics", "TODO", axial.get(0).getName() + " flies on OpenRocket's aerodynamics once the stages "
+						+ "below it separate (often its fastest part of the flight); the imported data covers the stack it was run for.",
+						"import_aero_table with stage \"" + axial.get(0).getName() + "\" (a RASAero run of " + axial.get(0).getName()
+								+ " alone); aero_analysis stage \"" + axial.get(0).getName() + "\" shows its margin through Mach.", 5));
+			}
 		}
 
 		// Team standards.

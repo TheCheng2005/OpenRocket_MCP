@@ -134,25 +134,44 @@ public final class Analysis {
 			if (!config.isStageActive(bottom)) {
 				continue;
 			}
-			FlightConfiguration stack = config.clone();
-			stack.clearAllStages();
-			for (int i = 0; i <= bottom; i++) {
-				if (config.isStageActive(i)) {
-					stack._setStageActive(i, true, false);
-				}
-			}
-			Stability s = stability(stack, mach);
+			Stability s = stability(stack(config, bottom), mach);
 			Map<String, Object> m = new LinkedHashMap<>();
-			List<String> names = new ArrayList<>();
-			for (int i = 0; i <= bottom; i++) {
-				names.add(stages.get(i).getName());
-			}
-			m.put("stack", String.join(" + ", names));
-			m.put("when", bottom == n - 1 ? "on the pad" : "after " + stages.get(bottom + 1).getName() + " separates");
+			m.put("stack", stackName(config, bottom));
+			m.put("when", stackWhen(config, bottom));
 			m.putAll(render(s));
 			out.add(m);
 		}
 		return out;
+	}
+
+	/** The configuration with only stage {@code bottom} and the active stages above it: what flies once the rest separate. */
+	public static FlightConfiguration stack(FlightConfiguration config, int bottom) {
+		FlightConfiguration stack = config.clone();
+		stack.clearAllStages();
+		for (int i = 0; i <= bottom; i++) {
+			if (config.isStageActive(i)) {
+				stack._setStageActive(i, true, false);
+			}
+		}
+		return stack;
+	}
+
+	/** "Sustainer + Booster": the stages of a stack, top first. */
+	public static String stackName(FlightConfiguration config, int bottom) {
+		List<AxialStage> stages = new ArrayList<>(config.getRocket().getStageList());
+		List<String> names = new ArrayList<>();
+		for (int i = 0; i <= bottom; i++) {
+			if (config.isStageActive(i)) {
+				names.add(stages.get(i).getName());
+			}
+		}
+		return String.join(" + ", names);
+	}
+
+	/** When a stack flies: "on the pad", or "after Booster separates". */
+	public static String stackWhen(FlightConfiguration config, int bottom) {
+		List<AxialStage> stages = new ArrayList<>(config.getRocket().getStageList());
+		return bottom == stages.size() - 1 ? "on the pad" : "after " + stages.get(bottom + 1).getName() + " separates";
 	}
 
 	/** Motors in the configuration, per mount. */

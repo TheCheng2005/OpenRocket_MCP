@@ -53,7 +53,7 @@ import io.github.openrocketmcp.tools.WorkbenchTools;
 
 /** Entry point: stdio MCP server for OpenRocket. */
 public final class Main {
-	public static final String VERSION = "0.26.0";
+	public static final String VERSION = "0.27.0";
 
 	static final String INSTRUCTIONS = """
 			OpenRocket MCP: design, simulate and check high-power / competition rockets with OpenRocket's physics.
@@ -77,6 +77,9 @@ public final class Main {
 			  linked flight plots, trajectory, rule checks; the team can click parts and change them). Offer it when
 			  someone wants to see or explore the rocket or a flight, and after a run when a picture would help. It also
 			  writes a standalone HTML file for other clients.
+			- Staged rockets: aero_analysis stage gives the sustainer alone after separation (its margin through Mach and at
+			  its own top speed, often the fastest and least stable part of the flight); import_aero_table stage takes a
+			  RASAero run of that stack, used once the stages below separate.
 			- Materials: compare_materials flies the fins, the airframe (nose cone, tubes, transitions) or any part in each
 			  candidate material and stock thickness and checks flutter, strength, buckling and heating; use it before
 			  choosing a laminate.

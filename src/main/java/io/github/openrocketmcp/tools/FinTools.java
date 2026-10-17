@@ -223,7 +223,7 @@ public final class FinTools {
 					+ "Widen the bounds (maxSpan, maxRootChord), add nose ballast, or relax a constraint.");
 		}
 		List<String> notes = new ArrayList<>();
-		var table = AeroTable.of(d.doc.getRocket());
+		var table = AeroTable.any(d.doc.getRocket());
 		notes.add("Aerodynamics are OpenRocket's (Barrowman with its transonic and supersonic extensions), because they follow the "
 				+ "fin shape" + (table != null ? "; the imported aero table (" + table.source() + ") describes the current fins only and "
 						+ "was not used. Re-run CFD / RASAero on the chosen fins (export_geometry) and import it again" : "")

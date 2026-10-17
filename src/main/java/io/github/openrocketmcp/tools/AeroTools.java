@@ -11,7 +11,9 @@ import java.util.Map;
 
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.preset.ComponentPreset;
+import info.openrocket.core.rocketcomponent.AxialStage;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import io.github.openrocketmcp.mcp.Args;
 import io.github.openrocketmcp.mcp.McpServer;
@@ -42,59 +44,38 @@ public final class AeroTools {
 	static final double[] DEFAULT_MACHS = { 0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, 1.0, 1.05, 1.1, 1.2, 1.5, 2.0, 2.5, 3.0 };
 
 	public static void register(McpServer s, Context ctx) {
-		s.tool(new ToolDef("aero_analysis", "Drag and CP vs Mach, drag breakdown",
+		s.tool(new ToolDef("aero_analysis", "Drag and CP vs Mach, drag breakdown, per stage",
 				"Query OpenRocket's aerodynamic model directly (zero angle of attack): total drag coefficient split into "
 						+ "friction / pressure / base drag, CP position, CNalpha and static margin (launch and burnout CG) at a "
-						+ "range of Mach numbers (default up to just above the simulated max Mach, or 1.2), plus the drag of each "
+						+ "range of Mach numbers (default up to just above the simulated max Mach), plus the drag of each "
 						+ "component at one Mach number and OpenRocket's geometry warnings. Use it to see where drag comes from "
 						+ "(nose shape, fin airfoil, surface finish, launch lugs / rail buttons) and how the margin shifts "
-						+ "transonic.",
-				Schema.object().str("designId", DesignTools.DESIGN_ID, false).str("configuration", DesignTools.CONFIG, false)
+						+ "transonic and supersonic. On a staged rocket, stage gives what is left flying once the stages below it "
+						+ "separate (e.g. the sustainer alone: its fins, its CG, its own top speed); \"all\" gives every stack. Each "
+						+ "stack also gets its fastest point in the simulated flight and the margin there. A RASAero table "
+						+ "imported for the stack (import_aero_table) is shown beside OpenRocket's CD and CP.",
+				SimTools.simSelect(Schema.object())
+						.str("stage", "Stage id or name: the stack from this stage up, as it flies after the stages below separate; "
+								+ "\"all\" for every stack. Default: the whole vehicle on the pad.", false)
 						.array("machs", "Mach numbers for the table.", Schema.type("number", null), false)
-						.num("breakdownMach", "Mach number for the per-component drag breakdown (default 0.3).", false)
-						.num("maxMach", "Highest Mach for the default table (default 1.2).", false).build(),
-				true, a -> {
-					Designs.Design d = ctx.designs.get(a.str("designId", null));
-					FlightConfiguration fc = Components.config(d.doc.getRocket(), a.str("configuration", null));
-					double[] machs;
-					if (a.has("machs")) {
-						machs = a.array("machs").asList().stream().mapToDouble(e -> e.getAsDouble()).toArray();
-					} else {
-						double top = a.num("maxMach", 1.2);
-						machs = Arrays.stream(DEFAULT_MACHS).filter(m -> m <= top + 1e-9).toArray();
-					}
-					if (machs.length == 0 || machs.length > 40) {
-						throw new ToolException("Give 1-40 Mach numbers.");
-					}
-					Map<String, Object> out = new LinkedHashMap<>();
-					List<Map<String, Object>> table = new ArrayList<>();
-					for (Aero.Point p : Aero.sweep(fc, machs)) {
-						table.add(Aero.render(p));
-					}
-					out.put("vsMach", table);
-					double bm = a.num("breakdownMach", 0.3);
-					out.put("dragBreakdownAtMach", Units.num(bm));
-					out.put("dragBreakdown", Aero.breakdown(fc, bm));
-					List<String> w = Aero.warnings(fc, bm);
-					if (!w.isEmpty()) {
-						out.put("openRocketWarnings", w);
-					}
-					out.put("notes", List.of(
-							"Zero angle of attack; Reynolds number from sea-level ISA at each Mach. Drag in flight also varies with "
-									+ "altitude (Reynolds) and angle of attack; the simulation uses the full model.",
-							"Margins use the maximum body diameter as reference. OpenRocket's Barrowman model is least accurate "
-									+ "transonic; LC expects RASAero CP/CD for airframes with diameter changes."));
-					return out;
-				}));
+						.num("breakdownMach", "Mach number for the per-component drag breakdown (default 0.3; with stage, the "
+								+ "stack's top speed in flight).", false)
+						.num("maxMach", "Highest Mach for the default table (default: just above the simulated max Mach, else 1.2).", false)
+						.build(),
+				true, a -> aeroAnalysis(ctx, a)));
 
 		s.tool(new ToolDef("import_aero_table", "Use RASAero (or other) CD / CP data",
 				"Import an aerodynamic table (RASAero II 'export aero data' CSV, or any CSV with Mach, CD [, CP]) for a design. The "
 						+ "drag replaces OpenRocket's in every simulation (power-on / power-off), the CP is used for a stability check "
 						+ "against the simulated CG (Launch Canada asks for RASAero CP/CD when the airframe diameter changes). Shows the "
-						+ "table next to OpenRocket's own CD / CP and the effect on apogee and minimum stability. mode clear / show. "
-						+ "save_design keeps the table next to the .ork (rocket.aero.json) and open_design loads it again.",
+						+ "table next to OpenRocket's own CD / CP and the effect on apogee and minimum stability. On a staged rocket a "
+						+ "table describes one stack: the whole vehicle by default, or with stage what flies once the stages below "
+						+ "it separate (a RASAero run of the sustainer alone), used from that separation on. mode clear / show. "
+						+ "save_design keeps the tables next to the .ork (rocket.aero.json) and open_design loads them again.",
 				SimTools.simSelect(Schema.object())
 						.enumStr("mode", "import (default) | show | clear", false, "import", "show", "clear")
+						.str("stage", "Stage id or name: the table is for the stack from this stage up, flown after the stages "
+								+ "below separate (default: the whole vehicle). For show / clear: that stack only (default: every table).", false)
 						.str("path", "CSV file path.", false).str("csv", "CSV text (instead of path).", false)
 						.str("cpUnit", "Unit of the CP column, measured from the nose tip (default in, as RASAero writes).", false)
 						.bool("useDrag", "Apply the table's drag to simulations (default true).", false)
@@ -205,6 +186,131 @@ public final class AeroTools {
 				}));
 	}
 
+	/** One stack (or every stack) through Mach, OpenRocket's model beside an imported RASAero table, and its flight. */
+	private static Object aeroAnalysis(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId", null));
+		Rocket rocket = d.doc.getRocket();
+		FlightConfiguration fc = Components.config(rocket, a.str("configuration", null));
+		List<AxialStage> stages = new ArrayList<>(rocket.getStageList());
+		String which = a.str("stage", null);
+		List<Integer> bottoms = new ArrayList<>();
+		if (which == null) {
+			bottoms.add(stages.size() - 1);
+		} else if (which.equalsIgnoreCase("all")) {
+			for (int i = stages.size() - 1; i >= 0; i--) {
+				if (fc.isStageActive(i)) {
+					bottoms.add(i);
+				}
+			}
+		} else {
+			AxialStage st = Components.find(rocket, which, AxialStage.class, "stage");
+			int k = stages.indexOf(st);
+			if (!fc.isStageActive(k)) {
+				throw new ToolException(st.getName() + " is not active in configuration " + fc.getName() + ".");
+			}
+			bottoms.add(k);
+		}
+		// The flight, for each stack's top speed (and the default Mach range). Without motors there is none.
+		Simulation sim = null;
+		if (fc.hasMotors()) {
+			try {
+				sim = Sims.prepare(d, a.str("simulation", null), a.str("configuration", null), Sims.Overrides.none(), ctx.standards(), false);
+				Sims.ensure(sim);
+			} catch (RuntimeException e) {
+				sim = null;
+			}
+		}
+		List<Map<String, Object>> stacks = new ArrayList<>();
+		for (int k : bottoms) {
+			AxialStage bottom = stages.get(k);
+			FlightConfiguration stack = Analysis.stack(fc, k);
+			double flightMax = sim == null ? Double.NaN : Aero.maxMach(sim, bottom);
+			double[] machs = machs(a, flightMax);
+			AeroTable.Table t = AeroTable.of(rocket, bottom);
+			Map<String, Object> out = new LinkedHashMap<>();
+			if (stages.size() > 1) {
+				out.put("stack", Analysis.stackName(fc, k));
+				out.put("when", Analysis.stackWhen(fc, k));
+			}
+			List<Map<String, Object>> table = new ArrayList<>();
+			double ref = Analysis.maxDiameter(stack);
+			for (Aero.Point p : Aero.sweep(stack, machs)) {
+				Map<String, Object> row = Aero.render(p);
+				if (t != null) {
+					// RASAero beside OpenRocket: its drag and CP, and the margin with its CP and the same CG.
+					row.put("cdImportedPowerOff", Units.num(t.cd(p.mach(), false)));
+					row.put("cdImportedPowerOn", Units.num(t.cd(p.mach(), true)));
+					if (t.hasCp()) {
+						double cgBurnout = p.cpX() - p.marginBurnout() * ref, cgLaunch = p.cpX() - p.marginLaunch() * ref;
+						row.put("cpImported", Units.fmt(t.cpAt(p.mach()), Dim.LENGTH));
+						row.put("marginLaunchImportedCp", Units.num((t.cpAt(p.mach()) - cgLaunch) / ref) + " cal");
+						row.put("marginBurnoutImportedCp", Units.num((t.cpAt(p.mach()) - cgBurnout) / ref) + " cal");
+					}
+				}
+				table.add(row);
+			}
+			out.put("vsMach", table);
+			if (t != null) {
+				out.put("importedTable", AeroTable.describe(t));
+			} else if (k < stages.size() - 1) {
+				out.put("importedTable", "none for this stack: import a RASAero run of " + Analysis.stackName(fc, k)
+						+ " alone with import_aero_table stage \"" + bottom.getName() + "\"");
+			}
+			if (sim != null) {
+				Map<String, Object> f = Aero.inFlight(sim, stack, bottom, t);
+				out.put("inFlight", f != null ? f : "this stack does not fly on its own in " + sim.getName());
+			}
+			double bm = a.has("breakdownMach") ? a.num("breakdownMach", 0.3)
+					: which != null && !Double.isNaN(flightMax) ? Math.round(flightMax * 100) / 100.0 : 0.3;
+			out.put("dragBreakdownAtMach", Units.num(bm));
+			out.put("dragBreakdown", Aero.breakdown(stack, bm));
+			List<String> w = Aero.warnings(stack, bm);
+			if (!w.isEmpty()) {
+				out.put("openRocketWarnings", w);
+			}
+			stacks.add(out);
+		}
+		Map<String, Object> out = stacks.size() == 1 ? stacks.get(0) : new LinkedHashMap<>(Map.of("stacks", stacks));
+		List<String> notes = new ArrayList<>(List.of(
+				"Zero angle of attack; Reynolds number from sea-level ISA at each Mach. Drag in flight also varies with "
+						+ "altitude (Reynolds) and angle of attack; the simulation uses the full model.",
+				"Margins use the stack's maximum body diameter as reference. OpenRocket's Barrowman model is least accurate "
+						+ "transonic and supersonic; LC expects RASAero CP/CD for airframes with diameter changes."));
+		if (stages.size() > 1 && which == null) {
+			notes.add("This is the whole vehicle on the pad. After separation the upper stages fly on their own fins and CG, often "
+					+ "faster: pass stage (e.g. \"" + stages.get(0).getName() + "\") or \"all\".");
+		}
+		out.put("notes", notes);
+		return out;
+	}
+
+	/** The Mach numbers asked for, else the defaults up to just past the stack's top speed (or maxMach, else 1.2). */
+	static double[] machs(Args a, double flightMax) {
+		double[] machs;
+		if (a.has("machs")) {
+			machs = a.array("machs").asList().stream().mapToDouble(e -> e.getAsDouble()).toArray();
+		} else {
+			double top = a.has("maxMach") ? a.num("maxMach", 1.2) : Double.isNaN(flightMax) ? 1.2 : flightMax;
+			List<Double> list = new ArrayList<>();
+			for (double m : DEFAULT_MACHS) {
+				list.add(m);
+				if (m >= top - 1e-9) {
+					break; // the first point at or past the top speed covers it
+				}
+			}
+			machs = list.stream().mapToDouble(Double::doubleValue).toArray();
+		}
+		if (machs.length == 0 || machs.length > 40) {
+			throw new ToolException("Give 1-40 Mach numbers.");
+		}
+		for (double m : machs) {
+			if (!(m > 0 && m <= 5)) {
+				throw new ToolException("Mach numbers must be between 0 and 5 (got " + Units.num(m) + ").");
+			}
+		}
+		return machs;
+	}
+
 	static String readText(Context ctx, Args a, String pathKey, String textKey) throws IOException {
 		if (a.has(pathKey)) {
 			return TextFiles.read(ctx.path(a.str(pathKey)));
@@ -219,25 +325,59 @@ public final class AeroTools {
 		Designs.Design d = ctx.designs.get(a.str("designId", null));
 		var rocket = d.doc.getRocket();
 		String mode = a.str("mode", "import");
+		List<AxialStage> stages = new ArrayList<>(rocket.getStageList());
+		AxialStage bottom = a.has("stage") ? Components.find(rocket, a.str("stage"), AxialStage.class, "stage") : null;
+		FlightConfiguration whole = Components.config(rocket, a.str("configuration", null));
 		if (mode.equals("clear")) {
+			if (bottom != null) {
+				AeroTable.clear(rocket, bottom);
+				Map<String, Object> out = new LinkedHashMap<>();
+				out.put("cleared", Analysis.stackName(whole, stages.indexOf(bottom)));
+				out.put("note", "That stack flies on OpenRocket's own aerodynamics again.");
+				return out;
+			}
 			AeroTable.clear(rocket);
 			return Map.of("cleared", true, "note", "Simulations use OpenRocket's own drag again.");
 		}
+		if (mode.equals("show") && bottom == null) {
+			Map<AxialStage, AeroTable.Table> all = AeroTable.all(rocket);
+			if (all.isEmpty()) {
+				return Map.of("table", "none imported");
+			}
+			if (all.size() > 1 || AeroTable.of(rocket) == null) {
+				List<Map<String, Object>> list = new ArrayList<>();
+				all.forEach((st, tb) -> {
+					int k = stages.indexOf(st);
+					Map<String, Object> row = new LinkedHashMap<>();
+					row.put("stack", Analysis.stackName(whole, k));
+					row.put("when", Analysis.stackWhen(whole, k));
+					row.put("table", AeroTable.describe(tb));
+					list.add(row);
+				});
+				return Map.of("tables", list);
+			}
+		}
+		int k = bottom == null ? stages.size() - 1 : stages.indexOf(bottom);
+		AxialStage stackBottom = stages.get(k);
 		AeroTable.Table t;
 		if (mode.equals("show")) {
-			t = AeroTable.of(rocket);
+			t = AeroTable.of(rocket, stackBottom);
 			if (t == null) {
-				return Map.of("table", "none imported");
+				return Map.of("table", "none imported for " + Analysis.stackName(whole, k));
 			}
 		} else {
 			String text = readText(ctx, a, "path", "csv");
 			double cpUnit = Units.toSi("1 " + a.str("cpUnit", "in"), Dim.LENGTH);
 			t = AeroTable.parse(text, a.has("path") ? ctx.path(a.str("path")).getFileName().toString() : a.str("source", "imported table"),
 					cpUnit, a.bool("useDrag", true));
-			AeroTable.set(rocket, t);
+			AeroTable.set(rocket, stackBottom, t);
 		}
-		FlightConfiguration fc = Components.config(rocket, a.str("configuration", null));
+		FlightConfiguration fc = Analysis.stack(whole, k);
 		Map<String, Object> out = new LinkedHashMap<>();
+		if (stages.size() > 1) {
+			out.put("stack", Analysis.stackName(whole, k));
+			out.put("when", Analysis.stackWhen(whole, k));
+		}
 		out.put("table", AeroTable.describe(t));
 		// Side by side with OpenRocket's own model.
 		List<Map<String, Object>> cmp = new ArrayList<>();
@@ -271,21 +411,31 @@ public final class AeroTools {
 			eff.put("apogeeOpenRocketDrag", Units.fmt(runs.get(0).sim().getSimulatedData().getMaxAltitude(), Dim.DISTANCE));
 			eff.put("apogeeImportedDrag", t.useDrag() ? Units.fmt(runs.get(1).sim().getSimulatedData().getMaxAltitude(), Dim.DISTANCE)
 					: "not applied (useDrag false)");
-			AeroTable.Margin mImp = AeroTable.minMargin(runs.get(1).sim(), t, Analysis.maxDiameter(fc));
-			if (mImp != null) {
-				eff.put("minAscentStabilityImportedCp", Units.num(mImp.min()) + " cal at Mach " + Units.num(mImp.mach()));
-			}
-			var w = Sims.ascentStability(runs.get(0).sim().getSimulatedData().getBranch(0));
-			if (w != null) {
-				eff.put("minAscentStabilityOpenRocketCp", Units.num(w.min()) + " cal");
+			Map<String, Object> f = Aero.inFlight(runs.get(1).sim(), fc, stackBottom, t);
+			if (f != null) {
+				if (f.containsKey("minMarginImportedCp")) {
+					eff.put("minAscentStabilityImportedCp", f.get("minMarginImportedCp"));
+				}
+				if (f.containsKey("minMargin")) {
+					eff.put("minAscentStabilityOpenRocketCp", f.get("minMargin"));
+				}
+				eff.put("atMaxMach", f.get("atMaxMach"));
+			} else if (k < stages.size() - 1) {
+				eff.put("note", Analysis.stackName(whole, k) + " does not fly on its own in " + base.getName() + ".");
 			}
 			out.put("effect", eff);
 		}
-		out.put("notes", List.of(
-				"Drag replaces OpenRocket's axial CD in every simulation of this design (power-on while a motor burns) until the "
-						+ "first stage separation; afterwards OpenRocket's model applies (import one table per configuration you fly).",
-				"The table is kept for this session; re-import after reopening the design. check_requirements adds a stability "
-						+ "item with the imported CP (DTEG R10.3.1 for airframes with diameter changes)."));
+		List<String> notes = new ArrayList<>();
+		notes.add(k == stages.size() - 1
+				? "Drag replaces OpenRocket's axial CD in every simulation of this design (power-on while a motor burns) while the "
+						+ "whole vehicle flies; after a separation each stack uses its own table if it has one (import_aero_table "
+						+ "with stage), else OpenRocket's model."
+				: "Used from the separation of " + stages.get(k + 1).getName() + " until " + (k == 0 ? "apogee"
+						: stages.get(k).getName() + " separates") + ", in every simulation of this design (power-on while a motor "
+						+ "burns). The RASAero run must be of this stack alone: " + Analysis.stackName(whole, k) + ".");
+		notes.add("save_design keeps the tables next to the .ork. check_requirements adds a stability item with each imported CP "
+				+ "(DTEG R10.3.1 for airframes with diameter changes).");
+		out.put("notes", notes);
 		return out;
 	}
 

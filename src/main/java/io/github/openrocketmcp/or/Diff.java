@@ -172,8 +172,8 @@ public final class Diff {
 		out.put("b", labelB + " - " + db.name() + " (" + fb.getName() + ")");
 		out.put("conditions", sameConditions ? "both flown in the conditions of " + labelB + " (" + sb.getName() + ")"
 				: "each flown in its own simulation's conditions");
-		if (AeroTable.of(db.doc.getRocket()) != null) {
-			out.put("aeroTable", "both revisions fly with the imported aero table (" + AeroTable.of(db.doc.getRocket()).source()
+		if (AeroTable.any(db.doc.getRocket()) != null) {
+			out.put("aeroTable", "both revisions fly with the imported aero table (" + AeroTable.any(db.doc.getRocket()).source()
 					+ "); re-import it for a revision with a different airframe");
 		}
 		Map<String, List<Map<String, Object>>> groups = new LinkedHashMap<>();

@@ -384,22 +384,32 @@ public final class Requirements {
 	}
 
 	/** A recovery device opening before apogee (e.g. OpenRocket's default "motor ejection charge" with a short delay). */
-	/** Stability with an imported (e.g. RASAero) CP table and the simulated CG. */
+	/**
+	 * Stability with each imported (e.g. RASAero) CP table and the simulated CG: the whole vehicle until its first
+	 * separation, and each stack with its own table while it flies alone (the sustainer after the booster drops).
+	 */
 	static void importedCp(Report r, Simulation sim, Standards std, FlightConfiguration fc) {
-		AeroTable.Table t = AeroTable.of(sim.getRocket());
-		if (t == null || !t.hasCp()) {
-			return;
+		List<AxialStage> stages = new ArrayList<>(sim.getRocket().getStageList());
+		for (Map.Entry<AxialStage, AeroTable.Table> e : AeroTable.all(sim.getRocket()).entrySet()) {
+			AeroTable.Table t = e.getValue();
+			int k = stages.indexOf(e.getKey());
+			if (!t.hasCp() || k < 0 || !fc.isStageActive(k)) {
+				continue;
+			}
+			boolean whole = k == stages.size() - 1;
+			FlightConfiguration stack = whole ? fc : Analysis.stack(fc, k);
+			AeroTable.Margin m = AeroTable.minMargin(sim, t, Analysis.maxDiameter(stack), e.getKey());
+			if (m == null) {
+				continue;
+			}
+			double min = std.rule(Analysis.hasDiameterChange(stack) ? "stability.minCalibersWithDiameterChange" : "stability.minCalibers",
+					Dim.DIMENSIONLESS);
+			String what = whole ? "until apogee or staging" : "while " + Analysis.stackName(fc, k) + " flies alone";
+			r.add(Double.isNaN(min) ? Status.INFO : m.min() >= min ? Status.PASS : Status.FAIL,
+					"Ascent stability with imported CP (" + t.source() + ")" + (whole ? "" : ", " + Analysis.stackName(fc, k)),
+					Double.isNaN(min) ? "for information" : ">= " + Units.num(min) + " cal (imported CP vs simulated CG, " + what + ")",
+					Units.num(m.min()) + " cal at t=" + Units.num(m.time()) + " s (Mach " + Units.num(m.mach()) + ")", std.ruleRef("stability"));
 		}
-		AeroTable.Margin m = AeroTable.minMargin(sim, t, Analysis.maxDiameter(fc));
-		if (m == null) {
-			return;
-		}
-		double min = std.rule(Analysis.hasDiameterChange(fc) ? "stability.minCalibersWithDiameterChange" : "stability.minCalibers",
-				Dim.DIMENSIONLESS);
-		r.add(Double.isNaN(min) ? Status.INFO : m.min() >= min ? Status.PASS : Status.FAIL,
-				"Ascent stability with imported CP (" + t.source() + ")",
-				Double.isNaN(min) ? "for information" : ">= " + Units.num(min) + " cal (imported CP vs simulated CG, until apogee or staging)",
-				Units.num(m.min()) + " cal at t=" + Units.num(m.time()) + " s (Mach " + Units.num(m.mach()) + ")", std.ruleRef("stability"));
 	}
 
 	/** Fin flutter margin along the flight (team standard, not a competition rule). */

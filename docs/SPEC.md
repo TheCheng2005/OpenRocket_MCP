@@ -683,6 +683,21 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
 - *Metric* / *Imperial* in the header: every number in the view is shown in one system (series, tiles, part
   properties, rule checks, captions), converted in the page from the data's units; the choice is kept in the browser.
 
+### Aerodynamics per stage, with RASAero (v0.27.0)
+
+- `aero_analysis stage`: the configuration with only that stage and those above it active (`Analysis.stack`), so CP,
+  CNα, CD, the CG at launch and burnout and the reference diameter are the stack's own. `"all"` returns each stack.
+  The default Mach range ends at the first table point at or past the stack's top speed in the simulation.
+- In flight (`Aero.inFlight`): the main branch from the separation of the stage below the stack (rail exit for the
+  vehicle on the pad) to its own separation or apogee, above 100 ft/s: the fastest point with OpenRocket's in-flight
+  stability there, and the lowest margin. With an imported CP, the margin from that CP and the simulated CG too.
+- Per-stack tables (`AeroTable`): keyed by the stack's lowest stage. The drag listener picks the table of the stack
+  that is flying at each step (the whole vehicle's while every stage is on; a stack's once the configuration is
+  stages 0..n; none for a dropped booster). The sidecar file keeps the single-table format when only the whole
+  vehicle has one, else `openrocket-mcp aero tables 2` with each stack's stage name and id.
+- Checks: one imported-CP stability item per stack, over that stack's part of the flight; design_status flags a staged
+  rocket whose upper stage has no data of its own.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.
