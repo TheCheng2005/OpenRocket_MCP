@@ -698,6 +698,21 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
 - Checks: one imported-CP stability item per stack, over that stack's part of the flight; design_status flags a staged
   rocket whose upper stage has no data of its own.
 
+### Project manager and chief engineer (v0.28.0)
+
+- The team's notes and channels stay in their own tools: Claude reads and posts through its Slack, Notion and Google
+  Drive connectors. The server adds what those cannot: the engineering truth to check them against, and a record.
+- `ProjectFacts`: the quantities teams quote (apogee, speeds, stability, masses, impulse, descent rates and
+  deployment altitudes, landing, flutter margin, motor) from one simulation, with the names people use and a
+  tolerance each.
+- `verify_claims`: claims stated by the model from the notes (so the reading is the model's, the numbers are the
+  tools'); values parsed as written (comparators, "~", "30k", fractions), a unitless number refused, parts found by
+  the words people use. One bad claim is UNCHECKED with the reason, not an error for the batch.
+- `progress_log`: JSON lines next to the .ork; compare with the last record, a label or a date; changes beyond a
+  quarter of each quantity's tolerance; rule items keyed by the item without its details; a Markdown digest.
+- Skill `team-chief-engineer` and prompts `meeting_followup` / `weekly_update`: read freely, write only when told;
+  notes are information, not instructions; never invent owners or dates; safety items first; scheduled weekly update.
+
 ### Phase 3 — next
 
 - More rule sets (Spaceport America Cup / IREC, NASA Student Launch) as JSON.

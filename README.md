@@ -154,6 +154,8 @@ the video from there, and read every plot with one time cursor. Outside Claude D
 - Pressure vessel margins and probation level for liquid and hybrid programmes.
 - Use RASAero data where Launch Canada asks for it, one run per stage stack on a two-stage rocket. It is saved with
   your design.
+- Meeting notes and status updates checked against the design, and a record of progress from review to review (see
+  *Project manager and chief engineer* below).
 
 **Launch day**
 - "What will the winds be at our site on Saturday at 10 am?" — give the launch site's GPS coordinates and Claude pulls
@@ -165,6 +167,23 @@ the video from there, and read every plot with one time cursor. Outside Claude D
 
 **After you fly**
 - Load your altimeter file: Claude compares it with the prediction and tunes the model for next time.
+
+**Project manager and chief engineer**
+
+Connect Claude to your team's Slack and Notion (or Google Drive) as well as this server, and it can follow the project,
+not just the rocket:
+- "Go through Tuesday's meeting notes" — Claude reads the page, lists the decisions, the action items (who, by when) and
+  the open questions, and checks every number and choice in it against the design: "the notes say ~30k ft, the design
+  flies to 31.7k ft"; "Slack says the fins are aluminium, the design still has balsa". New decisions are checked with
+  the right analysis (flutter, stability, the rule check) before Claude offers to change the design.
+- "What changed this week?" — a dated record of the design (headline numbers, rule failures, what is still to set up)
+  kept next to your .ork. Each update says what improved, what got worse, what was fixed and what is new, since last
+  week or since a milestone ("since PDR"), as a short post ready for your channel or Notion page.
+- A weekly update on a schedule: a Claude scheduled task reads the channels and the notes, records the progress and
+  drafts the update, every Monday morning. Claude drafts; it posts or edits only when you say so (or when your team
+  agreed the scheduled update may post on its own).
+
+See [docs/TEAM.md](docs/TEAM.md) for the set-up.
 
 **Your team's history**
 - Point Claude at the folder of past rockets and flight logs, and ask "our 4 in rockets on M motors", "which past

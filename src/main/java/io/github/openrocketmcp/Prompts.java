@@ -122,6 +122,38 @@ final class Prompts {
 						""".formatted(args.getOrDefault("design", "").isBlank() ? ""
 						: "Open our design " + args.get("design") + " first.")));
 
+		s.prompt(new Prompt("meeting_followup", "Check a meeting's notes against the design and draft the follow-up.",
+				List.of(new PromptArg("notes", "Where the notes are (a Notion page, a Slack thread, a Drive doc) or the notes themselves.", true),
+						new PromptArg("design", "Path to the team's .ork file (or an open designId).", true)),
+				args -> """
+						Follow up our meeting. Notes: %s. Design: %s.
+						1. Read the notes (through the Notion, Slack or Drive connector if they are a link). List the decisions,
+						   the action items (task, owner, due date) and the open questions, and every number or design choice quoted.
+						2. open_design (unless open), then verify_claims with every number and choice, each with its source.
+						3. For each mismatch, say which side is likely out of date. For new decisions, check them with the right tool
+						   (fin_flutter, compare_materials, rank_motors, parachute_sizes, check_requirements) and propose the edit;
+						   do not change the design until I say so.
+						4. Draft the follow-up: decisions, action items with owners and dates, mismatches to resolve, risks (rule
+						   failures first). Do not post it anywhere until I say so; never invent owners or dates.
+						""".formatted(args.get("notes"), args.get("design"))));
+
+		s.prompt(new Prompt("weekly_update", "Weekly engineering update: what changed, what is open, what is next.",
+				List.of(new PromptArg("design", "Path to the team's .ork file (or an open designId).", true),
+						new PromptArg("sources", "Channels / pages to read, e.g. \"#avionics, #structures and the Meeting notes database\".", false),
+						new PromptArg("since", "Compare with: \"last\" (default), a milestone label such as \"PDR\", or a date.", false)),
+				args -> """
+						Prepare this week's engineering update for %s.
+						1. progress_log (mode record, note "weekly update"%s) and use its digest.
+						2. %s
+						3. Add action items done since the last update, overdue and due next, from our tracker; open risks (rule
+						   failures first, then mismatches between notes and design, then schedule).
+						4. Write the update short enough to read in a channel. Show it to me before posting it anywhere.
+						""".formatted(args.get("design"),
+						args.getOrDefault("since", "").isBlank() ? "" : ", since \"" + args.get("since") + "\"",
+						args.getOrDefault("sources", "").isBlank()
+								? "Read the team's channels and meeting notes from the last week through the connectors you have, and run verify_claims on the numbers they quote."
+								: "Read " + args.get("sources") + " from the last week, and run verify_claims on the numbers they quote.")));
+
 		s.prompt(new Prompt("recovery_review", "Walk through the full recovery chain for a design and write it up.",
 				List.of(new PromptArg("design", "Path to the .ork file (or an open designId).", true),
 						new PromptArg("pinType", "Shear pin type from the team standards, e.g. \"4-40 nylon\".", false)),

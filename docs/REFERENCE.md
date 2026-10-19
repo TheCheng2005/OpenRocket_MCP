@@ -6,7 +6,7 @@ plain-language overview.
 
 ## Tools
 
-The 82 tools, grouped by what a team is doing (one of them, `workbench_data`, serves the interactive view and is hidden
+The 84 tools, grouped by what a team is doing (one of them, `workbench_data`, serves the interactive view and is hidden
 from the model by hosts that show views). Bold marks the main job of each tool.
 
 ### Session
@@ -420,6 +420,30 @@ from the model by hosts that show views). Bold marks the main job of each tool.
   - It can write a Markdown summary, and warns when an edit is hidden by a mass override.
 - `list_files`: designs, motor files, tables and reports in the workspace.
 
+### Project and team
+
+The project side of a chief engineer's job. Reading notes and posting updates go through the client's own connectors
+(Slack, Notion, Google Drive); these tools supply the engineering. See [TEAM.md](TEAM.md).
+
+- `verify_claims`: **what the notes say, checked against the design.** The model reads the meeting notes, messages or
+  documents and states each number or choice as a claim; the tool compares it with the design and its simulation.
+  - **Quantities**, under the names people use: apogee, time to apogee, max speed, Mach, max acceleration, rail exit,
+    minimum and maximum ascent stability, static margin, liftoff and burnout (dry) mass, thrust-to-weight, total
+    impulse, burn time, length, diameter, CG, CP, drogue and main descent rates and deployment altitudes, landing
+    distance, fin flutter margin and the motor. **Parts**: any component's property (`component` + `property`), with
+    "fins", "nose cone", "main", "drogue" or "motor mount" understood when the design has one such part.
+  - **Values as written**: "~30k ft", ">= 2 cal", "at least 100 ft/s", "under 25 lb", "Mach 1.3", "1/8 in". A number
+    without a unit is not guessed (notes mix feet and metres). Default tolerances per quantity (3% apogee, 0.1 cal
+    stability, 2% mass...; wider for "~"), or `tolerance` per claim.
+  - Each claim returns MATCH, MISMATCH (the design's value and the difference) or UNCHECKED (why), with its `source`.
+- `progress_log`: **the design's record over time.** `record` (default) keeps a dated snapshot next to the design file
+  (`NAME.progress.jsonl`; designs not saved yet: the workspace's `progress/` folder): the headline numbers, every
+  rule-check failure and warning and every set-up item still open. It compares with the last record, a `label`
+  (milestones such as "PDR") or a date (`since`): numbers that moved beyond a quarter of their tolerance, the motor,
+  problems fixed, new and worse. `digest` is the update as Markdown for a channel or a Notion page (`path` also writes
+  it to a file). `preview` compares without recording; `history` lists the records. Unsaved-edit notices are left
+  out (session state, not progress), and a rule item keeps its identity when its details change (a fin material).
+
 ### Reports
 
 - `generate_report`: a Markdown design review. It has the rule checks, stability by stage, a wind-sensitivity flight-card
@@ -691,11 +715,13 @@ macOS arm64 / x64, and attaches the bundles to GitHub releases for `v*` tags.
 
 ## Claude integration
 
-- MCP prompts: `what_can_you_do` (a tour fitted to the team's design), `recovery_review`, `design_review`,
+- MCP prompts: `what_can_you_do` (a tour fitted to the team's design), `meeting_followup` (notes checked against the
+  design, follow-up drafted), `weekly_update` (progress record and update), `recovery_review`, `design_review`,
   `motor_selection`; resources: `openrocket://standards`,
   `openrocket://rules`, `openrocket://methods`.
-- Claude Code skill: `.claude/skills/rocket-design-review` (the review workflow); the same skill for Codex and other
-  agents in `.agents/skills/rocket-design-review` (kept identical by `SkillsTest`).
+- Claude Code skills: `.claude/skills/rocket-design-review` (the review workflow) and
+  `.claude/skills/team-chief-engineer` (project manager and chief engineer: notes, action items, weekly update); the
+  same skills for Codex and other agents in `.agents/skills/` (kept identical by `SkillsTest`).
 - Codex: stdio (`command`) or the team server (`url` + `bearer_token_env_var`) in `~/.codex/config.toml`; raise
   `tool_timeout_sec` (default 60 s) for dispersion and motor ranking. Codex offers the tools to its model under the
   `mcp__openrocket` namespace with the schemas unchanged. `scripts/test_codex.py` runs the real Codex CLI against the
