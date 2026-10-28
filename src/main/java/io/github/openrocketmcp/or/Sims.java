@@ -459,14 +459,18 @@ public final class Sims {
 		return row;
 	}
 
-	/** Ascent stability window (rail exit to apogee, airspeed > 100 ft/s); null without those events. */
+	/**
+	 * Ascent stability window (rail exit to apogee, airspeed > 100 ft/s); null without those events, or when the rocket never
+	 * flies that fast.
+	 */
 	public static Window ascentStability(FlightDataBranch b) {
 		double rail = eventTime(b, FlightEvent.Type.LAUNCHROD);
 		double apogee = eventTime(b, FlightEvent.Type.APOGEE);
 		if (Double.isNaN(rail) || Double.isNaN(apogee)) {
 			return null;
 		}
-		return extremes(b, FlightDataType.TYPE_STABILITY, rail, apogee, 30.48);
+		Window w = extremes(b, FlightDataType.TYPE_STABILITY, rail, apogee, 30.48);
+		return Double.isNaN(w.min()) ? null : w;
 	}
 
 	/** Compact flight summary for the model: key numbers per branch (stage). */
