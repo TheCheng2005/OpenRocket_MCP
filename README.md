@@ -13,7 +13,8 @@ Claude: A 36 in chute lands the 2.84 lb section at 19.9 ft/s. The drogue opens a
 ```
 
 **Contents:** [See it in action](#see-it-in-action) · [What you can ask](#what-you-can-ask) ·
-[Getting started](#getting-started) · [Make it your team's](#make-it-your-teams) · [Good to know](#good-to-know)
+[Getting started](#getting-started) · [Make it your team's](#make-it-your-teams) ·
+[RocketMaxxing, the desktop app](#rocketmaxxing-the-desktop-app) · [Good to know](#good-to-know)
 
 ## See it in action
 
@@ -267,6 +268,15 @@ Then just ask — for example: *"Open the two-stage example and check it against
 Copy [`openrocket-mcp.example.json`](openrocket-mcp.example.json) to `openrocket-mcp.json` and commit it, so everyone
 on the team gets the same answers. It holds your units, launch site altitude, safety factors, shear pin ratings and fin
 materials. You can also just tell Claude ("our pins are 2-56 nylon, 35 lbf each") and it will update the file.
+
+## RocketMaxxing, the desktop app
+
+No internet or AI subscription on the field? **RocketMaxxing** is a desktop app on the same engine: OpenRocket's
+design, motor and simulation tabs with a cleaner layout, bigger icons, a live 3-D view and live flight numbers.
+It reads and writes the same `.ork` files. `./gradlew rocketmaxxing`, then `build/install/openrocket-mcp/bin/rocketmaxxing`.
+See [docs/ROCKETMAXXING.md](docs/ROCKETMAXXING.md).
+
+![RocketMaxxing](docs/rocketmaxxing/design.png)
 
 ## Good to know
 

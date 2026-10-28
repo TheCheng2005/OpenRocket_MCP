@@ -658,7 +658,7 @@ public final class Sims {
 		return t;
 	}
 
-	private static Dim dimOf(UnitGroup g) {
+	public static Dim dimOf(UnitGroup g) {
 		if (g == UnitGroup.UNITS_DISTANCE) {
 			return Dim.DISTANCE;
 		}

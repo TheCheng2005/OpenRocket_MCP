@@ -1,10 +1,13 @@
-# Desktop app plan
+# Desktop app plan: RocketMaxxing
 
 A desktop application for competition rocket teams that works offline and needs no AI subscription. It covers what
 OpenRocket does and adds the engineering this server already does: rule checks, recovery, structures, avionics,
 dispersion, flight data and design history, behind a modern interface.
 
-Status: planning. Nothing here is built yet. Decisions still open are marked **Decide**.
+Status: the first version is built. It redoes OpenRocket's three main tabs (design, motors and configuration,
+simulations) on the engine; see [ROCKETMAXXING.md](ROCKETMAXXING.md). Decided so far: the name is **RocketMaxxing**,
+the front-end is **Svelte with three.js**, and the AI assistant comes later. The new engineering screens are next.
+Decisions still open are marked **Decide**.
 
 ## Why, and why not a rewrite
 
@@ -149,8 +152,8 @@ The durations assume 3 to 4 students at about 8 hours a week each. Each phase en
 
 ### Phase 0: groundwork (about 2 weeks)
 - Split the build into `engine`, `server` and `app`; tests and benchmark unchanged.
-- **Decide** the front-end stack. Recommendation: Svelte and TypeScript with Vite, and three.js for 3-D (the current
-  view already uses WebGL), with the built front-end shipped inside the jar.
+- Front-end stack (decided): Svelte and TypeScript with Vite, and three.js for 3-D (the current
+  view already uses WebGL), with the built front-end shipped in the installation's `ui` folder.
 - A "hello rocket" app: the installer starts the engine, opens a window, loads Maple and shows the 3-D model.
 - CI builds the installers for Windows, macOS and Linux.
 

@@ -22,7 +22,9 @@ public final class OrRuntime {
 		if (initialized) {
 			return;
 		}
-		System.setProperty("java.awt.headless", "true");
+		if (System.getProperty("java.awt.headless") == null) {
+			System.setProperty("java.awt.headless", "true"); // a server; the desktop app sets false for its file dialogs
+		}
 		// OpenRocket's core module binds the preset database but not the ComponentPresetDao interface that the .ork
 		// loader asks for (the desktop app binds it in its GUI module). Without it, designs that use catalogue parts
 		// (e.g. the "Deployable payload" example) fail to open.

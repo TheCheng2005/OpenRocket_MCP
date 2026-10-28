@@ -97,3 +97,56 @@ tasks.register('mcpb', Zip) {
         filesMatching(['bin/**', 'lib/jspawnhelper', 'lib/jexec']) { mode = 0755 }
     }
 }
+
+// ------------------------------------------------------------------------------------------------------------------
+// RocketMaxxing, the desktop app: the same engine with its own interface (app/, Svelte + three.js; needs Node.js).
+//   ./gradlew rocketmaxxing   ->   build/install/openrocket-mcp/bin/rocketmaxxing
+def appUiDir = layout.buildDirectory.dir('rocketmaxxing-ui')
+def npm = hostOs.isWindows() ? 'npm.cmd' : 'npm'
+
+tasks.register('rocketmaxxingNpmCi', Exec) {
+    workingDir 'app'
+    inputs.files('app/package.json', 'app/package-lock.json')
+    outputs.dir('app/node_modules')
+    commandLine npm, 'ci', '--no-audit', '--no-fund'
+}
+
+tasks.register('rocketmaxxingUi', Exec) {
+    group = 'build'
+    description = 'Builds the RocketMaxxing interface into build/rocketmaxxing-ui.'
+    dependsOn 'rocketmaxxingNpmCi'
+    workingDir 'app'
+    inputs.dir('app/src')
+    inputs.files('app/index.html', 'app/vite.config.ts', 'app/package-lock.json')
+    inputs.dir('app/public')
+    outputs.dir(appUiDir)
+    environment 'ROCKETMAXXING_OUT', appUiDir.get().asFile.path
+    commandLine npm, 'run', 'build'
+}
+
+def rocketmaxxingScripts = tasks.register('rocketmaxxingScripts', CreateStartScripts) {
+    mainClass = 'io.github.openrocketmcp.app.App'
+    applicationName = 'rocketmaxxing'
+    outputDir = layout.buildDirectory.dir('rocketmaxxing-scripts').get().asFile
+    classpath = tasks.named('jar').get().outputs.files + configurations.runtimeClasspath
+    defaultJvmOpts = ['-Xss4m']
+}
+
+distributions {
+    main {
+        contents {
+            from(rocketmaxxingScripts) { into 'bin' }
+            from(appUiDir) { into 'ui' }
+        }
+    }
+}
+
+tasks.named('installDist') { mustRunAfter 'rocketmaxxingUi' }
+tasks.named('distZip') { mustRunAfter 'rocketmaxxingUi' }
+tasks.named('distTar') { mustRunAfter 'rocketmaxxingUi' }
+
+tasks.register('rocketmaxxing') {
+    group = 'distribution'
+    description = 'Builds the RocketMaxxing desktop app: build/install/openrocket-mcp/bin/rocketmaxxing'
+    dependsOn 'rocketmaxxingUi', 'installDist'
+}

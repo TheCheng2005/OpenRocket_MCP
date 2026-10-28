@@ -230,6 +230,12 @@ public final class Units {
 		};
 	}
 
+	/** {factor, offset} of a unit symbol (SI = value * factor + offset), or null for an unknown unit. */
+	public static double[] scale(String unit) {
+		Unit u = lookup(unit);
+		return u == null ? null : new double[] { u.factor(), u.offset() };
+	}
+
 	/** Converts an SI value into the given unit symbol. */
 	public static double fromSi(double si, String unit) {
 		Unit u = lookup(unit);

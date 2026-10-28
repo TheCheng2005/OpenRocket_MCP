@@ -1,0 +1,221 @@
+package io.github.openrocketmcp.app;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import io.github.openrocketmcp.Main;
+import io.github.openrocketmcp.mcp.McpServer;
+import io.github.openrocketmcp.or.Designs;
+import io.github.openrocketmcp.standards.Standards;
+import io.github.openrocketmcp.tools.Context;
+
+/** The desktop app's own tools, and its local server. */
+class AppToolsTest {
+	final Context ctx = new Context(Standards.defaults());
+	final McpServer server = Main.build(ctx, s -> AppTools.register(s, ctx), false);
+	int id;
+
+	JsonObject call(String tool, String args, boolean error) {
+		String line = "{\"jsonrpc\":\"2.0\",\"id\":" + (++id) + ",\"method\":\"tools/call\",\"params\":{\"name\":\"" + tool
+				+ "\",\"arguments\":" + args + "}}";
+		JsonObject r = server.handleLine(line).getAsJsonObject("result");
+		String text = r.getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString();
+		assertEquals(error, r.get("isError").getAsBoolean(), tool + " " + args + ": " + text);
+		if (error) {
+			JsonObject o = new JsonObject();
+			o.addProperty("text", text);
+			return o;
+		}
+		return JsonParser.parseString(text).getAsJsonObject();
+	}
+
+	JsonObject call(String tool, String args) {
+		return call(tool, args, false);
+	}
+
+	static void ids(JsonObject node, List<String> out) {
+		out.add(node.get("id").getAsString());
+		for (JsonElement c : node.getAsJsonArray("children")) {
+			ids(c.getAsJsonObject(), out);
+		}
+	}
+
+	@Test
+	void everyEditorOpensOnEveryExample() {
+		for (String ex : Designs.EXAMPLES) {
+			String d = call("open_design", "{\"example\":\"" + ex + "\"}").get("designId").getAsString();
+			JsonObject design = call("app_design", "{\"designId\":\"" + d + "\"}");
+			List<String> ids = new ArrayList<>();
+			ids(design.getAsJsonObject("tree"), ids);
+			assertTrue(ids.size() > 3, ex);
+			for (String c : ids) {
+				JsonObject e = call("app_component", "{\"designId\":\"" + d + "\",\"component\":\"" + c + "\"}");
+				assertTrue(e.getAsJsonArray("sections").size() > 0, ex + " " + c);
+			}
+			JsonObject model = call("app_model", "{\"designId\":\"" + d + "\"}");
+			assertTrue(model.getAsJsonArray("parts").size() > 0, ex);
+		}
+	}
+
+	@Test
+	void editsGoThroughTheEngineAndUndo() {
+		String d = call("open_design", "{\"path\":\"docs/examples/maple-10k.ork\"}").get("designId").getAsString();
+		JsonObject design = call("app_design", "{\"designId\":\"" + d + "\"}");
+		String fins = find(design.getAsJsonObject("tree"), "TrapezoidFinSet");
+		double before = field(d, fins, "thickness");
+		call("app_edit", "{\"designId\":\"" + d + "\",\"component\":\"" + fins + "\",\"key\":\"thickness\",\"value\":\"4 mm\"}");
+		assertEquals(0.004, field(d, fins, "thickness"), 1e-9);
+		JsonObject after = call("app_design", "{\"designId\":\"" + d + "\"}");
+		assertEquals(1, after.get("canUndo").getAsInt());
+		assertFalse(after.get("saved").getAsBoolean());
+		call("undo", "{\"designId\":\"" + d + "\"}");
+		assertEquals(before, field(d, fins, "thickness"), 1e-12);
+		// Only the editor's fields can be set, and bad values are refused with a reason.
+		call("app_edit", "{\"designId\":\"" + d + "\",\"component\":\"" + fins + "\",\"key\":\"ID\",\"value\":\"x\"}", true);
+		call("app_edit", "{\"designId\":\"" + d + "\",\"component\":\"" + fins + "\",\"key\":\"thickness\",\"value\":-1}", true);
+		// Move, duplicate.
+		String parent = parentOf(design.getAsJsonObject("tree"), fins, null);
+		call("app_duplicate", "{\"designId\":\"" + d + "\",\"component\":\"" + fins + "\"}");
+		JsonObject dup = call("app_design", "{\"designId\":\"" + d + "\"}");
+		assertEquals(count(dup.getAsJsonObject("tree"), "TrapezoidFinSet"), 2);
+		call("app_move", "{\"designId\":\"" + d + "\",\"component\":\"" + fins + "\",\"by\":-1}");
+		call("undo", "{\"designId\":\"" + d + "\",\"steps\":2}");
+		assertEquals(1, count(call("app_design", "{\"designId\":\"" + d + "\"}").getAsJsonObject("tree"), "TrapezoidFinSet"));
+		assertTrue(parent != null);
+	}
+
+	@Test
+	void motorsSimulationsAndFlightData() {
+		String d = call("open_design", "{\"path\":\"docs/examples/maple-10k.ork\"}").get("designId").getAsString();
+		JsonObject quick = call("app_quick_flight", "{\"designId\":\"" + d + "\"}");
+		assertTrue(quick.get("apogee").getAsDouble() > 1000, quick.toString());
+		JsonObject cfg = call("app_configs", "{\"designId\":\"" + d + "\"}");
+		JsonObject mount = cfg.getAsJsonArray("mounts").get(0).getAsJsonObject();
+		String sel = cfg.get("selected").getAsString();
+		assertTrue(mount.getAsJsonObject("motors").getAsJsonObject(sel).has("designation"), cfg.toString());
+		assertTrue(cfg.getAsJsonArray("recovery").size() >= 2);
+		JsonObject sims = call("app_sims", "{\"designId\":\"" + d + "\"}");
+		int n = sims.getAsJsonArray("simulations").size();
+		int idx = call("app_sim_new", "{\"designId\":\"" + d + "\"}").get("index").getAsInt();
+		assertEquals(n, idx);
+		call("app_sim_edit", "{\"designId\":\"" + d + "\",\"simulation\":" + idx + ",\"key\":\"windSpeed\",\"value\":\"10 mph\"}");
+		call("app_sim_edit", "{\"designId\":\"" + d + "\",\"simulation\":" + idx + ",\"key\":\"rodLength\",\"value\":-2}", true);
+		JsonObject run = call("app_sim_run", "{\"designId\":\"" + d + "\",\"simulation\":" + idx + "}");
+		JsonObject res = run.getAsJsonArray("runs").get(0).getAsJsonObject().getAsJsonObject("results");
+		assertTrue(res.get("apogee").getAsDouble() > 1000, run.toString());
+		JsonObject s = call("app_series", "{\"designId\":\"" + d + "\",\"simulation\":" + idx + "}");
+		assertTrue(s.getAsJsonArray("variables").size() > 20);
+		assertTrue(s.getAsJsonArray("events").size() > 3);
+		JsonObject listed = call("app_sims", "{\"designId\":\"" + d + "\"}").getAsJsonArray("simulations").get(idx).getAsJsonObject();
+		assertEquals(4.4704, listed.getAsJsonObject("options").get("windSpeed").getAsDouble(), 1e-6);
+		call("app_sim_delete", "{\"designId\":\"" + d + "\",\"simulation\":" + idx + "}");
+		assertEquals(n, call("app_sims", "{\"designId\":\"" + d + "\"}").getAsJsonArray("simulations").size());
+		JsonObject session = call("app_session", "{}");
+		assertTrue(session.getAsJsonObject("materials").getAsJsonArray("BULK").size() > 10);
+		assertTrue(session.getAsJsonObject("dims").has("LENGTH"));
+	}
+
+	@Test
+	void appToolsAreNotInTheMcpServer() {
+		McpServer plain = Main.build(new Context(Standards.defaults()));
+		String list = plain.handleLine("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}").toString();
+		assertFalse(list.contains("app_design"));
+	}
+
+	@Test
+	void localServerNeedsTheToken(@TempDir Path ui) throws Exception {
+		Files.writeString(ui.resolve("index.html"), "<!doctype html><title>t</title>");
+		AppServer app = new AppServer(server, ui, List.of());
+		var bound = app.start(0);
+		try {
+			HttpClient http = HttpClient.newHttpClient();
+			String base = "http://127.0.0.1:" + bound.getPort();
+			String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"app_session\",\"arguments\":{}}}";
+			HttpResponse<String> page = http.send(HttpRequest.newBuilder(URI.create(base + "/")).build(), HttpResponse.BodyHandlers.ofString());
+			assertEquals(200, page.statusCode());
+			assertTrue(page.body().contains("<title>"));
+			HttpResponse<String> noToken = http.send(HttpRequest.newBuilder(URI.create(base + "/rpc"))
+					.POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+			assertEquals(401, noToken.statusCode());
+			HttpResponse<String> foreign = http.send(HttpRequest.newBuilder(URI.create(base + "/rpc"))
+					.header("Authorization", "Bearer " + app.token()).header("Origin", "https://evil.example")
+					.POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+			assertEquals(403, foreign.statusCode());
+			HttpResponse<String> ok = http.send(HttpRequest.newBuilder(URI.create(base + "/rpc"))
+					.header("Authorization", "Bearer " + app.token()).header("Origin", base)
+					.POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+			assertEquals(200, ok.statusCode());
+			assertTrue(ok.body().contains("examples"));
+			HttpResponse<String> escape = http.send(HttpRequest.newBuilder(URI.create(base + "/../build.gradle")).build(),
+					HttpResponse.BodyHandlers.ofString());
+			assertNotEquals(200, escape.statusCode());
+			assertTrue(app.lastSeen() > 0);
+		} finally {
+			app.stop();
+		}
+	}
+
+	double field(String d, String comp, String key) {
+		JsonObject e = call("app_component", "{\"designId\":\"" + d + "\",\"component\":\"" + comp + "\"}");
+		for (JsonElement s : e.getAsJsonArray("sections")) {
+			for (JsonElement f : s.getAsJsonObject().getAsJsonArray("fields")) {
+				if (f.getAsJsonObject().get("key").getAsString().equals(key)) {
+					return f.getAsJsonObject().get("value").getAsDouble();
+				}
+			}
+		}
+		throw new AssertionError("no field " + key);
+	}
+
+	static String find(JsonObject node, String type) {
+		if (node.get("type").getAsString().equals(type)) {
+			return node.get("id").getAsString();
+		}
+		for (JsonElement c : node.getAsJsonArray("children")) {
+			String f = find(c.getAsJsonObject(), type);
+			if (f != null) {
+				return f;
+			}
+		}
+		return null;
+	}
+
+	static int count(JsonObject node, String type) {
+		int n = node.get("type").getAsString().equals(type) ? 1 : 0;
+		for (JsonElement c : node.getAsJsonArray("children")) {
+			n += count(c.getAsJsonObject(), type);
+		}
+		return n;
+	}
+
+	static String parentOf(JsonObject node, String id, String parent) {
+		if (node.get("id").getAsString().equals(id)) {
+			return parent;
+		}
+		for (JsonElement c : node.getAsJsonArray("children")) {
+			String p = parentOf(c.getAsJsonObject(), id, node.get("id").getAsString());
+			if (p != null) {
+				return p;
+			}
+		}
+		return null;
+	}
+}

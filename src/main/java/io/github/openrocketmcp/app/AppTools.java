@@ -1,0 +1,846 @@
+package io.github.openrocketmcp.app;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.google.gson.JsonObject;
+
+import info.openrocket.core.database.Databases;
+import info.openrocket.core.document.Simulation;
+import info.openrocket.core.material.Material;
+import info.openrocket.core.motor.Motor;
+import info.openrocket.core.motor.MotorConfiguration;
+import info.openrocket.core.motor.ThrustCurveMotor;
+import info.openrocket.core.rocketcomponent.AxialStage;
+import info.openrocket.core.rocketcomponent.DeploymentConfiguration;
+import info.openrocket.core.rocketcomponent.FlightConfigurableComponent;
+import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import info.openrocket.core.rocketcomponent.FlightConfigurationId;
+import info.openrocket.core.rocketcomponent.MotorMount;
+import info.openrocket.core.rocketcomponent.RecoveryDevice;
+import info.openrocket.core.rocketcomponent.Rocket;
+import info.openrocket.core.rocketcomponent.RocketComponent;
+import info.openrocket.core.rocketcomponent.StageSeparationConfiguration;
+import info.openrocket.core.simulation.FlightData;
+import info.openrocket.core.simulation.FlightDataBranch;
+import info.openrocket.core.simulation.FlightDataType;
+import info.openrocket.core.simulation.FlightEvent;
+import info.openrocket.core.simulation.SimulationOptions;
+import io.github.openrocketmcp.Main;
+import io.github.openrocketmcp.mcp.Args;
+import io.github.openrocketmcp.mcp.McpServer;
+import io.github.openrocketmcp.mcp.Schema;
+import io.github.openrocketmcp.mcp.ToolDef;
+import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.or.Analysis;
+import io.github.openrocketmcp.or.Branch;
+import io.github.openrocketmcp.or.Components;
+import io.github.openrocketmcp.or.Designs;
+import io.github.openrocketmcp.or.Motors;
+import io.github.openrocketmcp.or.OrRuntime;
+import io.github.openrocketmcp.or.Sims;
+import io.github.openrocketmcp.or.Winds;
+import io.github.openrocketmcp.report.Workbench;
+import io.github.openrocketmcp.tools.Context;
+import io.github.openrocketmcp.units.Dim;
+import io.github.openrocketmcp.units.UnitSystem;
+import io.github.openrocketmcp.units.Units;
+
+/**
+ * Tools only the desktop app registers. Reads return plain numbers in SI (the app formats them in the team's units);
+ * edits go through the same property code as the chat tools and get undo like them. The app also calls the ordinary
+ * tools (open_design, add_component, set_motor, undo, save_design...) directly.
+ */
+public final class AppTools {
+	private AppTools() {
+	}
+
+	static final String DESIGN = "Design id.";
+
+	/** Units the app offers for each quantity, the team's usual one first. */
+	static final Map<Dim, String[]> CHOICES = new LinkedHashMap<>();
+
+	static {
+		CHOICES.put(Dim.LENGTH, new String[] { "mm", "cm", "m", "in", "ft" });
+		CHOICES.put(Dim.DISTANCE, new String[] { "m", "km", "ft", "mi" });
+		CHOICES.put(Dim.VELOCITY, new String[] { "m/s", "km/h", "ft/s", "mph" });
+		CHOICES.put(Dim.ACCELERATION, new String[] { "m/s2", "ft/s2", "G" });
+		CHOICES.put(Dim.MASS, new String[] { "g", "kg", "oz", "lb" });
+		CHOICES.put(Dim.FORCE, new String[] { "N", "lbf", "kgf" });
+		CHOICES.put(Dim.AREA, new String[] { "cm2", "m2", "in2", "ft2" });
+		CHOICES.put(Dim.VOLUME, new String[] { "cm3", "L", "in3" });
+		CHOICES.put(Dim.PRESSURE, new String[] { "kPa", "bar", "psi" });
+		CHOICES.put(Dim.DENSITY, new String[] { "kg/m3", "g/cm3", "lb/ft3" });
+		CHOICES.put(Dim.TIME, new String[] { "s", "ms", "min" });
+		CHOICES.put(Dim.ANGLE, new String[] { "deg", "rad" });
+		CHOICES.put(Dim.IMPULSE, new String[] { "Ns", "lbf-s" });
+		CHOICES.put(Dim.TEMPERATURE, new String[] { "C", "F", "K" });
+	}
+
+	/** Registers a tool whose result has no NaN or infinity: JSON has neither, and the page could not read it. */
+	static void add(McpServer s, ToolDef t) {
+		s.tool(t.withHandler(args -> clean(t.handler().call(args))));
+	}
+
+	public static void register(McpServer s, Context ctx) {
+		add(s, new ToolDef("app_session", "App: session", "Examples, open designs, units and materials for the desktop app.",
+				Schema.object().build(), true, a -> session(ctx)));
+		add(s, new ToolDef("app_design", "App: design", "The component tree, configurations and stability of a design.",
+				Schema.object().str("designId", DESIGN, true).build(), true, a -> design(ctx, a)));
+		add(s, new ToolDef("app_component", "App: component editor", "One component's editor with its current values.",
+				Schema.object().str("designId", DESIGN, true).str("component", "Component id.", true).build(), true,
+				a -> component(ctx, a)));
+		add(s, new ToolDef("app_edit", "App: edit a field", "Set one field of a component's editor.",
+				Schema.object().str("designId", DESIGN, true).str("component", "Component id.", true)
+						.str("key", "Field key.", true).prop("value", new JsonObject(), true).build(),
+				false, a -> edit(ctx, a)));
+		add(s, new ToolDef("app_move", "App: move a component", "Move a component up or down among its siblings.",
+				Schema.object().str("designId", DESIGN, true).str("component", "Component id.", true)
+						.integer("by", "-1 up, +1 down.", true).build(),
+				false, a -> move(ctx, a)));
+		add(s, new ToolDef("app_duplicate", "App: duplicate a component", "Copy a component (with its parts) right after it.",
+				Schema.object().str("designId", DESIGN, true).str("component", "Component id.", true).build(), false,
+				a -> duplicate(ctx, a)));
+		add(s, new ToolDef("app_select_configuration", "App: select configuration", "Make a flight configuration the active one.",
+				Schema.object().str("designId", DESIGN, true).str("configuration", "Configuration id.", true).build(), false,
+				a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId"));
+					Rocket r = d.doc.getRocket();
+					r.setSelectedConfiguration(Components.config(r, a.str("configuration")).getId());
+					return Map.of("selected", r.getSelectedConfiguration().getId().toString());
+				}));
+		add(s, new ToolDef("app_model", "App: 3-D model", "Meshes of every part of the active configuration, with CG and CP.",
+				Schema.object().str("designId", DESIGN, true).build(), true, a -> model(ctx, a)));
+		add(s, new ToolDef("app_quick_flight", "App: quick flight", "Flight summary of the active configuration (not saved).",
+				Schema.object().str("designId", DESIGN, true).build(), true, a -> quickFlight(ctx, a)));
+		add(s, new ToolDef("app_configs", "App: motors and configuration",
+				"Flight configurations with each mount's motor, each recovery device's deployment and each stage's separation.",
+				Schema.object().str("designId", DESIGN, true).build(), true, a -> configs(ctx, a)));
+		add(s, new ToolDef("app_motor_delay", "App: motor delay and ignition",
+				"Set a mount's ejection delay or ignition for one configuration.",
+				Schema.object().str("designId", DESIGN, true).str("mount", "Mount id.", true).str("configuration", "Configuration id.", true)
+						.num("ejectionDelay", "Ejection delay, s.", false).bool("plugged", "No ejection charge.", false)
+						.str("ignitionEvent", "AUTOMATIC, LAUNCH, EJECTION_CHARGE, BURNOUT or NEVER.", false)
+						.num("ignitionDelay", "Ignition delay, s.", false).bool("remove", "Remove the motor.", false).build(),
+				false, a -> motorDelay(ctx, a)));
+		add(s, new ToolDef("app_config", "App: copy or remove a configuration",
+				"Copy a flight configuration (motors, deployment, separation) or remove it.",
+				Schema.object().str("designId", DESIGN, true).enumStr("action", "copy or remove.", true, "copy", "remove")
+						.str("configuration", "Configuration id.", true).build(),
+				false, a -> config(ctx, a)));
+		add(s, new ToolDef("app_motors", "App: motor database", "Motors from the database, in SI, for the motor picker.",
+				Schema.object().str("designId", DESIGN, false).str("mount", "Only motors that fit this mount.", false)
+						.str("text", "Designation or manufacturer contains.", false).str("minClass", "Lowest class letter.", false)
+						.str("maxClass", "Highest class letter.", false).bool("availableOnly", "Only motors in production.", false)
+						.integer("limit", "Maximum motors (default 300).", false).build(),
+				true, a -> motors(ctx, a)));
+		add(s, new ToolDef("app_motor_curve", "App: thrust curve", "One motor's thrust curve, in SI.",
+				Schema.object().str("digest", "Motor digest.", true).build(), true, a -> {
+					ThrustCurveMotor m = Motors.find(a.str("digest"), null);
+					Map<String, Object> out = new LinkedHashMap<>(motorInfo(m));
+					out.put("time", m.getTimePoints());
+					out.put("thrust", m.getThrustPoints());
+					return out;
+				}));
+		add(s, new ToolDef("app_sims", "App: simulations", "The design's simulations with their launch conditions and results.",
+				Schema.object().str("designId", DESIGN, true).build(), true, a -> sims(ctx, a)));
+		add(s, new ToolDef("app_sim_new", "App: new simulation", "Add a simulation of a configuration with the team's launch site.",
+				Schema.object().str("designId", DESIGN, true).str("configuration", "Configuration id (default the active one).", false)
+						.build(),
+				false, a -> simNew(ctx, a)));
+		add(s, new ToolDef("app_sim_edit", "App: edit a simulation", "Change a simulation's name, configuration or launch conditions.",
+				Schema.object().str("designId", DESIGN, true).integer("simulation", "Index.", true).str("key", "Field.", true)
+						.prop("value", new JsonObject(), true).build(),
+				false, a -> simEdit(ctx, a)));
+		add(s, new ToolDef("app_sim_run", "App: run simulations", "Run one simulation, or all of them.",
+				Schema.object().str("designId", DESIGN, true).integer("simulation", "Index (omit for all).", false).build(), false,
+				a -> simRun(ctx, a)));
+		add(s, new ToolDef("app_sim_delete", "App: delete a simulation", "Delete a simulation.",
+				Schema.object().str("designId", DESIGN, true).integer("simulation", "Index.", true).build(), false, a -> {
+					Designs.Design d = ctx.designs.get(a.str("designId"));
+					Simulation sim = sim(d, a.integer("simulation", -1));
+					d.doc.removeSimulation(sim);
+					d.doc.setSaved(false);
+					return Map.of("deleted", sim.getName());
+				}));
+		add(s, new ToolDef("app_series", "App: flight data", "Flight data of a simulation for plotting, in SI.",
+				Schema.object().str("designId", DESIGN, true).integer("simulation", "Index.", true)
+						.integer("branch", "Branch (stage) index, default 0.", false).build(),
+				true, a -> series(ctx, a)));
+		add(s, new ToolDef("app_choose_file", "App: choose a file", "The system's open or save dialog; returns the chosen path.",
+				Schema.object().enumStr("mode", "open or save.", true, "open", "save").str("name", "Suggested file name.", false).build(),
+				true, a -> FileDialogs.choose(a.str("mode"), a.str("name", null))));
+		add(s, new ToolDef("app_set_units", "App: unit system", "Metric or imperial for numbers the tools write as text.",
+				Schema.object().enumStr("system", "metric or imperial.", true, "metric", "imperial").build(), false, a -> {
+					Units.setSystem(UnitSystem.parse(a.str("system")));
+					return Map.of("system", Units.system().name());
+				}));
+	}
+
+	/** The result with every non-finite number (NaN, infinity) replaced by null. */
+	static Object clean(Object v) {
+		if (v instanceof Double d) {
+			return Double.isFinite(d) ? d : null;
+		}
+		if (v instanceof Float f) {
+			return Float.isFinite(f) ? f : null;
+		}
+		if (v instanceof double[] a) {
+			List<Double> out = new ArrayList<>(a.length);
+			for (double x : a) {
+				out.add(Double.isFinite(x) ? x : null);
+			}
+			return out;
+		}
+		if (v instanceof Map<?, ?> m) {
+			Map<Object, Object> out = new LinkedHashMap<>();
+			for (Map.Entry<?, ?> e : m.entrySet()) {
+				out.put(e.getKey(), clean(e.getValue()));
+			}
+			return out;
+		}
+		if (v instanceof List<?> l) {
+			List<Object> out = new ArrayList<>(l.size());
+			for (Object x : l) {
+				out.add(clean(x));
+			}
+			return out;
+		}
+		return v;
+	}
+
+	// ------------------------------------------------------------------------------------------- session
+
+	static Map<String, Object> session(Context ctx) {
+		OrRuntime.init(); // the material lists need OpenRocket started (the page may ask before anything else)
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("version", App.VERSION);
+		out.put("engineVersion", Main.VERSION);
+		out.put("examples", List.of(Designs.EXAMPLES));
+		List<Map<String, Object>> open = new ArrayList<>();
+		for (Designs.Design d : ctx.designs.all()) {
+			open.add(Map.of("designId", d.id, "name", d.name(), "path", d.path == null ? "" : d.path.toString()));
+		}
+		out.put("designs", open);
+		out.put("workspace", ctx.workspace().toAbsolutePath().toString());
+		out.put("system", Units.system() == UnitSystem.IMPERIAL ? "imperial" : "metric");
+		Map<String, Object> dims = new LinkedHashMap<>();
+		for (Map.Entry<Dim, String[]> e : CHOICES.entrySet()) {
+			List<Map<String, Object>> units = new ArrayList<>();
+			for (String u : e.getValue()) {
+				double[] sc = Units.scale(u);
+				if (sc != null) {
+					units.add(Map.of("unit", u, "factor", sc[0], "offset", sc[1]));
+				}
+			}
+			Map<String, Object> d = new LinkedHashMap<>();
+			d.put("metric", e.getKey().metric);
+			d.put("imperial", e.getKey().imperial);
+			d.put("units", units);
+			dims.put(e.getKey().name(), d);
+		}
+		out.put("dims", dims);
+		Map<String, Object> mats = new LinkedHashMap<>();
+		mats.put("BULK", materials(Databases.BULK_MATERIAL));
+		mats.put("SURFACE", materials(Databases.SURFACE_MATERIAL));
+		mats.put("LINE", materials(Databases.LINE_MATERIAL));
+		out.put("materials", mats);
+		out.put("creatable", Components.CREATABLE);
+		return out;
+	}
+
+	private static List<Map<String, Object>> materials(Iterable<Material> db) {
+		List<Map<String, Object>> out = new ArrayList<>();
+		for (Material m : db) {
+			out.add(Map.of("name", m.getName(), "density", m.getDensity()));
+		}
+		return out;
+	}
+
+	// ------------------------------------------------------------------------------------------- design
+
+	static Map<String, Object> design(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		Rocket r = d.doc.getRocket();
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("designId", d.id);
+		out.put("name", d.name());
+		out.put("path", d.path == null ? null : d.path.toString());
+		out.put("saved", d.doc.isSaved());
+		out.put("canUndo", d.history.undoable());
+		out.put("canRedo", d.history.redoable());
+		out.put("tree", node(r));
+		out.put("configurations", configList(r));
+		out.put("selected", r.getSelectedConfiguration().getId().toString());
+		out.put("stability", stability(r.getSelectedConfiguration()));
+		if (!d.loadWarnings.isEmpty()) {
+			out.put("loadWarnings", d.loadWarnings);
+		}
+		return out;
+	}
+
+	static Map<String, Object> node(RocketComponent c) {
+		Map<String, Object> m = new LinkedHashMap<>();
+		m.put("id", c instanceof Rocket ? "rocket" : Components.shortId(c));
+		m.put("name", c.getName());
+		m.put("type", c.getClass().getSimpleName());
+		m.put("label", c.getComponentName());
+		if (c instanceof MotorMount mm && mm.isMotorMount()) {
+			m.put("motorMount", true);
+		}
+		if (c.isMassOverridden() || c.isCGOverridden()) {
+			m.put("overridden", true);
+		}
+		List<String> accepts = new ArrayList<>();
+		for (String t : Components.CREATABLE) {
+			if (c.isCompatible(Components.create(t))) {
+				accepts.add(t);
+			}
+		}
+		m.put("accepts", accepts);
+		List<Map<String, Object>> kids = new ArrayList<>();
+		for (RocketComponent ch : c.getChildren()) {
+			kids.add(node(ch));
+		}
+		m.put("children", kids);
+		return m;
+	}
+
+	static List<Map<String, Object>> configList(Rocket r) {
+		List<Map<String, Object>> out = new ArrayList<>();
+		for (FlightConfigurationId id : r.getIds()) {
+			FlightConfiguration fc = r.getFlightConfiguration(id);
+			out.add(Map.of("id", id.toString(), "name", fc.getName(), "hasMotors", fc.hasMotors()));
+		}
+		return out;
+	}
+
+	static Map<String, Object> stability(FlightConfiguration fc) {
+		Map<String, Object> m = new LinkedHashMap<>();
+		try {
+			Analysis.Stability st = Analysis.stability(fc, 0.3);
+			m.put("length", st.length());
+			m.put("diameter", st.referenceDiameter());
+			m.put("cg", st.cgLaunchX());
+			m.put("cgBurnout", st.cgBurnoutX());
+			m.put("cp", finite(st.cpX()));
+			m.put("margin", finite(st.marginCalibers()));
+			m.put("marginBurnout", finite(st.burnoutMarginCalibers()));
+			m.put("mass", st.launchMass());
+			m.put("massBurnout", st.burnoutMass());
+			m.put("mach", 0.3);
+			if (!st.warnings().isEmpty()) {
+				m.put("warnings", st.warnings());
+			}
+		} catch (RuntimeException e) {
+			m.put("error", "Not enough of a rocket to analyse yet.");
+		}
+		return m;
+	}
+
+	private static Double finite(double v) {
+		return Double.isFinite(v) ? v : null;
+	}
+
+	static RocketComponent find(Designs.Design d, String id) {
+		Rocket r = d.doc.getRocket();
+		return "rocket".equals(id) ? r : Components.find(r, id);
+	}
+
+	static Map<String, Object> component(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		RocketComponent c = find(d, a.str("component"));
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("id", a.str("component"));
+		out.put("name", c.getName());
+		out.put("type", c.getClass().getSimpleName());
+		out.put("label", c.getComponentName());
+		out.put("sections", Editors.render(c));
+		try {
+			out.put("mass", c.getSectionMass());
+			out.put("componentMass", c.getComponentMass());
+		} catch (RuntimeException ignored) {
+			// mass not resolvable in this state
+		}
+		String w = Components.overrideWarning(c);
+		if (w != null) {
+			out.put("warning", w);
+		}
+		return out;
+	}
+
+	static Map<String, Object> edit(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		RocketComponent c = find(d, a.str("component"));
+		String key = a.str("key");
+		if (Editors.field(c, key) == null) {
+			throw new ToolException("'" + key + "' is not a field of a " + c.getComponentName() + ".");
+		}
+		String done = Components.set(c, key, a.get("value"));
+		d.doc.setSaved(false);
+		return Map.of("applied", done);
+	}
+
+	static Map<String, Object> move(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		RocketComponent c = find(d, a.str("component"));
+		RocketComponent p = c.getParent();
+		if (p == null) {
+			throw new ToolException("The rocket itself cannot move.");
+		}
+		int to = p.getChildPosition(c) + a.integer("by", 0);
+		if (to < 0 || to >= p.getChildCount()) {
+			throw new ToolException(c.getName() + " is already at the " + (to < 0 ? "top" : "bottom") + ".");
+		}
+		p.moveChild(c, to);
+		d.doc.setSaved(false);
+		return Map.of("moved", c.getName());
+	}
+
+	static Map<String, Object> duplicate(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		RocketComponent c = find(d, a.str("component"));
+		RocketComponent p = c.getParent();
+		if (p == null) {
+			throw new ToolException("The rocket itself cannot be duplicated.");
+		}
+		RocketComponent copy = c.copy();
+		p.addChild(copy, p.getChildPosition(c) + 1);
+		d.doc.setSaved(false);
+		return Map.of("id", Components.shortId(copy), "name", copy.getName());
+	}
+
+	// ------------------------------------------------------------------------------------------- 3-D model and flight
+
+	static Map<String, Object> model(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		FlightConfiguration fc = d.doc.getRocket().getSelectedConfiguration();
+		Map<String, Object> out = new LinkedHashMap<>();
+		try {
+			Map<String, Object> r = Workbench.rocket(fc);
+			List<Map<String, Object>> parts = new ArrayList<>();
+			for (Object o : (List<?>) r.get("parts")) {
+				@SuppressWarnings("unchecked")
+				Map<String, Object> p = new LinkedHashMap<>((Map<String, Object>) o);
+				p.remove("props"); // the editor reads these itself, with values the app can edit
+				p.remove("mass");
+				parts.add(p);
+			}
+			out.put("parts", parts);
+			out.put("finOut", r.get("finOut"));
+		} catch (RuntimeException e) {
+			out.put("parts", List.of());
+		}
+		out.put("stability", stability(fc));
+		return out;
+	}
+
+	static Map<String, Object> quickFlight(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		FlightConfiguration fc = d.doc.getRocket().getSelectedConfiguration();
+		if (!fc.hasMotors()) {
+			return Map.of("noMotors", true);
+		}
+		Simulation sim = Sims.prepare(d, null, fc.getId().toString(), null, ctx.standards(), false).copy();
+		Sims.run(sim);
+		return results(sim);
+	}
+
+	static Map<String, Object> results(Simulation sim) {
+		FlightData f = sim.getSimulatedData();
+		Map<String, Object> m = new LinkedHashMap<>();
+		if (f == null || f.getBranchCount() == 0) {
+			return m;
+		}
+		m.put("apogee", finite(f.getMaxAltitude()));
+		m.put("maxVelocity", finite(f.getMaxVelocity()));
+		m.put("maxMach", finite(f.getMaxMachNumber()));
+		m.put("maxAcceleration", finite(f.getMaxAcceleration()));
+		m.put("timeToApogee", finite(f.getTimeToApogee()));
+		m.put("flightTime", finite(f.getFlightTime()));
+		m.put("groundHitVelocity", finite(f.getGroundHitVelocity()));
+		m.put("railExitVelocity", finite(f.getLaunchRodVelocity()));
+		m.put("optimumDelay", finite(f.getOptimumDelay()));
+		m.put("deploymentVelocity", finite(f.getDeploymentVelocity()));
+		Sims.Window w = Sims.ascentStability(f.getBranch(0));
+		if (w != null) {
+			m.put("minStability", w.min());
+			m.put("maxStability", w.max());
+		}
+		List<String> problems = Sims.problems(sim);
+		if (!problems.isEmpty()) {
+			m.put("problems", problems);
+		}
+		return m;
+	}
+
+	// ------------------------------------------------------------------------------------------- motors and configuration
+
+	static Map<String, Object> configs(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		Rocket r = d.doc.getRocket();
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("configurations", configList(r));
+		out.put("selected", r.getSelectedConfiguration().getId().toString());
+		List<Map<String, Object>> mounts = new ArrayList<>(), recovery = new ArrayList<>(), stages = new ArrayList<>();
+		for (RocketComponent c : r) {
+			if (c instanceof MotorMount mm && mm.isMotorMount()) {
+				Map<String, Object> m = new LinkedHashMap<>();
+				m.put("id", Components.shortId(c));
+				m.put("name", c.getName());
+				m.put("stage", c.getStage().getName());
+				m.put("innerDiameter", mm.getMotorMountDiameter());
+				Map<String, Object> per = new LinkedHashMap<>();
+				for (FlightConfigurationId id : r.getIds()) {
+					per.put(id.toString(), motor(mm.getMotorConfig(id)));
+				}
+				m.put("motors", per);
+				mounts.add(m);
+			}
+			if (c instanceof RecoveryDevice rd) {
+				Map<String, Object> m = new LinkedHashMap<>();
+				m.put("id", Components.shortId(c));
+				m.put("name", c.getName());
+				m.put("type", c.getClass().getSimpleName());
+				Map<String, Object> per = new LinkedHashMap<>();
+				for (FlightConfigurationId id : r.getIds()) {
+					DeploymentConfiguration dc = rd.getDeploymentConfigurations().get(id);
+					per.put(id.toString(), Map.of("event", dc.getDeployEvent().name(), "altitude", dc.getDeployAltitude(), "delay",
+							dc.getDeployDelay()));
+				}
+				m.put("deployment", per);
+				recovery.add(m);
+			}
+			if (c instanceof AxialStage st) {
+				Map<String, Object> m = new LinkedHashMap<>();
+				m.put("id", Components.shortId(c));
+				m.put("name", c.getName());
+				m.put("stageNumber", st.getStageNumber());
+				Map<String, Object> per = new LinkedHashMap<>();
+				for (FlightConfigurationId id : r.getIds()) {
+					StageSeparationConfiguration sc = st.getSeparationConfigurations().get(id);
+					per.put(id.toString(), Map.of("event", sc.getSeparationEvent().name(), "delay", sc.getSeparationDelay()));
+				}
+				m.put("separation", per);
+				stages.add(m);
+			}
+		}
+		out.put("mounts", mounts);
+		out.put("recovery", recovery);
+		out.put("stages", stages);
+		return out;
+	}
+
+	static Map<String, Object> motor(MotorConfiguration mc) {
+		Map<String, Object> m = new LinkedHashMap<>();
+		Motor mo = mc.getMotor();
+		if (mo == null) {
+			return m;
+		}
+		m.put("designation", mo.getDesignation());
+		m.put("manufacturer", mo instanceof ThrustCurveMotor t ? t.getManufacturer().getDisplayName() : "");
+		m.put("totalImpulse", mo.getTotalImpulseEstimate());
+		m.put("averageThrust", mo.getAverageThrustEstimate());
+		m.put("burnTime", mo.getBurnTimeEstimate());
+		m.put("diameter", mo.getDiameter());
+		m.put("length", mo.getLength());
+		m.put("ejectionDelay", mc.getEjectionDelay());
+		m.put("plugged", mc.getEjectionDelay() == Motor.PLUGGED_DELAY);
+		m.put("ignitionEvent", mc.getIgnitionEvent().name());
+		m.put("ignitionDelay", mc.getIgnitionDelay());
+		return m;
+	}
+
+	static Map<String, Object> motorDelay(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		Rocket r = d.doc.getRocket();
+		RocketComponent c = Components.find(r, a.str("mount"));
+		if (!(c instanceof MotorMount mm) || !mm.isMotorMount()) {
+			throw new ToolException(c.getName() + " is not a motor mount.");
+		}
+		FlightConfigurationId id = Components.config(r, a.str("configuration")).getId();
+		MotorConfiguration mc = mm.getMotorConfig(id);
+		if (a.bool("remove", false)) {
+			mm.getMotorConfigurationSet().set(id, new MotorConfiguration(mm, id));
+		} else {
+			if (mc.getMotor() == null) {
+				throw new ToolException("No motor in " + c.getName() + " for this configuration.");
+			}
+			if (a.bool("plugged", false)) {
+				mc.setEjectionDelay(Motor.PLUGGED_DELAY);
+			} else if (a.has("ejectionDelay")) {
+				mc.setEjectionDelay(a.num("ejectionDelay"));
+			}
+			if (a.has("ignitionEvent")) {
+				mc.setIgnitionEvent(info.openrocket.core.motor.IgnitionEvent.valueOf(a.str("ignitionEvent")));
+			}
+			if (a.has("ignitionDelay")) {
+				mc.setIgnitionDelay(a.num("ignitionDelay"));
+			}
+		}
+		r.fireComponentChangeEvent(info.openrocket.core.rocketcomponent.ComponentChangeEvent.MOTOR_CHANGE);
+		d.doc.setSaved(false);
+		return motor(mm.getMotorConfig(id));
+	}
+
+	static Map<String, Object> config(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		Rocket r = d.doc.getRocket();
+		FlightConfiguration fc = Components.config(r, a.str("configuration"));
+		FlightConfigurationId old = fc.getId();
+		if (a.str("action").equals("remove")) {
+			if (r.getIds().size() <= 1) {
+				throw new ToolException("A design keeps at least one flight configuration.");
+			}
+			r.removeFlightConfiguration(old);
+			d.doc.setSaved(false);
+			return Map.of("removed", fc.getName(), "selected", r.getSelectedConfiguration().getId().toString());
+		}
+		FlightConfigurationId id = new FlightConfigurationId();
+		FlightConfiguration copy = fc.copy(id);
+		r.setFlightConfiguration(id, copy);
+		for (RocketComponent c : r) {
+			if (c instanceof FlightConfigurableComponent fcc) {
+				fcc.copyFlightConfiguration(old, id);
+			}
+		}
+		if (fc.isNameOverridden()) {
+			copy.setName(fc.getNameRaw() + " (copy)");
+		}
+		r.setSelectedConfiguration(id);
+		d.doc.setSaved(false);
+		return Map.of("id", id.toString(), "name", copy.getName());
+	}
+
+	static Map<String, Object> motors(Context ctx, Args a) {
+		double minD = Double.NaN, maxD = Double.NaN;
+		if (a.has("mount") && a.has("designId")) {
+			RocketComponent c = Components.find(ctx.designs.get(a.str("designId")).doc.getRocket(), a.str("mount"));
+			if (c instanceof MotorMount mm) {
+				maxD = mm.getMotorMountDiameter() + 1e-4;
+				minD = mm.getMotorMountDiameter() - 1e-3;
+			}
+		}
+		String text = a.str("text", "").trim();
+		List<ThrustCurveMotor> all = Motors.search(new Motors.Filter(minD, maxD, Double.NaN, a.str("minClass", null),
+				a.str("maxClass", null), null, null, null, a.bool("availableOnly", false)));
+		List<Map<String, Object>> out = new ArrayList<>();
+		int limit = Math.max(1, a.integer("limit", 300)), matches = 0;
+		String t = text.toLowerCase(java.util.Locale.ROOT);
+		java.util.Set<String> seen = new java.util.HashSet<>();
+		for (ThrustCurveMotor m : all) {
+			if (!seen.add(m.getDigest())) {
+				continue; // the same motor from two data files
+			}
+			String hay = (m.getManufacturer().getDisplayName() + " " + m.getManufacturer().getSimpleName() + " " + m.getDesignation()
+					+ " " + m.getCommonName()).toLowerCase(java.util.Locale.ROOT);
+			if (!t.isEmpty() && !java.util.Arrays.stream(t.split("\\s+")).allMatch(hay::contains)) {
+				continue;
+			}
+			matches++;
+			if (out.size() < limit) {
+				out.add(motorInfo(m));
+			}
+		}
+		return Map.of("matches", matches, "motors", out);
+	}
+
+	static Map<String, Object> motorInfo(ThrustCurveMotor m) {
+		Map<String, Object> o = new LinkedHashMap<>();
+		o.put("digest", m.getDigest());
+		o.put("designation", m.getDesignation());
+		o.put("commonName", m.getCommonName());
+		o.put("manufacturer", m.getManufacturer().getDisplayName());
+		o.put("class", Motors.impulseClass(m.getTotalImpulseEstimate()));
+		o.put("diameter", m.getDiameter());
+		o.put("length", m.getLength());
+		o.put("totalImpulse", m.getTotalImpulseEstimate());
+		o.put("averageThrust", m.getAverageThrustEstimate());
+		o.put("maxThrust", m.getMaxThrustEstimate());
+		o.put("burnTime", m.getBurnTimeEstimate());
+		o.put("launchMass", m.getLaunchMass());
+		o.put("propellantMass", m.getPropellantMass());
+		o.put("type", m.getMotorType().name());
+		o.put("delays", m.getStandardDelays());
+		o.put("available", m.isAvailable());
+		return o;
+	}
+
+	// ------------------------------------------------------------------------------------------- simulations
+
+	static Simulation sim(Designs.Design d, int i) {
+		List<Simulation> all = d.doc.getSimulations();
+		if (i < 0 || i >= all.size()) {
+			throw new ToolException("No simulation " + i + ".");
+		}
+		return all.get(i);
+	}
+
+	static Map<String, Object> sims(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		Rocket r = d.doc.getRocket();
+		List<Map<String, Object>> out = new ArrayList<>();
+		int i = 0;
+		for (Simulation s : d.doc.getSimulations()) {
+			Map<String, Object> m = new LinkedHashMap<>();
+			m.put("index", i++);
+			m.put("name", s.getName());
+			FlightConfigurationId id = s.getFlightConfigurationId();
+			m.put("configuration", id.toString());
+			m.put("configurationName", r.getFlightConfiguration(id).getName());
+			m.put("status", s.getStatus().name());
+			m.put("options", options(s.getOptions()));
+			m.put("results", results(s));
+			out.add(m);
+		}
+		return Map.of("simulations", out, "configurations", configList(r));
+	}
+
+	static Map<String, Object> options(SimulationOptions o) {
+		Map<String, Object> m = new LinkedHashMap<>();
+		m.put("rodLength", o.getLaunchRodLength());
+		m.put("rodAngle", o.getLaunchRodAngle());
+		m.put("rodDirection", o.getLaunchRodDirection());
+		m.put("launchIntoWind", o.getLaunchIntoWind());
+		m.put("windSpeed", Winds.speed(o));
+		m.put("windDirection", Winds.direction(o));
+		m.put("windTurbulence", Winds.turbulence(o));
+		m.put("windProfile", Winds.isMultiLevel(o));
+		m.put("launchAltitude", o.getLaunchAltitude());
+		m.put("latitude", o.getLaunchLatitude());
+		m.put("longitude", o.getLaunchLongitude());
+		m.put("isaAtmosphere", o.isISAAtmosphere());
+		m.put("temperature", o.getLaunchTemperature());
+		m.put("pressure", o.getLaunchPressure());
+		m.put("timeStep", o.getTimeStep());
+		return m;
+	}
+
+	static Map<String, Object> simNew(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		Rocket r = d.doc.getRocket();
+		FlightConfiguration fc = Components.config(r, a.str("configuration", null));
+		Simulation s = new Simulation(d.doc, r);
+		s.setFlightConfigurationId(fc.getId());
+		s.setName("Simulation " + (d.doc.getSimulations().size() + 1));
+		ctx.standards().applyLaunchDefaults(s.getOptions());
+		d.doc.addSimulation(s);
+		d.doc.setSaved(false);
+		return Map.of("index", d.doc.getSimulations().size() - 1, "name", s.getName());
+	}
+
+	static Map<String, Object> simEdit(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		Simulation s = sim(d, a.integer("simulation", -1));
+		SimulationOptions o = s.getOptions();
+		String key = a.str("key");
+		var v = a.get("value");
+		switch (key) {
+			case "name" -> s.setName(v.getAsString());
+			case "configuration" -> s.setFlightConfigurationId(Components.config(d.doc.getRocket(), v.getAsString()).getId());
+			case "rodLength" -> o.setLaunchRodLength(positive(Args.qtyOf(v, key, Dim.LENGTH), key));
+			case "rodAngle" -> o.setLaunchRodAngle(Args.qtyOf(v, key, Dim.ANGLE));
+			case "rodDirection" -> o.setLaunchRodDirection(Args.qtyOf(v, key, Dim.ANGLE));
+			case "launchIntoWind" -> o.setLaunchIntoWind(v.getAsBoolean());
+			case "windSpeed" -> Winds.setGround(o, positive(Args.qtyOf(v, key, Dim.VELOCITY), key), Winds.direction(o));
+			case "windDirection" -> Winds.setGround(o, Winds.speed(o), Args.qtyOf(v, key, Dim.ANGLE));
+			case "windTurbulence" -> Winds.setTurbulence(o, positive(v.getAsDouble(), key));
+			case "launchAltitude" -> o.setLaunchAltitude(Args.qtyOf(v, key, Dim.DISTANCE));
+			case "latitude" -> o.setLaunchLatitude(v.getAsDouble());
+			case "longitude" -> o.setLaunchLongitude(v.getAsDouble());
+			case "isaAtmosphere" -> o.setISAAtmosphere(v.getAsBoolean());
+			case "temperature" -> o.setLaunchTemperature(Args.qtyOf(v, key, Dim.TEMPERATURE));
+			case "pressure" -> o.setLaunchPressure(positive(Args.qtyOf(v, key, Dim.PRESSURE), key));
+			case "timeStep" -> o.setTimeStep(positive(Args.qtyOf(v, key, Dim.TIME), key));
+			default -> throw new ToolException("Unknown simulation field '" + key + "'.");
+		}
+		d.doc.setSaved(false);
+		return Map.of("options", options(o), "status", s.getStatus().name());
+	}
+
+	private static double positive(double v, String key) {
+		if (!(v >= 0) || !Double.isFinite(v)) {
+			throw new ToolException(key + " must be zero or more.");
+		}
+		return v;
+	}
+
+	static Map<String, Object> simRun(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		List<Simulation> todo = a.has("simulation") ? List.of(sim(d, a.integer("simulation", -1))) : d.doc.getSimulations();
+		List<Map<String, Object>> out = new ArrayList<>();
+		for (Simulation s : todo) {
+			Map<String, Object> m = new LinkedHashMap<>();
+			m.put("name", s.getName());
+			if (!s.getRocket().getFlightConfiguration(s.getFlightConfigurationId()).hasMotors()) {
+				m.put("error", "The configuration has no motors.");
+			} else {
+				try {
+					Sims.ensure(s);
+					m.put("results", results(s));
+				} catch (RuntimeException e) {
+					m.put("error", e.getMessage());
+				}
+			}
+			out.add(m);
+		}
+		d.doc.setSaved(false);
+		return Map.of("runs", out);
+	}
+
+	static Map<String, Object> series(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		Simulation s = sim(d, a.integer("simulation", -1));
+		FlightData f = s.getSimulatedData();
+		if (f == null || f.getBranchCount() == 0) {
+			throw new ToolException("Run the simulation first.");
+		}
+		int bi = Math.max(0, Math.min(f.getBranchCount() - 1, a.integer("branch", 0)));
+		FlightDataBranch b = f.getBranch(bi);
+		Branch br = Branch.of(b);
+		int n = br.size(), step = Math.max(1, (int) Math.ceil(n / 2000.0));
+		List<Map<String, Object>> vars = new ArrayList<>();
+		for (FlightDataType t : b.getTypes()) {
+			double[] col = br.col(t);
+			boolean any = false;
+			for (double v : col) {
+				if (Double.isFinite(v)) {
+					any = true;
+					break;
+				}
+			}
+			if (!any) {
+				continue;
+			}
+			List<Double> vals = new ArrayList<>();
+			for (int i = 0; i < n; i += step) {
+				vals.add(i < col.length && Double.isFinite(col[i]) ? col[i] : null);
+			}
+			Map<String, Object> m = new LinkedHashMap<>();
+			m.put("key", t.getSymbol());
+			m.put("name", t.getName());
+			Dim dim = Sims.dimOf(t.getUnitGroup());
+			if (dim != null) {
+				m.put("dim", dim.name());
+			}
+			m.put("values", vals);
+			vars.add(m);
+		}
+		List<Map<String, Object>> events = new ArrayList<>();
+		for (FlightEvent e : b.getEvents()) {
+			events.add(Map.of("type", e.getType().name(), "time", e.getTime()));
+		}
+		List<String> branches = new ArrayList<>();
+		for (FlightDataBranch fb : f.getBranches()) {
+			branches.add(fb.getName());
+		}
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("branches", branches);
+		out.put("branch", bi);
+		out.put("variables", vars);
+		out.put("events", events);
+		return out;
+	}
+}

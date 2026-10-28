@@ -114,6 +114,15 @@ public final class Main {
 			  gives the link). Open designs and unit settings are shared by everyone connected.""";
 
 	public static McpServer build(Context ctx) {
+		return build(ctx, s -> {
+		}, true);
+	}
+
+	/**
+	 * The server with every tool; {@code extra} registers more tools (the desktop app's), which get undo like the rest.
+	 * {@code suggest}: add "you could also ask" hints to results (for a model; the app has its own menus).
+	 */
+	public static McpServer build(Context ctx, java.util.function.Consumer<McpServer> extra, boolean suggest) {
 		McpServer server = new McpServer("openrocket-mcp", VERSION, ctx.sandboxed() ? INSTRUCTIONS + TEAM : INSTRUCTIONS);
 		DesignTools.register(server, ctx);
 		FileTools.register(server, ctx);
@@ -141,8 +150,11 @@ public final class Main {
 		MassTools.register(server, ctx);
 		Suggestions.register(server, ctx);
 		Prompts.register(server, ctx);
+		extra.accept(server);
 		server.wrapTools(t -> HistoryTools.recording(ctx, t));
-		server.wrapTools(t -> Suggestions.suggesting(ctx, t));
+		if (suggest) {
+			server.wrapTools(t -> Suggestions.suggesting(ctx, t));
+		}
 		return server;
 	}
 
@@ -201,7 +213,7 @@ public final class Main {
 	}
 
 	/** Loads OpenRocket's motor and parts databases in the background so the first tool call is fast. */
-	static void warmUp() {
+	public static void warmUp() {
 		Thread warm = new Thread(() -> {
 			try {
 				OrRuntime.motors();
