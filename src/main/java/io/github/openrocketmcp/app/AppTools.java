@@ -102,6 +102,42 @@ public final class AppTools {
 	}
 
 	public static void register(McpServer s, Context ctx) {
+		register(s, ctx, Assistant.defaultSettings());
+	}
+
+	/** As above, with the assistant's settings (on/off, model, the key) kept in {@code assistantSettings}. */
+	public static void register(McpServer s, Context ctx, Path assistantSettings) {
+		Assistant assistant = new Assistant(s, ctx, assistantSettings);
+		// The assistant's own tools are read-only as far as undo goes: the tools Claude calls record their own edits.
+		add(s, new ToolDef("app_assistant", "App: assistant settings", "Whether the assistant is on, its model and whether a key is set.",
+				Schema.object().build(), true, a -> assistant.settings()));
+		add(s, new ToolDef("app_assistant_settings", "App: change assistant settings",
+				"Turn the assistant on or off, choose its model, save or forget the API key (kept in the user's home folder).",
+				Schema.object().bool("enabled", "On or off.", false).str("model", "Model id.", false)
+						.str("key", "Anthropic API key to save.", false).bool("forgetKey", "Forget the saved key.", false).build(),
+				true, a -> assistant.configure(a.has("enabled") ? a.bool("enabled", false) : null, a.str("model", null),
+						a.str("key", null), a.bool("forgetKey", false))));
+		add(s, new ToolDef("app_assistant_send", "App: message the assistant",
+				"Send a message; Claude works in the background with the engine's tools (poll for what it does).",
+				Schema.object().str("text", "The message.", true).str("designId", DESIGN, false).build(), true, a -> {
+					Designs.Design d = a.has("designId") ? ctx.designs.get(a.str("designId")) : null;
+					assistant.send(a.str("text"), Assistant.context(d));
+					return Map.of("sent", true);
+				}));
+		add(s, new ToolDef("app_assistant_poll", "App: what the assistant did",
+				"Events since index from (messages, tool calls with their results), and whether it is still working.",
+				Schema.object().integer("from", "First event index.", false).build(), true,
+				a -> assistant.poll(a.integer("from", 0))));
+		add(s, new ToolDef("app_assistant_stop", "App: stop the assistant", "Stop after the current step.",
+				Schema.object().build(), true, a -> {
+					assistant.stop();
+					return Map.of("stopping", true);
+				}));
+		add(s, new ToolDef("app_assistant_reset", "App: new conversation", "Forget the conversation.", Schema.object().build(),
+				true, a -> {
+					assistant.reset();
+					return Map.of("reset", true);
+				}));
 		add(s, new ToolDef("app_session", "App: session", "Examples, open designs, units and materials for the desktop app.",
 				Schema.object().build(), true, a -> session(ctx)));
 		add(s, new ToolDef("app_design", "App: design", "The component tree, configurations and stability of a design.",

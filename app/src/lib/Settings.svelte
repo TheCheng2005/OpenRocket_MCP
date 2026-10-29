@@ -3,8 +3,10 @@
   import { app, setSystem, autoCheck, setAutoCheck } from "./state.svelte";
   import { units, choices, choose, unitOf, pretty, type Dim } from "./units.svelte";
   import { prefs, setTheme, type Theme } from "./prefs.svelte";
+  import { assistant, configure, MODEL_NAMES } from "./assistant/assistant.svelte";
 
   let { close }: { close: () => void } = $props();
+  let key = $state("");
 
   const QUANTITIES: [Dim, string][] = [
     ["LENGTH", "Length (parts)"], ["DISTANCE", "Distance and altitude"], ["VELOCITY", "Speed"],
@@ -58,6 +60,37 @@
         <span>Check the rules after each edit</span>
         <input type="checkbox" checked={autoCheck()} onchange={(e) => setAutoCheck((e.target as HTMLInputElement).checked)} />
       </label>
+
+      <h4>Assistant</h4>
+      {#if assistant.settings}
+        {@const a = assistant.settings}
+        <label class="row check">
+          <span>Ask Claude about the design (uses your own Anthropic API key)</span>
+          <input type="checkbox" checked={a.enabled} onchange={(e) => configure({ enabled: (e.target as HTMLInputElement).checked })} />
+        </label>
+        {#if a.enabled}
+          <label class="row">
+            <span>Model</span>
+            <select class="select" value={a.model} onchange={(e) => configure({ model: (e.target as HTMLSelectElement).value })}>
+              {#each a.models as m (m)}<option value={m}>{MODEL_NAMES[m] ?? m}</option>{/each}
+            </select>
+          </label>
+          <div class="row">
+            <span>API key</span>
+            <div class="keyrow">
+              <input class="input" type="password" bind:value={key} placeholder={a.keySource === "saved" ? "Saved (type to replace)" : a.keySource === "environment" ? "From ANTHROPIC_API_KEY" : "sk-ant-…"} autocomplete="off" />
+              <button class="btn" disabled={!key.trim()} onclick={() => configure({ key }).then(() => (key = ""))}>Save</button>
+            </div>
+          </div>
+          {#if a.keySource === "saved"}
+            <div class="row"><span></span><button class="link" onclick={() => configure({ forgetKey: true })}>Forget the saved key</button></div>
+          {/if}
+        {/if}
+        <p class="note">
+          Off unless you turn it on. Your messages, the open design's data and the tools' results are sent to Anthropic, and
+          use is charged to your API account. The key is kept in {a.settingsFile}, not in the designs folder.
+        </p>
+      {/if}
 
       <h4>Files</h4>
       <div class="row"><span>Designs folder</span><code>{app.session?.workspace}</code></div>
@@ -116,6 +149,21 @@
     justify-self: start;
     width: 16px;
     height: 16px;
+  }
+  .keyrow {
+    display: flex;
+    gap: 6px;
+  }
+  .keyrow .input {
+    flex: 1;
+    min-width: 0;
+  }
+  .link {
+    justify-self: start;
+    border: 0;
+    background: transparent;
+    color: var(--select);
+    padding: 0;
   }
   .units {
     display: flex;

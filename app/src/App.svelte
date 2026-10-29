@@ -13,6 +13,8 @@
   import FlightDataPage from "./lib/flightdata/FlightDataPage.svelte";
   import Toasts from "./lib/Toasts.svelte";
   import AskDialog from "./lib/AskDialog.svelte";
+  import AssistantDrawer from "./lib/assistant/AssistantDrawer.svelte";
+  import { assistant, loadSettings } from "./lib/assistant/assistant.svelte";
 
   let ready = $state(false);
 
@@ -20,6 +22,7 @@
     if (!connected) return;
     keepAlive();
     run(init).finally(() => (ready = true));
+    loadSettings();
   });
 
   function typing(e: KeyboardEvent) {
@@ -79,6 +82,7 @@
           <AnalysisPage />
         {/if}
       </main>
+      {#if assistant.open && assistant.settings?.enabled}<AssistantDrawer />{/if}
     </div>
   </div>
   <Toasts />

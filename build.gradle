@@ -19,6 +19,8 @@ dependencies {
     // SVG -> PNG for images shown in the chat (our plots and drawings).
     implementation 'org.apache.xmlgraphics:batik-transcoder:1.19'
     implementation 'org.apache.xmlgraphics:batik-codec:1.19'
+    // RocketMaxxing's optional assistant (the team's own API key; off by default).
+    implementation 'com.anthropic:anthropic-java:3.2.0'
 
     testImplementation platform('org.junit:junit-bom:5.13.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -90,7 +92,11 @@ tasks.register('mcpb', Zip) {
     from(mcpbDir.map { it.file('manifest.json') })
     from('LICENSE')
     from('src/main/resources/openrocketmcp/icon.png')
-    into('lib') { from layout.buildDirectory.dir('install/openrocket-mcp/lib') }
+    into('lib') {
+        from layout.buildDirectory.dir('install/openrocket-mcp/lib')
+        // The desktop app's assistant (the Anthropic SDK and what it brings) is not part of the MCP server.
+        exclude 'anthropic-java-*', 'okhttp-*', 'okio-*', 'kotlin-*', 'jackson-*', 'jsonschema-*'
+    }
     into('runtime') {
         from mcpbDir.map { it.dir('runtime') }
         // Keep the launcher executable after Claude Desktop unpacks the extension.

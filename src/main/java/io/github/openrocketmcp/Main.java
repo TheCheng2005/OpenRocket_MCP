@@ -56,7 +56,7 @@ import io.github.openrocketmcp.tools.WorkbenchTools;
 public final class Main {
 	public static final String VERSION = "0.28.0";
 
-	static final String INSTRUCTIONS = """
+	public static final String INSTRUCTIONS = """
 			OpenRocket MCP: design, simulate and check high-power / competition rockets with OpenRocket's physics.
 			Workflow: open_design -> get_design -> run_simulation / check_requirements -> change things -> re-check -> save_design.
 			- Let the tools do numeric work: use size_parachute, rank_motors, sweep, optimize, ballast, fin_flutter, monte_carlo,
