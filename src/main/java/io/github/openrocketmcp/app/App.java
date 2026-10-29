@@ -100,16 +100,20 @@ public final class App {
 		return i >= 0 && i + 1 < a.size() ? a.get(i + 1) : fallback;
 	}
 
-	/** The interface: --ui, else the "ui" folder of the installation (next to its lib folder), else the copy in the jar. */
+	/**
+	 * The interface: --ui, else the "ui" folder of the installation (next to its lib folder, or next to the jars in an
+	 * installer's app folder), else the copy in the jar.
+	 */
 	static Path ui(String given) {
 		if (given != null) {
 			return Path.of(given).toAbsolutePath().normalize();
 		}
 		try {
 			Path jar = Path.of(App.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-			Path ui = jar.getParent().getParent().resolve("ui");
-			if (Files.isRegularFile(ui.resolve("index.html"))) {
-				return ui.toAbsolutePath().normalize();
+			for (Path ui : List.of(jar.getParent().getParent().resolve("ui"), jar.getParent().resolve("ui"))) {
+				if (Files.isRegularFile(ui.resolve("index.html"))) {
+					return ui.toAbsolutePath().normalize();
+				}
 			}
 		} catch (Exception ignored) {
 			// not run from an installation

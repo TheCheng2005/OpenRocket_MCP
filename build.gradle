@@ -150,3 +150,73 @@ tasks.register('rocketmaxxing') {
     description = 'Builds the RocketMaxxing desktop app: build/install/openrocket-mcp/bin/rocketmaxxing'
     dependsOn 'rocketmaxxingUi', 'installDist'
 }
+
+// ------------------------------------------------------------------------------------------------------------------
+// RocketMaxxing installers with Java included (jpackage over the trimmed runtime above). Each platform builds its own:
+//   ./gradlew rocketmaxxingInstaller   ->   build/installers/  (.msi on Windows (needs WiX), .dmg on macOS, .deb on Linux)
+//   ./gradlew rocketmaxxingInstaller -PinstallerType=app-image   ->   a folder that runs without installing
+def appVersion = (file('src/main/java/io/github/openrocketmcp/app/App.java').text =~ /VERSION = "([^"]+)"/)[0][1]
+def packagingDir = layout.buildDirectory.dir('jpackage')
+
+tasks.register('rocketmaxxingPackageInput', Sync) {
+    dependsOn 'rocketmaxxing'
+    from(layout.buildDirectory.dir('install/openrocket-mcp/lib'))
+    // jpackage puts the input next to the jars; the app looks for its interface there.
+    into('ui') { from appUiDir }
+    into packagingDir.map { it.dir('input') }
+}
+
+// Windows wants an .ico and macOS an .icns: both can hold PNG images, so they are wrapped from the app's PNG icons.
+tasks.register('rocketmaxxingIcons') {
+    def png256 = file('app/packaging/icon-256.png'), png512 = file('app/packaging/icon-512.png')
+    def out = packagingDir.map { it.dir('icons') }
+    inputs.files(png256, png512)
+    outputs.dir(out)
+    doLast {
+        def dir = out.get().asFile
+        dir.mkdirs()
+        byte[] small = png256.bytes, big = png512.bytes
+        def ico = new ByteArrayOutputStream()
+        def le = { int v, int n -> (0..<n).each { ico.write((v >> (8 * it)) & 0xff) } }
+        le(0, 2); le(1, 2); le(1, 2)                                // header: icon, one image
+        ico.write(0); ico.write(0); ico.write(0); ico.write(0)      // 256 x 256, no palette
+        le(1, 2); le(32, 2); le(small.length, 4); le(22, 4)         // planes, bits, size, offset
+        ico.write(small)
+        new File(dir, 'RocketMaxxing.ico').bytes = ico.toByteArray()
+        def icns = new ByteArrayOutputStream()
+        def be = { int v -> [24, 16, 8, 0].each { icns.write((v >> it) & 0xff) } }
+        icns.write('icns'.bytes); be(8 + 8 + small.length + 8 + big.length)
+        icns.write('ic08'.bytes); be(8 + small.length); icns.write(small)
+        icns.write('ic09'.bytes); be(8 + big.length); icns.write(big)
+        new File(dir, 'RocketMaxxing.icns').bytes = icns.toByteArray()
+        java.nio.file.Files.copy(png512.toPath(), new File(dir, 'RocketMaxxing.png').toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    }
+}
+
+tasks.register('rocketmaxxingInstaller', Exec) {
+    group = 'distribution'
+    description = 'Builds the RocketMaxxing installer for this platform, Java included: build/installers'
+    dependsOn 'rocketmaxxingPackageInput', 'rocketmaxxingIcons', 'mcpbRuntime'
+    def type = project.findProperty('installerType') ?: (hostOs.isWindows() ? 'msi' : hostOs.isMacOsX() ? 'dmg' : 'deb')
+    def out = layout.buildDirectory.dir('installers')
+    def jpackage = new File(System.getProperty('java.home'), 'bin/jpackage' + (hostOs.isWindows() ? '.exe' : ''))
+    def icon = packagingDir.get().file('icons/RocketMaxxing.' + (hostOs.isWindows() ? 'ico' : hostOs.isMacOsX() ? 'icns' : 'png')).asFile
+    doFirst { delete out }
+    def cmd = [jpackage.path, '--type', type, '--name', 'RocketMaxxing', '--app-version', appVersion,
+               '--vendor', 'RocketMaxxing', '--description', 'Competition rocket design, simulation and checks, offline',
+               '--input', packagingDir.get().dir('input').asFile.path,
+               '--main-jar', tasks.named('jar').get().archiveFileName.get(),
+               '--main-class', 'io.github.openrocketmcp.app.App',
+               '--runtime-image', mcpbDir.get().dir('runtime').asFile.path,
+               '--java-options', '-Xss4m', '--icon', icon.path, '--dest', out.get().asFile.path]
+    if (type != 'app-image') {
+        cmd += ['--license-file', 'LICENSE']
+    }
+    if (hostOs.isWindows() && type != 'app-image') {
+        cmd += ['--win-menu', '--win-shortcut', '--win-dir-chooser', '--win-per-user-install',
+                '--win-upgrade-uuid', '5d3c7c0e-5b0e-4f53-9b6a-6c6f7f1d2a11']
+    } else if (hostOs.isLinux() && type != 'app-image') {
+        cmd += ['--linux-shortcut', '--linux-menu-group', 'Science', '--linux-app-category', 'science']
+    }
+    commandLine cmd
+}
