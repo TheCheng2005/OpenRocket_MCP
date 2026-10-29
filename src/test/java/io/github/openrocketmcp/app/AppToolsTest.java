@@ -280,4 +280,53 @@ class AppToolsTest {
 		String bad = line.replace("{\"apogee\": {\"max\": null}, \"minStability\": {\"min\": null}}", "{\"apogee\": {\"min\": \"30 m/s\"}}");
 		assertTrue(app.handleLine(bad).getAsJsonObject("result").get("isError").getAsBoolean());
 	}
+
+	@Test
+	void finOutlineCatalogueAndPaint() {
+		String d = call("open_design", "{\"example\": \"A simple model rocket\"}").get("designId").getAsString();
+		List<String> all = new ArrayList<>();
+		ids(call("app_design", "{\"designId\": \"" + d + "\"}").getAsJsonObject("tree"), all);
+		String fins = null, tube = null;
+		for (String c : all) {
+			String type = call("app_component", "{\"designId\": \"" + d + "\", \"component\": \"" + c + "\"}").get("type").getAsString();
+			if (type.equals("TrapezoidFinSet")) {
+				fins = c;
+			} else if (type.equals("BodyTube") && tube == null) {
+				tube = c;
+			}
+		}
+		String args = "{\"designId\": \"" + d + "\", \"component\": \"" + fins + "\"}";
+		JsonObject before = call("app_fin_points", args);
+		assertFalse(before.get("editable").getAsBoolean());
+		String ff = call("app_convert_fins", args).get("component").getAsString();
+		String ffArgs = "{\"designId\": \"" + d + "\", \"component\": \"" + ff + "\"";
+		JsonObject after = call("app_fin_points", ffArgs + "}");
+		assertTrue(after.get("editable").getAsBoolean());
+		assertEquals(before.getAsJsonArray("points").toString(), after.getAsJsonArray("points").toString(), "same outline after converting");
+		call("app_set_fin_points", ffArgs + ", \"points\": [[0.001, 0.002], [0.03, 0.05], [0.06, 0.05], [0.07, 0.003]]}");
+		JsonObject set = call("app_fin_points", ffArgs + "}");
+		assertEquals("[[0.0,0.0],[0.03,0.05],[0.06,0.05],[0.07,0.0]]", set.getAsJsonArray("points").toString(), "the root stays on the body");
+		assertTrue(call("app_set_fin_points", ffArgs + ", \"points\": [[0, 0], [0.06, 0.05], [0.0, 0.05], [0.07, 0]]}", true)
+				.get("text").getAsString().contains("crosses itself"));
+		assertEquals(set.getAsJsonArray("points").toString(), call("app_fin_points", ffArgs + "}").getAsJsonArray("points").toString());
+
+		String tubeArgs = "{\"designId\": \"" + d + "\", \"component\": \"" + tube + "\"";
+		JsonObject p = call("app_presets", tubeArgs + ", \"sameDiameter\": true}");
+		assertEquals("BODY_TUBE", p.get("type").getAsString());
+		assertTrue(p.getAsJsonArray("presets").size() > 0, p.toString());
+		double own = p.get("diameter").getAsDouble();
+		for (JsonElement e : p.getAsJsonArray("presets")) {
+			assertEquals(own, e.getAsJsonObject().get("outerDiameter").getAsDouble(), 0.021 * own);
+		}
+
+		call("app_appearance", tubeArgs + ", \"color\": \"#3366cc\"}");
+		assertEquals("#3366cc", call("app_component", tubeArgs + "}").get("paint").getAsString());
+		boolean painted = false;
+		for (JsonElement e : call("app_model", "{\"designId\": \"" + d + "\"}").getAsJsonArray("parts")) {
+			painted |= "#3366cc".equals(e.getAsJsonObject().get("color").getAsString());
+		}
+		assertTrue(painted, "the 3-D model shows the paint");
+		call("app_appearance", tubeArgs + ", \"color\": \"\"}");
+		assertFalse(call("app_component", tubeArgs + "}").has("paint"), "back to the default look");
+	}
 }

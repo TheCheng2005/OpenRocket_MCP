@@ -7,21 +7,26 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import info.openrocket.core.appearance.Appearance;
 import info.openrocket.core.database.Databases;
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.material.Material;
 import info.openrocket.core.motor.Motor;
 import info.openrocket.core.motor.MotorConfiguration;
 import info.openrocket.core.motor.ThrustCurveMotor;
+import info.openrocket.core.preset.ComponentPreset;
 import info.openrocket.core.rocketcomponent.AxialStage;
 import info.openrocket.core.rocketcomponent.DeploymentConfiguration;
 import info.openrocket.core.rocketcomponent.FlightConfigurableComponent;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.FlightConfigurationId;
+import info.openrocket.core.rocketcomponent.FreeformFinSet;
 import info.openrocket.core.rocketcomponent.MotorMount;
 import info.openrocket.core.rocketcomponent.RecoveryDevice;
 import info.openrocket.core.rocketcomponent.Rocket;
@@ -32,6 +37,8 @@ import info.openrocket.core.simulation.FlightDataBranch;
 import info.openrocket.core.simulation.FlightDataType;
 import info.openrocket.core.simulation.FlightEvent;
 import info.openrocket.core.simulation.SimulationOptions;
+import info.openrocket.core.util.Coordinate;
+import info.openrocket.core.util.ORColor;
 import io.github.openrocketmcp.Main;
 import io.github.openrocketmcp.mcp.Args;
 import io.github.openrocketmcp.mcp.McpServer;
@@ -46,6 +53,7 @@ import io.github.openrocketmcp.or.FlightLog;
 import io.github.openrocketmcp.or.Library;
 import io.github.openrocketmcp.or.Motors;
 import io.github.openrocketmcp.or.OrRuntime;
+import io.github.openrocketmcp.or.Presets;
 import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sims;
 import io.github.openrocketmcp.or.Targets;
@@ -141,6 +149,32 @@ public final class AppTools {
 				Schema.object().str("folder", "Folder (default the designs folder).", false)
 						.bool("simulate", "Simulate designs without saved results (default true).", false).build(),
 				true, a -> library(ctx, a)));
+		add(s, new ToolDef("app_fin_points", "App: fin outline", "A fin set's outline points (x along the root, y outwards), in SI.",
+				Schema.object().str("designId", DESIGN, true).str("component", "Fin set id.", true).build(), true,
+				a -> finPoints(ctx, a)));
+		add(s, new ToolDef("app_set_fin_points", "App: set freeform fin points",
+				"Replace a freeform fin set's outline: points from the root's leading edge (0, 0) to its trailing edge (x, 0), in SI.",
+				Schema.object().str("designId", DESIGN, true).str("component", "Freeform fin set id.", true)
+						.array("points", "[[x, y], ...] in m.",
+								JsonParser.parseString("{\"type\": \"array\", \"items\": {\"type\": \"number\"}}").getAsJsonObject(), true)
+						.build(),
+				false, a -> setFinPoints(ctx, a)));
+		add(s, new ToolDef("app_convert_fins", "App: convert fins to freeform",
+				"Replace a trapezoidal or elliptical fin set with a freeform one of the same outline (OpenRocket's Convert).",
+				Schema.object().str("designId", DESIGN, true).str("component", "Fin set id.", true).build(), false,
+				a -> convertFins(ctx, a)));
+		add(s, new ToolDef("app_presets", "App: catalogue parts for a component",
+				"Parts-database presets of the component's kind, in SI, nearest the component's own diameter first.",
+				Schema.object().str("designId", DESIGN, true).str("component", "Component id.", true)
+						.str("text", "Words that must appear (manufacturer, part number, material).", false)
+						.bool("sameDiameter", "Only parts within 2% of the component's diameter.", false)
+						.integer("limit", "Most parts (default 200).", false).build(),
+				true, a -> presets(ctx, a)));
+		add(s, new ToolDef("app_appearance", "App: paint colour", "Set or clear a component's paint colour and shine.",
+				Schema.object().str("designId", DESIGN, true).str("component", "Component id.", true)
+						.str("color", "#rrggbb, or empty to use the default look.", false).num("shine", "0 (matte) to 1 (glossy).", false)
+						.build(),
+				false, a -> appearance(ctx, a)));
 		add(s, new ToolDef("app_model", "App: 3-D model", "Meshes of every part of the active configuration, with CG and CP.",
 				Schema.object().str("designId", DESIGN, true).build(), true, a -> model(ctx, a)));
 		add(s, new ToolDef("app_quick_flight", "App: quick flight", "Flight summary of the active configuration (not saved).",
@@ -411,6 +445,12 @@ public final class AppTools {
 		out.put("type", c.getClass().getSimpleName());
 		out.put("label", c.getComponentName());
 		out.put("sections", Editors.render(c));
+		if (!(c instanceof Rocket)) {
+			out.put("paint", paint(c));
+			out.put("shine", c.getAppearance() == null ? null : c.getAppearance().getShine());
+			out.put("presetType", c.getPresetType() == null ? null : c.getPresetType().name());
+			out.put("preset", c.getPresetComponent() == null ? null : Presets.name(c.getPresetComponent()));
+		}
 		try {
 			out.put("mass", c.getSectionMass());
 			out.put("componentMass", c.getComponentMass());
@@ -479,6 +519,12 @@ public final class AppTools {
 				Map<String, Object> p = new LinkedHashMap<>((Map<String, Object>) o);
 				p.remove("props"); // the editor reads these itself, with values the app can edit
 				p.remove("mass");
+				if (p.get("id") instanceof String id) {
+					String painted = paint(Components.find(d.doc.getRocket(), id));
+					if (painted != null) {
+						p.put("color", painted);
+					}
+				}
 				parts.add(p);
 			}
 			out.put("parts", parts);
@@ -527,6 +573,179 @@ public final class AppTools {
 			m.put("problems", problems);
 		}
 		return m;
+	}
+
+	// ------------------------------------------------------------------------------------------- fins, catalogue, paint
+
+	static Map<String, Object> finPoints(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		if (!(find(d, a.str("component")) instanceof FinSet f)) {
+			throw new ToolException("Not a fin set.");
+		}
+		List<double[]> pts = new ArrayList<>();
+		for (Coordinate c : f.getFinPoints()) {
+			pts.add(new double[] { c.x, c.y });
+		}
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("points", pts);
+		out.put("editable", f instanceof FreeformFinSet);
+		out.put("bodyRadius", f.getBodyRadius());
+		out.put("thickness", f.getThickness());
+		return out;
+	}
+
+	static Map<String, Object> setFinPoints(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		if (!(find(d, a.str("component")) instanceof FreeformFinSet f)) {
+			throw new ToolException("Only a freeform fin set's points can be edited; convert the fins first.");
+		}
+		JsonArray arr = a.array("points");
+		if (arr.size() < 3) {
+			throw new ToolException("A fin needs at least three points.");
+		}
+		List<Coordinate> pts = new ArrayList<>();
+		for (JsonElement e : arr) {
+			JsonArray xy = e.getAsJsonArray();
+			double x = xy.get(0).getAsDouble(), y = xy.get(1).getAsDouble();
+			if (!Double.isFinite(x) || !Double.isFinite(y) || y < -1e-9 || Math.abs(x) > 10 || y > 10) {
+				throw new ToolException("Fin points are [x, y] in metres with y >= 0.");
+			}
+			pts.add(new Coordinate(x, y));
+		}
+		// The root runs from (0, 0) to (x, 0), as in OpenRocket's editor.
+		Coordinate last = pts.get(pts.size() - 1);
+		pts.set(0, Coordinate.ZERO);
+		pts.set(pts.size() - 1, new Coordinate(last.x, 0));
+		if (last.x <= 0) {
+			throw new ToolException("The trailing edge of the root must be behind the leading edge.");
+		}
+		if (crosses(pts)) {
+			throw new ToolException("The outline crosses itself; points not changed.");
+		}
+		f.setPoints(pts.toArray(new Coordinate[0]));
+		d.doc.setSaved(false);
+		return Map.of("points", pts.size(), "span", f.getSpan());
+	}
+
+	/** Whether two edges of the closed outline (the root closes it) cross; edges that share a point do not count. */
+	static boolean crosses(List<Coordinate> pts) {
+		int n = pts.size();
+		for (int i = 0; i < n; i++) {
+			for (int j = i + 2; j < n; j++) {
+				if (i == 0 && j == n - 1) {
+					continue; // the root and the first edge meet at the leading edge
+				}
+				Coordinate a = pts.get(i), b = pts.get(i + 1), c = pts.get(j), e = pts.get((j + 1) % n);
+				double d1 = side(c, e, a), d2 = side(c, e, b), d3 = side(a, b, c), d4 = side(a, b, e);
+				if (d1 * d2 < 0 && d3 * d4 < 0) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private static double side(Coordinate p, Coordinate q, Coordinate r) {
+		return (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+	}
+
+	static Map<String, Object> convertFins(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		RocketComponent c = find(d, a.str("component"));
+		if (!(c instanceof FinSet f) || c instanceof FreeformFinSet) {
+			throw new ToolException(c instanceof FreeformFinSet ? "These fins are already freeform." : "Not a fin set.");
+		}
+		FreeformFinSet ff = FreeformFinSet.convertFinSet(f);
+		d.doc.setSaved(false);
+		return Map.of("component", Components.shortId(ff), "name", ff.getName());
+	}
+
+	static Map<String, Object> presets(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		RocketComponent c = find(d, a.str("component"));
+		ComponentPreset.Type t = c.getPresetType();
+		if (t == null) {
+			throw new ToolException(c.getComponentName() + " parts have no catalogue.");
+		}
+		double own = diameterOf(c);
+		List<ComponentPreset> found = Presets.search(t, Double.NaN, Double.NaN, Double.NaN, Double.NaN, null,
+				a.has("text") && !a.str("text").isBlank() ? a.str("text") : null);
+		if (a.bool("sameDiameter", false) && own > 0) {
+			found.removeIf(p -> !(Math.abs(Presets.outerDiameter(p) - own) <= 0.02 * own));
+		}
+		if (own > 0) {
+			found.sort(java.util.Comparator.comparingDouble(p -> {
+				double od = Presets.outerDiameter(p);
+				return Double.isNaN(od) ? Double.MAX_VALUE : Math.abs(od - own);
+			}));
+		}
+		int limit = Math.max(1, a.integer("limit", 200));
+		List<Map<String, Object>> rows = new ArrayList<>();
+		for (ComponentPreset p : found.subList(0, Math.min(limit, found.size()))) {
+			Map<String, Object> m = new LinkedHashMap<>();
+			m.put("ref", Presets.name(p));
+			m.put("manufacturer", p.getManufacturer().getDisplayName());
+			m.put("partNo", p.getPartNo());
+			m.put("description", p.has(ComponentPreset.DESCRIPTION) ? p.get(ComponentPreset.DESCRIPTION) : "");
+			m.put("outerDiameter", Presets.outerDiameter(p));
+			m.put("innerDiameter", p.has(ComponentPreset.INNER_DIAMETER) ? p.get(ComponentPreset.INNER_DIAMETER) : null);
+			m.put("length", p.has(ComponentPreset.LENGTH) ? p.get(ComponentPreset.LENGTH) : null);
+			m.put("mass", p.has(ComponentPreset.MASS) ? p.get(ComponentPreset.MASS) : null);
+			m.put("material", p.has(ComponentPreset.MATERIAL) ? p.get(ComponentPreset.MATERIAL).getName() : "");
+			rows.add(m);
+		}
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("type", t.name());
+		out.put("diameter", own > 0 ? own : null);
+		out.put("current", c.getPresetComponent() == null ? null : Presets.name(c.getPresetComponent()));
+		out.put("matches", found.size());
+		out.put("presets", rows);
+		return out;
+	}
+
+	/** The diameter a catalogue part should match: the outside of tubes and cones, the bore a ring or coupler sits in. */
+	static double diameterOf(RocketComponent c) {
+		for (String k : new String[] { "outerRadius", "aftRadius", "outerDiameter", "diameter", "radius" }) {
+			try {
+				Object v = Components.getRaw(c, k);
+				if (v instanceof Double r && r > 0) {
+					return k.endsWith("Radius") || k.equals("radius") ? 2 * r : r;
+				}
+			} catch (ToolException e) {
+				// not a property of this part
+			}
+		}
+		return Double.NaN;
+	}
+
+	static Map<String, Object> appearance(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		RocketComponent c = find(d, a.str("component"));
+		String hex = a.str("color", "").trim();
+		if (hex.isEmpty()) {
+			c.setAppearance(null);
+		} else {
+			if (!hex.matches("#?[0-9a-fA-F]{6}")) {
+				throw new ToolException("Colour as #rrggbb.");
+			}
+			int rgb = Integer.parseInt(hex.replace("#", ""), 16);
+			double shine = Math.max(0, Math.min(1, a.num("shine", c.getAppearance() == null ? 0.3 : c.getAppearance().getShine())));
+			Appearance old = c.getAppearance();
+			c.setAppearance(new Appearance(new ORColor(rgb >> 16 & 255, rgb >> 8 & 255, rgb & 255), shine,
+					old == null ? null : old.getTexture()));
+		}
+		d.doc.setSaved(false);
+		return Map.of("component", c.getName(), "color", hex.isEmpty() ? "default" : hex);
+	}
+
+	/** The component's paint as #rrggbb, or null for OpenRocket's default look. */
+	static String paint(RocketComponent c) {
+		Appearance ap = c.getAppearance();
+		if (ap == null || ap.getPaint() == null) {
+			return null;
+		}
+		ORColor col = ap.getPaint();
+		return String.format("#%02x%02x%02x", col.getRed(), col.getGreen(), col.getBlue());
 	}
 
 	// ------------------------------------------------------------------------------------------- flight data

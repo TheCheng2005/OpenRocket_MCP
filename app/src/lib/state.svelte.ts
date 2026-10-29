@@ -69,6 +69,10 @@ export interface Editor {
   name: string;
   type: string;
   label: string;
+  paint?: string;
+  shine?: number;
+  presetType?: string;
+  preset?: string;
   sections: { title: string; fields: FieldDef[] }[];
   mass?: number;
   componentMass?: number;
