@@ -186,6 +186,37 @@ Done when: the team stops opening OpenRocket for day-to-day work.
 - A validation page: predicted against measured apogee for every flight we can get, published with each release.
 - Docs: a getting-started guide and one worked example per screen.
 
+## New functions: order of work
+
+Easiest first. "Easy" means the engine already does the work and the app needs only inputs and a results view.
+
+**Tier 1: the engine's analyses in the app (in progress).** An Analysis page lists the engine's tools by area. Each
+one gets a form built from the tool's own input definition: the design, simulation, configuration and the right
+parts are filled in or picked from lists, launch-condition overrides are folded away, and paths default to the
+designs folder. Results show as tables, with pass/warn/fail colours and the tool's plots. This covers:
+- Checks: rule check, readiness.
+- Stability: stability and drag vs Mach, ballast, roll from fin cant.
+- Recovery: recovery loads, parachute size chart, sizing for a descent rate, deployment delay, shear pins, ejection
+  charge, opening shock, recovery sections.
+- Structures: fin flutter, airframe loads, heating, pressure vessel.
+- Launch and avionics: rail buttons, flight card, altimeter settings, radio link, sensor ranges.
+- Studies: Monte Carlo, motor ranking, parameter sweep, nose and fin shape trade, material trade.
+- Files: design review report, flight data CSV, geometry export, mass budget template.
+
+**Tier 2: dedicated screens where a form and a table aren't enough.**
+- Rule check status on the Design page, refreshed after each edit (the engine takes about 0.3 s).
+- Plots: stability and Cd vs Mach, the Monte Carlo landing ellipse, parachute size chart, sweep results.
+- Forms for the tools that take lists of items: recovery bay fit, landing energy, the optimizer's variables,
+  avionics circuits and sensors, multi-level winds.
+- Compare two designs and the progress log (what changed since a milestone).
+- RASAero table import per stage.
+
+**Tier 3: new work in the engine or the app.**
+- Requirements first: targets with live margins.
+- Flight log import: predicted against measured, the design library across years.
+- Editors still missing: freeform fin points, the parts catalogue, appearance.
+- Installers with Java included; the optional assistant.
+
 ## Validation
 
 Teams trust a tool for its track record, not its features. From Phase 1 on:

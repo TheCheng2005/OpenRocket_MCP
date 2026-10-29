@@ -1,5 +1,7 @@
 package io.github.openrocketmcp.app;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -174,6 +176,23 @@ public final class AppTools {
 		add(s, new ToolDef("app_choose_file", "App: choose a file", "The system's open or save dialog; returns the chosen path.",
 				Schema.object().enumStr("mode", "open or save.", true, "open", "save").str("name", "Suggested file name.", false).build(),
 				true, a -> FileDialogs.choose(a.str("mode"), a.str("name", null), ctx.workspace())));
+		add(s, new ToolDef("app_reveal", "App: show a file", "Open a file the engine wrote, or its folder, in the system's file manager.",
+				Schema.object().str("path", "File or folder.", true).build(), true, a -> {
+					Path p = ctx.path(a.str("path")).toAbsolutePath().normalize();
+					if (!Files.exists(p)) {
+						throw new ToolException("Not found: " + p);
+					}
+					Path open = Files.isDirectory(p) ? p : p.getParent();
+					try {
+						if (java.awt.GraphicsEnvironment.isHeadless() || !java.awt.Desktop.isDesktopSupported()) {
+							throw new ToolException("No file manager here. The file is at " + p);
+						}
+						java.awt.Desktop.getDesktop().open(open.toFile());
+					} catch (java.io.IOException | UnsupportedOperationException | LinkageError e) {
+						throw new ToolException("Could not open the folder. The file is at " + p);
+					}
+					return Map.of("opened", open.toString());
+				}));
 		add(s, new ToolDef("app_set_units", "App: unit system", "Metric or imperial for numbers the tools write as text.",
 				Schema.object().enumStr("system", "metric or imperial.", true, "metric", "imperial").build(), false, a -> {
 					Units.setSystem(UnitSystem.parse(a.str("system")));

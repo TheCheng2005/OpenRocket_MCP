@@ -4,8 +4,8 @@ RocketMaxxing is a desktop app for designing and simulating rockets. It runs off
 Under the hood it is the same engine as the OpenRocket MCP server (OpenRocket 24.12 plus this project's tools), and it
 reads and writes ordinary OpenRocket `.ork` files, so a design can go back and forth between the two programs.
 
-Version 0.1.0 covers OpenRocket's three main tabs. The engineering tools (rule checks, recovery, structures,
-avionics, Monte Carlo) come next; see [the plan](APP_PLAN.md).
+Version 0.1.0 covers OpenRocket's three main tabs, and an Analysis page that runs the engine's engineering tools.
+See [the plan](APP_PLAN.md) for what comes next.
 
 ![Design page](rocketmaxxing/design.png)
 
@@ -16,14 +16,20 @@ avionics, Monte Carlo) come next; see [the plan](APP_PLAN.md).
 | Design | Rocket design | Parts list on the left, the rocket in the middle, the selected part's properties on the right (no pop-up dialog). The add-part buttons are below the view; the ones that can't go where you are pointing are greyed out. Summary shows stability against your rule set's minimum, mass, length and a quick flight of the active configuration. |
 | Motors | Motors & Configuration | Motors, recovery and stages as three tables on one page, a row per flight configuration. The motor list can be searched, filtered to motors that fit the mount, and shows the thrust curve. |
 | Flights | Flight simulations | The simulations, the launch conditions of the selected one, and its plot. |
+| Analysis | (not in OpenRocket) | 31 analyses from the engine, by area: rule check and readiness; stability and drag vs Mach, ballast, shape trades; recovery loads, parachute sizing, shear pins, ejection charge, opening shock; fin flutter, airframe loads, heating, material trade, pressure vessel; rail buttons, flight card, altimeter settings, sensors, radio link; Monte Carlo, motor ranking, parameter sweep; report, CSV and geometry export. Pick one, fill in what it asks for (the design, simulation and parts are picked from lists), run. Results show as tables, with pass, warn and fail in colour, plots, and a Show button for files it writes. |
 
 Every panel and section folds (click its title). The Parts and Properties panels fold to a strip at the side to give
 the view more room. What is folded is remembered.
+
+Analysis results are kept while the app is open and dimmed when the design has changed since they ran. Results
+that are text from the engine follow the metric or imperial setting, but not the per-quantity units.
 
 The view has three modes. Side is OpenRocket's figure, with the airframe see-through and CG and CP marked. Back looks
 along the rocket from behind. 3D can be turned, and Cut-away opens the airframe. Click a part to select it.
 
 Settings (the gear, top right) has the units, metric or imperial and per quantity, and light or dark theme.
+
+![Analysis: rule check](rocketmaxxing/analysis.png)
 
 ![Motors](rocketmaxxing/motors.png)
 

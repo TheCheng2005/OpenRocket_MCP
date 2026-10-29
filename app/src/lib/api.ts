@@ -74,6 +74,41 @@ export async function call<T = any>(name: string, args: Record<string, unknown> 
   }
 }
 
+export interface ToolInfo {
+  name: string;
+  title: string;
+  description: string;
+  inputSchema: { properties?: Record<string, any>; required?: string[] };
+  annotations?: { readOnlyHint?: boolean };
+}
+
+let toolList: Promise<ToolInfo[]> | null = null;
+
+/** Every tool the engine offers, with its input definition (fetched once). */
+export function tools(): Promise<ToolInfo[]> {
+  toolList ??= rpc("tools/list", {}).then((r) => r.tools as ToolInfo[]);
+  return toolList;
+}
+
+/** Calls a tool and also returns the pictures it attached (plots). */
+export async function callFull(name: string, args: Record<string, unknown> = {}): Promise<{ data: any; images: { src: string }[] }> {
+  const result = await rpc("tools/call", { name, arguments: args });
+  const text: string = result?.content?.[0]?.text ?? "";
+  if (result?.isError) {
+    throw new ToolError(text.replace(/^Error:\s*/, ""));
+  }
+  let data: any;
+  try {
+    data = parse(text);
+  } catch {
+    data = text;
+  }
+  const images = (result?.content ?? [])
+    .filter((c: any) => c.type === "image")
+    .map((c: any) => ({ src: `data:${c.mimeType};base64,${c.data}` }));
+  return { data, images };
+}
+
 /** Tells the launcher the window is still open (it stops the engine once the window has been closed a while). */
 export function keepAlive(): void {
   const beat = () => rpc("ping", {}).catch(() => {});
