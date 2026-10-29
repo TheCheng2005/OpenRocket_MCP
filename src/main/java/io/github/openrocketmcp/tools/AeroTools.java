@@ -109,7 +109,9 @@ public final class AeroTools {
 				SimTools.simSelect(Schema.object())
 						.enumStr("mode", "levels | power_law | average | show", true, "levels", "power_law", "average", "show")
 						.array("levels", "For mode levels: {altitude, speed, direction, sd?} (direction the wind blows FROM).",
-								Schema.type("object", null), false)
+								Schema.object().qty("altitude", "Altitude.", true).qty("speed", "Wind speed.", true)
+										.qty("direction", "Direction the wind blows from.", false).qty("sd", "Speed standard deviation.", false)
+										.item(), false)
 						.bool("aboveGroundLevel", "Level altitudes are AGL (default true); false = MSL.", false)
 						.qty("groundSpeed", "power_law: wind speed at 10 m (default: the simulation's wind speed).", false)
 						.qty("direction", "power_law: wind direction (from) (default: the simulation's).", false)

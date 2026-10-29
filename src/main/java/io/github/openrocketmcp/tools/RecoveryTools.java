@@ -294,7 +294,12 @@ public final class RecoveryTools {
 						+ "recovery volume sheet), times the packing factor, compared with the bay. Gives the bay length needed.",
 				Schema.object().str("designId", DesignTools.DESIGN_ID, false)
 						.array("items", "Items: {name, packedVolume} | {name, packedDiameter, packedLength} | {name, cordLength, "
-								+ "cordWidth?, cordThickness?} | {name, preset: \"<manufacturer> <part no>\"}.", Schema.type("object", null), true)
+								+ "cordWidth?, cordThickness?} | {name, preset: \"<manufacturer> <part no>\"}.", Schema.object()
+								.str("name", "Item, e.g. \"Main parachute\".", true).qty("packedVolume", "Packed volume.", false)
+								.qty("packedDiameter", "Packed diameter.", false).qty("packedLength", "Packed length.", false)
+								.qty("cordLength", "Shock cord length.", false).qty("cordWidth", "Cord width.", false)
+								.qty("cordThickness", "Cord thickness.", false).str("preset", "Catalogue part: manufacturer and part number.", false)
+								.item(), true)
 						.str("bayTube", "Body tube component for the bay diameter.", false)
 						.str("bayComponent", "Body tube, nose cone or transition whose interior is the bay; its usable "
 								+ "volume is computed from the design (tube: inner diameter x availableLength or tube length).", false)
@@ -307,7 +312,8 @@ public final class RecoveryTools {
 		s.tool(new ToolDef("descent_energy", "Landing kinetic energy per section",
 				"Kinetic energy at touchdown for each independently tethered section, and the maximum descent rate that keeps the "
 						+ "heaviest section under an energy limit.",
-				Schema.object().array("sections", "[{name, mass}] with masses as numbers (kg) or strings with units.", Schema.type("object", null), true)
+				Schema.object().array("sections", "[{name, mass}] with masses as numbers (kg) or strings with units.", Schema.object()
+						.str("name", "Section, e.g. \"Booster\".", true).qty("mass", "Section mass.", true).item(), true)
 						.qty("descentRate", "Landing descent rate.", true)
 						.qty("energyLimit", "Kinetic energy limit, e.g. \"75 ft-lbf\".", false).build(),
 				true, a -> {

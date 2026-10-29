@@ -145,7 +145,64 @@ export const app = $state({
   toasts: [] as { id: number; text: string; kind: "error" | "info" }[],
   ask: null as null | { title: string; label: string; value: string; resolve: (v: string | null) => void },
   revision: 0, // bumped after every change, so pages reload what they show
+  checks: null as Checks | null,
+  checking: false,
 });
+
+export interface Check {
+  status: string;
+  item: string;
+  requirement?: string;
+  value?: string;
+  ref?: string;
+}
+
+export interface Checks {
+  ruleSet?: string;
+  summary?: string;
+  checks?: Check[];
+  error?: string;
+  designId: string;
+}
+
+const AUTO_CHECK = "rocketmaxxing.autoCheck";
+
+/** Whether the rule check runs after every edit (Settings). */
+export function autoCheck(): boolean {
+  try {
+    return localStorage.getItem(AUTO_CHECK) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+export function setAutoCheck(on: boolean) {
+  try {
+    localStorage.setItem(AUTO_CHECK, on ? "on" : "off");
+  } catch {
+    /* not kept */
+  }
+  if (on) checkRules();
+}
+
+let checkSeq = 0;
+let checkTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Runs the rule check on the active configuration, a moment after the last edit (edits in a row run it once). */
+export function checkRules(delay = 0) {
+  const d = app.design;
+  if (!d) return;
+  clearTimeout(checkTimer);
+  const seq = ++checkSeq;
+  checkTimer = setTimeout(() => {
+    if (seq !== checkSeq) return;
+    app.checking = true;
+    call<Checks>("check_requirements", { designId: d.designId })
+      .then((c) => seq === checkSeq && (app.checks = { ...c, designId: d.designId }))
+      .catch((e) => seq === checkSeq && (app.checks = { error: e.message, designId: d.designId }))
+      .finally(() => seq === checkSeq && (app.checking = false));
+  }, delay);
+}
 
 let toastId = 0;
 
@@ -288,6 +345,7 @@ export async function refresh() {
     .then((f) => seq === flightSeq && (app.flight = f))
     .catch((e) => seq === flightSeq && (app.flight = { error: e.message }))
     .finally(() => seq === flightSeq && (app.flying = false));
+  if (autoCheck()) checkRules(600);
 }
 
 function exists(n: TreeNode, id: string): boolean {

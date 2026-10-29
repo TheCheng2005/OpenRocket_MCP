@@ -64,7 +64,7 @@ public final class Electrical {
 			if (!(v > 0) || !(cap > 0) || !(i >= 0)) {
 				throw new ToolException("Circuit '" + name + "' needs voltage (V), capacityMah and currentMa.");
 			}
-			if (ri < 0 || pyro < 0 || pyro != Math.rint(pyro)) {
+			if (ri < 0 || !Double.isNaN(pyro) && (pyro < 0 || pyro != Math.rint(pyro))) { // both optional
 				throw new ToolException("Circuit '" + name + "': internalResistance cannot be negative and pyroChannels is a "
 						+ "whole number (0 for a tracker).");
 			}

@@ -89,6 +89,14 @@ public final class Schema {
 		return p;
 	}
 
+	/** A list item: an object with these properties ({@link #qty} etc. on a fresh builder), e.g. for {@link #array}. */
+	public JsonObject item() {
+		JsonObject s = build();
+		s.remove("type");
+		s.addProperty("type", "object");
+		return s;
+	}
+
 	public JsonObject build() {
 		JsonObject s = new JsonObject();
 		s.addProperty("type", "object");

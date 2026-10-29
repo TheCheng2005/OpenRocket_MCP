@@ -1,6 +1,6 @@
 <script lang="ts">
   import { X } from "@lucide/svelte";
-  import { app, setSystem } from "./state.svelte";
+  import { app, setSystem, autoCheck, setAutoCheck } from "./state.svelte";
   import { units, choices, choose, unitOf, pretty, type Dim } from "./units.svelte";
   import { prefs, setTheme, type Theme } from "./prefs.svelte";
 
@@ -52,6 +52,12 @@
           {#each THEMES as [t, label] (t)}<option value={t}>{label}</option>{/each}
         </select>
       </div>
+
+      <h4>Checks</h4>
+      <label class="row check">
+        <span>Check the rules after each edit</span>
+        <input type="checkbox" checked={autoCheck()} onchange={(e) => setAutoCheck((e.target as HTMLInputElement).checked)} />
+      </label>
 
       <h4>Files</h4>
       <div class="row"><span>Designs folder</span><code>{app.session?.workspace}</code></div>
@@ -105,6 +111,11 @@
     gap: 10px;
     min-height: 32px;
     color: var(--ink-2);
+  }
+  .row.check input {
+    justify-self: start;
+    width: 16px;
+    height: 16px;
   }
   .units {
     display: flex;

@@ -11,6 +11,7 @@
     initial = true,
     fill = false,
     tools,
+    status,
     children,
   }: {
     id: string;
@@ -19,6 +20,7 @@
     initial?: boolean;
     fill?: boolean;
     tools?: Snippet;
+    status?: Snippet;
     children: Snippet;
   } = $props();
 
@@ -41,6 +43,7 @@
         </button>
       {/if}
       <div class="tools">
+        {#if status}{@render status()}{/if}
         {#if open && tools}{@render tools()}{/if}
         {#if side}
           <button class="hide" onclick={() => toggle(id, initial)} title="Hide {title.toLowerCase()}">

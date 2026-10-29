@@ -147,6 +147,24 @@ class AppToolsTest {
 	}
 
 	@Test
+	void listInputsDescribeTheirItems() {
+		// The app builds a table for each list of items from the item's fields; Claude reads them too.
+		JsonObject list = server.handleLine("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}").getAsJsonObject("result");
+		for (JsonElement t : list.getAsJsonArray("tools")) {
+			String name = t.getAsJsonObject().get("name").getAsString();
+			JsonObject props = t.getAsJsonObject().getAsJsonObject("inputSchema").getAsJsonObject("properties");
+			for (String key : List.of("items", "sections", "levels", "circuits", "variables", "sensors")) {
+				if (props != null && props.has(key) && props.getAsJsonObject(key).has("items")) {
+					JsonObject items = props.getAsJsonObject(key).getAsJsonObject("items");
+					if (items.has("type") && items.get("type").getAsString().equals("object")) {
+						assertTrue(items.has("properties"), name + "." + key + " describes its item fields");
+					}
+				}
+			}
+		}
+	}
+
+	@Test
 	void appToolsAreNotInTheMcpServer() {
 		McpServer plain = Main.build(new Context(Standards.defaults()));
 		String list = plain.handleLine("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}").toString();

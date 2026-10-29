@@ -14,7 +14,7 @@
     const cols: string[] = [];
     for (const row of list) {
       for (const [k, v] of Object.entries(row)) {
-        if (!isPrimitive(v)) return null;
+        if (!isPrimitive(v) && !(Array.isArray(v) && v.length <= 4 && v.every(isPrimitive))) return null;
         if (!cols.includes(k)) cols.push(k);
       }
     }
@@ -41,6 +41,8 @@
 {#snippet val(k: string, v: any)}
   {#if v === null || v === undefined}
     <span class="muted">–</span>
+  {:else if Array.isArray(v)}
+    {v.join(", ")}
   {:else if typeof v === "boolean"}
     {v ? "yes" : "no"}
   {:else if isPath(k, v)}

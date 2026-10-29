@@ -6,6 +6,8 @@
   import { isOpen, toggle } from "../panels.svelte";
   import Panel from "../Panel.svelte";
   import Result from "./Result.svelte";
+  import ResultPlot from "./ResultPlot.svelte";
+  import RowsEditor from "./RowsEditor.svelte";
   import { CATALOG, OVERRIDES, PART_INPUTS, type Analysis } from "./catalog";
   import { analysis } from "./store.svelte";
   import { firstSentence, label } from "./text";
@@ -14,6 +16,7 @@
 
   let infos = $state<Record<string, ToolInfo>>({});
   let sims = $state<string[]>([]);
+  let designs = $state<{ designId: string; name: string }[]>([]);
 
   listTools().then((list) => (infos = Object.fromEntries(list.map((t) => [t.name, t]))));
 
@@ -23,6 +26,8 @@
       if (!app.design) return;
       const r = await call<{ simulations: { name: string }[] }>("app_sims", { designId: app.design.designId }).catch(() => null);
       sims = r?.simulations.map((s) => s.name) ?? [];
+      const ses = await call<{ designs: { designId: string; name: string }[] }>("app_session").catch(() => null);
+      designs = ses?.designs.filter((x) => x.designId !== app.design?.designId) ?? [];
     });
   });
 
@@ -32,18 +37,23 @@
   let stale = $derived(!!outcome && (outcome.designId !== app.design?.designId || outcome.revision < app.revision));
   let running = $state(false);
 
-  type Kind = "sim" | "config" | "part" | "enum" | "qty" | "bool" | "number" | "list" | "text";
+  type Kind = "sim" | "config" | "part" | "design" | "file" | "rows" | "enum" | "qty" | "bool" | "number" | "list" | "text";
 
   function kind(key: string, s: any): Kind | null {
     if (key === "designId") return null;
     if (key === "simulation") return "sim";
     if (key === "configuration") return "config";
+    if (key === "baselineDesignId") return "design";
+    if (entry.files?.[key]) return "file";
     if (PART_INPUTS[key]) return "part";
     if (s.enum) return "enum";
     if (Array.isArray(s.type)) return "qty";
     if (s.type === "boolean") return "bool";
     if (s.type === "number" || s.type === "integer") return "number";
-    if (s.type === "array") return s.items?.type === "object" || !s.items ? null : "list";
+    if (s.type === "array") {
+      if (s.items?.type === "object") return s.items.properties ? "rows" : null;
+      return s.items ? "list" : null;
+    }
     if (s.type === "string") return "text";
     return null; // objects and lists of objects need their own forms (tier 2)
   }
@@ -91,7 +101,21 @@
     }
   });
 
-  let missing = $derived(inputs.main.filter((i) => i.required && !(values[i.key] ?? "").trim()).map((i) => label(i.key)));
+  /** The filled-in rows of a list input. */
+  function filledRows(raw: string): Record<string, string>[] {
+    try {
+      const r = JSON.parse(raw || "[]");
+      return Array.isArray(r) ? r.filter((row) => Object.values(row ?? {}).some((v) => String(v ?? "").trim() !== "")) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  let missing = $derived(
+    inputs.main
+      .filter((i) => i.required && (i.kind === "rows" ? filledRows(values[i.key] ?? "").length === 0 : !(values[i.key] ?? "").trim()))
+      .map((i) => label(i.key)),
+  );
 
   function flatten(n: TreeNode | undefined, out: TreeNode[] = []): TreeNode[] {
     if (!n) return out;
@@ -115,6 +139,23 @@
     for (const i of [...inputs.main, ...inputs.conditions, ...inputs.more]) {
       const raw = (values[i.key] ?? "").trim();
       if (raw === "") continue;
+      if (i.kind === "rows") {
+        const props = i.schema.items?.properties ?? {};
+        const list = filledRows(raw).map((row) => {
+          const o: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(row)) {
+            const t = String(v ?? "").trim();
+            if (!t) continue;
+            const ty = props[k]?.type;
+            if (ty === "boolean") o[k] = t === "true";
+            else if ((ty === "number" || ty === "integer" || Array.isArray(ty)) && NUMBER.test(t)) o[k] = Number(t);
+            else o[k] = t;
+          }
+          return o;
+        });
+        if (list.length) out[i.key] = list;
+        continue;
+      }
       if (i.kind === "bool") out[i.key] = raw === "true";
       else if (i.kind === "number") out[i.key] = NUMBER.test(raw) ? Number(raw) : raw;
       else if (i.kind === "qty") out[i.key] = NUMBER.test(raw) ? Number(raw) : raw;
@@ -141,6 +182,15 @@
     analysis.results[tool] = { ...r, ms: performance.now() - t0, revision: app.revision, designId: app.design?.designId ?? "" };
   }
 
+  async function browse(key: string) {
+    try {
+      const r = await call<{ path: string | null }>("app_choose_file", { mode: "open", types: entry.files?.[key] ?? "csv" });
+      if (r.path) values[key] = r.path;
+    } catch {
+      /* no file dialog here: the path can be typed */
+    }
+  }
+
   function choose(a: Analysis) {
     ensure(a);
     analysis.selected = a.tool;
@@ -149,6 +199,12 @@
 
 {#snippet field(i: Input)}
   {@const help = i.schema.description ?? ""}
+  {#if i.kind === "rows"}
+    <div class="rowsfield">
+      <span class="lab" title={help}>{label(i.key)}{#if i.required}<b class="req">*</b>{/if}</span>
+      <RowsEditor items={i.schema.items} bind:value={values[i.key]} {parts} />
+    </div>
+  {:else}
   <label class="row" title={help}>
     <span class="lab">{label(i.key)}{#if i.required}<b class="req">*</b>{/if}</span>
     {#if i.kind === "sim"}
@@ -166,6 +222,16 @@
         <option value="">{i.required ? "Choose…" : "Default"}</option>
         {#each partsFor(i.key) as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
       </select>
+    {:else if i.kind === "design"}
+      <select class="select" bind:value={values[i.key]}>
+        <option value="">None</option>
+        {#each designs as d (d.designId)}<option value={d.designId}>{d.name}</option>{/each}
+      </select>
+    {:else if i.kind === "file"}
+      <span class="file">
+        <input class="input" bind:value={values[i.key]} placeholder="path of the file" />
+        <button class="btn" type="button" onclick={() => browse(i.key)}>Browse…</button>
+      </span>
     {:else if i.kind === "enum"}
       <select class="select" bind:value={values[i.key]}>
         {#if !i.required}<option value="">Default</option>{/if}
@@ -181,6 +247,7 @@
         onkeydown={(e) => e.key === "Enter" && go()} />
     {/if}
   </label>
+  {/if}
 {/snippet}
 
 {#snippet fold(id: string, title: string, list: Input[])}
@@ -242,6 +309,7 @@
       {/snippet}
       <div class="out" class:stale>
         {#if outcome}
+          {#if entry.plot}<ResultPlot data={outcome.data} spec={entry.plot} />{/if}
           {#each outcome.images as img}<img src={img.src} alt="Plot" />{/each}
           <Result value={outcome.data} />
         {:else}
@@ -358,6 +426,22 @@
   .row .input,
   .row .select {
     width: 100%;
+  }
+  .rowsfield {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 2px 0 4px;
+  }
+  .file {
+    display: flex;
+    gap: 4px;
+    min-width: 0;
+  }
+  .file .input {
+    flex: 1;
+    min-width: 0;
   }
   .fold {
     margin-top: 6px;

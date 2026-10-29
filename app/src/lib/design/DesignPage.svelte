@@ -8,6 +8,8 @@
   import Inspector from "./Inspector.svelte";
   import RocketView from "./RocketView.svelte";
   import Stats from "./Stats.svelte";
+  import RuleCheck from "./RuleCheck.svelte";
+  import RuleCheckStatus from "./RuleCheckStatus.svelte";
 
   let isRoot = $derived(app.selected === "rocket");
   let target = $derived(findNode(app.design?.tree, app.selected)?.name ?? "");
@@ -32,6 +34,10 @@
     </Panel>
     <Panel id="design.summary" title="Summary">
       <Stats />
+    </Panel>
+    <Panel id="design.rules" title="Rule check" initial={false}>
+      {#snippet status()}<RuleCheckStatus />{/snippet}
+      <RuleCheck />
     </Panel>
     <Panel id="design.add" title="Add part">
       {#snippet tools()}<span class="to">to {target}</span>{/snippet}
@@ -80,6 +86,9 @@
     position: relative;
     flex: 1;
     min-height: 200px;
+  }
+  .center > :global(.panel.fill) {
+    min-height: 240px;
   }
   .tool {
     display: grid;

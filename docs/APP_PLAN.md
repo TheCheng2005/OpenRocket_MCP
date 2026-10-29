@@ -190,7 +190,7 @@ Done when: the team stops opening OpenRocket for day-to-day work.
 
 Easiest first. "Easy" means the engine already does the work and the app needs only inputs and a results view.
 
-**Tier 1: the engine's analyses in the app (in progress).** An Analysis page lists the engine's tools by area. Each
+**Tier 1: the engine's analyses in the app (done).** An Analysis page lists the engine's tools by area. Each
 one gets a form built from the tool's own input definition: the design, simulation, configuration and the right
 parts are filled in or picked from lists, launch-condition overrides are folded away, and paths default to the
 designs folder. Results show as tables, with pass/warn/fail colours and the tool's plots. This covers:
@@ -203,13 +203,15 @@ designs folder. Results show as tables, with pass/warn/fail colours and the tool
 - Studies: Monte Carlo, motor ranking, parameter sweep, nose and fin shape trade, material trade.
 - Files: design review report, flight data CSV, geometry export, mass budget template.
 
-**Tier 2: dedicated screens where a form and a table aren't enough.**
-- Rule check status on the Design page, refreshed after each edit (the engine takes about 0.3 s).
-- Plots: stability and Cd vs Mach, the Monte Carlo landing ellipse, parachute size chart, sweep results.
-- Forms for the tools that take lists of items: recovery bay fit, landing energy, the optimizer's variables,
-  avionics circuits and sensors, multi-level winds.
-- Compare two designs and the progress log (what changed since a milestone).
-- RASAero table import per stage.
+**Tier 2: dedicated screens where a form and a table aren't enough (done).**
+- Rule check on the Design page, run again a moment after each edit (about 0.6 s), counts in the panel title.
+- Plots: stability and Cd vs Mach, parameter sweep, late deployment; the engine's own Monte Carlo landing map and
+  flight log comparison.
+- Forms for the tools that take lists of items, as small editable tables: recovery bay fit, landing energy, the
+  optimizer's variables, power budget circuits, sensors, winds aloft. The engine now describes every list item's
+  fields (bay fit, landing energy and wind levels only described them in words), which also helps Claude.
+- Compare with another open design or a file, the progress log, the edit history.
+- RASAero table import per stage, and a flight log against the simulation, with a file browser.
 
 **Tier 3: new work in the engine or the app.**
 - Requirements first: targets with live margins.

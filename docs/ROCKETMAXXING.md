@@ -16,10 +16,22 @@ See [the plan](APP_PLAN.md) for what comes next.
 | Design | Rocket design | Parts list on the left, the rocket in the middle, the selected part's properties on the right (no pop-up dialog). The add-part buttons are below the view; the ones that can't go where you are pointing are greyed out. Summary shows stability against your rule set's minimum, mass, length and a quick flight of the active configuration. |
 | Motors | Motors & Configuration | Motors, recovery and stages as three tables on one page, a row per flight configuration. The motor list can be searched, filtered to motors that fit the mount, and shows the thrust curve. |
 | Flights | Flight simulations | The simulations, the launch conditions of the selected one, and its plot. |
-| Analysis | (not in OpenRocket) | 31 analyses from the engine, by area: rule check and readiness; stability and drag vs Mach, ballast, shape trades; recovery loads, parachute sizing, shear pins, ejection charge, opening shock; fin flutter, airframe loads, heating, material trade, pressure vessel; rail buttons, flight card, altimeter settings, sensors, radio link; Monte Carlo, motor ranking, parameter sweep; report, CSV and geometry export. Pick one, fill in what it asks for (the design, simulation and parts are picked from lists), run. Results show as tables, with pass, warn and fail in colour, plots, and a Show button for files it writes. |
+| Analysis | (not in OpenRocket) | 42 analyses from the engine, by area: rule check and readiness; stability and drag vs Mach, ballast, shape trades; recovery loads, parachute sizing, late deployment, shear pins, ejection charge, opening shock, bay fit, landing energy; fin flutter, airframe loads, heating, material trade, pressure vessel; rail buttons, flight card, altimeter settings, sensors, radio link, power budget, winds aloft; Monte Carlo, motor ranking, parameter sweep, optimizer; compare designs, progress log, edit history, RASAero table import, flight log against the simulation; report, CSV and geometry export. Pick one, fill in what it asks for (simulation, parts and other designs from lists, files with Browse, lists of items as small tables), run. Results show as tables with pass, warn and fail in colour, plots, and a Show button for files it writes. |
 
 Every panel and section folds (click its title). The Parts and Properties panels fold to a strip at the side to give
 the view more room. What is folded is remembered.
+
+The Design page has a Rule check panel: the competition rule check runs again a moment after each edit, and its title
+shows the fail, warn and pass counts even when it is folded. It can be turned off in Settings.
+
+![Rule check on the Design page](rocketmaxxing/rule-check.png)
+
+Plots in Analysis: stability and Cd against Mach, the parameter sweep, late deployment, the parachute size chart,
+the Monte Carlo landing map and the flight log against the simulation.
+
+![Stability and drag vs Mach](rocketmaxxing/aero-plot.png)
+
+![Flight log against the simulation](rocketmaxxing/flight-log.png)
 
 Analysis results are kept while the app is open and dimmed when the design has changed since they ran. Results
 that are text from the engine follow the metric or imperial setting, but not the per-quantity units.
@@ -30,6 +42,8 @@ along the rocket from behind. 3D can be turned, and Cut-away opens the airframe.
 Settings (the gear, top right) has the units, metric or imperial and per quantity, and light or dark theme.
 
 ![Analysis: rule check](rocketmaxxing/analysis.png)
+
+![Recovery bay fit, with its list of items](rocketmaxxing/bay-fit.png)
 
 ![Motors](rocketmaxxing/motors.png)
 

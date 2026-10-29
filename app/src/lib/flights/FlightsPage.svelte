@@ -200,7 +200,7 @@
         {/snippet}
         <div class="plotbody">
           {#if plot}
-            <Plot x={plot.x} series={plot.series} xLabel="Time (s)" leftLabel={plot.left} rightLabel={plot.right} events={plot.events} height={300} />
+            <Plot x={plot?.x ?? []} series={plot?.series ?? []} xLabel="Time (s)" leftLabel={plot?.left ?? ""} rightLabel={plot?.right ?? ""} events={plot?.events ?? []} height={300} />
             <details>
               <summary>Variables</summary>
               <div class="vars">

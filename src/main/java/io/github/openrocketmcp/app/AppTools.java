@@ -174,8 +174,9 @@ public final class AppTools {
 						.integer("branch", "Branch (stage) index, default 0.", false).build(),
 				true, a -> series(ctx, a)));
 		add(s, new ToolDef("app_choose_file", "App: choose a file", "The system's open or save dialog; returns the chosen path.",
-				Schema.object().enumStr("mode", "open or save.", true, "open", "save").str("name", "Suggested file name.", false).build(),
-				true, a -> FileDialogs.choose(a.str("mode"), a.str("name", null), ctx.workspace())));
+				Schema.object().enumStr("mode", "open or save.", true, "open", "save").str("name", "Suggested file name.", false)
+						.str("types", "File extensions to show, e.g. \"csv,txt\" (default: designs).", false).build(),
+				true, a -> FileDialogs.choose(a.str("mode"), a.str("name", null), ctx.workspace(), a.str("types", "ork,rkt"))));
 		add(s, new ToolDef("app_reveal", "App: show a file", "Open a file the engine wrote, or its folder, in the system's file manager.",
 				Schema.object().str("path", "File or folder.", true).build(), true, a -> {
 					Path p = ctx.path(a.str("path")).toAbsolutePath().normalize();
