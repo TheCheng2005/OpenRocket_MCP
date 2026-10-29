@@ -5,6 +5,8 @@
   "ruleset": "launch-canada-2027",
   "competitionYear": 2027,
   "stagedCategory": false,
+  "targets": {},
+  "targetsNote": "The team's design goals, checked by the targets tool: {\"apogee\": {\"min\": \"9500 ft\", \"max\": \"10500 ft\", \"goal\": \"10000 ft\"}}. Keys: apogee, maxVelocity, maxMach, maxAcceleration, railExitVelocity, thrustToWeight, minStability, maxStability, flutterMargin, liftoffMass, timeToApogee, drogueDescentRate, mainDescentRate, groundHitVelocity, landingDistance, flightTime.",
   "launchSite": {
     "name": "Launch Canada",
     "altitudeMsl": null,

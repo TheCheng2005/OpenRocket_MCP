@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { House, Rocket, Flame, ChartSpline, ClipboardCheck } from "@lucide/svelte";
+  import { House, Rocket, Flame, ChartSpline, Target, ClipboardCheck } from "@lucide/svelte";
   import { app, type Page } from "./state.svelte";
 
   const pages: { id: Page; label: string; hint: string; icon: typeof Rocket }[] = [
@@ -7,6 +7,7 @@
     { id: "design", label: "Design", hint: "Rocket design", icon: Rocket },
     { id: "motors", label: "Motors", hint: "Motors & configuration", icon: Flame },
     { id: "flights", label: "Flights", hint: "Flight simulations", icon: ChartSpline },
+    { id: "targets", label: "Targets", hint: "The team's targets and the competition rules", icon: Target },
     { id: "analysis", label: "Analysis", hint: "Rule check, recovery, structures, studies", icon: ClipboardCheck },
   ];
 </script>

@@ -206,7 +206,8 @@ public final class Standards {
 	}
 
 	private static void quantities(JsonElement e, String where, String key, List<String> problems) {
-		if (e == null || e.isJsonNull()) {
+		// Targets are flight numbers (an apogee is kilometres, not a part length): the targets tool checks them.
+		if (e == null || e.isJsonNull() || where.equals(".targets")) {
 			return;
 		}
 		if (e.isJsonObject()) {

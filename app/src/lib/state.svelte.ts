@@ -130,7 +130,7 @@ export interface Session {
   creatable: string[];
 }
 
-export type Page = "home" | "design" | "motors" | "flights" | "analysis";
+export type Page = "home" | "design" | "motors" | "flights" | "targets" | "analysis";
 
 export const app = $state({
   session: null as Session | null,
@@ -147,6 +147,8 @@ export const app = $state({
   revision: 0, // bumped after every change, so pages reload what they show
   checks: null as Checks | null,
   checking: false,
+  targets: null as TargetList | null,
+  targeting: false,
 });
 
 export interface Check {
@@ -161,6 +163,35 @@ export interface Checks {
   ruleSet?: string;
   summary?: string;
   checks?: Check[];
+  error?: string;
+  designId: string;
+}
+
+export interface Target {
+  id: string;
+  label: string;
+  dim: string | null;
+  value: string;
+  valueSI: number | null;
+  min?: string;
+  minSI?: number;
+  max?: string;
+  maxSI?: number;
+  goal?: string;
+  goalSI?: number;
+  margin?: string;
+  marginPercent?: string;
+  fromGoal?: string;
+  from?: string;
+  note?: string;
+  status?: string;
+}
+
+export interface TargetList {
+  simulation?: string;
+  summary?: string;
+  targets?: Target[];
+  PROBLEMS?: string[];
   error?: string;
   designId: string;
 }
@@ -182,7 +213,37 @@ export function setAutoCheck(on: boolean) {
   } catch {
     /* not kept */
   }
-  if (on) checkRules();
+  if (on) {
+    checkRules();
+    checkTargets();
+  }
+}
+
+let targetSeq = 0;
+let targetTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Compares the active configuration's flight with the team's targets, a moment after the last edit. */
+export function checkTargets(delay = 0) {
+  const d = app.design;
+  if (!d) return;
+  clearTimeout(targetTimer);
+  const seq = ++targetSeq;
+  targetTimer = setTimeout(() => {
+    if (seq !== targetSeq) return;
+    app.targeting = true;
+    call<TargetList>("targets", { designId: d.designId })
+      .then((t) => seq === targetSeq && (app.targets = { ...t, designId: d.designId }))
+      .catch((e) => seq === targetSeq && (app.targets = { error: e.message, designId: d.designId }))
+      .finally(() => seq === targetSeq && (app.targeting = false));
+  }, delay);
+}
+
+/** Sets or clears target limits ("9500 ft", or null to clear) and checks them again. */
+export async function setTargets(patch: Record<string, Record<string, string | null>>) {
+  await run(async () => {
+    await call("app_set_targets", { targets: patch });
+    checkTargets();
+  });
 }
 
 let checkSeq = 0;
@@ -345,7 +406,10 @@ export async function refresh() {
     .then((f) => seq === flightSeq && (app.flight = f))
     .catch((e) => seq === flightSeq && (app.flight = { error: e.message }))
     .finally(() => seq === flightSeq && (app.flying = false));
-  if (autoCheck()) checkRules(600);
+  if (autoCheck()) {
+    checkRules(600);
+    checkTargets(600);
+  }
 }
 
 function exists(n: TreeNode, id: string): boolean {

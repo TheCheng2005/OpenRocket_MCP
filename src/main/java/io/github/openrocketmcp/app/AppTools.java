@@ -7,7 +7,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import info.openrocket.core.database.Databases;
 import info.openrocket.core.document.Simulation;
@@ -44,8 +46,10 @@ import io.github.openrocketmcp.or.Motors;
 import io.github.openrocketmcp.or.OrRuntime;
 import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sims;
+import io.github.openrocketmcp.or.Targets;
 import io.github.openrocketmcp.or.Winds;
 import io.github.openrocketmcp.report.Workbench;
+import io.github.openrocketmcp.standards.Standards;
 import io.github.openrocketmcp.tools.Context;
 import io.github.openrocketmcp.units.Dim;
 import io.github.openrocketmcp.units.UnitSystem;
@@ -115,6 +119,12 @@ public final class AppTools {
 					r.setSelectedConfiguration(Components.config(r, a.str("configuration")).getId());
 					return Map.of("selected", r.getSelectedConfiguration().getId().toString());
 				}));
+		// Read-only as far as undo goes: targets live in the team standards file, not in the design.
+		add(s, new ToolDef("app_set_targets", "App: set the team's targets",
+				"Set or clear target limits ({\"apogee\": {\"min\": \"9500 ft\", \"goal\": null}}) and write them to the team "
+						+ "standards file, keeping the rest of that file as the team wrote it.",
+				Schema.object().obj("targets", "Targets to change; null clears a limit.", true).build(), true,
+				a -> setTargets(ctx, a.obj("targets").raw())));
 		add(s, new ToolDef("app_model", "App: 3-D model", "Meshes of every part of the active configuration, with CG and CP.",
 				Schema.object().str("designId", DESIGN, true).build(), true, a -> model(ctx, a)));
 		add(s, new ToolDef("app_quick_flight", "App: quick flight", "Flight summary of the active configuration (not saved).",
@@ -501,6 +511,45 @@ public final class AppTools {
 			m.put("problems", problems);
 		}
 		return m;
+	}
+
+	// ------------------------------------------------------------------------------------------- targets
+
+	static Map<String, Object> setTargets(Context ctx, JsonObject patch) throws java.io.IOException {
+		for (Map.Entry<String, JsonElement> e : patch.entrySet()) {
+			Targets.Metric m = Targets.metric(e.getKey());
+			if (m == null || !e.getValue().isJsonObject()) {
+				throw new ToolException("Unknown target '" + e.getKey() + "'.");
+			}
+			for (String k : e.getValue().getAsJsonObject().keySet()) {
+				if (!List.of("min", "max", "goal", "note").contains(k)) {
+					throw new ToolException("A target has min, max, goal and note, not '" + k + "'.");
+				}
+			}
+			Targets.bound(e.getValue().getAsJsonObject(), "min", m);
+			Targets.bound(e.getValue().getAsJsonObject(), "max", m);
+			Targets.bound(e.getValue().getAsJsonObject(), "goal", m);
+		}
+		JsonObject wrapped = new JsonObject();
+		wrapped.add("targets", patch);
+		ctx.setStandards(ctx.standards().patched(wrapped));
+		// The file keeps only what the team set: the built-in defaults stay defaults.
+		Path file = ctx.standards().source() != null ? ctx.standards().source() : ctx.workspace().resolve(Standards.FILE_NAME);
+		JsonObject team = Files.exists(file) ? JsonParser.parseString(Files.readString(file)).getAsJsonObject() : new JsonObject();
+		Standards.deepMerge(team, wrapped);
+		JsonObject targets = team.getAsJsonObject("targets");
+		for (String id : new ArrayList<>(targets.keySet())) {
+			if (targets.get(id).isJsonObject()) {
+				JsonObject t = targets.getAsJsonObject(id);
+				t.entrySet().removeIf(f -> f.getValue().isJsonNull() || f.getValue().isJsonPrimitive() && f.getValue().getAsString().isBlank());
+				if (t.size() == 0) {
+					targets.remove(id);
+				}
+			}
+		}
+		Files.createDirectories(file.toAbsolutePath().getParent());
+		Files.writeString(file, Standards.pretty(team));
+		return Map.of("saved", file.toString(), "targets", targets.keySet());
 	}
 
 	// ------------------------------------------------------------------------------------------- motors and configuration

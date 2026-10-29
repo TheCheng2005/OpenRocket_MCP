@@ -26,6 +26,7 @@ import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sims;
+import io.github.openrocketmcp.or.Targets;
 import io.github.openrocketmcp.or.Variants;
 import io.github.openrocketmcp.report.Png;
 import io.github.openrocketmcp.report.Reports;
@@ -146,6 +147,16 @@ public final class SimTools {
 					}
 					return Requirements.check(sim, wind, ctx.standards()).render(ctx.standards().rulesName());
 				}));
+
+		s.tool(new ToolDef("targets", "The team's targets and the margin to each",
+				"Simulate and compare the flight with the team's own targets (standards \"targets\", set with update_standards, "
+						+ "e.g. {\"targets\": {\"apogee\": {\"min\": \"9500 ft\", \"max\": \"10500 ft\", \"goal\": \"10000 ft\"}}}). "
+						+ "Targets can be set on apogee, maxVelocity, maxMach, maxAcceleration, railExitVelocity, thrustToWeight, "
+						+ "minStability and maxStability (cal, ascent above 100 ft/s), flutterMargin, liftoffMass, timeToApogee, "
+						+ "drogueDescentRate, mainDescentRate, groundHitVelocity, landingDistance and flightTime. Returns every number "
+						+ "with its target, the margin to the nearer limit and PASS/WARN (within 5%)/FAIL. Competition rules are "
+						+ "check_requirements; these are the team's design goals.",
+				simSelect(Schema.object()).build(), true, a -> Targets.evaluate(runSelected(ctx, a), ctx.standards())));
 	}
 
 	private static Object sweep(Context ctx, Args a) {

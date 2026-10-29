@@ -261,4 +261,23 @@ class AppToolsTest {
 		}
 		return null;
 	}
+
+	@Test
+	void targetsGoToTheTeamFileOnly(@TempDir Path ws) throws Exception {
+		Context c = new Context(Standards.defaults(), ws, false);
+		McpServer app = Main.build(c, s -> AppTools.register(s, c), false);
+		Files.writeString(ws.resolve(Standards.FILE_NAME), "{\"units\": \"metric\"}");
+		String line = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"app_set_targets\",\"arguments\":"
+				+ "{\"targets\": {\"apogee\": {\"min\": \"9500 ft\", \"max\": \"3.5 km\"}, \"minStability\": {\"min\": \"1.5 cal\"}}}}}";
+		assertFalse(app.handleLine(line).getAsJsonObject("result").get("isError").getAsBoolean());
+		line = line.replace("{\"apogee\": {\"min\": \"9500 ft\", \"max\": \"3.5 km\"}, \"minStability\": {\"min\": \"1.5 cal\"}}",
+				"{\"apogee\": {\"max\": null}, \"minStability\": {\"min\": null}}");
+		assertFalse(app.handleLine(line).getAsJsonObject("result").get("isError").getAsBoolean());
+		JsonObject file = JsonParser.parseString(Files.readString(ws.resolve(Standards.FILE_NAME))).getAsJsonObject();
+		assertEquals("{\"units\":\"metric\",\"targets\":{\"apogee\":{\"min\":\"9500 ft\"}}}", file.toString(),
+				"the team's file keeps what the team set, not the defaults; cleared limits are gone");
+		assertEquals(2895.6, Standards.load(ws.resolve(Standards.FILE_NAME)).q("targets.apogee.min", io.github.openrocketmcp.units.Dim.DISTANCE, 0), 1e-6);
+		String bad = line.replace("{\"apogee\": {\"max\": null}, \"minStability\": {\"min\": null}}", "{\"apogee\": {\"min\": \"30 m/s\"}}");
+		assertTrue(app.handleLine(bad).getAsJsonObject("result").get("isError").getAsBoolean());
+	}
 }

@@ -2,6 +2,7 @@
   import { app, autoCheck } from "../state.svelte";
   import { status } from "../analysis/text";
 
+  let { tall = false }: { tall?: boolean } = $props();
   // The competition rule check, re-run after edits: failures and warnings first, passes on request.
   let showPassed = $state(false);
 
@@ -13,7 +14,7 @@
   let passed = $derived(rows.filter((r) => r.s === "pass").length);
 </script>
 
-<div class="rc" class:stale={app.checking}>
+<div class="rc" class:stale={app.checking} class:tall>
   {#if !c}
     <p class="muted pad">{autoCheck() ? "Waiting for the first check…" : "Click the refresh button to check the rules (automatic checking is off in Settings)."}</p>
   {:else if c.error}
@@ -42,6 +43,9 @@
   .rc {
     max-height: 24vh;
     overflow: auto;
+  }
+  .rc.tall {
+    max-height: none;
   }
   .rc.stale {
     opacity: 0.7;
