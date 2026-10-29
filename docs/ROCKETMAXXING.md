@@ -68,12 +68,33 @@ Edits can be undone (up to 50). Nothing is written to the file until you save.
 
 ## The assistant (optional)
 
-Settings > Assistant turns on Claude beside the design, with your own Anthropic API key (or `ANTHROPIC_API_KEY`).
-Claude uses the same tools as the app (and as the MCP server), so what it changes shows at once and undoes like any
-other edit; each tool it used can be opened to see what it sent and got back. The model can be Claude Opus 5.5 (the
-default), or Claude Sonnet 5.5 or Haiku 5.5 for lower cost. It is off until you turn it on. When it is on, your
-messages, the open design's data and the tools' results are sent to Anthropic and charged to your API account. The key
-is kept in `~/.rocketmaxxing/assistant.json` (readable only by you on macOS and Linux), never in the designs folder.
+Settings > AI assistant puts an assistant beside the design. It works through the same tools as the app (and as the
+MCP server), so what it changes shows at once and undoes like any other edit; each tool it used can be opened to see
+what it sent and got back. It is off until you turn it on, and connects one of three ways:
+
+| Connect with | What you need | Billing |
+|---|---|---|
+| **Claude subscription** | [Claude Code](https://claude.com/claude-code) installed and signed in (run `claude` once in a terminal and log in with your Claude Pro or Max account) | your plan's usage limits |
+| **ChatGPT subscription** | [Codex](https://github.com/openai/codex) installed (`npm i -g @openai/codex`) and signed in (`codex login`) | your plan's usage limits |
+| **Anthropic API key** | a key from the Anthropic Console, pasted in Settings (or `ANTHROPIC_API_KEY`) | per use, on your API account |
+
+For Claude Code and Codex, RocketMaxxing runs the tool you already have on each message, headless, and lends it the
+app's tools through a private MCP endpoint on `127.0.0.1` with a new random token. Claude Code runs without its own
+tools (no shell, files or web) and Codex in its read-only sandbox, so they work only through RocketMaxxing's tools. The
+sign-in stays with Claude Code or Codex; RocketMaxxing never sees it. Settings shows whether each is installed and
+signed in (from `claude auth status` and `codex login status`) and lets you pick the model: Claude Code's aliases
+(opus, sonnet, haiku) or its default, Codex's default or a model you name. A second message continues the same Claude
+Code session or Codex thread. The app looks for the tools on PATH and where their installers put them; set
+`ROCKETMAXXING_CLAUDE` or `ROCKETMAXXING_CODEX` to point at a particular one.
+
+With an API key, the model can be Claude Opus 5.5 (the default), or Claude Sonnet 5.5 or Haiku 5.5 for lower cost, and
+the key is kept in `~/.rocketmaxxing/assistant.json` (readable only by you on macOS and Linux), never in the designs
+folder.
+
+Whichever way, your messages, the open design's data and the tools' results go to Anthropic (Claude Code, API key) or
+OpenAI (Codex).
+
+![Connecting the assistant](rocketmaxxing/connect.png)
 
 ![The assistant](rocketmaxxing/assistant.png)
 
@@ -137,7 +158,9 @@ cd app && npm install && npm run dev
 ```
 
 Open the address the engine prints (`http://localhost:5173/#token=...`). `npm run check` type-checks the interface.
-`AppToolsTest` covers the app tools and the local server, `AssistantTest` the assistant against a stand-in for the API, and `scripts/test_rocketmaxxing.py` starts the installed app
+`AppToolsTest` covers the app tools and the local server, `AssistantTest` the assistant against a stand-in for the API,
+`AgentCliTest` reading Claude Code's and Codex's output, `scripts/test_app_agents.py` the assistant through the real
+Claude Code and Codex with stand-in models, and `scripts/test_rocketmaxxing.py` starts the installed app
 and uses it.
 
 ## Not in RocketMaxxing yet

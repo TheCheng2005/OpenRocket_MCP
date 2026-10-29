@@ -224,7 +224,8 @@ designs folder. Results show as tables, with pass/warn/fail colours and the tool
   parts catalogue for every part that has one, paint colour and shine.
 - Installers with Java included (`./gradlew rocketmaxxingInstaller`: .msi, .dmg, .deb, or an app folder), built for all
   three platforms by a workflow.
-- The optional assistant: Claude with the team's own API key, through the same tools, off by default.
+- The optional assistant, through the same tools, off by default: with the team's own Claude subscription (Claude Code),
+  ChatGPT subscription (Codex) or an Anthropic API key.
 
 ## Validation
 
@@ -260,4 +261,5 @@ Teams trust a tool for its track record, not its features. From Phase 1 on:
 2. **Front-end stack:** Svelte (recommended) or React.
 3. **Platforms first:** whichever the team uses most, probably Windows, then macOS.
 4. **Who builds it, and when**, relative to the Launch Canada 2027 build schedule.
-5. **Whether the assistant ships at all**, and if so whether it supports only Claude or any provider.
+5. **The assistant (decided):** optional and off by default; it connects through the team's own Claude Code (Claude
+   plan), Codex (ChatGPT plan) or an Anthropic API key.

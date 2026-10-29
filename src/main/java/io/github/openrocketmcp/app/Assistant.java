@@ -41,14 +41,23 @@ import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.units.Units;
 
 /**
- * The app's optional assistant: Claude, with the team's own API key, working on the open design through the same
- * tools Claude uses over MCP (so every change it makes can be undone like any other). Off until the team turns it on;
- * the key is kept in the user's home folder (never in the designs folder, which teams share), or read from
- * ANTHROPIC_API_KEY. The conversation runs in the background and the page polls it for what happened.
+ * The app's optional assistant, working on the open design through the same tools Claude uses over MCP (so every change
+ * it makes can be undone like any other). Off until the team turns it on. It connects one of three ways:
+ * <ul>
+ * <li>{@code api}: an Anthropic API key, kept in the user's home folder (never in the designs folder, which teams share)
+ * or read from ANTHROPIC_API_KEY; the app runs the conversation itself;</li>
+ * <li>{@code claude-code}: the user's own Claude Code, signed in with their Claude plan;</li>
+ * <li>{@code codex}: the user's own Codex, signed in with their ChatGPT plan.</li>
+ * </ul>
+ * For the last two the app opens a private MCP endpoint over the same open designs and runs the tool headless on each
+ * message. The conversation runs in the background and the page polls it for what happened.
  */
 final class Assistant {
 	/** The models offered, most capable first. */
 	static final List<String> MODELS = List.of("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5");
+	static final List<String> PROVIDERS = List.of("api", "claude-code", "codex");
+	/** Claude Code's model aliases ("" is the user's own default in Claude Code). */
+	static final List<String> CLAUDE_CODE_MODELS = List.of("", "opus", "sonnet", "haiku");
 	static final int MAX_STEPS = 40;
 	static final int MAX_RESULT_CHARS = 60_000;
 
@@ -58,8 +67,17 @@ final class Assistant {
 	private final io.github.openrocketmcp.tools.Context ctx;
 	private final Path settingsFile;
 	private boolean enabled;
+	private String provider = "api";
 	private String model = MODELS.get(0);
+	private String claudeCodeModel = "";
+	private String codexModel = "";
 	private String savedKey;
+	/** The Claude Code session or Codex thread this conversation continues. */
+	private String session;
+	private Process process;
+	private io.github.openrocketmcp.mcp.HttpTransport endpoint;
+	private String endpointUrl, endpointToken;
+	private String lastState;
 
 	private final List<BetaMessageParam> history = new ArrayList<>();
 	private final List<Map<String, Object>> events = new ArrayList<>();
@@ -93,6 +111,13 @@ final class Assistant {
 					model = o.get("model").getAsString();
 				}
 				savedKey = o.has("key") ? o.get("key").getAsString() : null;
+				if (o.has("provider") && PROVIDERS.contains(o.get("provider").getAsString())) {
+					provider = o.get("provider").getAsString();
+				}
+				if (o.has("claudeCodeModel") && CLAUDE_CODE_MODELS.contains(o.get("claudeCodeModel").getAsString())) {
+					claudeCodeModel = o.get("claudeCodeModel").getAsString();
+				}
+				codexModel = o.has("codexModel") ? o.get("codexModel").getAsString() : "";
 			}
 		} catch (IOException | RuntimeException e) {
 			// unreadable settings: start with the assistant off
@@ -102,7 +127,10 @@ final class Assistant {
 	private void save() throws IOException {
 		JsonObject o = new JsonObject();
 		o.addProperty("enabled", enabled);
+		o.addProperty("provider", provider);
 		o.addProperty("model", model);
+		o.addProperty("claudeCodeModel", claudeCodeModel);
+		o.addProperty("codexModel", codexModel);
 		if (savedKey != null) {
 			o.addProperty("key", savedKey);
 		}
@@ -126,17 +154,53 @@ final class Assistant {
 	synchronized Map<String, Object> settings() {
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("enabled", enabled);
+		out.put("provider", provider);
 		out.put("model", model);
 		out.put("models", MODELS);
+		out.put("claudeCodeModel", claudeCodeModel);
+		out.put("claudeCodeModels", CLAUDE_CODE_MODELS);
+		out.put("codexModel", codexModel);
 		out.put("hasKey", key() != null);
 		out.put("keySource", savedKey != null ? "saved" : key() != null ? "environment" : null);
 		out.put("settingsFile", settingsFile.toString());
 		return out;
 	}
 
-	synchronized Map<String, Object> configure(Boolean on, String newModel, String newKey, boolean forgetKey) throws IOException {
+	/** Whether Claude Code and Codex are installed and signed in (their own commands; a few seconds). */
+	static List<Map<String, Object>> connections() {
+		return List.of(AgentCli.status(AgentCli.Kind.CLAUDE_CODE), AgentCli.status(AgentCli.Kind.CODEX));
+	}
+
+	synchronized Map<String, Object> configure(Boolean on, String newProvider, String newModel, String newKey, boolean forgetKey,
+			String newClaudeCodeModel, String newCodexModel) throws IOException {
 		if (on != null) {
 			enabled = on;
+		}
+		if (newProvider != null && !newProvider.equals(provider)) {
+			if (!PROVIDERS.contains(newProvider)) {
+				throw new ToolException("Connection is one of " + PROVIDERS + ".");
+			}
+			if (running) {
+				throw new ToolException("Wait for the answer (or stop it) before switching.");
+			}
+			provider = newProvider;
+			history.clear();
+			session = null;
+			if (!events.isEmpty()) {
+				event("note", "Now connected through " + label(provider) + "; this starts a new conversation.", null);
+			}
+		}
+		if (newClaudeCodeModel != null) {
+			if (!CLAUDE_CODE_MODELS.contains(newClaudeCodeModel)) {
+				throw new ToolException("Claude Code model is one of " + CLAUDE_CODE_MODELS + ".");
+			}
+			claudeCodeModel = newClaudeCodeModel;
+		}
+		if (newCodexModel != null) {
+			if (!newCodexModel.isBlank() && !newCodexModel.trim().matches("[A-Za-z0-9._:-]{1,64}")) {
+				throw new ToolException("A Codex model name is letters, digits, dots and dashes.");
+			}
+			codexModel = newCodexModel.trim();
 		}
 		if (newModel != null) {
 			if (!MODELS.contains(newModel)) {
@@ -170,10 +234,23 @@ final class Assistant {
 		}
 		history.clear();
 		events.clear();
+		session = null;
 	}
 
 	void stop() {
 		stopAsked = true;
+		Process p = process;
+		if (p != null) {
+			AgentCli.kill(p);
+		}
+	}
+
+	static String label(String provider) {
+		return switch (provider) {
+			case "claude-code" -> "Claude Code";
+			case "codex" -> "Codex";
+			default -> "the Anthropic API";
+		};
 	}
 
 	/** Starts one turn: the team's message with what the app is showing, then Claude and the tools until it answers. */
@@ -181,14 +258,32 @@ final class Assistant {
 		if (!enabled) {
 			throw new ToolException("The assistant is off. Turn it on in Settings.");
 		}
-		if (key() == null) {
+		if (provider.equals("api") && key() == null) {
 			throw new ToolException("No API key. Add one in Settings (or set ANTHROPIC_API_KEY).");
 		}
 		if (running) {
-			throw new ToolException("Claude is still working on the last message.");
+			throw new ToolException("Still working on the last message.");
 		}
 		if (text == null || text.isBlank()) {
 			throw new ToolException("Type a message first.");
+		}
+		AgentCli.Kind kind = AgentCli.Kind.of(provider);
+		if (kind != null) {
+			Path exe = AgentCli.find(kind);
+			if (exe == null) {
+				throw new ToolException(kind.label + " is not installed on this computer (see Settings > Assistant).");
+			}
+			event("you", text, null);
+			running = true;
+			stopAsked = false;
+			String[] ep = endpoint();
+			String model = kind == AgentCli.Kind.CLAUDE_CODE ? claudeCodeModel : codexModel;
+			AgentCli.Turn turn = new AgentCli.Turn(kind, model, session, ep[0], ep[1], workspace(), system(),
+					(context == null ? "" : "[" + context + "]\n\n") + text);
+			Thread t = new Thread(() -> runCli(turn, exe), "assistant");
+			t.setDaemon(true);
+			t.start();
+			return;
 		}
 		event("you", text, null);
 		turnStart = history.size();
@@ -257,6 +352,74 @@ final class Assistant {
 		} finally {
 			running = false;
 		}
+	}
+
+	/** One turn of Claude Code or Codex: the tool runs headless against the app's endpoint and reports as it goes. */
+	private void runCli(AgentCli.Turn turn, Path exe) {
+		lastState = state();
+		try {
+			process = AgentCli.start(turn, exe);
+			String error = AgentCli.read(turn.kind(), process, new AgentCli.Sink() {
+				@Override
+				public void text(String text) {
+					event("claude", text, null);
+				}
+
+				@Override
+				public void tool(String name, String input, String result, boolean ok, List<String> images) {
+					toolEvent(name, input, result, ok, images);
+				}
+
+				@Override
+				public void note(String text, boolean error) {
+					event(error ? "error" : "note", text, null);
+				}
+
+				@Override
+				public void session(String id) {
+					if (id != null && !id.isBlank()) {
+						synchronized (Assistant.this) {
+							session = id;
+						}
+					}
+				}
+			});
+			if (stopAsked) {
+				event("note", "Stopped.", null);
+			} else if (error != null) {
+				event("error", AgentCli.hint(turn.kind(), error.isBlank() ? turn.kind().label + " stopped without an answer." : error), null);
+			}
+		} catch (IOException | RuntimeException e) {
+			event("error", "Could not run " + turn.kind().label + ": " + e.getMessage(), null);
+		} finally {
+			process = null;
+			running = false;
+		}
+	}
+
+	/** The private MCP endpoint Claude Code and Codex use: the engine's tools over the same open designs, on 127.0.0.1. */
+	private synchronized String[] endpoint() {
+		if (endpoint == null) {
+			McpServer tools = Main.build(ctx, s -> {
+			}, true);
+			byte[] b = new byte[24];
+			new java.security.SecureRandom().nextBytes(b);
+			String token = java.util.HexFormat.of().formatHex(b);
+			io.github.openrocketmcp.mcp.HttpTransport t = new io.github.openrocketmcp.mcp.HttpTransport(tools, workspace(), token, List.of());
+			try {
+				int port = t.start("127.0.0.1", 0, 4).getPort();
+				endpoint = t;
+				endpointUrl = "http://127.0.0.1:" + port + "/mcp";
+				endpointToken = token;
+			} catch (IOException e) {
+				throw new ToolException("Could not open the tools for " + label(provider) + ": " + e.getMessage());
+			}
+		}
+		return new String[] { endpointUrl, endpointToken };
+	}
+
+	private Path workspace() {
+		return ctx.workspace() != null ? ctx.workspace() : Path.of("").toAbsolutePath();
 	}
 
 	/** A failed turn leaves the history as it was before it, so the next message starts from a clean exchange. */
@@ -370,7 +533,6 @@ final class Assistant {
 		req.add("params", params);
 		String before = state();
 		JsonObject res = server.handleLine(req.toString());
-		ToolDef def = server.tools().get(call.name());
 		List<BetaToolResultBlockParam.Content.Block> blocks = new ArrayList<>();
 		List<String> images = new ArrayList<>();
 		StringBuilder shown = new StringBuilder();
@@ -402,18 +564,27 @@ final class Assistant {
 				}
 			}
 		}
+		lastState = before;
+		toolEvent(call.name(), input, shown.toString(), !error, images);
+		return BetaToolResultBlockParam.builder().toolUseId(call.id()).contentOfBlocks(blocks).isError(error).build();
+	}
+
+	/** One tool call for the page: what was called, with what, what came back, and whether the design changed. */
+	private void toolEvent(String name, String input, String result, boolean ok, List<String> images) {
+		ToolDef def = server.tools().get(name);
+		String now = state();
 		Map<String, Object> e = new LinkedHashMap<>();
-		e.put("tool", call.name());
-		e.put("title", def == null ? call.name() : def.title());
+		e.put("tool", name);
+		e.put("title", def == null ? name : def.title());
 		e.put("input", input.length() > 400 ? input.substring(0, 400) + "..." : input);
-		e.put("ok", !error);
-		e.put("changed", !state().equals(before));
-		e.put("result", shown.length() > 1500 ? shown.substring(0, 1500) + "..." : shown.toString());
+		e.put("ok", ok);
+		e.put("changed", lastState != null && !now.equals(lastState));
+		e.put("result", result.length() > 1500 ? result.substring(0, 1500) + "..." : result);
 		if (!images.isEmpty()) {
 			e.put("images", images);
 		}
+		lastState = now;
 		event("tool", null, e);
-		return BetaToolResultBlockParam.builder().toolUseId(call.id()).contentOfBlocks(blocks).isError(error).build();
 	}
 
 	/** Which designs are open and each one's modification count: a tool changed something when this changes. */

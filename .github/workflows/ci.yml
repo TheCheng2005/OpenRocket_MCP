@@ -60,6 +60,10 @@ jobs:
         run: npm run check
       - name: Start it and use it
         run: python3 scripts/test_rocketmaxxing.py
+      - name: Install Claude Code and Codex
+        run: npm install -g @anthropic-ai/claude-code@2.1.42 @openai/codex@0.157.1
+      - name: The assistant through Claude Code and Codex (stand-in models)
+        run: python3 scripts/test_app_agents.py
 
   extension:
     # One-click Claude Desktop extension per platform, with a bundled Java runtime.

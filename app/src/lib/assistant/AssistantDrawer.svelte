@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { X, SquarePen, Send, Square, Check, CircleAlert } from "@lucide/svelte";
-  import { assistant, send, stop, reset, MODEL_NAMES } from "./assistant.svelte";
+  import { assistant, send, stop, reset, who, MODEL_NAMES, CLAUDE_CODE_MODELS, PROVIDER_NAMES } from "./assistant.svelte";
   import { markdown } from "./text";
 
   // Claude beside the design: what the team asks, what Claude answers, and each tool it used (open one to see what it
@@ -15,6 +15,15 @@
     "Which motor gets us closest to 10,000 ft?",
     "Will the fins flutter?",
   ];
+
+  /** How it is connected, under the name: the plan or the key, and the model. */
+  let via = $derived.by(() => {
+    const s = assistant.settings;
+    if (!s) return "";
+    if (s.provider === "claude-code") return `Claude Code, your Claude plan · ${CLAUDE_CODE_MODELS[s.claudeCodeModel] ?? s.claudeCodeModel}`;
+    if (s.provider === "codex") return `Codex, your ChatGPT plan${s.codexModel ? " · " + s.codexModel : ""}`;
+    return `${PROVIDER_NAMES.api} · ${MODEL_NAMES[s.model] ?? s.model}`;
+  });
 
   $effect(() => {
     assistant.events.length;
@@ -48,8 +57,8 @@
 <aside class="drawer" aria-label="Assistant">
   <header>
     <div class="who">
-      <b>Claude</b>
-      <span class="muted">{MODEL_NAMES[assistant.settings?.model ?? ""] ?? assistant.settings?.model}</span>
+      <b>{who()}</b>
+      <span class="muted">{via}</span>
     </div>
     <button class="tool" title="New conversation" disabled={assistant.running} onclick={reset}><SquarePen size={16} /></button>
     <button class="tool" title="Close" onclick={() => (assistant.open = false)}><X size={16} /></button>
@@ -58,8 +67,8 @@
   <div class="list" bind:this={list}>
     {#if !assistant.events.length}
       <p class="muted intro">
-        Ask about the open design. Claude uses the same tools as the app (simulations, rule checks, recovery, structures)
-        and can change the design; every change can be undone.
+        Ask about the open design. {who()} uses the same tools as the app (simulations, rule checks, recovery,
+        structures) and can change the design; every change can be undone.
       </p>
       <div class="ideas">
         {#each SUGGESTIONS as s (s)}<button class="idea" onclick={() => (text = s)}>{s}</button>{/each}
@@ -85,11 +94,11 @@
         <div class="note" class:error={e.kind === "error"}>{e.text}</div>
       {/if}
     {/each}
-    {#if assistant.running}<div class="working muted">Claude is working…</div>{/if}
+    {#if assistant.running}<div class="working muted">{who()} is working…</div>{/if}
   </div>
 
   <footer>
-    <textarea rows="3" bind:value={text} onkeydown={key} placeholder="Ask Claude about this design (Enter to send)"></textarea>
+    <textarea rows="3" bind:value={text} onkeydown={key} placeholder={`Ask ${who()} about this design (Enter to send)`}></textarea>
     {#if assistant.running}
       <button class="btn" onclick={stop}><Square size={14} /> Stop</button>
     {:else}

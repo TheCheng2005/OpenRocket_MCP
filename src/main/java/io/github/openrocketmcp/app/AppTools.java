@@ -112,11 +112,18 @@ public final class AppTools {
 		add(s, new ToolDef("app_assistant", "App: assistant settings", "Whether the assistant is on, its model and whether a key is set.",
 				Schema.object().build(), true, a -> assistant.settings()));
 		add(s, new ToolDef("app_assistant_settings", "App: change assistant settings",
-				"Turn the assistant on or off, choose its model, save or forget the API key (kept in the user's home folder).",
-				Schema.object().bool("enabled", "On or off.", false).str("model", "Model id.", false)
+				"Turn the assistant on or off, choose how it connects (api, claude-code, codex) and its model, save or forget "
+						+ "the API key (kept in the user's home folder).",
+				Schema.object().bool("enabled", "On or off.", false).str("provider", "api, claude-code or codex.", false)
+						.str("model", "Model id (API).", false).str("claudeCodeModel", "Claude Code model alias, or empty.", false)
+						.str("codexModel", "Codex model, or empty for Codex's own.", false)
 						.str("key", "Anthropic API key to save.", false).bool("forgetKey", "Forget the saved key.", false).build(),
-				true, a -> assistant.configure(a.has("enabled") ? a.bool("enabled", false) : null, a.str("model", null),
-						a.str("key", null), a.bool("forgetKey", false))));
+				true, a -> assistant.configure(a.has("enabled") ? a.bool("enabled", false) : null, a.str("provider", null),
+						a.str("model", null), a.str("key", null), a.bool("forgetKey", false), a.str("claudeCodeModel", null),
+						a.str("codexModel", null))));
+		add(s, new ToolDef("app_assistant_connections", "App: Claude Code and Codex on this computer",
+				"Whether Claude Code and Codex are installed and signed in.", Schema.object().build(), true,
+				a -> Map.of("connections", Assistant.connections())));
 		add(s, new ToolDef("app_assistant_send", "App: message the assistant",
 				"Send a message; Claude works in the background with the engine's tools (poll for what it does).",
 				Schema.object().str("text", "The message.", true).str("designId", DESIGN, false).build(), true, a -> {

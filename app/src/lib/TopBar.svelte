@@ -2,7 +2,7 @@
   import { FilePlus2, FolderOpen, Save, Undo2, Redo2, Settings as Gear, Loader, MessageSquare } from "@lucide/svelte";
   import { app, newDesign, openDialog, save, undo, redo, selectConfig } from "./state.svelte";
   import Settings from "./Settings.svelte";
-  import { assistant } from "./assistant/assistant.svelte";
+  import { assistant, who } from "./assistant/assistant.svelte";
 
   let settings = $state(false);
 </script>
@@ -49,8 +49,8 @@
   {/if}
 
   {#if assistant.settings?.enabled}
-    <button class="btn ghost" class:on={assistant.open} onclick={() => (assistant.open = !assistant.open)} title="Ask Claude about the design">
-      <MessageSquare size={16} /> Claude{#if assistant.running}…{/if}
+    <button class="btn ghost" class:on={assistant.open} onclick={() => (assistant.open = !assistant.open)} title="Ask {who()} about the design">
+      <MessageSquare size={16} /> {who()}{#if assistant.running}…{/if}
     </button>
   {/if}
   <button class="btn ghost icon" onclick={() => (settings = true)} title="Settings: units, theme, assistant"><Gear size={17} /></button>
