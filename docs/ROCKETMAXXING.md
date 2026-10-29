@@ -4,8 +4,8 @@ RocketMaxxing is a desktop app for designing and simulating rockets. It runs off
 Under the hood it is the same engine as the OpenRocket MCP server (OpenRocket 24.12 plus this project's tools), and it
 reads and writes ordinary OpenRocket `.ork` files, so a design can go back and forth between the two programs.
 
-Version 0.1.0 covers OpenRocket's three main tabs, and an Analysis page that runs the engine's engineering tools.
-See [the plan](APP_PLAN.md) for what comes next.
+Version 0.1.0 covers OpenRocket's three main tabs, and adds the engine's engineering tools, the team's targets with
+live margins, flight data after a launch, and an optional assistant. See [the plan](APP_PLAN.md) for what comes next.
 
 ![Design page](rocketmaxxing/design.png)
 
@@ -13,9 +13,11 @@ See [the plan](APP_PLAN.md) for what comes next.
 
 | RocketMaxxing | OpenRocket | Notes |
 |---|---|---|
-| Design | Rocket design | Parts list on the left, the rocket in the middle, the selected part's properties on the right (no pop-up dialog). The add-part buttons are below the view; the ones that can't go where you are pointing are greyed out. Summary shows stability against your rule set's minimum, mass, length and a quick flight of the active configuration. |
+| Design | Rocket design | Parts list on the left, the rocket in the middle, the selected part's properties on the right (no pop-up dialog). The add-part buttons are below the view; the ones that can't go where you are pointing are greyed out. Summary shows stability against your rule set's minimum, mass, length and a quick flight of the active configuration. Fins show their outline (freeform fins are drawn and edited there); parts with a catalogue have a Catalogue button; every part can be given a paint colour. |
 | Motors | Motors & Configuration | Motors, recovery and stages as three tables on one page, a row per flight configuration. The motor list can be searched, filtered to motors that fit the mount, and shows the thrust curve. |
 | Flights | Flight simulations | The simulations, the launch conditions of the selected one, and its plot. |
+| Targets | (not in OpenRocket) | The team's targets: a minimum, goal and maximum for apogee, speeds, rail exit, stability, flutter margin, mass, descent rates, landing and more, each with the margin to the nearer limit (met, close within 5%, missed), checked again after each edit. The competition rules sit beside them. |
+| Flight data | (not in OpenRocket) | After a flight: load the altimeter log and see it against the simulation flown in the day's conditions, with the drag factor that matches the measured apogee. Read a folder of past rockets and logs to see how well apogee was predicted over the years, and open or compare any of them. |
 | Analysis | (not in OpenRocket) | 42 analyses from the engine, by area: rule check and readiness; stability and drag vs Mach, ballast, shape trades; recovery loads, parachute sizing, late deployment, shear pins, ejection charge, opening shock, bay fit, landing energy; fin flutter, airframe loads, heating, material trade, pressure vessel; rail buttons, flight card, altimeter settings, sensors, radio link, power budget, winds aloft; Monte Carlo, motor ranking, parameter sweep, optimizer; compare designs, progress log, edit history, RASAero table import, flight log against the simulation; report, CSV and geometry export. Pick one, fill in what it asks for (simulation, parts and other designs from lists, files with Browse, lists of items as small tables), run. Results show as tables with pass, warn and fail in colour, plots, and a Show button for files it writes. |
 
 Every panel and section folds (click its title). The Parts and Properties panels fold to a strip at the side to give
@@ -25,6 +27,19 @@ The Design page has a Rule check panel: the competition rule check runs again a 
 shows the fail, warn and pass counts even when it is folded. It can be turned off in Settings.
 
 ![Rule check on the Design page](rocketmaxxing/rule-check.png)
+
+![Targets with live margins](rocketmaxxing/targets.png)
+
+![Flight data: a log against the simulation, and past rockets](rocketmaxxing/flight-data.png)
+
+Freeform fins are edited in the Properties panel: drag a point, double-click an edge to add one, select a point and
+press Delete to remove it, or type the coordinates. Trapezoidal and elliptical fins can be converted to freeform. Parts
+that come in catalogues (tubes, nose cones, couplers, rings, rail buttons, parachutes...) open OpenRocket's parts
+database, nearest the part's diameter first.
+
+![Freeform fin editor](rocketmaxxing/fin-editor.png)
+
+![Parts catalogue](rocketmaxxing/catalogue.png)
 
 Plots in Analysis: stability and Cd against Mach, the parameter sweep, late deployment, the parachute size chart,
 the Monte Carlo landing map and the flight log against the simulation.
@@ -51,6 +66,17 @@ Settings (the gear, top right) has the units, metric or imperial and per quantit
 
 Edits can be undone (up to 50). Nothing is written to the file until you save.
 
+## The assistant (optional)
+
+Settings > Assistant turns on Claude beside the design, with your own Anthropic API key (or `ANTHROPIC_API_KEY`).
+Claude uses the same tools as the app (and as the MCP server), so what it changes shows at once and undoes like any
+other edit; each tool it used can be opened to see what it sent and got back. The model can be Claude Opus 5.5 (the
+default), or Claude Sonnet 5.5 or Haiku 5.5 for lower cost. It is off until you turn it on. When it is on, your
+messages, the open design's data and the tools' results are sent to Anthropic and charged to your API account. The key
+is kept in `~/.rocketmaxxing/assistant.json` (readable only by you on macOS and Linux), never in the designs folder.
+
+![The assistant](rocketmaxxing/assistant.png)
+
 | Keys | |
 |---|---|
 | Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z | Undo, redo |
@@ -62,7 +88,12 @@ Sizes can be typed with a unit, e.g. `3 in` in a millimetre field.
 
 ## Install and run
 
-Java 17 or newer. Building the interface the first time also needs Node.js 20 or newer.
+Installers with Java included are built per platform: `./gradlew rocketmaxxingInstaller` makes a `.msi` on Windows
+(needs WiX 3), a `.dmg` on macOS and a `.deb` on Linux (needs `fakeroot`) in `build/installers/`;
+`-PinstallerType=app-image` makes a folder that runs without installing. The *RocketMaxxing installers* workflow builds
+all three.
+
+To run from source: Java 17 or newer. Building the interface the first time also needs Node.js 20 or newer.
 
 ```bash
 git clone https://github.com/TheCheng2005/OpenRocket_MCP.git
@@ -94,7 +125,7 @@ dialogs start in `~/RocketMaxxing`. The app quits two minutes after its window i
 - Edits go through the same property code as the chat tool `edit_components`.
 
 Code:
-- `src/main/java/io/github/openrocketmcp/app/`: launcher, local server, app tools, part editors.
+- `src/main/java/io/github/openrocketmcp/app/`: launcher, local server, app tools, part editors, the assistant.
 - `app/`: the interface (Svelte 5, TypeScript, three.js, uPlot).
 
 ## Development
@@ -106,15 +137,12 @@ cd app && npm install && npm run dev
 ```
 
 Open the address the engine prints (`http://localhost:5173/#token=...`). `npm run check` type-checks the interface.
-`AppToolsTest` covers the app tools and the local server, and `scripts/test_rocketmaxxing.py` starts the installed app
+`AppToolsTest` covers the app tools and the local server, `AssistantTest` the assistant against a stand-in for the API, and `scripts/test_rocketmaxxing.py` starts the installed app
 and uses it.
 
 ## Not in RocketMaxxing yet
 
 Use OpenRocket on the same file for:
-- editing freeform fin points, and the parts catalogue (the engine has it: `search_parts`, `apply_preset`);
-- appearance and decals, photo studio, fin templates, printing;
-- custom plot setups and exporting flight data (the engine has `export_flight_data`);
-- the optimizer and component analysis (the engine has `optimize`, `sweep`, `aero_analysis`).
-
-There are no installers with Java included yet; the app runs from the build folder.
+- decals and textures, the photo studio, fin templates, printing;
+- custom plot setups (the Analysis page exports flight data);
+- importing a fin outline from an image or a CSV file.

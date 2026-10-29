@@ -4,9 +4,10 @@ A desktop application for competition rocket teams that works offline and needs 
 OpenRocket does and adds the engineering this server already does: rule checks, recovery, structures, avionics,
 dispersion, flight data and design history, behind a modern interface.
 
-Status: the first version is built. It redoes OpenRocket's three main tabs (design, motors and configuration,
-simulations) on the engine; see [ROCKETMAXXING.md](ROCKETMAXXING.md). Decided so far: the name is **RocketMaxxing**,
-the front-end is **Svelte with three.js**, and the AI assistant comes later. The new engineering screens are next.
+Status: built through tier 3 of the new functions below. The app redoes OpenRocket's three main tabs (design, motors
+and configuration, simulations) on the engine and adds the engine's analyses, the team's targets, flight data, the
+missing editors, installers and an optional assistant; see [ROCKETMAXXING.md](ROCKETMAXXING.md). Decided so far: the
+name is **RocketMaxxing** and the front-end is **Svelte with three.js**. Next: the validation work and Phase 4.
 Decisions still open are marked **Decide**.
 
 ## Why, and why not a rewrite
@@ -16,7 +17,7 @@ engineering depth, available without Claude:
 
 - The server is about 32,000 lines of Java. About 22,000 of them (`or`, `report`, `calc`, `standards`, `units`) are
   analysis code that has nothing to do with AI. Claude is only one way of calling it.
-- The 84 tools already have JSON inputs and outputs. A desktop interface can call the same tools Claude calls, so
+- The 85 tools already have JSON inputs and outputs. A desktop interface can call the same tools Claude calls, so
   each feature is written once and works in both the app and chat.
 - The interactive view (`show_design`, `src/main/resources/ui/workbench.html`, 2,566 lines) already has the 3-D
   rocket with cut-away and exploded views, the flight replay, linked plots, rule checks and editing by clicking a part.
@@ -213,11 +214,17 @@ designs folder. Results show as tables, with pass/warn/fail colours and the tool
 - Compare with another open design or a file, the progress log, the edit history.
 - RASAero table import per stage, and a flight log against the simulation, with a file browser.
 
-**Tier 3: new work in the engine or the app.**
-- Requirements first: targets with live margins.
-- Flight log import: predicted against measured, the design library across years.
-- Editors still missing: freeform fin points, the parts catalogue, appearance.
-- Installers with Java included; the optional assistant.
+**Tier 3: new work in the engine or the app (done).**
+- Requirements first: a Targets page with the team's limits (min, goal, max) on 16 flight numbers and the live margin
+  to each, next to the competition rules. The engine's new `targets` tool does the work, so Claude checks the same
+  targets; they live in the team standards file.
+- Flight data: an altimeter log flown against the simulation in the day's conditions (both curves, the numbers, the
+  fitted drag factor), and the library of past rockets with predicted against measured apogee across the years.
+- Editors: freeform fin points (drag, add, remove, type), convert trapezoidal and elliptical fins to freeform, the
+  parts catalogue for every part that has one, paint colour and shine.
+- Installers with Java included (`./gradlew rocketmaxxingInstaller`: .msi, .dmg, .deb, or an app folder), built for all
+  three platforms by a workflow.
+- The optional assistant: Claude with the team's own API key, through the same tools, off by default.
 
 ## Validation
 

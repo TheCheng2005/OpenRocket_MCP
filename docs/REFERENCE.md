@@ -6,7 +6,7 @@ plain-language overview.
 
 ## Tools
 
-The 84 tools, grouped by what a team is doing (one of them, `workbench_data`, serves the interactive view and is hidden
+The 85 tools, grouped by what a team is doing (one of them, `workbench_data`, serves the interactive view and is hidden
 from the model by hosts that show views). Bold marks the main job of each tool.
 
 ### Session
@@ -471,6 +471,13 @@ The project side of a chief engineer's job. Reading notes and posting updates go
     - dual-event recovery;
     - drogue descent 50–150 ft/s;
     - main deployment ≤ 1500 ft and main descent < 30 ft/s.
+- `targets`: **the team's own targets and the margin to each**. The team sets limits in the standards file
+  (`"targets": {"apogee": {"min": "9500 ft", "max": "10500 ft", "goal": "10000 ft"}}`) on apogee, top speed and Mach,
+  peak acceleration, rail exit speed, thrust to weight on the rail, lowest and highest ascent stability (cal, above
+  100 ft/s), fin flutter margin, lift-off mass, time to apogee, drogue and main descent rates, landing speed and
+  distance, and flight time. It simulates and returns every number with its limits, the margin to the nearer one and
+  PASS, WARN (met by less than 5%) or FAIL. The flutter margin falls back to `structures.flutterMinMargin`. These are
+  design goals; `check_requirements` is the competition's rules.
 - `get_standards`, `update_standards`, `load_standards`, `set_units`: the team standards and units.
 
 ### LC 2027 advanced programmes
