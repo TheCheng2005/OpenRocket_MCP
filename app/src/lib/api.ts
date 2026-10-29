@@ -25,6 +25,11 @@ function readToken(): string {
 const token = readToken();
 let nextId = 1;
 
+/** Where the page can load a picture or video the engine wrote in the designs folder. */
+export function fileUrl(path: string): string {
+  return `/file?token=${encodeURIComponent(token)}&path=${encodeURIComponent(path)}&v=${Date.now()}`;
+}
+
 export class ToolError extends Error {}
 
 /** JSON as the engine writes it; a bare NaN or Infinity in a value position (never valid JSON) reads as null. */

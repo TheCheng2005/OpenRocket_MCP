@@ -66,6 +66,7 @@ public final class App {
 			dev.add(devUrl.replaceAll("/+$", ""));
 		}
 		AppServer app = new AppServer(server, ui(opt(a, "--ui", System.getProperty("rocketmaxxing.ui"))), dev);
+		app.files(ws);
 		InetSocketAddress bound = app.start(Integer.parseInt(opt(a, "--port", "0")));
 		Runtime.getRuntime().addShutdownHook(new Thread(app::stop));
 		String url = app.url();

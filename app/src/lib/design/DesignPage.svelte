@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ArrowUp, ArrowDown, Copy, Trash2 } from "@lucide/svelte";
+  import { ArrowUp, ArrowDown, Copy, Trash2, Image } from "@lucide/svelte";
+  import PictureDialog from "../media/PictureDialog.svelte";
   import { app, move, duplicate, removeSelected, findNode } from "../state.svelte";
   import { isOpen } from "../panels.svelte";
   import Panel from "../Panel.svelte";
@@ -13,6 +14,7 @@
 
   let isRoot = $derived(app.selected === "rocket");
   let target = $derived(findNode(app.design?.tree, app.selected)?.name ?? "");
+  let picture = $state(false);
 </script>
 
 <div class="design">
@@ -30,6 +32,9 @@
 
   <div class="center">
     <Panel id="design.view" title="View" fill>
+      {#snippet tools()}
+        <button class="tool wide" title="Picture or drawing of the design, for reviews and build notes" onclick={() => (picture = true)}><Image size={15} /> Picture</button>
+      {/snippet}
       <div class="view"><RocketView /></div>
     </Panel>
     <Panel id="design.summary" title="Summary">
@@ -51,6 +56,8 @@
     </Panel>
   </div>
 </div>
+
+{#if picture}<PictureDialog close={() => (picture = false)} />{/if}
 
 <style>
   .design {
@@ -103,6 +110,13 @@
   .tool:hover:not(:disabled) {
     background: var(--surface-3);
     color: var(--ink);
+  }
+  .tool.wide {
+    width: auto;
+    display: flex;
+    gap: 4px;
+    padding: 0 6px;
+    font-size: 12px;
   }
   .tool:disabled {
     opacity: 0.35;

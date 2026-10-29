@@ -215,6 +215,10 @@ public final class Targets {
 		return out;
 	}
 
+	public static JsonObject targetsOf(Standards std) {
+		return targets(std);
+	}
+
 	static JsonObject targets(Standards std) {
 		JsonElement t = std.data().get("targets");
 		return t != null && t.isJsonObject() ? t.getAsJsonObject() : new JsonObject();

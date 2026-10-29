@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Plus, Play, PlayCircle, Trash2 } from "@lucide/svelte";
+  import { Plus, Play, PlayCircle, Trash2, Clapperboard } from "@lucide/svelte";
+  import VideoDialog from "../media/VideoDialog.svelte";
   import { untrack } from "svelte";
   import { call } from "../api";
   import { act, app, run } from "../state.svelte";
@@ -24,6 +25,7 @@
   let sims = $state<Sim[]>([]);
   let configs = $state<{ id: string; name: string }[]>([]);
   let sel = $state(0);
+  let video = $state(false);
   let running = $state(false);
 
   async function load() {
@@ -141,6 +143,7 @@
     <button class="btn primary" disabled={!current || running} onclick={() => runSims(false)}><Play size={15} /> Run</button>
     <button class="btn" disabled={!sims.length || running} onclick={() => runSims(true)}><PlayCircle size={15} /> Run all</button>
     <button class="btn" disabled={!current} onclick={() => current && act("app_sim_delete", { simulation: current.index })}><Trash2 size={15} /> Delete</button>
+    <button class="btn" disabled={!current || running} onclick={() => (video = true)} title="The selected flight as a video"><Clapperboard size={15} /> Video</button>
     {#if running}<span class="muted">Running…</span>{/if}
   </div>
 
@@ -217,6 +220,8 @@
     </div>
   {/if}
 </div>
+
+{#if video && current}<VideoDialog simulation={current.index} name={current.name} close={() => (video = false)} />{/if}
 
 <style>
   .page {

@@ -98,6 +98,11 @@ public final class McpServer {
 		this.guard = g;
 	}
 
+	/** The guard in place (null: none), so a second server over the same designs can share it. */
+	public Guard guard() {
+		return guard;
+	}
+
 	/** One client per server (stdio): its initialize says whether it renders views. */
 	public void singleClient(boolean single) {
 		this.singleClient = single;

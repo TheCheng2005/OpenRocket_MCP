@@ -38,6 +38,7 @@ public final class AppServer {
 	private final Path ui;
 	private final String token;
 	private final List<String> extraOrigins;
+	private volatile Path files;
 	private HttpServer http;
 	private String origin;
 	private final AtomicLong lastSeen = new AtomicLong(0);
@@ -54,6 +55,11 @@ public final class AppServer {
 
 	public String token() {
 		return token;
+	}
+
+	/** Lets the page show what the engine writes (videos, pictures, drawings) from this folder: GET /file?path=...&token=... */
+	public void files(Path workspace) {
+		this.files = workspace.toAbsolutePath().normalize();
 	}
 
 	/** Milliseconds since epoch of the page's last request (0: never). */
@@ -111,6 +117,10 @@ public final class AppServer {
 		}
 		if (path.equals("/health")) {
 			send(ex, 200, "text/plain", "ok".getBytes(StandardCharsets.UTF_8));
+			return;
+		}
+		if (path.equals("/file")) {
+			output(ex);
 			return;
 		}
 		file(ex, path);
@@ -187,6 +197,99 @@ public final class AppServer {
 					+ "style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'");
 		}
 		send(ex, 200, TYPES.getOrDefault(ext, "application/octet-stream"), bytes);
+	}
+
+	static final Map<String, String> OUTPUT_TYPES = Map.of("png", "image/png", "gif", "image/gif", "jpg", "image/jpeg",
+			"svg", "image/svg+xml", "mp4", "video/mp4", "webm", "video/webm");
+
+	/**
+	 * A picture or video the engine wrote in the designs folder. An {@code <img>} or {@code <video>} cannot send the
+	 * Authorization header, so the token comes in the query; only those media types are served, never as a page that
+	 * could run script ("sandbox"), and only from inside the folder (links that lead out of it are refused).
+	 */
+	private void output(HttpExchange ex) throws IOException {
+		Map<String, String> q = query(ex.getRequestURI().getRawQuery());
+		String given = q.getOrDefault("token", "");
+		if (!MessageDigest.isEqual(given.getBytes(StandardCharsets.UTF_8), token.getBytes(StandardCharsets.UTF_8)) || files == null) {
+			send(ex, 403, "text/plain", "Forbidden".getBytes(StandardCharsets.UTF_8));
+			return;
+		}
+		Path f;
+		try {
+			Path p = Path.of(q.getOrDefault("path", ""));
+			f = (p.isAbsolute() ? p : files.resolve(p)).toRealPath();
+		} catch (IOException | RuntimeException e) {
+			send(ex, 404, "text/plain", "Not found".getBytes(StandardCharsets.UTF_8));
+			return;
+		}
+		String name = f.getFileName().toString();
+		String type = OUTPUT_TYPES.get(name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT));
+		if (!f.startsWith(files.toRealPath()) || !Files.isRegularFile(f) || type == null) {
+			send(ex, 404, "text/plain", "Not found".getBytes(StandardCharsets.UTF_8));
+			return;
+		}
+		var h = ex.getResponseHeaders();
+		h.add("Content-Security-Policy", "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
+		h.add("Cache-Control", "no-store");
+		h.add("Accept-Ranges", "bytes");
+		long size = Files.size(f);
+		// Videos are fetched in ranges (seeking): serve the one asked for.
+		String range = ex.getRequestHeaders().getFirst("Range");
+		java.util.regex.Matcher m = range == null ? null : java.util.regex.Pattern.compile("bytes=(\\d*)-(\\d*)").matcher(range);
+		if (m != null && m.matches() && !(m.group(1).isEmpty() && m.group(2).isEmpty())) {
+			long start, end;
+			if (m.group(1).isEmpty()) {
+				start = Math.max(0, size - Long.parseLong(m.group(2)));
+				end = size - 1;
+			} else {
+				start = Long.parseLong(m.group(1));
+				end = m.group(2).isEmpty() ? size - 1 : Math.min(size - 1, Long.parseLong(m.group(2)));
+			}
+			if (start > end || start >= size) {
+				h.add("Content-Range", "bytes */" + size);
+				send(ex, 416, "text/plain", new byte[0]);
+				return;
+			}
+			h.add("Content-Range", "bytes " + start + "-" + end + "/" + size);
+			h.add("Content-Type", type);
+			ex.sendResponseHeaders(206, end - start + 1);
+			try (var in = Files.newInputStream(f); var out = ex.getResponseBody()) {
+				in.skipNBytes(start);
+				byte[] buf = new byte[64 << 10];
+				long left = end - start + 1;
+				while (left > 0) {
+					int n = in.read(buf, 0, (int) Math.min(buf.length, left));
+					if (n < 0) {
+						break;
+					}
+					out.write(buf, 0, n);
+					left -= n;
+				}
+			}
+			return;
+		}
+		h.add("Content-Type", type);
+		boolean head = ex.getRequestMethod().equals("HEAD");
+		ex.sendResponseHeaders(200, head ? -1 : size);
+		if (!head) {
+			try (var out = ex.getResponseBody()) {
+				Files.copy(f, out);
+			}
+		}
+	}
+
+	private static Map<String, String> query(String raw) {
+		Map<String, String> q = new java.util.HashMap<>();
+		if (raw != null) {
+			for (String part : raw.split("&")) {
+				int eq = part.indexOf('=');
+				if (eq > 0) {
+					q.put(java.net.URLDecoder.decode(part.substring(0, eq), StandardCharsets.UTF_8),
+							java.net.URLDecoder.decode(part.substring(eq + 1), StandardCharsets.UTF_8));
+				}
+			}
+		}
+		return q;
 	}
 
 	private static void send(HttpExchange ex, int code, String type, byte[] body) throws IOException {

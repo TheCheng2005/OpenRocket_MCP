@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { X, Search } from "@lucide/svelte";
+  import { X, Search, FileUp, FlaskConical } from "@lucide/svelte";
+  import CustomMotorDialog from "./CustomMotorDialog.svelte";
   import { call } from "../api";
   import { act, app, run } from "../state.svelte";
   import { fmt, num, pretty, toShown, unitOf } from "../units.svelte";
@@ -39,9 +40,12 @@
   let chosen = $state<MotorRow | null>(null);
   let curve = $state<{ time: number[]; thrust: number[] } | null>(null);
   let delay = $state("auto");
+  let reload = $state(0);
+  let custom = $state(false);
 
   let timer: ReturnType<typeof setTimeout>;
   $effect(() => {
+    reload;
     const args: Record<string, unknown> = { availableOnly, limit: 400 };
     if (text.trim()) args.text = text.trim();
     if (minClass) args.minClass = minClass;
@@ -56,6 +60,28 @@
       }
     }, 200);
   });
+
+  /** Shows a motor just added (it may not fit the mount yet: the filter is lifted) and selects it. */
+  async function show(designation: string) {
+    text = designation;
+    fits = false;
+    reload++;
+    const r = await run(() => call<{ matches: number; motors: MotorRow[] }>("app_motors", { text: designation, limit: 50 }));
+    const m = r?.motors.find((x) => x.designation === designation) ?? r?.motors[0];
+    if (m) pick(m);
+  }
+
+  async function importFile() {
+    let path: string | null = null;
+    try {
+      path = (await call<{ path: string | null }>("app_choose_file", { mode: "open", types: "eng,rse,zip" })).path;
+    } catch {
+      /* no file dialog here */
+    }
+    if (!path) return;
+    const r = await run(() => call<{ file: string; motors: MotorRow[] }>("app_import_motor", { path }));
+    if (r?.motors.length) show(r.motors[0].designation);
+  }
 
   async function pick(m: MotorRow) {
     chosen = m;
@@ -81,6 +107,10 @@
       <div>
         <h3>Motor for {mount.name}</h3>
         <div class="muted">Mount Ø {fmt(mount.innerDiameter, "LENGTH")}</div>
+      </div>
+      <div class="own">
+        <button class="btn" onclick={importFile} title="A .eng, .rse or zipped motor file, e.g. from thrustcurve.org"><FileUp size={14} /> Import file…</button>
+        <button class="btn" onclick={() => (custom = true)} title="From your static fire or engine data"><FlaskConical size={14} /> Your own motor…</button>
       </div>
       <button class="btn ghost" onclick={close} aria-label="Close"><X size={16} /></button>
     </header>
@@ -151,7 +181,15 @@
   </div>
 </div>
 
+{#if custom}<CustomMotorDialog close={() => (custom = false)} created={show} />{/if}
+
 <style>
+  .own {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+    margin-right: 6px;
+  }
   .scrim {
     position: fixed;
     inset: 0;

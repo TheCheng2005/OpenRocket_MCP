@@ -402,6 +402,8 @@ final class Assistant {
 		if (endpoint == null) {
 			McpServer tools = Main.build(ctx, s -> {
 			}, true);
+			// The same per-design locks as the app's own calls: an agent's edit and one from the page take turns.
+			tools.guard(server.guard());
 			byte[] b = new byte[24];
 			new java.security.SecureRandom().nextBytes(b);
 			String token = java.util.HexFormat.of().formatHex(b);

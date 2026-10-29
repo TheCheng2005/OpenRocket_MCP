@@ -126,6 +126,25 @@ public final class Standards {
 		return r;
 	}
 
+	/** The built-in defaults every team file is merged over. */
+	public static JsonObject defaultsJson() {
+		return resource("/openrocketmcp/default-standards.json");
+	}
+
+	/** The rule sets that come with the server (a team can also name a .json file of its own). */
+	public static final List<String> BUILT_IN_RULES = List.of("launch-canada-2027", "launch-canada-r4");
+
+	/** A built-in rule set's full name ("Launch Canada 2027: ..."), or its id. */
+	public static String ruleSetName(String id) {
+		JsonObject r = resource("/openrocketmcp/rules/" + id + ".json");
+		return r != null && r.has("name") ? r.get("name").getAsString() : id;
+	}
+
+	/** Standards from a team file's contents (merged over the defaults and checked), as if loaded from {@code source}. */
+	public static Standards fromTeam(JsonObject team, Path source) {
+		return build(team.deepCopy(), source);
+	}
+
 	private static JsonObject resource(String name) {
 		try (InputStream in = Standards.class.getResourceAsStream(name)) {
 			if (in == null) {

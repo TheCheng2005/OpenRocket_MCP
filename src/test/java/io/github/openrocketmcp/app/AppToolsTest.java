@@ -204,6 +204,49 @@ class AppToolsTest {
 		}
 	}
 
+	@Test
+	void servesWhatTheEngineWroteAndNothingElse(@TempDir Path ws, @TempDir Path outside) throws Exception {
+		Files.createDirectories(ws.resolve("exports"));
+		byte[] video = new byte[1000];
+		for (int i = 0; i < video.length; i++) {
+			video[i] = (byte) i;
+		}
+		Files.write(ws.resolve("exports/flight.mp4"), video);
+		Files.writeString(ws.resolve("notes.html"), "<script>alert(1)</script>");
+		Files.writeString(outside.resolve("secret.png"), "x");
+		AppServer app = new AppServer(server, null, List.of());
+		app.files(ws);
+		var bound = app.start(0);
+		try {
+			HttpClient http = HttpClient.newHttpClient();
+			String base = "http://127.0.0.1:" + bound.getPort() + "/file?token=" + app.token() + "&path=";
+			java.util.function.Function<String, HttpResponse<byte[]>> get = q -> {
+				try {
+					return http.send(HttpRequest.newBuilder(URI.create(q)).build(), HttpResponse.BodyHandlers.ofByteArray());
+				} catch (Exception e) {
+					throw new RuntimeException(e);
+				}
+			};
+			HttpResponse<byte[]> ok = get.apply(base + "exports/flight.mp4");
+			assertEquals(200, ok.statusCode());
+			assertEquals("video/mp4", ok.headers().firstValue("Content-Type").orElse(""));
+			assertTrue(ok.headers().firstValue("Content-Security-Policy").orElse("").contains("sandbox"));
+			assertEquals(1000, ok.body().length);
+			HttpResponse<byte[]> part = http.send(HttpRequest.newBuilder(URI.create(base + "exports/flight.mp4")).header("Range", "bytes=10-19").build(),
+					HttpResponse.BodyHandlers.ofByteArray());
+			assertEquals(206, part.statusCode());
+			assertEquals(10, part.body().length);
+			assertEquals(10, part.body()[0]);
+			assertEquals(403, get.apply(base.replace(app.token(), "wrong") + "exports/flight.mp4").statusCode());
+			assertEquals(404, get.apply(base + "notes.html").statusCode(), "only pictures and videos");
+			assertEquals(404, get.apply(base + java.net.URLEncoder.encode(outside.resolve("secret.png").toString(), "UTF-8")).statusCode(),
+					"only inside the designs folder");
+			assertEquals(404, get.apply(base + "../" + outside.getFileName() + "/secret.png").statusCode());
+		} finally {
+			app.stop();
+		}
+	}
+
 	JsonObject fieldInfo(String d, String comp, String key) {
 		JsonObject e = call("app_component", "{\"designId\":\"" + d + "\",\"component\":\"" + comp + "\"}");
 		for (JsonElement s : e.getAsJsonArray("sections")) {

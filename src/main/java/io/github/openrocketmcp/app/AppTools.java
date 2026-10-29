@@ -1,5 +1,6 @@
 package io.github.openrocketmcp.app;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -172,6 +173,14 @@ public final class AppTools {
 					r.setSelectedConfiguration(Components.config(r, a.str("configuration")).getId());
 					return Map.of("selected", r.getSelectedConfiguration().getId().toString());
 				}));
+		add(s, new ToolDef("app_standards", "App: team standards",
+				"The team standards file's own values, the values in use, the built-in defaults and the rule sets.",
+				Schema.object().build(), true, a -> standards(ctx)));
+		// Read-only as far as undo goes: standards live in the team file, not in the design.
+		add(s, new ToolDef("app_set_standards", "App: change team standards",
+				"Merge a change into the team standards file ({\"recovery\": {\"harnessSafetyFactor\": 2.5}}); null returns a value "
+						+ "to its default. Only the team's own values are written.",
+				Schema.object().obj("patch", "The change.", true).build(), true, a -> setStandards(ctx, a.obj("patch").raw())));
 		// Read-only as far as undo goes: targets live in the team standards file, not in the design.
 		add(s, new ToolDef("app_set_targets", "App: set the team's targets",
 				"Set or clear target limits ({\"apogee\": {\"min\": \"9500 ft\", \"goal\": null}}) and write them to the team "
@@ -243,6 +252,9 @@ public final class AppTools {
 						.str("maxClass", "Highest class letter.", false).bool("availableOnly", "Only motors in production.", false)
 						.integer("limit", "Maximum motors (default 300).", false).build(),
 				true, a -> motors(ctx, a)));
+		add(s, new ToolDef("app_import_motor", "App: import a motor file",
+				"Load a .eng, .rse or zipped motor file into the motor list and keep a copy in the designs folder's motors/.",
+				Schema.object().str("path", "Motor file.", true).build(), true, a -> importMotor(ctx, a.str("path"))));
 		add(s, new ToolDef("app_motor_curve", "App: thrust curve", "One motor's thrust curve, in SI.",
 				Schema.object().str("digest", "Motor digest.", true).build(), true, a -> {
 					ThrustCurveMotor m = Motors.find(a.str("digest"), null);
@@ -340,6 +352,7 @@ public final class AppTools {
 
 	static Map<String, Object> session(Context ctx) {
 		OrRuntime.init(); // the material lists need OpenRocket started (the page may ask before anything else)
+		teamMotors(ctx);
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("version", App.VERSION);
 		out.put("engineVersion", Main.VERSION);
@@ -793,7 +806,7 @@ public final class AppTools {
 
 	// ------------------------------------------------------------------------------------------- flight data
 
-	static Map<String, Object> flightLog(Context ctx, Args a) throws java.io.IOException {
+	static Map<String, Object> flightLog(Context ctx, Args a) throws IOException {
 		Designs.Design d = ctx.designs.get(a.str("designId"));
 		FlightLog.Log log = FlightLog.parse(Files.readString(ctx.path(a.str("path"))), a.str("altitudeUnit", null));
 		Sims.Overrides o = new Sims.Overrides(a.qtyOrNaN("windSpeed", Dim.VELOCITY), Double.NaN, Double.NaN, Double.NaN,
@@ -805,7 +818,7 @@ public final class AppTools {
 		return out;
 	}
 
-	static Map<String, Object> library(Context ctx, Args a) throws java.io.IOException {
+	static Map<String, Object> library(Context ctx, Args a) throws IOException {
 		Path root = a.has("folder") ? ctx.path(a.str("folder")) : ctx.workspace();
 		Library.Scan scan = Library.scan(root, a.bool("simulate", true));
 		Map<String, Object> out = new LinkedHashMap<>();
@@ -858,7 +871,7 @@ public final class AppTools {
 
 	// ------------------------------------------------------------------------------------------- targets
 
-	static Map<String, Object> setTargets(Context ctx, JsonObject patch) throws java.io.IOException {
+	static Map<String, Object> setTargets(Context ctx, JsonObject patch) throws IOException {
 		for (Map.Entry<String, JsonElement> e : patch.entrySet()) {
 			Targets.Metric m = Targets.metric(e.getKey());
 			if (m == null || !e.getValue().isJsonObject()) {
@@ -875,24 +888,78 @@ public final class AppTools {
 		}
 		JsonObject wrapped = new JsonObject();
 		wrapped.add("targets", patch);
-		ctx.setStandards(ctx.standards().patched(wrapped));
-		// The file keeps only what the team set: the built-in defaults stay defaults.
-		Path file = ctx.standards().source() != null ? ctx.standards().source() : ctx.workspace().resolve(Standards.FILE_NAME);
-		JsonObject team = Files.exists(file) ? JsonParser.parseString(Files.readString(file)).getAsJsonObject() : new JsonObject();
-		Standards.deepMerge(team, wrapped);
-		JsonObject targets = team.getAsJsonObject("targets");
-		for (String id : new ArrayList<>(targets.keySet())) {
-			if (targets.get(id).isJsonObject()) {
-				JsonObject t = targets.getAsJsonObject(id);
-				t.entrySet().removeIf(f -> f.getValue().isJsonNull() || f.getValue().isJsonPrimitive() && f.getValue().getAsString().isBlank());
-				if (t.size() == 0) {
-					targets.remove(id);
-				}
-			}
-		}
+		Map<String, Object> out = new LinkedHashMap<>(setStandards(ctx, wrapped));
+		JsonObject targets = Targets.targetsOf(ctx.standards());
+		out.put("targets", targets.keySet());
+		return out;
+	}
+
+	/** The team standards file: the one loaded, else openrocket-mcp.json in the designs folder. */
+	static Path standardsFile(Context ctx) {
+		return ctx.standards().source() != null ? ctx.standards().source()
+				: (ctx.workspace() != null ? ctx.workspace() : Path.of("").toAbsolutePath()).resolve(Standards.FILE_NAME);
+	}
+
+	static JsonObject teamFile(Path file) throws IOException {
+		return Files.exists(file) ? JsonParser.parseString(Files.readString(file)).getAsJsonObject() : new JsonObject();
+	}
+
+	/**
+	 * Merges a change into the team standards file and uses the result at once. The file keeps only what the team set
+	 * (the built-in defaults stay defaults, so later improvements to them still apply); null puts a value back to its
+	 * default. The change is checked before anything is written.
+	 */
+	static Map<String, Object> setStandards(Context ctx, JsonObject patch) throws IOException {
+		Path file = standardsFile(ctx);
+		JsonObject team = teamFile(file);
+		apply(team, patch);
+		Standards next = Standards.fromTeam(team, file);
 		Files.createDirectories(file.toAbsolutePath().getParent());
 		Files.writeString(file, Standards.pretty(team));
-		return Map.of("saved", file.toString(), "targets", targets.keySet());
+		ctx.setStandards(next);
+		return Map.of("saved", file.toString());
+	}
+
+	/** Deep merge where null removes the key, and an object left empty goes too. */
+	static void apply(JsonObject target, JsonObject patch) {
+		for (Map.Entry<String, JsonElement> e : patch.entrySet()) {
+			JsonElement v = e.getValue();
+			if (v.isJsonNull()) {
+				target.remove(e.getKey());
+			} else if (v.isJsonObject() && target.has(e.getKey()) && target.get(e.getKey()).isJsonObject()) {
+				apply(target.getAsJsonObject(e.getKey()), v.getAsJsonObject());
+				if (target.getAsJsonObject(e.getKey()).size() == 0) {
+					target.remove(e.getKey());
+				}
+			} else if (v.isJsonObject()) {
+				JsonObject fresh = new JsonObject();
+				apply(fresh, v.getAsJsonObject());
+				if (fresh.size() > 0) {
+					target.add(e.getKey(), fresh);
+				}
+			} else {
+				target.add(e.getKey(), v.deepCopy());
+			}
+		}
+	}
+
+	/** What the standards page shows: the team's own values, the values in use, the defaults, and the rule sets. */
+	static Map<String, Object> standards(Context ctx) throws IOException {
+		Path file = standardsFile(ctx);
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("file", file.toString());
+		out.put("fileExists", Files.exists(file));
+		out.put("team", teamFile(file));
+		out.put("merged", ctx.standards().data());
+		out.put("defaults", Standards.defaultsJson());
+		List<Map<String, String>> rules = new ArrayList<>();
+		for (String id : Standards.BUILT_IN_RULES) {
+			rules.add(Map.of("id", id, "name", Standards.ruleSetName(id)));
+		}
+		rules.add(Map.of("id", "none", "name", "None (team standards only)"));
+		out.put("ruleSets", rules);
+		out.put("ruleSet", ctx.standards().rulesName());
+		return out;
 	}
 
 	// ------------------------------------------------------------------------------------------- motors and configuration
@@ -1070,6 +1137,62 @@ public final class AppTools {
 			}
 		}
 		return Map.of("matches", matches, "motors", out);
+	}
+
+	/** The designs folder's motors/: motor files the team imported and motors made from its own test data. */
+	static Path motorsDir(Context ctx) {
+		return (ctx.workspace() != null ? ctx.workspace() : Path.of("").toAbsolutePath()).resolve("motors");
+	}
+
+	private static volatile Path teamMotorsLoaded;
+
+	/**
+	 * Loads the team's motors once, when the page first connects (before a design that uses one is opened), so a design
+	 * keeps its own motor from one session to the next.
+	 */
+	static synchronized void teamMotors(Context ctx) {
+		Path dir = motorsDir(ctx);
+		if (dir.equals(teamMotorsLoaded) || !Files.isDirectory(dir)) {
+			return;
+		}
+		teamMotorsLoaded = dir;
+		try (var files = Files.list(dir)) {
+			for (Path f : files.sorted().toList()) {
+				String n = f.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+				if (n.endsWith(".eng") || n.endsWith(".rse") || n.endsWith(".zip")) {
+					try {
+						Motors.importFile(f);
+					} catch (IOException | RuntimeException e) {
+						io.github.openrocketmcp.mcp.Log.info("Skipped motor file " + f + ": " + e.getMessage());
+					}
+				}
+			}
+		} catch (IOException e) {
+			io.github.openrocketmcp.mcp.Log.info("Could not read " + dir + ": " + e.getMessage());
+		}
+	}
+
+	/** Imports a motor file and keeps a copy in the designs folder's motors/, so it is there next time. */
+	static Map<String, Object> importMotor(Context ctx, String path) throws IOException {
+		Path src = ctx.path(path).toAbsolutePath().normalize();
+		List<ThrustCurveMotor> found = Motors.importFile(src); // checks the file before it is kept
+		Path dir = motorsDir(ctx);
+		Path kept = src;
+		if (!src.startsWith(dir)) {
+			Files.createDirectories(dir);
+			String name = src.getFileName().toString();
+			kept = dir.resolve(name);
+			for (int i = 2; Files.exists(kept) && Files.mismatch(kept, src) != -1; i++) {
+				int dot = name.lastIndexOf('.');
+				kept = dir.resolve(name.substring(0, dot) + "-" + i + name.substring(dot));
+			}
+			Files.copy(src, kept, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+		}
+		List<Map<String, Object>> motors = new ArrayList<>();
+		for (ThrustCurveMotor m : found) {
+			motors.add(motorInfo(m));
+		}
+		return Map.of("file", kept.toString(), "motors", motors);
 	}
 
 	static Map<String, Object> motorInfo(ThrustCurveMotor m) {
