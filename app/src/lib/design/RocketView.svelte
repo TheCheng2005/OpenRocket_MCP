@@ -313,7 +313,7 @@
 </script>
 
 <div class="rv" bind:this={host}>
-  <div class="canvas" bind:this={canvasHost}></div>
+  <div class="canvas" bind:this={canvasHost} title={mode === "3d" ? "Drag to turn, right-drag to move, scroll to zoom" : "Drag to move, scroll to zoom"}></div>
   {#if !webgl}
     <div class="nogl">This computer cannot show 3-D graphics (WebGL is off).</div>
   {/if}
@@ -327,13 +327,10 @@
     </div>
     {#if mode === "3d"}
       <button class="btn small" class:on={cutaway} onclick={() => ((cutaway = !cutaway), style())} title="Cut the airframe open to show the inside">
-        <Scissors size={15} /> Cut-away
+        <Scissors size={14} /> Cut-away
       </button>
     {/if}
-    <button class="btn small" onclick={fit} title="Fit the rocket in the view"><Maximize size={15} /> Fit</button>
-  </div>
-  <div class="hint muted">
-    {mode === "3d" ? "Drag to turn · right-drag to move · scroll to zoom · click a part to edit it" : "Drag to move · scroll to zoom · click a part to edit it"}
+    <button class="btn small" onclick={fit} title="Fit the rocket in the view"><Maximize size={14} /> Fit</button>
   </div>
 </div>
 
@@ -353,44 +350,39 @@
   }
   .bar {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: 6px;
+    right: 6px;
     display: flex;
-    gap: 6px;
+    gap: 4px;
   }
   .seg {
     display: flex;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius);
     overflow: hidden;
     background: var(--surface);
-    box-shadow: var(--shadow);
   }
   .seg button {
     border: 0;
+    border-left: 1px solid var(--line);
     background: transparent;
-    padding: 6px 14px;
-    font-weight: 600;
+    padding: 3px 12px;
     color: var(--ink-2);
   }
+  .seg button:first-child {
+    border-left: 0;
+  }
   .seg button.on {
-    background: var(--ink);
-    color: var(--surface);
+    background: var(--select-soft);
+    color: var(--ink);
+    font-weight: 600;
   }
   .btn.small {
-    height: 32px;
-    box-shadow: var(--shadow);
+    height: 28px;
   }
   .btn.small.on {
     background: var(--select-soft);
     border-color: var(--select);
-  }
-  .hint {
-    position: absolute;
-    left: 12px;
-    bottom: 8px;
-    font-size: 11.5px;
-    pointer-events: none;
   }
   .marker {
     position: absolute;

@@ -1,18 +1,18 @@
 :root {
-  --bg: #eef1f5;
+  --bg: #e4e7eb;
   --surface: #ffffff;
-  --surface-2: #f6f8fb;
-  --surface-3: #e9edf3;
-  --line: #d9dfe8;
-  --line-strong: #c3ccd8;
-  --ink: #18212d;
-  --ink-2: #4a5566;
-  --ink-3: #7a8596;
-  --accent: #e8590c;
+  --surface-2: #f3f4f6;
+  --surface-3: #e6e9ed;
+  --line: #d0d4da;
+  --line-strong: #b4bac3;
+  --ink: #1d2329;
+  --ink-2: #4b535c;
+  --ink-3: #7b828b;
+  --accent: #d9480f;
   --accent-ink: #ffffff;
   --accent-soft: #fff0e6;
-  --select: #1d6fe0;
-  --select-soft: #e3eeff;
+  --select: #2563c9;
+  --select-soft: #dce8fb;
   --good: #1f9d55;
   --warn: #c98a00;
   --bad: #d63333;
@@ -27,12 +27,12 @@
   --fam-recovery: #ffb3c7;
   --fam-mass: #cdb6ff;
   --fam-assembly: #d6dde8;
-  --view-bg: #f9fbfd;
+  --view-bg: #fbfbfc;
   --grid: #e3e8ef;
-  --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 2px 8px rgb(16 24 40 / 6%);
-  --shadow-pop: 0 10px 40px rgb(16 24 40 / 18%);
-  --radius: 10px;
-  --font: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --shadow: none;
+  --shadow-pop: 0 6px 24px rgb(0 0 0 / 18%);
+  --radius: 4px;
+  --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
   color-scheme: light;
 }
@@ -69,7 +69,7 @@
     --fam-assembly: #3b4658;
     --view-bg: #131a23;
     --grid: #1f2936;
-    --shadow: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow: none;
     --shadow-pop: 0 10px 40px rgb(0 0 0 / 50%);
     color-scheme: dark;
   }
@@ -106,7 +106,7 @@
   --fam-assembly: #3b4658;
   --view-bg: #131a23;
   --grid: #1f2936;
-  --shadow: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow: none;
   --shadow-pop: 0 10px 40px rgb(0 0 0 / 50%);
   color-scheme: dark;
 }
@@ -121,7 +121,7 @@ body {
   height: 100%;
   background: var(--bg);
   color: var(--ink);
-  font: 14px/1.45 var(--font);
+  font: 13px/1.4 var(--font);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -155,10 +155,10 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 34px;
-  padding: 0 12px;
+  height: 28px;
+  padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface);
   color: var(--ink);
   font-weight: 500;
@@ -195,17 +195,17 @@ textarea {
 }
 
 .btn.big {
-  height: 44px;
-  padding: 0 18px;
-  font-size: 15px;
+  height: 34px;
+  padding: 0 14px;
+  font-size: 14px;
 }
 
 .input,
 .select {
-  height: 32px;
-  padding: 0 9px;
+  height: 28px;
+  padding: 0 7px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius);
   background: var(--surface);
   min-width: 0;
 }
@@ -215,7 +215,7 @@ textarea {
 textarea:focus {
   outline: none;
   border-color: var(--select);
-  box-shadow: 0 0 0 3px var(--select-soft);
+  box-shadow: none;
 }
 
 .card {
@@ -248,13 +248,13 @@ table.grid th {
   font-weight: 600;
   font-size: 12px;
   text-align: left;
-  padding: 8px 10px;
+  padding: 5px 8px;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
 
 table.grid td {
-  padding: 8px 10px;
+  padding: 5px 8px;
   border-bottom: 1px solid var(--line);
   vertical-align: middle;
 }
@@ -276,9 +276,13 @@ table.grid tbody tr.sel:hover td {
   height: 10px;
 }
 
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 ::-webkit-scrollbar-thumb {
   background: var(--line-strong);
-  border-radius: 10px;
+  border-radius: 5px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }

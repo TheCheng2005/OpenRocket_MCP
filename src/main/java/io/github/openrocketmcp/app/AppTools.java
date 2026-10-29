@@ -40,6 +40,7 @@ import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.Motors;
 import io.github.openrocketmcp.or.OrRuntime;
+import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sims;
 import io.github.openrocketmcp.or.Winds;
 import io.github.openrocketmcp.report.Workbench;
@@ -103,8 +104,9 @@ public final class AppTools {
 		add(s, new ToolDef("app_duplicate", "App: duplicate a component", "Copy a component (with its parts) right after it.",
 				Schema.object().str("designId", DESIGN, true).str("component", "Component id.", true).build(), false,
 				a -> duplicate(ctx, a)));
+		// Read-only as far as undo goes: choosing which configuration to look at is not an edit of the design.
 		add(s, new ToolDef("app_select_configuration", "App: select configuration", "Make a flight configuration the active one.",
-				Schema.object().str("designId", DESIGN, true).str("configuration", "Configuration id.", true).build(), false,
+				Schema.object().str("designId", DESIGN, true).str("configuration", "Configuration id.", true).build(), true,
 				a -> {
 					Designs.Design d = ctx.designs.get(a.str("designId"));
 					Rocket r = d.doc.getRocket();
@@ -171,7 +173,7 @@ public final class AppTools {
 				true, a -> series(ctx, a)));
 		add(s, new ToolDef("app_choose_file", "App: choose a file", "The system's open or save dialog; returns the chosen path.",
 				Schema.object().enumStr("mode", "open or save.", true, "open", "save").str("name", "Suggested file name.", false).build(),
-				true, a -> FileDialogs.choose(a.str("mode"), a.str("name", null))));
+				true, a -> FileDialogs.choose(a.str("mode"), a.str("name", null), ctx.workspace())));
 		add(s, new ToolDef("app_set_units", "App: unit system", "Metric or imperial for numbers the tools write as text.",
 				Schema.object().enumStr("system", "metric or imperial.", true, "metric", "imperial").build(), false, a -> {
 					Units.setSystem(UnitSystem.parse(a.str("system")));
@@ -274,7 +276,12 @@ public final class AppTools {
 		out.put("tree", node(r));
 		out.put("configurations", configList(r));
 		out.put("selected", r.getSelectedConfiguration().getId().toString());
-		out.put("stability", stability(r.getSelectedConfiguration()));
+		Map<String, Object> st = stability(r.getSelectedConfiguration());
+		double floor = Requirements.stabilityFloor(ctx.standards(), r.getSelectedConfiguration())[0];
+		if (floor > 0) {
+			st.put("floor", floor); // the rule set's minimum, for the stability readout's colour
+		}
+		out.put("stability", st);
 		if (!d.loadWarnings.isEmpty()) {
 			out.put("loadWarnings", d.loadWarnings);
 		}
@@ -550,6 +557,9 @@ public final class AppTools {
 		m.put("plugged", mc.getEjectionDelay() == Motor.PLUGGED_DELAY);
 		m.put("ignitionEvent", mc.getIgnitionEvent().name());
 		m.put("ignitionDelay", mc.getIgnitionDelay());
+		if (mo instanceof ThrustCurveMotor t) {
+			m.put("delays", t.getStandardDelays());
+		}
 		return m;
 	}
 
@@ -631,8 +641,11 @@ public final class AppTools {
 		String t = text.toLowerCase(java.util.Locale.ROOT);
 		java.util.Set<String> seen = new java.util.HashSet<>();
 		for (ThrustCurveMotor m : all) {
-			if (!seen.add(m.getDigest())) {
-				continue; // the same motor from two data files
+			// The same motor from two data files: same digest, or the same maker, designation and numbers.
+			String same = m.getManufacturer().getDisplayName() + "|" + m.getDesignation() + "|"
+					+ Math.round(m.getTotalImpulseEstimate()) + "|" + Math.round(m.getBurnTimeEstimate() * 100);
+			if (!seen.add(m.getDigest()) || !seen.add(same)) {
+				continue;
 			}
 			String hay = (m.getManufacturer().getDisplayName() + " " + m.getManufacturer().getSimpleName() + " " + m.getDesignation()
 					+ " " + m.getCommonName()).toLowerCase(java.util.Locale.ROOT);

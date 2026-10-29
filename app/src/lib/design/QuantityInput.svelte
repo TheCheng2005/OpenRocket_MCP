@@ -72,11 +72,11 @@
   }
   .unit {
     flex: none;
-    width: 64px;
-    height: 32px;
+    width: 58px;
+    height: 28px;
     border: 1px solid var(--line);
     border-left: 0;
-    border-radius: 0 7px 7px 0;
+    border-radius: 0 var(--radius) var(--radius) 0;
     background: var(--surface-2);
     color: var(--ink-2);
     font-size: 12.5px;

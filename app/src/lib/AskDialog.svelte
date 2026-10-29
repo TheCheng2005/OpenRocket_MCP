@@ -20,7 +20,7 @@
 
 {#if app.ask}
   <div class="scrim" role="presentation" onclick={(e) => e.target === e.currentTarget && done(false)}>
-    <form class="dialog card" onsubmit={(e) => (e.preventDefault(), done(true))}>
+    <form class="dialog" onsubmit={(e) => (e.preventDefault(), done(true))}>
       <h3>{app.ask.title}</h3>
       <label>
         <span>{app.ask.label}</span>
@@ -38,18 +38,22 @@
   .scrim {
     position: fixed;
     inset: 0;
-    background: rgb(0 0 0 / 35%);
+    background: rgb(0 0 0 / 30%);
     display: grid;
     place-items: center;
     z-index: 40;
   }
   .dialog {
-    width: min(480px, calc(100vw - 32px));
-    padding: 20px;
+    width: min(460px, calc(100vw - 32px));
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
     box-shadow: var(--shadow-pop);
   }
   h3 {
-    margin: 0 0 14px;
+    margin: 0 0 10px;
+    font-size: 14px;
   }
   label {
     display: flex;
@@ -59,13 +63,12 @@
     font-size: 13px;
   }
   .input {
-    height: 38px;
-    font-size: 15px;
+    height: 30px;
   }
   .row {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-    margin-top: 18px;
+    margin-top: 14px;
   }
 </style>

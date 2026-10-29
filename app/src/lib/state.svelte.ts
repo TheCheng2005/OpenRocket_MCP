@@ -31,6 +31,7 @@ export interface Stability {
   marginBurnout?: number | null;
   mass?: number;
   massBurnout?: number;
+  floor?: number;
   warnings?: string[];
   error?: string;
 }
@@ -60,6 +61,7 @@ export interface FieldDef {
   options?: { value: string; label: string }[];
   materialType?: string;
   help?: string;
+  enabled?: boolean;
 }
 
 export interface Editor {
@@ -221,7 +223,7 @@ export async function openPath(path: string) {
   await run(async () => {
     const r = await call("open_design", { path });
     await load(r.designId);
-    if (r.conversionWarnings?.length) toast("Opened with notes: " + r.conversionWarnings.join("; "));
+    if (r.conversionWarnings?.length) toast("Converted on opening: " + r.conversionWarnings.join("; "));
   });
 }
 
@@ -230,13 +232,13 @@ export async function openDialog() {
     const r = await call<{ path: string | null }>("app_choose_file", { mode: "open" });
     if (r.path) await openPath(r.path);
   } catch {
-    const p = await ask("Open a design", "Path of an .ork or .rkt file");
+    const p = await ask("Open", "File (.ork or .rkt)");
     if (p) await openPath(p.trim());
   }
 }
 
 export async function newDesign() {
-  const name = await ask("New rocket", "Name", "My rocket");
+  const name = await ask("New design", "Rocket name", "Rocket");
   if (!name) return;
   await run(async () => {
     const r = await call("open_design", { newRocketName: name });
@@ -255,7 +257,7 @@ export async function save(as = false) {
         const r = await call<{ path: string | null }>("app_choose_file", { mode: "save", name: d.name + ".ork" });
         path = r.path;
       } catch {
-        path = await ask("Save the design", "Save as (path of an .ork file)", (d.path ?? d.name) + (d.path ? "" : ".ork"));
+        path = await ask("Save as", "File (.ork)", (d.path ?? d.name) + (d.path ? "" : ".ork"));
       }
       if (!path) return;
       if (!/\.ork$/i.test(path)) path += ".ork";

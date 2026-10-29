@@ -271,10 +271,10 @@ materials. You can also just tell Claude ("our pins are 2-56 nylon, 35 lbf each"
 
 ## RocketMaxxing, the desktop app
 
-No internet or AI subscription on the field? **RocketMaxxing** is a desktop app on the same engine: OpenRocket's
-design, motor and simulation tabs with a cleaner layout, bigger icons, a live 3-D view and live flight numbers.
-It reads and writes the same `.ork` files. `./gradlew rocketmaxxing`, then `build/install/openrocket-mcp/bin/rocketmaxxing`.
-See [docs/ROCKETMAXXING.md](docs/ROCKETMAXXING.md).
+RocketMaxxing is a desktop app on the same engine, for use without internet or an AI subscription: OpenRocket's
+design, motor and simulation tabs with a different layout, a 3-D view and a quick flight that updates as you edit.
+It uses the same `.ork` files. Build it with `./gradlew rocketmaxxing` and run
+`build/install/openrocket-mcp/bin/rocketmaxxing`. See [docs/ROCKETMAXXING.md](docs/ROCKETMAXXING.md).
 
 ![RocketMaxxing](docs/rocketmaxxing/design.png)
 

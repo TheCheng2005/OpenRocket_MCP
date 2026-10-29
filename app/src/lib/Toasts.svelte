@@ -20,8 +20,8 @@
     max-width: 440px;
   }
   .toast {
-    padding: 10px 14px;
-    border-radius: 10px;
+    padding: 7px 12px;
+    border-radius: var(--radius);
     background: var(--ink);
     color: var(--surface);
     box-shadow: var(--shadow-pop);

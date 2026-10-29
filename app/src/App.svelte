@@ -50,7 +50,7 @@
 {#if !connected}
   <div class="offline">
     <h1>RocketMaxxing</h1>
-    <p>This page needs the RocketMaxxing engine. Start the app with <code>rocketmaxxing</code>; it opens this window for you.</p>
+    <p>Start RocketMaxxing with <code>rocketmaxxing</code>. It opens this window itself.</p>
   </div>
 {:else}
   <div class="shell">
@@ -59,7 +59,7 @@
       <NavRail />
       <main>
         {#if !ready}
-          <div class="loading">Starting the engine…</div>
+          <div class="loading">Loading…</div>
         {:else if app.page === "home" || !app.design}
           <Home />
         {:else if app.page === "design"}

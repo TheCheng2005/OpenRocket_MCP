@@ -1,14 +1,15 @@
 <script lang="ts">
-  import { Plus, Copy, PencilLine, Trash2, X, Flame, Umbrella, Layers } from "@lucide/svelte";
+  import { Plus, Copy, PencilLine, Trash2, X } from "@lucide/svelte";
   import { untrack } from "svelte";
   import { call } from "../api";
   import { act, app, ask, run, selectConfig } from "../state.svelte";
   import { fmt, num, type Dim } from "../units.svelte";
+  import Panel from "../Panel.svelte";
   import MotorPicker from "./MotorPicker.svelte";
   import QuantityInput from "../design/QuantityInput.svelte";
 
-  // OpenRocket's "Motors & Configuration" tab: one row per flight configuration; motors per mount, recovery
-  // deployment per device and separation per stage in three tabs.
+  // OpenRocket's "Motors & Configuration" tab: a row per flight configuration; motors per mount, recovery
+  // deployment per device and separation per stage.
 
   interface Mount {
     id: string;
@@ -37,7 +38,6 @@
     stages: Stage[];
   }
 
-  let tab = $state<"motors" | "recovery" | "stages">("motors");
   let data = $state<Configs | null>(null);
   let picking = $state<{ mount: Mount; configuration: string } | null>(null);
   let editing = $state<null | { kind: "deploy" | "sep"; id: string; name: string; configuration: string; event: string; altitude: number; delay: number; all: boolean }>(null);
@@ -52,10 +52,10 @@
     untrack(load); // load() touches other state (the busy counter): only a new revision reloads
   });
 
-  const DEPLOY: Record<string, string> = { APOGEE: "At apogee", ALTITUDE: "At an altitude", EJECTION: "Motor ejection charge",
-    LOWER_STAGE_SEPARATION: "When the stage below separates", LAUNCH: "At launch", NEVER: "Never" };
-  const SEP: Record<string, string> = { UPPER_IGNITION: "When the stage above ignites", IGNITION: "When this stage's motor ignites",
-    BURNOUT: "At this stage's burnout", EJECTION: "At this stage's ejection charge", APOGEE: "At apogee", LAUNCH: "At launch",
+  const DEPLOY: Record<string, string> = { APOGEE: "Apogee", ALTITUDE: "Altitude", EJECTION: "Motor ejection charge",
+    LOWER_STAGE_SEPARATION: "Separation of the stage below", LAUNCH: "Launch", NEVER: "Never" };
+  const SEP: Record<string, string> = { UPPER_IGNITION: "Ignition of the stage above", IGNITION: "Ignition of this stage",
+    BURNOUT: "Burnout of this stage", EJECTION: "Ejection charge of this stage", APOGEE: "Apogee", LAUNCH: "Launch",
     NEVER: "Never" };
 
   function deployText(d: { event: string; altitude: number; delay: number }) {
@@ -65,21 +65,26 @@
   }
 
   async function newConfig() {
-    const name = await ask("New flight configuration", "Name (leave as is to name it after its motors)", "");
+    const name = await ask("New flight configuration", "Name (empty: named after its motors)", "");
     await act("flight_configuration", name ? { action: "create", name } : { action: "create" });
   }
 
-  async function rename(c: { id: string; name: string }) {
+  async function rename() {
+    const c = data?.configurations.find((x) => x.id === data!.selected);
+    if (!c) return;
     const name = await ask("Rename configuration", "Name", c.name);
     if (name) await act("flight_configuration", { action: "rename", configuration: c.id, name });
   }
 
-  async function removeMotor(mount: Mount, configuration: string) {
-    await act("app_motor_delay", { mount: mount.id, configuration, remove: true });
-  }
-
   async function setDelay(mount: Mount, configuration: string, v: string) {
     await act("app_motor_delay", v === "plugged" ? { mount: mount.id, configuration, plugged: true } : { mount: mount.id, configuration, ejectionDelay: Number(v) });
+  }
+
+  /** The motor's own delays (from its data file), plus the one set now. */
+  function delays(mo: any): number[] {
+    const list: number[] = (mo.delays ?? []).filter((d: number | null) => d !== null && Number.isFinite(d));
+    if (!mo.plugged && !list.some((d) => Math.abs(d - mo.ejectionDelay) < 1e-6)) list.push(mo.ejectionDelay);
+    return list.sort((a, b) => a - b);
   }
 
   async function saveEdit() {
@@ -97,95 +102,117 @@
   let stages = $derived((data?.stages ?? []).filter((s) => s.stageNumber > 0));
 </script>
 
+{#snippet configCell(c: { id: string; name: string }, table: string)}
+  <td class="cfg">
+    <label class="radio">
+      <input type="radio" name="active-{table}" checked={c.id === data?.selected} onchange={() => selectConfig(c.id)} />
+      <span>{c.name}</span>
+    </label>
+  </td>
+{/snippet}
+
 <div class="page">
-  <div class="top">
-    <div class="tabs" role="tablist">
-      <button role="tab" aria-selected={tab === "motors"} class:on={tab === "motors"} onclick={() => (tab = "motors")}><Flame size={18} /> Motors</button>
-      <button role="tab" aria-selected={tab === "recovery"} class:on={tab === "recovery"} onclick={() => (tab = "recovery")}><Umbrella size={18} /> Recovery</button>
-      <button role="tab" aria-selected={tab === "stages"} class:on={tab === "stages"} onclick={() => (tab = "stages")}><Layers size={18} /> Stages</button>
-    </div>
-    <div class="actions">
-      <button class="btn" onclick={newConfig}><Plus size={17} /> New configuration</button>
-      <button class="btn" onclick={() => data && act("app_config", { action: "copy", configuration: data.selected })}><Copy size={17} /> Copy</button>
-      <button class="btn" onclick={() => data && rename(data.configurations.find((c) => c.id === data!.selected)!)}><PencilLine size={17} /> Rename</button>
-      <button class="btn" disabled={(data?.configurations.length ?? 0) < 2} onclick={() => data && act("app_config", { action: "remove", configuration: data.selected })}><Trash2 size={17} /> Delete</button>
-    </div>
+  <div class="toolbar">
+    <button class="btn" onclick={newConfig}><Plus size={15} /> New configuration</button>
+    <button class="btn" disabled={!data} onclick={() => data && act("app_config", { action: "copy", configuration: data.selected })}><Copy size={15} /> Copy</button>
+    <button class="btn" disabled={!data} onclick={rename}><PencilLine size={15} /> Rename</button>
+    <button class="btn" disabled={(data?.configurations.length ?? 0) < 2} onclick={() => data && act("app_config", { action: "remove", configuration: data.selected })}><Trash2 size={15} /> Delete</button>
+    <span class="muted note">Copy, rename and delete act on the selected configuration.</span>
   </div>
 
   {#if data}
-    <div class="card wrap">
+    <Panel id="motors.motors" title="Motors">
       <table class="grid">
         <thead>
           <tr>
-            <th class="cfg">Flight configuration</th>
-            {#if tab === "motors"}
-              {#each data.mounts as m (m.id)}<th>{m.name}<div class="sub">{m.stage} · Ø {fmt(m.innerDiameter, "LENGTH")}</div></th>{/each}
-            {:else if tab === "recovery"}
-              {#each data.recovery as r (r.id)}<th>{r.name}<div class="sub">{r.type === "Parachute" ? "Parachute" : "Streamer"}</div></th>{/each}
-            {:else}
-              {#each stages as s (s.id)}<th>{s.name}<div class="sub">separation</div></th>{/each}
-            {/if}
+            <th class="cfg">Configuration</th>
+            {#each data.mounts as m (m.id)}<th>{m.name} <span class="sub">({m.stage}, Ø {fmt(m.innerDiameter, "LENGTH")})</span></th>{/each}
           </tr>
         </thead>
         <tbody>
           {#each data.configurations as c (c.id)}
             <tr class:sel={c.id === data.selected}>
-              <td class="cfg">
-                <label class="radio">
-                  <input type="radio" name="active" checked={c.id === data.selected} onchange={() => selectConfig(c.id)} />
-                  <span class="cname">{c.name}</span>
-                </label>
-              </td>
-              {#if tab === "motors"}
-                {#each data.mounts as m (m.id)}
-                  {@const mo = m.motors[c.id]}
-                  <td class="cell">
-                    {#if mo?.designation}
-                      <div class="motor">
-                        <button class="pick" onclick={() => (picking = { mount: m, configuration: c.id })} title="Change the motor">
-                          <span class="des">{mo.manufacturer} {mo.designation}</span>
-                          <span class="muted">{fmt(mo.totalImpulse, "IMPULSE")} · {fmt(mo.burnTime, "TIME", 3)} burn</span>
-                        </button>
-                        <select class="select delay" title="Ejection delay" value={mo.plugged ? "plugged" : String(mo.ejectionDelay)} onchange={(e) => setDelay(m, c.id, (e.target as HTMLSelectElement).value)}>
-                          {#if !mo.plugged}<option value={String(mo.ejectionDelay)}>{num(mo.ejectionDelay, 3)} s delay</option>{/if}
-                          {#each [0, 2, 4, 6, 8, 10, 12, 14, 16, 18] as d}{#if d !== mo.ejectionDelay}<option value={String(d)}>{d} s delay</option>{/if}{/each}
-                          <option value="plugged">Plugged</option>
-                        </select>
-                        <button class="btn ghost x" title="Remove the motor" onclick={() => removeMotor(m, c.id)}><X size={15} /></button>
-                      </div>
-                    {:else}
-                      <button class="empty" onclick={() => (picking = { mount: m, configuration: c.id })}><Plus size={16} /> Choose motor</button>
-                    {/if}
-                  </td>
-                {/each}
-                {#if data.mounts.length === 0}<td class="muted">No motor mount yet: on the Design page, open an inner tube or body tube and switch on “This is a motor mount”.</td>{/if}
-              {:else if tab === "recovery"}
-                {#each data.recovery as r (r.id)}
-                  {@const d = r.deployment[c.id]}
-                  <td class="cell">
-                    <button class="pick" onclick={() => (editing = { kind: "deploy", id: r.id, name: r.name, configuration: c.id, event: d.event, altitude: d.altitude, delay: d.delay, all: false })}>
-                      <span class="des">{deployText(d)}</span>
-                    </button>
-                  </td>
-                {/each}
-                {#if data.recovery.length === 0}<td class="muted">No parachute or streamer in the design.</td>{/if}
-              {:else}
-                {#each stages as s (s.id)}
-                  {@const sp = s.separation[c.id]}
-                  <td class="cell">
-                    <button class="pick" onclick={() => (editing = { kind: "sep", id: s.id, name: s.name, configuration: c.id, event: sp.event, altitude: 0, delay: sp.delay, all: false })}>
-                      <span class="des">{SEP[sp.event] ?? sp.event}{sp.delay > 0 ? " + " + num(sp.delay, 3) + " s" : ""}</span>
-                    </button>
-                  </td>
-                {/each}
-                {#if stages.length === 0}<td class="muted">A single-stage rocket: nothing separates. Add a stage on the Design page for a two-stage rocket.</td>{/if}
-              {/if}
+              {@render configCell(c, "motors")}
+              {#each data.mounts as m (m.id)}
+                {@const mo = m.motors[c.id]}
+                <td class="cell">
+                  {#if mo?.designation}
+                    <div class="motor">
+                      <button class="pick" onclick={() => (picking = { mount: m, configuration: c.id })} title="Change motor">
+                        <b>{mo.manufacturer} {mo.designation}</b>
+                        <span class="muted">{fmt(mo.totalImpulse, "IMPULSE")}, {fmt(mo.burnTime, "TIME", 3)}</span>
+                      </button>
+                      <select class="select delay" title="Ejection delay" value={mo.plugged ? "plugged" : String(mo.ejectionDelay)} onchange={(e) => setDelay(m, c.id, (e.target as HTMLSelectElement).value)}>
+                        {#each delays(mo) as d}<option value={String(d)}>{num(d, 3)} s</option>{/each}
+                        <option value="plugged">Plugged</option>
+                      </select>
+                      <button class="x" title="Remove motor" onclick={() => act("app_motor_delay", { mount: m.id, configuration: c.id, remove: true })}><X size={14} /></button>
+                    </div>
+                  {:else}
+                    <button class="empty" onclick={() => (picking = { mount: m, configuration: c.id })}>None (click to choose)</button>
+                  {/if}
+                </td>
+              {/each}
+              {#if data.mounts.length === 0}<td class="muted">No motor mount. Tick "This is a motor mount" on an inner tube or body tube.</td>{/if}
             </tr>
           {/each}
         </tbody>
       </table>
-    </div>
-    <p class="muted hint">The selected configuration is the one the Design page and the quick flight numbers use. Changes here can be undone (Ctrl+Z).</p>
+    </Panel>
+
+    <Panel id="motors.recovery" title="Recovery">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th class="cfg">Configuration</th>
+            {#each data.recovery as r (r.id)}<th>{r.name} <span class="sub">({r.type === "Parachute" ? "parachute" : "streamer"})</span></th>{/each}
+          </tr>
+        </thead>
+        <tbody>
+          {#each data.configurations as c (c.id)}
+            <tr class:sel={c.id === data.selected}>
+              {@render configCell(c, "recovery")}
+              {#each data.recovery as r (r.id)}
+                {@const d = r.deployment[c.id]}
+                <td class="cell">
+                  <button class="pick" onclick={() => (editing = { kind: "deploy", id: r.id, name: r.name, configuration: c.id, event: d.event, altitude: d.altitude, delay: d.delay, all: false })}>
+                    {deployText(d)}
+                  </button>
+                </td>
+              {/each}
+              {#if data.recovery.length === 0}<td class="muted">No parachute or streamer.</td>{/if}
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </Panel>
+
+    <Panel id="motors.stages" title="Stages" initial={stages.length > 0}>
+      {#if stages.length === 0}
+        <p class="muted pad">Single stage: nothing separates.</p>
+      {:else}
+        <table class="grid">
+          <thead>
+            <tr><th class="cfg">Configuration</th>{#each stages as s (s.id)}<th>{s.name} <span class="sub">(separation)</span></th>{/each}</tr>
+          </thead>
+          <tbody>
+            {#each data.configurations as c (c.id)}
+              <tr class:sel={c.id === data.selected}>
+                {@render configCell(c, "stages")}
+                {#each stages as s (s.id)}
+                  {@const sp = s.separation[c.id]}
+                  <td class="cell">
+                    <button class="pick" onclick={() => (editing = { kind: "sep", id: s.id, name: s.name, configuration: c.id, event: sp.event, altitude: 0, delay: sp.delay, all: false })}>
+                      {SEP[sp.event] ?? sp.event}{sp.delay > 0 ? " + " + num(sp.delay, 3) + " s" : ""}
+                    </button>
+                  </td>
+                {/each}
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
+    </Panel>
   {/if}
 </div>
 
@@ -196,21 +223,21 @@
 {#if editing}
   {@const e = editing}
   <div class="scrim" role="presentation" onclick={(ev) => ev.target === ev.currentTarget && (editing = null)}>
-    <div class="dialog card">
-      <h3>{e.kind === "deploy" ? "Deploy" : "Separate"} {e.name}</h3>
-      <label>When
+    <div class="dialog">
+      <h3>{e.kind === "deploy" ? "Deployment" : "Separation"}: {e.name}</h3>
+      <label>Event
         <select class="select" bind:value={e.event}>
           {#each Object.entries(e.kind === "deploy" ? DEPLOY : SEP) as [k, v]}<option value={k}>{v}</option>{/each}
         </select>
       </label>
       {#if e.kind === "deploy" && e.event === "ALTITUDE"}
-        <label>Altitude above the pad <QuantityInput value={e.altitude} dim={"DISTANCE" as Dim} commit={(v) => typeof v === "number" && (e.altitude = v)} /></label>
+        <label>Altitude (above the pad) <QuantityInput value={e.altitude} dim={"DISTANCE" as Dim} commit={(v) => typeof v === "number" && (e.altitude = v)} /></label>
       {/if}
       <label>Delay <QuantityInput value={e.delay} dim={"TIME" as Dim} commit={(v) => typeof v === "number" && (e.delay = v)} /></label>
-      <label class="check"><input type="checkbox" bind:checked={e.all} /> Apply to every flight configuration</label>
+      <label class="check"><input type="checkbox" bind:checked={e.all} /> All configurations</label>
       <div class="row">
         <button class="btn" onclick={() => (editing = null)}>Cancel</button>
-        <button class="btn primary" onclick={saveEdit}>Apply</button>
+        <button class="btn primary" onclick={saveEdit}>OK</button>
       </div>
     </div>
   </div>
@@ -220,151 +247,129 @@
   .page {
     flex: 1;
     min-height: 0;
+    overflow: auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 10px 14px;
+    gap: 6px;
+    padding: 6px;
   }
-  .top {
+  .toolbar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    gap: 4px;
     flex-wrap: wrap;
   }
-  .tabs {
-    display: flex;
-    gap: 4px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 4px;
+  .note {
+    margin-left: 8px;
+    font-size: 12px;
   }
-  .tabs button {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    border: 0;
-    border-radius: 9px;
-    padding: 9px 18px;
-    background: transparent;
-    font-weight: 600;
-    font-size: 14.5px;
-    color: var(--ink-2);
-  }
-  .tabs button.on {
-    background: var(--accent-soft);
-    color: var(--accent);
-  }
-  .actions {
-    display: flex;
-    gap: 6px;
-  }
-  .wrap {
-    overflow: auto;
-    min-height: 0;
-  }
-  th .sub {
+  .sub {
     font-weight: 400;
     color: var(--ink-3);
   }
   .cfg {
-    width: 260px;
-    min-width: 200px;
+    width: 240px;
+    min-width: 180px;
   }
   .radio {
     display: flex;
     align-items: center;
-    gap: 10px;
-    cursor: pointer;
+    gap: 6px;
   }
   .radio input {
-    width: 17px;
-    height: 17px;
-    accent-color: var(--accent);
-  }
-  .cname {
-    font-weight: 600;
+    accent-color: var(--select);
   }
   .cell {
-    min-width: 240px;
+    min-width: 230px;
   }
   .motor {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
   }
   .pick {
     flex: 1;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    border: 1px solid var(--line);
-    background: var(--surface);
-    border-radius: 9px;
-    padding: 7px 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    border-radius: var(--radius);
+    padding: 2px 6px;
     text-align: left;
     min-width: 0;
   }
   .pick:hover {
-    border-color: var(--accent);
+    border-color: var(--line-strong);
+    background: var(--surface);
   }
-  .des {
+  .pick b {
     font-weight: 600;
   }
   .pick .muted {
     font-size: 12px;
   }
   .delay {
-    width: 120px;
+    width: 92px;
   }
   .x {
-    padding: 0 6px;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    background: transparent;
+    color: var(--ink-3);
+    border-radius: 3px;
+  }
+  .x:hover {
+    background: var(--surface-3);
+    color: var(--bad);
   }
   .empty {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    border: 1.5px dashed var(--line-strong);
+    border: 1px dashed var(--line-strong);
     background: transparent;
-    border-radius: 9px;
-    padding: 10px 12px;
+    border-radius: var(--radius);
+    padding: 4px 8px;
     color: var(--ink-3);
     width: 100%;
-    font-weight: 600;
+    text-align: left;
   }
   .empty:hover {
-    border-color: var(--accent);
-    color: var(--accent);
+    border-color: var(--select);
+    color: var(--ink);
   }
-  .hint {
-    font-size: 12.5px;
+  .pad {
+    padding: 8px 10px;
     margin: 0;
   }
   .scrim {
     position: fixed;
     inset: 0;
-    background: rgb(0 0 0 / 35%);
+    background: rgb(0 0 0 / 30%);
     display: grid;
     place-items: center;
     z-index: 30;
   }
   .dialog {
-    width: min(440px, calc(100vw - 32px));
-    padding: 20px;
+    width: min(400px, calc(100vw - 32px));
+    padding: 14px 16px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
     box-shadow: var(--shadow-pop);
   }
   .dialog h3 {
-    margin: 0 0 4px;
+    margin: 0;
+    font-size: 14px;
   }
   .dialog label {
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    font-size: 13px;
+    gap: 4px;
     color: var(--ink-2);
   }
   .dialog label.check {
@@ -374,6 +379,6 @@
   .row {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
+    gap: 6px;
   }
 </style>

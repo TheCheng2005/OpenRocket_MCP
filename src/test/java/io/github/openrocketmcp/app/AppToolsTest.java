@@ -88,6 +88,16 @@ class AppToolsTest {
 		assertFalse(after.get("saved").getAsBoolean());
 		call("undo", "{\"designId\":\"" + d + "\"}");
 		assertEquals(before, field(d, fins, "thickness"), 1e-12);
+		// An override value is greyed out until its override is switched on, as in OpenRocket.
+		assertFalse(fieldInfo(d, fins, "overrideMass").has("enabled") && fieldInfo(d, fins, "massOverridden").get("value").getAsBoolean(),
+				"overrideMass follows massOverridden");
+		String nose = find(design.getAsJsonObject("tree"), "NoseCone");
+		boolean overridden = fieldInfo(d, nose, "massOverridden").get("value").getAsBoolean();
+		assertEquals(overridden, !fieldInfo(d, nose, "overrideMass").has("enabled"));
+		// Choosing which configuration to look at is not an edit.
+		int undo = call("app_design", "{\"designId\":\"" + d + "\"}").get("canUndo").getAsInt();
+		call("app_select_configuration", "{\"designId\":\"" + d + "\",\"configuration\":\"0\"}");
+		assertEquals(undo, call("app_design", "{\"designId\":\"" + d + "\"}").get("canUndo").getAsInt());
 		// Only the editor's fields can be set, and bad values are refused with a reason.
 		call("app_edit", "{\"designId\":\"" + d + "\",\"component\":\"" + fins + "\",\"key\":\"ID\",\"value\":\"x\"}", true);
 		call("app_edit", "{\"designId\":\"" + d + "\",\"component\":\"" + fins + "\",\"key\":\"thickness\",\"value\":-1}", true);
@@ -111,6 +121,9 @@ class AppToolsTest {
 		JsonObject mount = cfg.getAsJsonArray("mounts").get(0).getAsJsonObject();
 		String sel = cfg.get("selected").getAsString();
 		assertTrue(mount.getAsJsonObject("motors").getAsJsonObject(sel).has("designation"), cfg.toString());
+		assertTrue(mount.getAsJsonObject("motors").getAsJsonObject(sel).getAsJsonArray("delays").size() > 0, "the motor's own delays");
+		JsonObject st = call("app_design", "{\"designId\":\"" + d + "\"}").getAsJsonObject("stability");
+		assertTrue(st.has("floor") && st.get("floor").getAsDouble() >= 1, "the rule set's stability minimum: " + st);
 		assertTrue(cfg.getAsJsonArray("recovery").size() >= 2);
 		JsonObject sims = call("app_sims", "{\"designId\":\"" + d + "\"}");
 		int n = sims.getAsJsonArray("simulations").size();
@@ -171,6 +184,18 @@ class AppToolsTest {
 		} finally {
 			app.stop();
 		}
+	}
+
+	JsonObject fieldInfo(String d, String comp, String key) {
+		JsonObject e = call("app_component", "{\"designId\":\"" + d + "\",\"component\":\"" + comp + "\"}");
+		for (JsonElement s : e.getAsJsonArray("sections")) {
+			for (JsonElement f : s.getAsJsonObject().getAsJsonArray("fields")) {
+				if (f.getAsJsonObject().get("key").getAsString().equals(key)) {
+					return f.getAsJsonObject();
+				}
+			}
+		}
+		throw new AssertionError("no field " + key);
 	}
 
 	double field(String d, String comp, String key) {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronRight, Flame, Weight } from "@lucide/svelte";
+  import { ChevronRight, Flame, Scale } from "@lucide/svelte";
   import { app, select, type TreeNode as Node } from "../state.svelte";
   import ComponentIcon from "../ComponentIcon.svelte";
   import Self from "./TreeNode.svelte";
@@ -18,7 +18,7 @@
   bind:this={row}
   class="row"
   class:sel={selected}
-  style="padding-left: {6 + depth * 16}px"
+  style="padding-left: {4 + depth * 14}px"
   role="treeitem"
   aria-selected={selected}
   aria-expanded={node.children.length ? open : undefined}
@@ -33,10 +33,10 @@
   {:else}
     <span class="tw"></span>
   {/if}
-  <ComponentIcon type={node.type} size={26} />
+  <ComponentIcon type={node.type} size={24} />
   <span class="name" title="{node.name} ({node.label})">{node.name}</span>
-  {#if node.motorMount}<span class="badge mount" title="Motor mount"><Flame size={13} /></span>{/if}
-  {#if node.overridden}<span class="badge ovr" title="Mass or CG overridden"><Weight size={13} /></span>{/if}
+  {#if node.motorMount}<span class="badge mount" title="Motor mount"><Flame size={12} /></span>{/if}
+  {#if node.overridden}<span class="badge ovr" title="Mass or CG overridden"><Scale size={12} /></span>{/if}
 </div>
 {#if open}
   {#each node.children as c (c.id)}
@@ -48,23 +48,21 @@
   .row {
     display: flex;
     align-items: center;
-    gap: 7px;
-    height: 36px;
-    padding-right: 8px;
-    border-radius: 8px;
-    cursor: pointer;
+    gap: 5px;
+    height: 28px;
+    padding-right: 6px;
+    cursor: default;
     user-select: none;
   }
   .row:hover {
-    background: var(--surface-3);
+    background: var(--surface-2);
   }
   .row.sel {
     background: var(--select-soft);
-    box-shadow: inset 3px 0 0 var(--select);
   }
   .tw {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     flex: none;
     display: grid;
     place-items: center;
@@ -72,7 +70,7 @@
     padding: 0;
     background: transparent;
     color: var(--ink-3);
-    transition: transform 0.12s;
+    transition: transform 0.1s;
   }
   .tw.open {
     transform: rotate(90deg);
@@ -84,23 +82,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .sel .name {
-    font-weight: 600;
-  }
   .badge {
     display: grid;
     place-items: center;
-    width: 20px;
-    height: 20px;
-    border-radius: 6px;
+    width: 18px;
+    height: 18px;
     flex: none;
   }
   .mount {
     color: var(--accent);
-    background: var(--accent-soft);
   }
   .ovr {
     color: var(--warn);
-    background: var(--warn-soft);
   }
 </style>

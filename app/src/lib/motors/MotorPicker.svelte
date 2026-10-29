@@ -76,18 +76,18 @@
 </script>
 
 <div class="scrim" role="presentation" onclick={(e) => e.target === e.currentTarget && close()}>
-  <div class="dlg card" role="dialog" aria-label="Choose a motor">
+  <div class="dlg" role="dialog" aria-label="Choose a motor">
     <header>
       <div>
-        <h3>Choose a motor for {mount.name}</h3>
-        <div class="muted">Mount inside diameter {fmt(mount.innerDiameter, "LENGTH")}</div>
+        <h3>Motor for {mount.name}</h3>
+        <div class="muted">Mount Ø {fmt(mount.innerDiameter, "LENGTH")}</div>
       </div>
-      <button class="btn ghost" onclick={close} aria-label="Close"><X size={18} /></button>
+      <button class="btn ghost" onclick={close} aria-label="Close"><X size={16} /></button>
     </header>
     <div class="filters">
       <label class="search">
         <Search size={16} />
-        <input class="input" placeholder="Search: manufacturer or designation (e.g. CTI L1115)" bind:value={text} />
+        <input class="input" placeholder="Manufacturer or designation, e.g. CTI L1115" bind:value={text} />
       </label>
       <label>Class
         <select class="select" bind:value={minClass}><option value="">any</option>{#each CLASSES as c}<option>{c}</option>{/each}</select>
@@ -95,8 +95,8 @@
         <select class="select" bind:value={maxClass}><option value="">any</option>{#each CLASSES as c}<option>{c}</option>{/each}</select>
       </label>
       <label class="check"><input type="checkbox" bind:checked={fits} /> Fits this mount</label>
-      <label class="check"><input type="checkbox" bind:checked={availableOnly} /> In production only</label>
-      <span class="muted count">{matches} motors</span>
+      <label class="check"><input type="checkbox" bind:checked={availableOnly} /> Hide discontinued</label>
+      <span class="muted count">{matches} found</span>
     </div>
     <div class="main">
       <div class="list">
@@ -108,7 +108,7 @@
             {#each rows as m (m.digest)}
               <tr class:sel={chosen?.digest === m.digest} onclick={() => pick(m)} ondblclick={() => (pick(m), use())}>
                 <td>{m.manufacturer}</td>
-                <td><b>{m.designation}</b>{#if !m.available} <span class="muted">(out of production)</span>{/if}</td>
+                <td><b>{m.designation}</b>{#if !m.available} <span class="muted">(discontinued)</span>{/if}</td>
                 <td>{m.class}</td>
                 <td class="num">{fmt(m.diameter, "LENGTH", 3)}</td>
                 <td class="num">{fmt(m.length, "LENGTH", 3)}</td>
@@ -119,7 +119,7 @@
             {/each}
           </tbody>
         </table>
-        {#if rows.length === 0}<p class="muted empty">No motors match. Untick “Fits this mount” or widen the class range.</p>{/if}
+        {#if rows.length === 0}<p class="muted empty">No matching motors.</p>{/if}
       </div>
       <aside class="detail">
         {#if chosen}
@@ -137,14 +137,14 @@
           </dl>
           <label class="delay">Ejection delay
             <select class="select" bind:value={delay}>
-              <option value="auto">Motor's default</option>
+              <option value="auto">Default</option>
               {#each delays as d}<option value={String(d)}>{num(d, 3)} s</option>{/each}
-              <option value="plugged">Plugged (no ejection charge)</option>
+              <option value="plugged">Plugged</option>
             </select>
           </label>
-          <button class="btn primary big" onclick={use}>Use this motor</button>
+          <button class="btn primary" onclick={use}>Use motor</button>
         {:else}
-          <p class="muted">Select a motor to see its thrust curve.</p>
+          <p class="muted">No motor selected.</p>
         {/if}
       </aside>
     </div>
@@ -155,7 +155,7 @@
   .scrim {
     position: fixed;
     inset: 0;
-    background: rgb(0 0 0 / 35%);
+    background: rgb(0 0 0 / 30%);
     display: grid;
     place-items: center;
     z-index: 30;
@@ -165,6 +165,9 @@
     height: min(760px, calc(100vh - 40px));
     display: flex;
     flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
     box-shadow: var(--shadow-pop);
     overflow: hidden;
   }
@@ -172,19 +175,19 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    padding: 16px 18px 10px;
+    padding: 10px 10px 8px 16px;
   }
   h3 {
     margin: 0;
+    font-size: 15px;
   }
   .filters {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 10px 16px;
-    padding: 0 18px 12px;
+    padding: 0 16px 8px;
     border-bottom: 1px solid var(--line);
-    font-size: 13px;
     color: var(--ink-2);
   }
   .filters label {

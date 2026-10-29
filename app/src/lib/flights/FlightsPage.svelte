@@ -6,6 +6,7 @@
   import { fmt, num, pretty, toShown, unitOf, type Dim } from "../units.svelte";
   import Plot, { type Series } from "../Plot.svelte";
   import SimForm from "./SimForm.svelte";
+  import Panel from "../Panel.svelte";
 
   // OpenRocket's "Flight simulations" tab: the simulations with their results, the launch conditions of the
   // selected one, and its flight plotted.
@@ -125,6 +126,8 @@
     ["Angle of attack", ["Angle of attack", "Total velocity"]],
   ];
 
+  let preset = $derived(PRESETS.find(([, vars]) => vars.length === chosen.length && vars.every((v) => chosen.includes(v)))?.[0] ?? "");
+
   function toggleVar(name: string) {
     chosen = chosen.includes(name) ? chosen.filter((n) => n !== name) : [...chosen, name];
   }
@@ -133,78 +136,84 @@
 </script>
 
 <div class="page">
-  <div class="top">
-    <div class="actions">
-      <button class="btn" onclick={newSim}><Plus size={17} /> New simulation</button>
-      <button class="btn primary" disabled={!current || running} onclick={() => runSims(false)}><Play size={17} /> Run</button>
-      <button class="btn" disabled={!sims.length || running} onclick={() => runSims(true)}><PlayCircle size={17} /> Run all</button>
-      <button class="btn" disabled={!current} onclick={() => current && act("app_sim_delete", { simulation: current.index })}><Trash2 size={17} /> Delete</button>
-    </div>
-    {#if running}<span class="muted">Flying…</span>{/if}
+  <div class="toolbar">
+    <button class="btn" onclick={newSim}><Plus size={15} /> New</button>
+    <button class="btn primary" disabled={!current || running} onclick={() => runSims(false)}><Play size={15} /> Run</button>
+    <button class="btn" disabled={!sims.length || running} onclick={() => runSims(true)}><PlayCircle size={15} /> Run all</button>
+    <button class="btn" disabled={!current} onclick={() => current && act("app_sim_delete", { simulation: current.index })}><Trash2 size={15} /> Delete</button>
+    {#if running}<span class="muted">Running…</span>{/if}
   </div>
 
-  <div class="card list">
-    <table class="grid">
-      <thead>
-        <tr>
-          <th></th><th>Name</th><th>Configuration</th><th>Apogee</th><th>Max speed</th><th>Max accel.</th><th>Time to apogee</th>
-          <th>Flight time</th><th>Landing speed</th><th>Rail exit</th><th>Best delay</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each sims as s, i (s.index)}
-          {@const st = STATUS[s.status] ?? ["none", s.status]}
-          <tr class:sel={i === sel} onclick={() => (sel = i)}>
-            <td><span class="dot {st[0]}" title={st[1]}></span></td>
-            <td class="name">{s.name}</td>
-            <td>{s.configurationName}</td>
-            <td class="num">{fmt(s.results.apogee, "DISTANCE")}</td>
-            <td class="num">{fmt(s.results.maxVelocity, "VELOCITY")}{#if s.results.maxMach}<span class="muted mach">M {num(s.results.maxMach, 3)}</span>{/if}</td>
-            <td class="num">{fmt(s.results.maxAcceleration, "ACCELERATION")}</td>
-            <td class="num">{fmt(s.results.timeToApogee, "TIME", 3)}</td>
-            <td class="num">{fmt(s.results.flightTime, "TIME", 3)}</td>
-            <td class="num">{fmt(s.results.groundHitVelocity, "VELOCITY", 3)}</td>
-            <td class="num">{fmt(s.results.railExitVelocity, "VELOCITY", 3)}</td>
-            <td class="num">{fmt(s.results.optimumDelay, "TIME", 2)}</td>
+  <Panel id="flights.list" title="Simulations">
+    <div class="list">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th></th><th>Name</th><th>Configuration</th><th>Apogee</th><th>Max speed</th><th>Max accel.</th><th>Time to apogee</th>
+            <th>Flight time</th><th>Ground hit</th><th>Rail exit</th><th>Optimum delay</th>
           </tr>
-        {/each}
-      </tbody>
-    </table>
-    {#if !sims.length}<p class="muted empty">No simulations yet. “New simulation” flies the active configuration from your launch site.</p>{/if}
-  </div>
+        </thead>
+        <tbody>
+          {#each sims as s, i (s.index)}
+            {@const st = STATUS[s.status] ?? ["none", s.status]}
+            <tr class:sel={i === sel} onclick={() => (sel = i)}>
+              <td><span class="dot {st[0]}" title={st[1]}></span></td>
+              <td>{s.name}</td>
+              <td>{s.configurationName}</td>
+              <td class="num">{fmt(s.results.apogee, "DISTANCE")}</td>
+              <td class="num">{fmt(s.results.maxVelocity, "VELOCITY")}{#if s.results.maxMach}<span class="muted mach">Mach {s.results.maxMach.toFixed(2)}</span>{/if}</td>
+              <td class="num">{fmt(s.results.maxAcceleration, "ACCELERATION")}</td>
+              <td class="num">{fmt(s.results.timeToApogee, "TIME", 3)}</td>
+              <td class="num">{fmt(s.results.flightTime, "TIME", 3)}</td>
+              <td class="num">{fmt(s.results.groundHitVelocity, "VELOCITY", 3)}</td>
+              <td class="num">{fmt(s.results.railExitVelocity, "VELOCITY", 3)}</td>
+              <td class="num">{fmt(s.results.optimumDelay, "TIME", 2)}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+      {#if !sims.length}<p class="muted empty">No simulations.</p>{/if}
+    </div>
+  </Panel>
 
   {#if current}
     <div class="bottom">
-      <div class="card form">
-        <SimForm sim={current} {configs} />
+      <div class="formcol">
+        <Panel id="flights.conditions" title="Launch conditions: {current.name}">
+          <SimForm sim={current} {configs} />
+        </Panel>
       </div>
-      <div class="card plotcard">
-        <div class="ph">
-          <div class="presets">
-            {#each PRESETS as [label, vars] (label)}
-              <button class="chip" class:on={vars.every((v) => chosen.includes(v)) && chosen.length === vars.length} onclick={() => (chosen = vars)}>{label}</button>
-            {/each}
-          </div>
+      <Panel id="flights.plot" title="Plot">
+        {#snippet tools()}
+          <select class="select small" value={preset} onchange={(e) => {
+            const p = PRESETS.find(([l]) => l === (e.target as HTMLSelectElement).value);
+            if (p) chosen = p[1];
+          }}>
+            {#if !preset}<option value="">Custom</option>{/if}
+            {#each PRESETS as [label] (label)}<option value={label}>{label}</option>{/each}
+          </select>
           {#if (series?.branches.length ?? 0) > 1}
-            <select class="select" bind:value={branch}>
+            <select class="select small" bind:value={branch}>
               {#each series!.branches as b, i}<option value={i}>{b}</option>{/each}
             </select>
           {/if}
+        {/snippet}
+        <div class="plotbody">
+          {#if plot}
+            <Plot x={plot.x} series={plot.series} xLabel="Time (s)" leftLabel={plot.left} rightLabel={plot.right} events={plot.events} height={300} />
+            <details>
+              <summary>Variables</summary>
+              <div class="vars">
+                {#each names as n (n)}
+                  <label class="var"><input type="checkbox" checked={chosen.includes(n)} onchange={() => toggleVar(n)} /> {n}</label>
+                {/each}
+              </div>
+            </details>
+          {:else}
+            <p class="muted empty">{current.results?.apogee ? "Loading…" : "Not run yet."}</p>
+          {/if}
         </div>
-        {#if plot}
-          <Plot x={plot.x} series={plot.series} xLabel="Time (s)" leftLabel={plot.left} rightLabel={plot.right} events={plot.events} height={300} />
-          <details>
-            <summary>More variables</summary>
-            <div class="vars">
-              {#each names as n (n)}
-                <label class="var"><input type="checkbox" checked={chosen.includes(n)} onchange={() => toggleVar(n)} /> {n}</label>
-              {/each}
-            </div>
-          </details>
-        {:else}
-          <p class="muted empty">{current.results?.apogee ? "Loading the flight…" : "Run the simulation to see its flight."}</p>
-        {/if}
-      </div>
+      </Panel>
     </div>
   {/if}
 </div>
@@ -216,36 +225,28 @@
     overflow: auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 10px 14px;
+    gap: 6px;
+    padding: 6px;
   }
-  .top {
+  .toolbar {
     display: flex;
     align-items: center;
-    gap: 12px;
-  }
-  .actions {
-    display: flex;
-    gap: 6px;
+    gap: 4px;
   }
   .list {
-    max-height: 34vh;
+    max-height: 32vh;
     overflow: auto;
-    flex: none;
   }
   .list tr {
-    cursor: pointer;
-  }
-  .name {
-    font-weight: 600;
+    cursor: default;
   }
   .mach {
     margin-left: 6px;
   }
   .dot {
     display: inline-block;
-    width: 11px;
-    height: 11px;
+    width: 9px;
+    height: 9px;
     border-radius: 50%;
     background: var(--line-strong);
   }
@@ -259,50 +260,32 @@
     background: var(--bad);
   }
   .empty {
-    padding: 16px;
+    padding: 8px 10px;
     margin: 0;
   }
   .bottom {
-    display: grid;
-    grid-template-columns: minmax(300px, 380px) 1fr;
-    gap: 10px;
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
     min-height: 0;
   }
-  .form {
-    overflow: auto;
+  .formcol {
+    width: 360px;
+    flex: none;
   }
-  .plotcard {
-    padding: 10px 14px;
+  .bottom > :global(.panel:last-child) {
+    flex: 1;
+  }
+  .plotbody {
+    padding: 6px 10px;
     min-width: 0;
   }
-  .ph {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 8px;
-  }
-  .presets {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .chip {
-    border: 1px solid var(--line);
-    background: var(--surface);
-    border-radius: 999px;
-    padding: 5px 12px;
-    font-size: 12.5px;
-    font-weight: 600;
-    color: var(--ink-2);
-  }
-  .chip.on {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--surface);
+  .select.small {
+    height: 24px;
+    font-size: 12px;
   }
   details {
-    margin-top: 6px;
-    font-size: 13px;
+    margin-top: 4px;
   }
   summary {
     cursor: pointer;
@@ -311,8 +294,8 @@
   .vars {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-    gap: 2px 12px;
-    padding: 8px 0;
+    gap: 0 12px;
+    padding: 6px 0;
   }
   .var {
     display: flex;

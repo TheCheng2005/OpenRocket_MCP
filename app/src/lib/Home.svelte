@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { FilePlus2, FolderOpen, FileClock } from "@lucide/svelte";
+  import { FilePlus2, FolderOpen, FileText } from "@lucide/svelte";
   import { app, newDesign, openDialog, openExample, openPath, recent } from "./state.svelte";
   import ComponentIcon from "./ComponentIcon.svelte";
+  import Panel from "./Panel.svelte";
 
   const recents = recent();
 
-  // A picture for each bundled example, from what it is about.
   function iconFor(name: string) {
     const n = name.toLowerCase();
     if (n.includes("parachute") || n.includes("chute")) return "Parachute";
@@ -21,121 +21,138 @@
 </script>
 
 <div class="home">
-  <section class="hero">
-    <h1>Design, fly and check your rocket.</h1>
-    <p>OpenRocket's physics with a clearer workspace. Works offline; files stay OpenRocket <code>.ork</code> files.</p>
-    <div class="actions">
-      <button class="btn primary big" onclick={newDesign}><FilePlus2 size={20} /> New rocket</button>
-      <button class="btn big" onclick={openDialog}><FolderOpen size={20} /> Open a design…</button>
-    </div>
-  </section>
-
-  {#if recents.length}
-    <section>
-      <h2>Recent</h2>
-      <div class="recent">
-        {#each recents as p (p)}
-          <button class="recent-item" onclick={() => openPath(p)} title={p}>
-            <FileClock size={18} />
-            <span class="file">{p.split(/[\\/]/).pop()}</span>
-            <span class="dir muted">{p.split(/[\\/]/).slice(0, -1).join("/")}</span>
-          </button>
-        {/each}
+  <div class="col">
+    <Panel id="home.start" title="Start">
+      <div class="actions">
+        <button class="act" onclick={newDesign}><FilePlus2 size={22} /> <span><b>New design</b><small>An empty rocket</small></span></button>
+        <button class="act" onclick={openDialog}><FolderOpen size={22} /> <span><b>Open…</b><small>OpenRocket .ork or RockSim .rkt</small></span></button>
       </div>
-    </section>
-  {/if}
-
-  <section>
-    <h2>Examples</h2>
-    <div class="examples">
-      {#each app.session?.examples ?? [] as ex (ex)}
-        <button class="example card" onclick={() => openExample(ex)}>
-          <ComponentIcon type={iconFor(ex)} size={44} />
-          <span>{ex}</span>
-        </button>
-      {/each}
-    </div>
-  </section>
-  <p class="foot muted">RocketMaxxing {app.session?.version} · engine {app.session?.engineVersion} on OpenRocket 24.12 · designs folder: {app.session?.workspace}</p>
+    </Panel>
+    <Panel id="home.recent" title="Recent">
+      {#if recents.length}
+        <ul class="list">
+          {#each recents as p (p)}
+            <li>
+              <button onclick={() => openPath(p)} title={p}>
+                <FileText size={16} />
+                <span class="file">{p.split(/[\\/]/).pop()}</span>
+                <span class="dir">{p.split(/[\\/]/).slice(0, -1).join("/")}</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <p class="empty">None yet.</p>
+      {/if}
+    </Panel>
+  </div>
+  <div class="col wide">
+    <Panel id="home.examples" title="Example designs">
+      <ul class="list examples">
+        {#each app.session?.examples ?? [] as ex (ex)}
+          <li>
+            <button onclick={() => openExample(ex)}>
+              <ComponentIcon type={iconFor(ex)} size={28} />
+              <span class="file">{ex}</span>
+            </button>
+          </li>
+        {/each}
+      </ul>
+    </Panel>
+  </div>
 </div>
 
 <style>
   .home {
+    flex: 1;
     overflow: auto;
-    padding: 40px 48px;
-    max-width: 1180px;
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    align-items: flex-start;
   }
-  .hero h1 {
-    font-size: 32px;
-    letter-spacing: -0.02em;
-    margin: 0 0 8px;
+  .col {
+    width: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
-  .hero p {
-    color: var(--ink-2);
-    font-size: 16px;
-    margin: 0 0 22px;
-  }
-  .hero code {
-    background: var(--surface-3);
-    padding: 1px 6px;
-    border-radius: 5px;
+  .col.wide {
+    flex: 1;
+    max-width: 720px;
   }
   .actions {
     display: flex;
-    gap: 10px;
+    flex-direction: column;
+    padding: 4px;
   }
-  h2 {
-    font-size: 14px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--ink-3);
-    margin: 36px 0 12px;
-  }
-  .examples {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 12px;
-  }
-  .example {
+  .act {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 14px;
+    border: 0;
+    background: transparent;
+    padding: 8px 10px;
+    border-radius: var(--radius);
     text-align: left;
-    font-weight: 500;
+    color: var(--ink-2);
   }
-  .example:hover {
-    border-color: var(--accent);
+  .act:hover {
+    background: var(--surface-2);
+    color: var(--ink);
   }
-  .recent {
+  .act span {
     display: flex;
     flex-direction: column;
-    gap: 4px;
   }
-  .recent-item {
+  .act b {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .act small {
+    color: var(--ink-3);
+    font-size: 12px;
+  }
+  .list {
+    list-style: none;
+    margin: 0;
+    padding: 4px;
+  }
+  .list button {
+    width: 100%;
     display: flex;
     align-items: center;
     gap: 10px;
     border: 0;
     background: transparent;
-    padding: 8px 10px;
-    border-radius: 8px;
+    padding: 5px 8px;
+    border-radius: var(--radius);
     text-align: left;
+    color: var(--ink-2);
   }
-  .recent-item:hover {
-    background: var(--surface-3);
+  .list button:hover {
+    background: var(--surface-2);
   }
   .file {
-    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
   }
   .dir {
     font-size: 12px;
+    color: var(--ink-3);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .foot {
-    margin-top: 40px;
-    font-size: 12px;
+  .examples {
+    columns: 2 260px;
+  }
+  .examples li {
+    break-inside: avoid;
+  }
+  .empty {
+    margin: 0;
+    padding: 10px 12px;
+    color: var(--ink-3);
   }
 </style>

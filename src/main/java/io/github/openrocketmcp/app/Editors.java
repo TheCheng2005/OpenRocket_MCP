@@ -50,8 +50,18 @@ public final class Editors {
 	/**
 	 * One field. {@code kind}: quantity (with {@code dim}), number (no unit), count, bool, enum, material, text.
 	 * {@code auto}: the boolean property that makes this value automatic (OpenRocket's "Automatic" box), or null.
+	 * {@code when}: when the field applies (otherwise shown greyed out, as in OpenRocket): "massOverridden",
+	 * "!filled", "shapeType=OGIVE|POWER"; null: always.
 	 */
-	public record Field(String key, String label, String kind, Dim dim, String auto, List<String[]> options, String help) {
+	public record Field(String key, String label, String kind, Dim dim, String auto, List<String[]> options, String help,
+			String when) {
+		Field(String key, String label, String kind, Dim dim, String auto, List<String[]> options, String help) {
+			this(key, label, kind, dim, auto, options, help, null);
+		}
+
+		Field when(String condition) {
+			return new Field(key, label, kind, dim, auto, options, help, condition);
+		}
 	}
 
 	public record Section(String title, List<Field> fields) {
@@ -90,8 +100,15 @@ public final class Editors {
 	}
 
 	private static Field help(Field f, String help) {
-		return new Field(f.key(), f.label(), f.kind(), f.dim(), f.auto(), f.options(), help);
+		return new Field(f.key(), f.label(), f.kind(), f.dim(), f.auto(), f.options(), help, f.when());
 	}
+
+	private static Field auto(Field f, String auto) {
+		return new Field(f.key(), f.label(), f.kind(), f.dim(), auto, f.options(), f.help(), f.when());
+	}
+
+	/** Shapes whose profile depends on the shape parameter. */
+	static final String PARAMETRIC = "shapeType=OGIVE|POWER|PARABOLIC|HAACK";
 
 	static final Field SHAPE = en("shapeType", "Shape", "CONICAL", "Conical", "OGIVE", "Ogive", "ELLIPSOID", "Ellipsoid",
 			"POWER", "Power series", "PARABOLIC", "Parabolic series", "HAACK", "Haack series");
@@ -120,16 +137,18 @@ public final class Editors {
 		out.add(new Section("General", List.of(new Field("name", "Name", "text", null, null, null, null))));
 		if (c instanceof NoseCone) {
 			out.add(new Section("Shape", List.of(SHAPE, help(num("shapeParameter", "Shape parameter"),
-					"Ogive: 1 is tangent; power series: 0.5 is a half power; Haack: 0 is Von Kármán, 1/3 is LV-Haack"),
+					"Ogive: 1 is tangent. Power series: 0.5 is a half power. Haack: 0 is Von Kármán, 1/3 is LV-Haack.").when(PARAMETRIC),
 					q("length", "Length", Dim.LENGTH), qa("aftRadius", "Base radius", Dim.LENGTH, "aftRadiusAutomatic"),
-					q("thickness", "Wall thickness", Dim.LENGTH), bool("filled", "Filled (solid)"), bool("flipped", "Flip to a tail cone"))));
+					q("thickness", "Wall thickness", Dim.LENGTH).when("!filled"), bool("filled", "Filled (solid)"),
+					bool("flipped", "Flip to a tail cone"))));
 			out.add(new Section("Shoulder", List.of(q("aftShoulderRadius", "Shoulder radius", Dim.LENGTH),
 					q("aftShoulderLength", "Shoulder length", Dim.LENGTH), q("aftShoulderThickness", "Shoulder thickness", Dim.LENGTH),
 					bool("aftShoulderCapped", "End capped"))));
 		} else if (c instanceof Transition) {
-			out.add(new Section("Shape", List.of(SHAPE, num("shapeParameter", "Shape parameter"), bool("clipped", "Clipped"),
-					q("length", "Length", Dim.LENGTH), qa("foreRadius", "Fore radius", Dim.LENGTH, "foreRadiusAutomatic"),
-					qa("aftRadius", "Aft radius", Dim.LENGTH, "aftRadiusAutomatic"), q("thickness", "Wall thickness", Dim.LENGTH),
+			out.add(new Section("Shape", List.of(SHAPE, num("shapeParameter", "Shape parameter").when(PARAMETRIC),
+					bool("clipped", "Clipped"), q("length", "Length", Dim.LENGTH),
+					qa("foreRadius", "Fore radius", Dim.LENGTH, "foreRadiusAutomatic"),
+					qa("aftRadius", "Aft radius", Dim.LENGTH, "aftRadiusAutomatic"), q("thickness", "Wall thickness", Dim.LENGTH).when("!filled"),
 					bool("filled", "Filled (solid)"))));
 			out.add(new Section("Shoulders", List.of(q("foreShoulderRadius", "Fore shoulder radius", Dim.LENGTH),
 					q("foreShoulderLength", "Fore shoulder length", Dim.LENGTH),
@@ -138,10 +157,11 @@ public final class Editors {
 					q("aftShoulderThickness", "Aft shoulder thickness", Dim.LENGTH), bool("aftShoulderCapped", "Aft end capped"))));
 		} else if (c instanceof BodyTube) {
 			out.add(new Section("Tube", List.of(q("length", "Length", Dim.LENGTH),
-					qa("outerRadius", "Outer radius", Dim.LENGTH, "outerRadiusAutomatic"), q("innerRadius", "Inner radius", Dim.LENGTH),
-					q("thickness", "Wall thickness", Dim.LENGTH), bool("filled", "Filled (solid)"))));
+					qa("outerRadius", "Outer radius", Dim.LENGTH, "outerRadiusAutomatic"),
+					q("innerRadius", "Inner radius", Dim.LENGTH).when("!filled"), q("thickness", "Wall thickness", Dim.LENGTH).when("!filled"),
+					bool("filled", "Filled (solid)"))));
 			out.add(new Section("Motor mount", List.of(bool("motorMount", "This is a motor mount"),
-					q("motorOverhang", "Motor overhang", Dim.LENGTH))));
+					q("motorOverhang", "Motor overhang", Dim.LENGTH).when("motorMount"))));
 		} else if (c instanceof TrapezoidFinSet) {
 			out.add(fins(c));
 			out.add(new Section("Planform", List.of(q("rootChord", "Root chord", Dim.LENGTH), q("tipChord", "Tip chord", Dim.LENGTH),
@@ -178,7 +198,7 @@ public final class Editors {
 					q("innerRadius", "Inner radius", Dim.LENGTH), q("thickness", "Wall thickness", Dim.LENGTH),
 					q("radialPosition", "Radial position", Dim.LENGTH), q("radialDirection", "Radial direction", Dim.ANGLE))));
 			out.add(new Section("Motor mount", List.of(bool("motorMount", "This is a motor mount"),
-					q("motorOverhang", "Motor overhang", Dim.LENGTH), num("clusterScale", "Cluster scale"),
+					q("motorOverhang", "Motor overhang", Dim.LENGTH).when("motorMount"), num("clusterScale", "Cluster scale"),
 					q("clusterRotation", "Cluster rotation", Dim.ANGLE))));
 		} else if (c instanceof TubeCoupler) {
 			out.add(new Section("Coupler", List.of(q("length", "Length", Dim.LENGTH),
@@ -197,13 +217,13 @@ public final class Editors {
 					qa("outerRadius", "Outer radius", Dim.LENGTH, "outerRadiusAutomatic"), q("innerRadius", "Inner radius", Dim.LENGTH),
 					q("thickness", "Wall thickness", Dim.LENGTH))));
 		} else if (c instanceof Parachute) {
-			out.add(new Section("Canopy", List.of(q("diameter", "Diameter", Dim.LENGTH), num("cd", "Drag coefficient"),
+			out.add(new Section("Canopy", List.of(q("diameter", "Diameter", Dim.LENGTH), auto(num("cd", "Drag coefficient"), "CDAutomatic"),
 					material("material", "Canopy material"), count("lineCount", "Shroud lines"), q("lineLength", "Line length", Dim.LENGTH),
 					material("lineMaterial", "Line material"))));
 			out.add(packed());
 		} else if (c instanceof Streamer) {
 			out.add(new Section("Streamer", List.of(q("stripLength", "Strip length", Dim.LENGTH), q("stripWidth", "Strip width", Dim.LENGTH),
-					num("cd", "Drag coefficient"), material("material", "Material"))));
+					auto(num("cd", "Drag coefficient"), "CDAutomatic"), material("material", "Material"))));
 			out.add(packed());
 		} else if (c instanceof ShockCord) {
 			out.add(new Section("Shock cord", List.of(q("cordLength", "Cord length", Dim.LENGTH), material("material", "Material"))));
@@ -233,15 +253,15 @@ public final class Editors {
 		}
 		List<Field> o = new ArrayList<>();
 		o.add(bool("massOverridden", "Override mass"));
-		o.add(q("overrideMass", "Mass", Dim.MASS));
+		o.add(q("overrideMass", "Mass", Dim.MASS).when("massOverridden"));
 		o.add(bool("CGOverridden", "Override CG"));
-		o.add(q("overrideCGX", "CG from the part's front", Dim.LENGTH));
+		o.add(q("overrideCGX", "CG from the part's front", Dim.LENGTH).when("CGOverridden"));
 		if (c instanceof ExternalComponent || c instanceof ComponentAssembly) {
 			o.add(bool("CDOverridden", "Override drag coefficient"));
-			o.add(num("overrideCD", "Drag coefficient"));
+			o.add(num("overrideCD", "Drag coefficient").when("CDOverridden"));
 		}
 		if (c.allowsChildren()) {
-			o.add(bool("subcomponentsOverriddenMass", "Mass override includes the parts inside"));
+			o.add(bool("subcomponentsOverriddenMass", "Mass override includes the parts inside").when("massOverridden"));
 		}
 		out.add(new Section("Overrides", o));
 		out.add(new Section("Comment", List.of(new Field("comment", "Notes", "longtext", null, null, null, null))));
@@ -321,6 +341,9 @@ public final class Editors {
 				if (f.help() != null) {
 					m.put("help", f.help());
 				}
+				if (f.when() != null && !holds(c, f.when())) {
+					m.put("enabled", false);
+				}
 				fields.add(m);
 			}
 			if (!fields.isEmpty()) {
@@ -331,6 +354,24 @@ public final class Editors {
 			}
 		}
 		return out;
+	}
+
+	/** Whether a field's condition holds for the component as it is now. */
+	static boolean holds(RocketComponent c, String when) {
+		try {
+			if (when.startsWith("!")) {
+				return !Boolean.TRUE.equals(Components.getRaw(c, when.substring(1)));
+			}
+			int eq = when.indexOf('=');
+			if (eq > 0) {
+				Object v = Components.getRaw(c, when.substring(0, eq));
+				String name = v instanceof Enum<?> e ? e.name() : String.valueOf(v);
+				return java.util.Arrays.asList(when.substring(eq + 1).split("\\|")).contains(name);
+			}
+			return Boolean.TRUE.equals(Components.getRaw(c, when));
+		} catch (ToolException e) {
+			return true;
+		}
 	}
 
 	/** Whether {@code key} is a field of this component's editor (the app edits nothing else). */
