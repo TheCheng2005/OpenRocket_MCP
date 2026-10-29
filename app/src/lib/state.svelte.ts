@@ -130,7 +130,7 @@ export interface Session {
   creatable: string[];
 }
 
-export type Page = "home" | "design" | "motors" | "flights" | "targets" | "analysis";
+export type Page = "home" | "design" | "motors" | "flights" | "flightdata" | "targets" | "analysis";
 
 export const app = $state({
   session: null as Session | null,

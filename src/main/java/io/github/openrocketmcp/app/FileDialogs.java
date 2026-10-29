@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.swing.JFileChooser;
 import javax.swing.SwingUtilities;
 
 import io.github.openrocketmcp.mcp.ToolException;
@@ -24,13 +25,45 @@ final class FileDialogs {
 		boolean save = "save".equals(mode);
 		AtomicReference<String> chosen = new AtomicReference<>();
 		try {
-			show(save, name, folder, types.toLowerCase().split("[,\\s]+"), chosen);
+			if ("folder".equals(mode)) {
+				folder(folder, chosen);
+			} else {
+				show(save, name, folder, types.toLowerCase().split("[,\\s]+"), chosen);
+			}
 		} catch (Exception | LinkageError | java.awt.AWTError e) { // no screen, or no toolkit for it
 			throw new ToolException("No file dialog here: type the file's path instead.");
 		}
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("path", chosen.get());
 		return out;
+	}
+
+	/** A folder: the native dialog in folder mode on macOS, Swing's chooser elsewhere (AWT has no folder mode there). */
+	private static void folder(java.nio.file.Path start, AtomicReference<String> chosen) throws Exception {
+		SwingUtilities.invokeAndWait(() -> {
+			if (System.getProperty("os.name", "").toLowerCase().contains("mac")) {
+				System.setProperty("apple.awt.fileDialogForDirectories", "true");
+				Frame owner = new Frame();
+				try {
+					FileDialog fd = new FileDialog(owner, "Choose a folder", FileDialog.LOAD);
+					fd.setDirectory(start.toAbsolutePath().toString());
+					fd.setVisible(true);
+					if (fd.getFile() != null) {
+						chosen.set(new File(fd.getDirectory(), fd.getFile()).getAbsolutePath());
+					}
+				} finally {
+					System.setProperty("apple.awt.fileDialogForDirectories", "false");
+					owner.dispose();
+				}
+				return;
+			}
+			JFileChooser fc = new JFileChooser(start.toFile());
+			fc.setDialogTitle("Choose a folder");
+			fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+			if (fc.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+				chosen.set(fc.getSelectedFile().getAbsolutePath());
+			}
+		});
 	}
 
 	private static void show(boolean save, String name, java.nio.file.Path folder, String[] types, AtomicReference<String> chosen) throws Exception {

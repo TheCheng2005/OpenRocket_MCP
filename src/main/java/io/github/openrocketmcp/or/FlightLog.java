@@ -172,6 +172,15 @@ public final class FlightLog {
 	/** Compares the log with the simulation and fits a drag multiplier to the measured apogee. */
 	public static Map<String, Object> compare(Simulation base, OpenRocketDocument doc, Log log, String svgPath,
 			String title) throws IOException {
+		return compare(base, doc, log, svgPath, title, false);
+	}
+
+	/**
+	 * As above; with {@code series} the result also carries both altitude curves on one time grid from launch (SI,
+	 * "series": time, simulated, measured) for an app to plot.
+	 */
+	public static Map<String, Object> compare(Simulation base, OpenRocketDocument doc, Log log, String svgPath,
+			String title, boolean series) throws IOException {
 		double[] factors = { 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.35, 1.5, 1.75, 2.0 };
 		List<Simulation> sims = new ArrayList<>();
 		for (double f : factors) {
@@ -233,15 +242,25 @@ public final class FlightLog {
 		notes.add("Barometric altimeters read low near Mach 1 and lag at apogee; the drogue and main bands are fitted slopes.");
 		out.put("notes", notes);
 
+		double shift = m.launch() - s.launch(); // align launches
+		double[] lt = new double[log.t().length];
+		for (int i = 0; i < lt.length; i++) {
+			lt[i] = log.t()[i] - shift;
+		}
+		if (series) {
+			out.put("series", grid(st[0], st[1], lt, log.alt(), 1000));
+			List<Map<String, Object>> si = new ArrayList<>();
+			si.add(si("Apogee", m.apogee(), s.apogee(), Dim.DISTANCE));
+			si.add(si("Time to apogee", m.timeToApogee(), s.timeToApogee(), Dim.TIME));
+			si.add(si("Descent rate, drogue (90% to 60% of apogee)", m.upperDescent(), s.upperDescent(), Dim.VELOCITY));
+			si.add(si("Descent rate, main (last 150 m)", m.lowerDescent(), s.lowerDescent(), Dim.VELOCITY));
+			out.put("valuesSI", si);
+			out.put("dragFactorFit", Double.isNaN(fit) ? null : fit);
+		}
 		if (svgPath != null) {
 			Path p = Path.of(svgPath).toAbsolutePath();
 			if (p.getParent() != null) {
 				Files.createDirectories(p.getParent());
-			}
-			double shift = m.launch() - s.launch(); // align launches
-			double[] lt = new double[log.t().length];
-			for (int i = 0; i < lt.length; i++) {
-				lt[i] = log.t()[i] - shift;
 			}
 			boolean imperial = Units.system() == UnitSystem.IMPERIAL;
 			double k = imperial ? 1 / 0.3048 : 1;
@@ -256,12 +275,55 @@ public final class FlightLog {
 		return out;
 	}
 
+	/** Two curves resampled on one time grid (null where a curve has no data), from the earlier start to the later end. */
+	static Map<String, Object> grid(double[] t1, double[] y1, double[] t2, double[] y2, int points) {
+		double t0 = Math.max(0, Math.min(t1[0], t2[0])), tEnd = Math.max(t1[t1.length - 1], t2[t2.length - 1]);
+		double[] time = new double[points];
+		Double[] a = new Double[points], b = new Double[points];
+		for (int i = 0; i < points; i++) {
+			time[i] = t0 + (tEnd - t0) * i / (points - 1);
+			a[i] = interpolate(t1, y1, time[i]);
+			b[i] = interpolate(t2, y2, time[i]);
+		}
+		Map<String, Object> m = new LinkedHashMap<>();
+		m.put("time", time);
+		m.put("simulated", a);
+		m.put("measured", b);
+		return m;
+	}
+
+	private static Double interpolate(double[] t, double[] y, double x) {
+		if (x < t[0] || x > t[t.length - 1]) {
+			return null;
+		}
+		int lo = 0, hi = t.length - 1;
+		while (hi - lo > 1) {
+			int mid = (lo + hi) >>> 1;
+			if (t[mid] <= x) {
+				lo = mid;
+			} else {
+				hi = mid;
+			}
+		}
+		double span = t[hi] - t[lo];
+		return span <= 0 ? y[lo] : y[lo] + (y[hi] - y[lo]) * (x - t[lo]) / span;
+	}
+
 	private static double[] scale(double[] v, double k) {
 		double[] o = new double[v.length];
 		for (int i = 0; i < v.length; i++) {
 			o[i] = v[i] * k;
 		}
 		return o;
+	}
+
+	private static Map<String, Object> si(String name, double measured, double simulated, Dim d) {
+		Map<String, Object> r = new LinkedHashMap<>();
+		r.put("quantity", name);
+		r.put("dim", d.name());
+		r.put("measured", Double.isNaN(measured) ? null : measured);
+		r.put("simulated", Double.isNaN(simulated) ? null : simulated);
+		return r;
 	}
 
 	private static Map<String, Object> row(String name, double measured, double simulated, Dim d) {

@@ -10,6 +10,7 @@
   import FlightsPage from "./lib/flights/FlightsPage.svelte";
   import AnalysisPage from "./lib/analysis/AnalysisPage.svelte";
   import TargetsPage from "./lib/targets/TargetsPage.svelte";
+  import FlightDataPage from "./lib/flightdata/FlightDataPage.svelte";
   import Toasts from "./lib/Toasts.svelte";
   import AskDialog from "./lib/AskDialog.svelte";
 
@@ -70,6 +71,8 @@
           <MotorsPage />
         {:else if app.page === "flights"}
           <FlightsPage />
+        {:else if app.page === "flightdata"}
+          <FlightDataPage />
         {:else if app.page === "targets"}
           <TargetsPage />
         {:else if app.page === "analysis"}

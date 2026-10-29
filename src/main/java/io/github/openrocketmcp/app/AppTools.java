@@ -42,6 +42,8 @@ import io.github.openrocketmcp.or.Analysis;
 import io.github.openrocketmcp.or.Branch;
 import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
+import io.github.openrocketmcp.or.FlightLog;
+import io.github.openrocketmcp.or.Library;
 import io.github.openrocketmcp.or.Motors;
 import io.github.openrocketmcp.or.OrRuntime;
 import io.github.openrocketmcp.or.Requirements;
@@ -125,6 +127,20 @@ public final class AppTools {
 						+ "standards file, keeping the rest of that file as the team wrote it.",
 				Schema.object().obj("targets", "Targets to change; null clears a limit.", true).build(), true,
 				a -> setTargets(ctx, a.obj("targets").raw())));
+		add(s, new ToolDef("app_flight_log", "App: flight log against the simulation",
+				"compare_flight with both altitude curves on one time grid and the numbers in SI, for the Flight data page.",
+				Schema.object().str("designId", DESIGN, true).str("path", "Altimeter CSV.", true)
+						.str("altitudeUnit", "ft or m when the header does not say.", false)
+						.str("configuration", "Configuration id (default the active one).", false)
+						.qty("windSpeed", "The day's wind.", false).qty("launchAngle", "Rail angle from vertical.", false)
+						.qty("launchSiteAltitude", "Site altitude above sea level.", false).qty("temperature", "Ground temperature.", false)
+						.build(),
+				true, a -> flightLog(ctx, a)));
+		add(s, new ToolDef("app_library", "App: past designs and flights",
+				"design_library's scan of a folder, in SI: every design and every altimeter log with the design it belongs to.",
+				Schema.object().str("folder", "Folder (default the designs folder).", false)
+						.bool("simulate", "Simulate designs without saved results (default true).", false).build(),
+				true, a -> library(ctx, a)));
 		add(s, new ToolDef("app_model", "App: 3-D model", "Meshes of every part of the active configuration, with CG and CP.",
 				Schema.object().str("designId", DESIGN, true).build(), true, a -> model(ctx, a)));
 		add(s, new ToolDef("app_quick_flight", "App: quick flight", "Flight summary of the active configuration (not saved).",
@@ -184,7 +200,7 @@ public final class AppTools {
 						.integer("branch", "Branch (stage) index, default 0.", false).build(),
 				true, a -> series(ctx, a)));
 		add(s, new ToolDef("app_choose_file", "App: choose a file", "The system's open or save dialog; returns the chosen path.",
-				Schema.object().enumStr("mode", "open or save.", true, "open", "save").str("name", "Suggested file name.", false)
+				Schema.object().enumStr("mode", "open, save or folder.", true, "open", "save", "folder").str("name", "Suggested file name.", false)
 						.str("types", "File extensions to show, e.g. \"csv,txt\" (default: designs).", false).build(),
 				true, a -> FileDialogs.choose(a.str("mode"), a.str("name", null), ctx.workspace(), a.str("types", "ork,rkt"))));
 		add(s, new ToolDef("app_reveal", "App: show a file", "Open a file the engine wrote, or its folder, in the system's file manager.",
@@ -511,6 +527,71 @@ public final class AppTools {
 			m.put("problems", problems);
 		}
 		return m;
+	}
+
+	// ------------------------------------------------------------------------------------------- flight data
+
+	static Map<String, Object> flightLog(Context ctx, Args a) throws java.io.IOException {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		FlightLog.Log log = FlightLog.parse(Files.readString(ctx.path(a.str("path"))), a.str("altitudeUnit", null));
+		Sims.Overrides o = new Sims.Overrides(a.qtyOrNaN("windSpeed", Dim.VELOCITY), Double.NaN, Double.NaN, Double.NaN,
+				a.qtyOrNaN("launchAngle", Dim.ANGLE), Double.NaN, a.qtyOrNaN("launchSiteAltitude", Dim.DISTANCE), Double.NaN,
+				Double.NaN, a.qtyOrNaN("temperature", Dim.TEMPERATURE), null, Double.NaN);
+		Simulation base = Sims.prepare(d, null, a.str("configuration", null), o, ctx.standards(), false);
+		Map<String, Object> out = FlightLog.compare(base, d.doc, log, null, d.name(), true);
+		out.put("simulation", base.getName());
+		return out;
+	}
+
+	static Map<String, Object> library(Context ctx, Args a) throws java.io.IOException {
+		Path root = a.has("folder") ? ctx.path(a.str("folder")) : ctx.workspace();
+		Library.Scan scan = Library.scan(root, a.bool("simulate", true));
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("folder", scan.root().toString());
+		List<Map<String, Object>> designs = new ArrayList<>();
+		for (Library.Entry e : scan.designs()) {
+			Map<String, Object> m = new LinkedHashMap<>();
+			m.put("name", e.name());
+			m.put("path", e.file().toString());
+			m.put("file", e.relPath());
+			m.put("year", e.year());
+			m.put("yearFromPath", e.yearSource().equals("path"));
+			if (e.error() != null) {
+				m.put("error", e.error());
+			} else {
+				m.put("stages", e.stages());
+				m.put("length", e.length());
+				m.put("diameter", e.diameter());
+				m.put("launchMass", e.launchMass());
+				m.put("motors", e.motors());
+				m.put("motorClass", e.motorClass());
+				m.put("totalImpulse", e.totalImpulse());
+				m.put("predictedApogee", e.predictedApogee());
+				m.put("predictionSource", e.predictionSource());
+				m.put("stability", e.stability());
+				m.put("airframe", e.airframeMaterial());
+				m.put("fins", e.finMaterial());
+				m.put("recovery", e.recovery());
+			}
+			designs.add(m);
+		}
+		out.put("designs", designs);
+		List<Map<String, Object>> flights = new ArrayList<>();
+		for (Library.Flight f : scan.flights()) {
+			Map<String, Object> m = new LinkedHashMap<>();
+			m.put("log", f.relPath());
+			m.put("path", f.file().toString());
+			m.put("year", f.year());
+			m.put("apogee", f.apogee());
+			if (f.design() != null) {
+				m.put("design", f.design().relPath());
+				m.put("predictedApogee", f.design().predictedApogee());
+			}
+			flights.add(m);
+		}
+		out.put("flights", flights);
+		out.put("skipped", scan.skipped());
+		return out;
 	}
 
 	// ------------------------------------------------------------------------------------------- targets
