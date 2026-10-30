@@ -61,7 +61,15 @@ jobs:
         run: sudo apt-get update -q && sudo apt-get install -y -q fakeroot
       - name: Packaging tools (WiX 3 for .msi)
         if: runner.os == 'Windows'
-        run: choco install wixtoolset --version 3.14.1 -y --no-progress
+        # The runner image usually has WiX 3 already; install it only when missing, and put it on PATH for jpackage.
+        run: |
+          $wix = Get-ChildItem "${env:ProgramFiles(x86)}" -Directory -Filter "WiX Toolset v3*" | Select-Object -First 1
+          if (-not $wix) {
+            choco install wixtoolset -y --no-progress
+            $wix = Get-ChildItem "${env:ProgramFiles(x86)}" -Directory -Filter "WiX Toolset v3*" | Select-Object -First 1
+          }
+          Write-Output "WiX: $($wix.FullName)"
+          "$($wix.FullName)\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
       - name: Build the packaged app
         run: ./gradlew rocketmaxxingInstaller -PinstallerType=app-image
       - name: Start the packaged app and use it

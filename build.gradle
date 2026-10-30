@@ -208,7 +208,10 @@ tasks.register('rocketmaxxingInstaller', Exec) {
     def jpackage = new File(System.getProperty('java.home'), 'bin/jpackage' + (hostOs.isWindows() ? '.exe' : ''))
     def icon = packagingDir.get().file('icons/RocketMaxxing.' + (hostOs.isWindows() ? 'ico' : hostOs.isMacOsX() ? 'icns' : 'png')).asFile
     doFirst { delete out }
-    def cmd = [jpackage.path, '--type', type, '--name', 'RocketMaxxing', '--app-version', appVersion,
+    // macOS bundle versions must start at 1 or more (jpackage refuses 0.x there): 0.1.0 is given to it as 1.1.0, and the
+    // .dmg is renamed back to the app's own version below. The app itself still reports 0.1.0.
+    def bundleVersion = hostOs.isMacOsX() && appVersion.startsWith('0.') ? '1.' + appVersion.substring(2) : appVersion
+    def cmd = [jpackage.path, '--type', type, '--name', 'RocketMaxxing', '--app-version', bundleVersion,
                '--vendor', 'RocketMaxxing', '--description', 'Competition rocket design, simulation and checks, offline',
                '--input', packagingDir.get().dir('input').asFile.path,
                '--main-jar', tasks.named('jar').get().archiveFileName.get(),
@@ -225,4 +228,11 @@ tasks.register('rocketmaxxingInstaller', Exec) {
         cmd += ['--linux-shortcut', '--linux-menu-group', 'Science', '--linux-app-category', 'science']
     }
     commandLine cmd
+    doLast {
+        if (bundleVersion != appVersion) {
+            out.get().asFile.eachFileMatch(~/RocketMaxxing-.*\.(dmg|pkg)/) { f ->
+                f.renameTo(new File(f.parentFile, "RocketMaxxing-${appVersion}.${f.name.tokenize('.').last()}"))
+            }
+        }
+    }
 }
