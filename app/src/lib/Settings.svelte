@@ -5,7 +5,15 @@
   import { prefs, setTheme, setScheme, SCHEMES, type Theme, type Scheme } from "./prefs.svelte";
   import { assistant, configure, checkConnections, MODEL_NAMES, CLAUDE_CODE_MODELS, type Provider } from "./assistant/assistant.svelte";
 
-  let { close }: { close: () => void } = $props();
+  let { close, section = "" }: { close: () => void; section?: string } = $props();
+  let content = $state<HTMLDivElement>();
+
+  // Opened from the search at a section: show that section.
+  $effect(() => {
+    if (!section || !content) return;
+    const h = [...content.querySelectorAll("h4")].find((x) => x.textContent?.trim() === section);
+    h?.scrollIntoView({ block: "start" });
+  });
   let key = $state("");
 
   const WAYS: { id: Provider; title: string; how: string }[] = [
@@ -48,7 +56,7 @@
       <button class="btn ghost" onclick={close} aria-label="Close"><X size={16} /></button>
     </header>
 
-    <div class="content">
+    <div class="content" bind:this={content}>
       <h4>Units</h4>
       <div class="row">
         <span>Default units</span>

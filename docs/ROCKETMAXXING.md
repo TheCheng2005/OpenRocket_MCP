@@ -60,6 +60,14 @@ the Monte Carlo landing map and the flight log against the simulation.
 
 ![Flight log against the simulation](rocketmaxxing/flight-log.png)
 
+Search (top bar, or ⌘K on a Mac and Ctrl+K elsewhere) finds anything by its name or by what it is for: an analysis
+(FEA, Ansys or stress finds Fin stress; chute size finds the parachute sizing; black powder finds the ejection
+charge), a page, an action such as Save or Choose a motor, a part to add (with where it would go), a part of the open
+design (it is selected), or a setting (dark theme, imperial units, a colour scheme, the AI assistant). A word one
+letter off still matches. The Analyses list has its own filter box for the analyses alone.
+
+![Search](rocketmaxxing/search.png)
+
 Each analysis has an ⓘ beside its one-line summary. It says what to have ready before running it (a motor, the
 parachutes' deployment, material constants, CalculiX for the fin FEA), what the result holds, how it is worked out,
 what it is not (the fin FEA is one clamped plate under a uniform pressure, not a model of the build), and an example

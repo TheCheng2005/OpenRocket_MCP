@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { Play, ChevronDown } from "@lucide/svelte";
+  import { Play, ChevronDown, Search, X } from "@lucide/svelte";
   import { call, callFull, tools as listTools, type ToolInfo } from "../api";
   import { app, refresh, run, type TreeNode } from "../state.svelte";
   import { isOpen, toggle } from "../panels.svelte";
@@ -14,9 +14,12 @@
   import { firstSentence, label } from "./text";
   import { KINDS, openIssues } from "../issues/issues.svelte";
   import Tip from "../Tip.svelte";
+  import { MAC } from "../keys";
   import { GUIDES, needsFlight, type Guide } from "./guides";
   import { bareUnit, example, fieldHelp, type FieldHelp } from "./fields";
   import { units } from "../units.svelte";
+  import { search, type Entry } from "../search/search";
+  import { ANALYSIS_KEYS, analysisText } from "../search/entries";
 
   // The engine's analyses: pick one, fill in what it needs (the design is filled in), run, read the result.
 
@@ -275,6 +278,23 @@
     ensure(a);
     analysis.selected = a.tool;
   }
+
+  // The list's filter: the analyses whose name, summary, guide or usual words (FEA, chute, wind) match.
+  let filter = $state("");
+  const FOUND = new Map<Entry, { a: Analysis; group: string }>();
+  const SEARCHABLE: Entry[] = CATALOG.flatMap((g) =>
+    g.items.map((a) => {
+      const e: Entry = { kind: "analysis", title: a.label, sub: a.blurb, keys: ANALYSIS_KEYS[a.tool], text: analysisText(a, g.title), run: () => choose(a) };
+      FOUND.set(e, { a, group: g.title });
+      return e;
+    }),
+  );
+  let filtered = $derived(filter.trim() ? search(SEARCHABLE, filter, 80).map((e) => FOUND.get(e)!) : null);
+
+  function filterKey(e: KeyboardEvent) {
+    if (e.key === "Escape") filter = "";
+    else if (e.key === "Enter" && filtered?.length) choose(filtered[0].a);
+  }
 </script>
 
 {#snippet about(i: Input, h: FieldHelp)}
@@ -388,7 +408,22 @@
 <div class="page">
   <div class="left" class:shut={!isOpen("analysis.list")}>
     <Panel id="analysis.list" title="Analyses" side="left">
+      <div class="filter">
+        <Search size={14} />
+        <input bind:value={filter} onkeydown={filterKey} placeholder="Filter, e.g. FEA, chute, wind" aria-label="Filter analyses" spellcheck="false" />
+        {#if filter}<button class="clear" onclick={() => (filter = "")} aria-label="Clear the filter"><X size={13} /></button>{/if}
+      </div>
       <nav class="cat">
+        {#if filtered}
+          {#each filtered as x (x.a.tool)}
+            <button class="item flat" class:on={x.a.tool === entry.tool} onclick={() => choose(x.a)} title={x.a.blurb}>
+              <span class="nm">{x.a.label}<span class="grp">{x.group}</span></span>
+              {#if analysis.results[x.a.tool]}<span class="ran" title="Has a result"></span>{/if}
+            </button>
+          {:else}
+            <p class="none">No analysis matches “{filter}”. The search ({MAC ? "⌘K" : "Ctrl+K"}) also finds pages, parts and settings.</p>
+          {/each}
+        {:else}
         {#each CATALOG as g (g.title)}
           {@const gid = "analysis.group." + g.title}
           <button class="gh" onclick={() => toggle(gid)} aria-expanded={isOpen(gid)}>
@@ -403,6 +438,7 @@
             {/each}
           {/if}
         {/each}
+        {/if}
       </nav>
     </Panel>
   </div>
@@ -539,6 +575,54 @@
   .item.on {
     background: var(--select-soft);
     color: var(--ink);
+  }
+  .filter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 8px 2px;
+    padding: 0 6px;
+    height: 28px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink-3);
+  }
+  .filter:focus-within {
+    border-color: var(--select);
+  }
+  .filter input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+  }
+  .clear {
+    display: grid;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    color: var(--ink-3);
+    padding: 2px;
+  }
+  .item.flat {
+    padding-left: 12px;
+  }
+  .nm {
+    display: flex;
+    flex-direction: column;
+  }
+  .grp {
+    font-size: 11px;
+    color: var(--ink-3);
+  }
+  .none {
+    margin: 6px 12px;
+    font-size: 12px;
+    color: var(--ink-3);
   }
   .ran {
     width: 6px;

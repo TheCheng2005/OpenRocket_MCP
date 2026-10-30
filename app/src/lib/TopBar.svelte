@@ -1,16 +1,15 @@
 <script lang="ts">
-  import { FilePlus2, FolderOpen, Save, Undo2, Redo2, Settings as Gear, MessageSquare, TriangleAlert } from "@lucide/svelte";
+  import { FilePlus2, FolderOpen, Save, Undo2, Redo2, Settings as Gear, MessageSquare, TriangleAlert, Search } from "@lucide/svelte";
   import { app, newDesign, openDialog, save, undo, redo, selectConfig } from "./state.svelte";
   import Settings from "./Settings.svelte";
   import RocketLoader from "./RocketLoader.svelte";
   import { assistant, who } from "./assistant/assistant.svelte";
   import { issues, openIssues, unseen } from "./issues/issues.svelte";
   import { keys, MAC } from "./keys";
+  import { ui } from "./search/ui.svelte";
 
   let fresh = $derived(unseen());
   let watch = $derived(app.design ? app.flightIssues.length : 0);
-
-  let settings = $state(false);
 </script>
 
 <header>
@@ -41,6 +40,10 @@
 
   <div class="spacer"></div>
 
+  <button class="find" onclick={() => (ui.search = true)} title="Find an analysis, page, part or setting ({keys('K')})">
+    <Search size={15} /><span>Search</span><kbd>{keys("K")}</kbd>
+  </button>
+
   {#if app.busy > 0}<span class="busy" title="Working"><RocketLoader size="tiny" /></span>{/if}
 
   {#if app.design}
@@ -69,14 +72,53 @@
   >
     <TriangleAlert size={16} />{#if fresh || watch}<span class="count">{fresh || watch}</span>{/if}
   </button>
-  <button class="btn ghost icon" onclick={() => (settings = true)} title="Settings: units, theme, assistant"><Gear size={17} /></button>
+  <button class="btn ghost icon" onclick={() => (ui.settings = "")} title="Settings: units, theme, assistant"><Gear size={17} /></button>
 </header>
 
-{#if settings}
-  <Settings close={() => (settings = false)} />
+{#if ui.settings !== null}
+  <Settings section={ui.settings} close={() => (ui.settings = null)} />
 {/if}
 
 <style>
+  .find {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 220px;
+    height: 28px;
+    margin-right: 8px;
+    padding: 0 6px 0 9px;
+    border: 1px solid var(--chrome-line);
+    border-radius: 6px;
+    background: var(--chrome-2);
+    color: var(--chrome-ink-2);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+  }
+  .find:hover {
+    color: var(--chrome-ink);
+    border-color: var(--chrome-ink-2);
+  }
+  .find span {
+    flex: 1;
+  }
+  .find kbd {
+    font: inherit;
+    font-size: 11px;
+    padding: 0 4px;
+    border: 1px solid var(--chrome-line);
+    border-radius: 4px;
+  }
+  @media (max-width: 1100px) {
+    .find {
+      width: auto;
+    }
+    .find span,
+    .find kbd {
+      display: none;
+    }
+  }
   .problems {
     gap: 3px;
     padding: 0 7px;
