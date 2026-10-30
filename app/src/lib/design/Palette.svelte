@@ -1,5 +1,11 @@
 <script lang="ts">
   import { app, addPart, placement, findNode } from "../state.svelte";
+
+  /** While a tile is pointed at, the part the new one would go into shows in the view and the tree. */
+  function preview(type: string | null) {
+    const at = type ? placement(type) : null;
+    app.hover = at && at.parent !== "rocket" ? at.parent : null;
+  }
   import { analysis } from "../analysis/store.svelte";
   import ComponentIcon from "../ComponentIcon.svelte";
 
@@ -40,7 +46,9 @@
       <div class="gt">{g.title}</div>
       <div class="tiles">
         {#each g.parts as [type, label] (type)}
-          <button class="tile" disabled={!can[type]} title={can[type] ? `Add to ${can[type]}` : "Can't go here"} onclick={() => addPart(type)}>
+          <button class="tile" disabled={!can[type]} title={can[type] ? `Add to ${can[type]}` : "Can't go here"} onclick={() => addPart(type)}
+            onmouseenter={() => can[type] && preview(type)} onmouseleave={() => preview(null)} onfocus={() => can[type] && preview(type)}
+            onblur={() => preview(null)}>
             <ComponentIcon {type} size={32} />
             <span>{label}</span>
           </button>

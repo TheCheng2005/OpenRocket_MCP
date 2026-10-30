@@ -4,7 +4,7 @@
   import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
   import { geometry, kept, trim } from "./meshes";
   import { Maximize, Scissors } from "@lucide/svelte";
-  import { app, select, type Part } from "../state.svelte";
+  import { app, select, findNode, type Part, type TreeNode } from "../state.svelte";
 
   // The rocket as OpenRocket draws it (side view, nose to the left; back view; free 3-D), from the engine's own
   // meshes of every part. Outside parts are see-through in the side view so the inside shows, as in OpenRocket.
@@ -97,41 +97,138 @@
     style();
   }
 
-  /** Looks of every part for the current view mode and selection. */
+  /**
+   * The parts a tree node stands for in the view: the part itself, or, for a stage, pod set or other group that has
+   * no shape of its own, everything in it.
+   */
+  function shapesOf(id: string | null): Set<string> {
+    const out = new Set<string>();
+    if (!id || id === "rocket") return out;
+    if (meshes.some((m) => m.part.id === id)) {
+      out.add(id);
+      return out;
+    }
+    const walk = (n: TreeNode) => {
+      out.add(n.id);
+      n.children.forEach(walk);
+    };
+    const n = findNode(app.design?.tree, id);
+    if (n) walk(n);
+    return out;
+  }
+
+  /** 0..1 for the pulse after a selection (1 at the start, gone after PULSE ms). */
+  const PULSE = 700;
+  let pulse = 0;
+  let pulseFrame = 0;
+
+  function startPulse() {
+    cancelAnimationFrame(pulseFrame);
+    const t0 = performance.now();
+    const step = () => {
+      const k = (performance.now() - t0) / PULSE;
+      pulse = k >= 1 ? 0 : Math.sin(Math.PI * Math.min(1, k * 1.6)) * (1 - k);
+      glow();
+      if (k < 1) pulseFrame = requestAnimationFrame(step);
+    };
+    pulseFrame = requestAnimationFrame(step);
+  }
+
+  /** Only the selected parts' tint, for the pulse (the rest of the look does not change frame to frame). */
+  function glow() {
+    const sel = new THREE.Color(css("--select"));
+    const chosen = shapesOf(app.selected);
+    for (const { mesh, part } of meshes) {
+      if (part.id && chosen.has(part.id)) (mesh.material as THREE.MeshStandardMaterial).emissive = sel.clone().multiplyScalar(0.5 + 0.45 * pulse);
+    }
+    render();
+  }
+
+  /**
+   * Looks of every part for the current view mode, selection and preview. The selected part is tinted and outlined
+   * and the rest dims; an inside part shows through the airframe (x-ray) even without the cut-away. A previewed part
+   * (pointed at in the tree, or where Add part would put a new one) gets a lighter tint and outline.
+   */
   function style() {
     const sel = new THREE.Color(css("--select"));
     const ink = new THREE.Color(css("--icon-ink"));
+    const chosen = shapesOf(app.selected);
+    const previewed = shapesOf(app.hover);
+    const focus = chosen.size > 0;
     for (const { mesh, edges, part } of meshes) {
       const m = mesh.material as THREE.MeshStandardMaterial;
       const e = edges.material as THREE.LineBasicMaterial;
-      const selected = !!part.id && part.id === app.selected;
+      const selected = !!part.id && chosen.has(part.id);
+      const hovered = !selected && !!part.id && previewed.has(part.id);
       const outside = !part.internal;
+      let opacity = 1;
+      let xray = false;
       if (mode === "3d") {
-        mesh.visible = outside || cutaway;
-        m.transparent = false;
-        m.opacity = 1;
-        m.depthWrite = true;
-        edges.visible = selected;
+        // An inside part that is selected is drawn through the airframe instead of hiding behind it.
+        xray = selected && !outside && !cutaway;
+        mesh.visible = outside || cutaway || xray || hovered;
+        if (focus && !selected) opacity = outside ? 0.4 : 0.55;
+        edges.visible = selected || hovered;
         m.clippingPlanes = cutaway && part.cutOpen ? [new THREE.Plane(new THREE.Vector3(0, 0, -1), 0)] : [];
         e.clippingPlanes = m.clippingPlanes;
       } else {
         mesh.visible = true;
         m.clippingPlanes = [];
         e.clippingPlanes = [];
-        m.transparent = outside;
-        m.opacity = outside ? (selected ? 0.55 : 0.28) : 1;
-        m.depthWrite = !outside;
+        opacity = outside ? (selected ? 0.6 : focus ? 0.16 : 0.28) : selected || !focus ? 1 : 0.45;
         edges.visible = true;
       }
-      m.emissive = selected ? sel.clone().multiplyScalar(0.45) : new THREE.Color(0x000000);
-      e.color = selected ? sel : ink;
-      e.opacity = selected ? 1 : 0.55;
+      m.transparent = opacity < 1 || xray;
+      m.opacity = xray ? 0.92 : opacity;
+      m.depthWrite = !m.transparent;
+      m.depthTest = !xray;
+      e.depthTest = !xray;
+      const glow = selected ? 0.5 + 0.45 * pulse : hovered ? 0.28 : 0;
+      m.emissive = glow ? sel.clone().multiplyScalar(glow) : new THREE.Color(0x000000);
+      e.color = selected || hovered ? sel : ink;
+      e.opacity = selected ? 1 : hovered ? 0.8 : focus ? 0.3 : 0.55;
       e.transparent = !selected;
-      mesh.renderOrder = outside ? 2 : 1;
+      mesh.renderOrder = xray ? 10 : outside ? 2 : 1;
+      edges.renderOrder = xray ? 11 : 0;
       m.needsUpdate = true;
     }
     if (axis) axis.visible = mode !== "back";
+    frame(chosen, previewed);
     render();
+  }
+
+  /**
+   * In the side and back views, a box around the selected part (and a fainter one around a previewed part), drawn
+   * over everything: through a see-through airframe a tint alone is easy to miss.
+   */
+  let boxes = new THREE.Group();
+  function frame(chosen: Set<string>, previewed: Set<string>) {
+    scene.remove(boxes);
+    boxes.traverse((o) => {
+      if (o instanceof THREE.LineSegments) {
+        o.geometry.dispose();
+        (o.material as THREE.Material).dispose();
+      }
+    });
+    boxes = new THREE.Group();
+    if (mode !== "3d") {
+      const sel = new THREE.Color(css("--select"));
+      const pad = radius * 0.12;
+      for (const [ids, opacity] of [[chosen, 1], [previewed, 0.55]] as const) {
+        const box = new THREE.Box3();
+        for (const { mesh, part } of meshes) if (part.id && ids.has(part.id)) box.expandByObject(mesh);
+        if (box.isEmpty() || (ids === previewed && [...previewed].every((id) => chosen.has(id)))) continue;
+        box.expandByScalar(pad);
+        const helper = new THREE.Box3Helper(box, sel);
+        const mat = helper.material as THREE.LineBasicMaterial;
+        mat.depthTest = false;
+        mat.transparent = opacity < 1;
+        mat.opacity = opacity;
+        helper.renderOrder = 20;
+        boxes.add(helper);
+      }
+    }
+    scene.add(boxes);
   }
 
   function fit() {
@@ -171,7 +268,15 @@
       ortho.updateProjectionMatrix();
       camera = ortho;
     }
+    // Zoom limits: never through the rocket or out of sight, however fast the wheel or the trackpad.
+    minDist = Math.max(radius * 1.8, length * 0.02); // outside the airframe when orbiting its axis
+    maxDist = length * 8;
+    maxZoom = Math.max(4, ortho.top / (radius * 0.2));
     controls = new OrbitControls(camera, renderer.domElement);
+    controls.minDistance = minDist;
+    controls.maxDistance = maxDist;
+    controls.minZoom = MIN_ZOOM;
+    controls.maxZoom = maxZoom;
     controls.target.set(mode === "back" ? length : cx, 0, 0);
     controls.enableDamping = false;
     controls.enableRotate = mode === "3d";
@@ -180,6 +285,66 @@
     controls.zoomToCursor = true;
     controls.update();
     controls.addEventListener("change", render);
+    render();
+  }
+
+  // Wheel and trackpad zoom, done here rather than by OrbitControls, which zooms each event in one step (a fast flick
+  // or a trackpad pinch, which it multiplies by 10, jumped) and could carry the camera through the point it orbits.
+  // Each event's share is capped, a fling is eased over a few frames, and it zooms toward the pointer within limits.
+  const MIN_ZOOM = 0.5;
+  let minDist = 0.01;
+  let maxDist = 100;
+  let maxZoom = 50;
+  let zoomLeft = 0; // log of the zoom still to apply
+  let zoomPoint = { x: 0, y: 0 };
+  let zoomFrame = 0;
+
+  function wheel(e: WheelEvent) {
+    if (!controls || !camera) return;
+    e.preventDefault();
+    e.stopPropagation(); // OrbitControls listens on the canvas inside: it does not get the wheel
+    let dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1);
+    if (e.ctrlKey) dy *= 3; // a trackpad pinch arrives as small wheel steps with Ctrl
+    dy = Math.max(-120, Math.min(120, dy));
+    zoomLeft = Math.max(-1.2, Math.min(1.2, zoomLeft - dy * 0.0022));
+    zoomPoint = { x: e.clientX, y: e.clientY };
+    if (!zoomFrame) zoomFrame = requestAnimationFrame(zoomStep);
+  }
+
+  function zoomStep() {
+    zoomFrame = 0;
+    let step = zoomLeft * 0.35;
+    if (Math.abs(zoomLeft) < 0.003) step = zoomLeft;
+    zoomLeft -= step;
+    zoomBy(Math.exp(step), zoomPoint.x, zoomPoint.y);
+    if (zoomLeft !== 0) zoomFrame = requestAnimationFrame(zoomStep);
+  }
+
+  /** Zooms by {@code f} (above 1: closer) keeping the point under the pointer where it is. */
+  function zoomBy(f: number, px: number, py: number) {
+    if (!controls) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector3(((px - rect.left) / rect.width) * 2 - 1, -((py - rect.top) / rect.height) * 2 + 1, 0);
+    if (camera === ortho) {
+      const before = ndc.clone().unproject(ortho);
+      ortho.zoom = Math.max(MIN_ZOOM, Math.min(maxZoom, ortho.zoom * f));
+      ortho.updateProjectionMatrix();
+      const shift = before.sub(ndc.clone().unproject(ortho));
+      ortho.position.add(shift);
+      controls.target.add(shift);
+    } else {
+      // Toward the point under the pointer on the plane through the orbit centre, which moves along, so the camera
+      // closes in on what is pointed at and never passes the centre.
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), persp);
+      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(persp.getWorldDirection(new THREE.Vector3()), controls.target);
+      const p = ray.ray.intersectPlane(plane, new THREE.Vector3()) ?? controls.target.clone();
+      const d = persp.position.distanceTo(controls.target);
+      const r = Math.max(minDist, Math.min(maxDist, d / f)) / d;
+      persp.position.sub(p).multiplyScalar(r).add(p);
+      controls.target.sub(p).multiplyScalar(r).add(p);
+    }
+    controls.update();
     render();
   }
 
@@ -289,9 +454,10 @@
     renderer.domElement.addEventListener("pointerup", pick);
     const ro = new ResizeObserver(resize);
     ro.observe(canvasHost);
+    canvasHost.addEventListener("wheel", wheel, { passive: false, capture: true });
     const mq = matchMedia("(prefers-color-scheme: dark)");
     const theme = new MutationObserver(() => style());
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-scheme", "data-dark"] });
     mq.addEventListener("change", style);
     if (app.model) {
       lastModel = app.model;
@@ -301,6 +467,9 @@
     }
     return () => {
       ro.disconnect();
+      canvasHost.removeEventListener("wheel", wheel, { capture: true });
+      cancelAnimationFrame(zoomFrame);
+      cancelAnimationFrame(pulseFrame);
       theme.disconnect();
       mq.removeEventListener("change", style);
       controls?.dispose();
@@ -326,7 +495,13 @@
   });
   $effect(() => {
     void app.selected;
+    void app.hover;
     if (scene) style();
+  });
+  // A new selection pulses briefly, so the eye finds it.
+  $effect(() => {
+    const f = app.flash;
+    if (f && scene) startPulse();
   });
 </script>
 

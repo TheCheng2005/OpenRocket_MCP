@@ -66,7 +66,19 @@ that are text from the engine follow the metric or imperial setting, but not the
 The view has three modes. Side is OpenRocket's figure, with the airframe see-through and CG and CP marked. Back looks
 along the rocket from behind. 3D can be turned, and Cut-away opens the airframe. Click a part to select it.
 
-Settings (the gear, top right) has the units, metric or imperial and per quantity, and light or dark theme.
+The selected part is tinted and the rest dims; in Side and Back a box marks it, and in 3D a part inside the airframe
+shows through it even without Cut-away. Selecting a stage or pod set marks everything in it. Pointing at a part in
+the list, or at a tile under Add part, marks that part (for a tile: the part the new one goes into) with a fainter
+box. A new part is selected, pulses in the view and flashes in the list. The wheel or a trackpad pinch zooms toward
+the pointer, eased and within limits, so a fast flick does not throw the view about.
+
+Settings (the gear, top right) has the units, metric or imperial and per quantity, and the appearance: light, dark
+or the system's, and a colour scheme for the navigation rail, the top bar, the accent and the selection (Launch,
+Nebula, Afterburner, Sunburst, Aurora, Deep sea, Rose, Midnight, Graphite), after the way Slack offers themes. Two
+schemes are for colour vision: Red–green safe (protanopia, deuteranopia) and Blue–yellow safe (tritanopia) also
+change the pass, warning and failure colours to ones that stay apart.
+
+![Colour schemes in Settings](rocketmaxxing/schemes.png)
 
 ### Problems
 

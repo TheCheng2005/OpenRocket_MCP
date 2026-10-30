@@ -8,6 +8,17 @@
   let open = $state(true);
   let row: HTMLDivElement | undefined = $state();
   let selected = $derived(app.selected === node.id);
+  let previewed = $derived(app.hover === node.id && !selected);
+  // A new part's row flashes once; restarting the animation needs the class off for a frame.
+  let flashing = $state(false);
+  $effect(() => {
+    const f = app.flash;
+    if (!f || f.id !== node.id || !f.added) return;
+    flashing = false;
+    requestAnimationFrame(() => (flashing = true));
+    const t = setTimeout(() => (flashing = false), 1300);
+    return () => clearTimeout(t);
+  });
 
   $effect(() => {
     if (selected) row?.scrollIntoView({ block: "nearest" });
@@ -18,6 +29,10 @@
   bind:this={row}
   class="row"
   class:sel={selected}
+  class:hov={previewed}
+  class:flash={flashing}
+  onmouseenter={() => (app.hover = node.id)}
+  onmouseleave={() => app.hover === node.id && (app.hover = null)}
   style="padding-left: {4 + depth * 14}px"
   role="treeitem"
   aria-selected={selected}
@@ -59,6 +74,23 @@
   }
   .row.sel {
     background: var(--select-soft);
+    box-shadow: inset 3px 0 0 var(--select);
+    font-weight: 600;
+  }
+  .row.hov {
+    box-shadow: inset 0 0 0 1px var(--select);
+  }
+  .row.flash {
+    animation: added 1.2s ease-out;
+  }
+  @keyframes added {
+    0%,
+    25% {
+      background: color-mix(in srgb, var(--select) 45%, var(--surface));
+    }
+    100% {
+      background: var(--select-soft);
+    }
   }
   .tw {
     width: 16px;

@@ -145,6 +145,10 @@ export const app = $state({
   page: "home" as Page,
   design: null as Design | null,
   selected: "rocket",
+  /** A part to preview in the view and the tree: under the pointer in the tree, or where Add part would put one. */
+  hover: null as string | null,
+  /** The part just selected or added, with when: the view pulses it and its tree row flashes. */
+  flash: null as { id: string; at: number; added: boolean } | null,
   editor: null as Editor | null,
   model: null as Model | null,
   flight: null as QuickFlight | null,
@@ -496,9 +500,10 @@ export function parentOf(n: TreeNode, id: string): TreeNode | null {
   return null;
 }
 
-export async function select(id: string) {
+export async function select(id: string, added = false) {
   if (!app.design) return;
   app.selected = id;
+  app.flash = { id, at: performance.now(), added };
   await run(async () => {
     app.editor = await call<Editor>("app_component", { designId: app.design!.designId, component: id });
   });
@@ -542,7 +547,8 @@ export async function addPart(type: string) {
     index: at.index,
     properties: {},
   });
-  if (r?.id) await select(r.id);
+  app.hover = null;
+  if (r?.id) await select(r.id, true);
 }
 
 export async function removeSelected() {
