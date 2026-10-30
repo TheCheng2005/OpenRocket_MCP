@@ -4,7 +4,6 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
-import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -29,7 +28,8 @@ public final class Video {
 	}
 
 	/**
-	 * The ffmpeg executable: $OPENROCKET_MCP_FFMPEG or $FFMPEG if set, else ffmpeg on the PATH; null when there is none.
+	 * The ffmpeg executable: $OPENROCKET_MCP_FFMPEG or $FFMPEG if set, else ffmpeg on the PATH or where package
+	 * managers put it (an app started from the Dock does not get the terminal's PATH); null when there is none.
 	 */
 	public static String ffmpeg() {
 		for (String env : new String[] { "OPENROCKET_MCP_FFMPEG", "FFMPEG" }) {
@@ -38,19 +38,8 @@ public final class Video {
 				return v;
 			}
 		}
-		String path = System.getenv("PATH");
-		if (path == null) {
-			return null;
-		}
-		for (String dir : path.split(File.pathSeparator)) {
-			for (String name : new String[] { "ffmpeg", "ffmpeg.exe" }) {
-				Path p = Path.of(dir, name);
-				if (Files.isExecutable(p)) {
-					return p.toString();
-				}
-			}
-		}
-		return null;
+		Path found = io.github.openrocketmcp.Programs.find("ffmpeg");
+		return found == null ? null : found.toString();
 	}
 
 	/**

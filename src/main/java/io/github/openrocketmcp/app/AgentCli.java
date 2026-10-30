@@ -68,41 +68,11 @@ final class AgentCli {
 		if (override != null && !override.isBlank() && Files.isRegularFile(Path.of(override))) {
 			return Path.of(override);
 		}
-		for (Path dir : searchPath()) {
-			for (String name : WINDOWS ? new String[] { k.command + ".exe", k.command + ".cmd" } : new String[] { k.command }) {
-				Path p = dir.resolve(name);
-				if (Files.isRegularFile(p) && (WINDOWS || Files.isExecutable(p))) {
-					return p;
-				}
-			}
-		}
-		return null;
+		return io.github.openrocketmcp.Programs.find(k.command);
 	}
 
 	static List<Path> searchPath() {
-		List<Path> dirs = new ArrayList<>();
-		String path = System.getenv("PATH");
-		if (path != null) {
-			for (String d : path.split(File.pathSeparator)) {
-				if (!d.isBlank()) {
-					dirs.add(Path.of(d));
-				}
-			}
-		}
-		String home = System.getProperty("user.home");
-		for (String d : new String[] { ".local/bin", ".claude/local", ".npm-global/bin", ".volta/bin", ".bun/bin", ".cargo/bin" }) {
-			dirs.add(Path.of(home, d));
-		}
-		if (WINDOWS) {
-			String appData = System.getenv("APPDATA");
-			if (appData != null) {
-				dirs.add(Path.of(appData, "npm"));
-			}
-		} else {
-			dirs.add(Path.of("/opt/homebrew/bin"));
-			dirs.add(Path.of("/usr/local/bin"));
-		}
-		return dirs;
+		return io.github.openrocketmcp.Programs.dirs();
 	}
 
 	/** Whether the tool is installed and signed in, from its own commands. */

@@ -1,6 +1,8 @@
 """Starts the installed RocketMaxxing app without a window and checks its local server end to end.
 
     ./gradlew rocketmaxxing && python3 scripts/test_rocketmaxxing.py
+    python3 scripts/test_rocketmaxxing.py LAUNCHER [ARGS...]   # a packaged app instead, e.g.
+        build/installers/RocketMaxxing.app/Contents/MacOS/RocketMaxxing
 """
 import json
 import os
@@ -16,7 +18,8 @@ BIN = os.path.join(ROOT, "build", "install", "openrocket-mcp", "bin", "rocketmax
 
 
 def main():
-    p = subprocess.Popen([BIN, "--no-browser", "--port", "0", "--workspace", tempfile.mkdtemp()],
+    cmd = sys.argv[1:] or [BIN]
+    p = subprocess.Popen(cmd + ["--no-browser", "--port", "0", "--workspace", tempfile.mkdtemp()],
                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
         url = None
@@ -48,6 +51,10 @@ def main():
         assert call("app_model", {"designId": d})["parts"], "no 3-D model"
         flight = call("app_quick_flight", {"designId": d})
         assert flight["apogee"] > 100, flight
+        # OpenRocket's motor database and a rendered picture: the packaged runtime has what they need.
+        motors = call("search_motors", {"limit": 3})
+        assert motors["matches"] > 1000 and motors["motors"], motors
+        assert call("draw_rocket", {"designId": d, "path": "rocket.svg"}), "no drawing"
         try:
             urllib.request.urlopen(urllib.request.Request(url + "/rpc", b"{}", {"Authorization": "Bearer wrong"}))
             raise AssertionError("a wrong token was accepted")

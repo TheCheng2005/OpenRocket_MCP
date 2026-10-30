@@ -148,10 +148,27 @@ Sizes can be typed with a unit, e.g. `3 in` in a millimetre field.
 
 ## Install and run
 
-Installers with Java included are built per platform: `./gradlew rocketmaxxingInstaller` makes a `.msi` on Windows
-(needs WiX 3), a `.dmg` on macOS and a `.deb` on Linux (needs `fakeroot`) in `build/installers/`;
-`-PinstallerType=app-image` makes a folder that runs without installing. The *RocketMaxxing installers* workflow builds
-all three.
+RocketMaxxing runs on macOS (Apple Silicon and Intel), Windows and Linux. Installers with Java included are built per
+platform: `./gradlew rocketmaxxingInstaller` makes a `.msi` on Windows (needs WiX 3), a `.dmg` on macOS and a `.deb` on
+Linux (needs `fakeroot`) in `build/installers/`; `-PinstallerType=app-image` makes a folder that runs without
+installing. The *RocketMaxxing installers* workflow builds all four (two for the Mac) on every push to `main` and to
+the working branches, after starting each packaged app and using it; the installers are the run's artifacts.
+
+### On a Mac
+
+1. On GitHub, open **Actions**, then **RocketMaxxing installers**, then the latest green run, and download
+   `rocketmaxxing-macos-apple-silicon-dmg` (M1 and later; Apple menu > About This Mac says "Apple M...") or
+   `rocketmaxxing-macos-intel-dmg`. Unzip it to get `RocketMaxxing-0.1.0.dmg`.
+2. Open the `.dmg` and drag RocketMaxxing into Applications.
+3. The app is not signed with an Apple developer certificate yet, so the first time macOS refuses to open it. Open it
+   once, then in **System Settings > Privacy & Security** click **Open Anyway** next to "RocketMaxxing was blocked",
+   and confirm. Or, in Terminal: `xattr -dr com.apple.quarantine /Applications/RocketMaxxing.app`. After that it opens
+   like any other app.
+4. It opens in Chrome or Edge in app mode if one is installed, otherwise in Safari. Designs go in `~/RocketMaxxing`.
+
+Optional extras are found where Homebrew, MacPorts or conda put them, even though an app started from the Dock does
+not see the Terminal's PATH: `brew install ffmpeg` for MP4 videos, CalculiX (`conda install -c conda-forge calculix`)
+for the fin FEA, and Claude Code or Codex for the assistant.
 
 To run from source: Java 17 or newer. Building the interface the first time also needs Node.js 20 or newer.
 

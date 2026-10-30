@@ -217,7 +217,10 @@ public final class FinFea {
 			double principalAwayFromCorners, List<Mode> modes, double[][] vonMisesGrid, double[][] principalGrid) {
 	}
 
-	/** A CalculiX executable: $CCX, else ccx / ccx_static / ccx_dynamic / ccx_2.2x on the PATH; null if none. */
+	/**
+	 * A CalculiX executable: $CCX, else ccx / ccx_static / ccx_dynamic / ccx_2.2x on the PATH or where package managers
+	 * (Homebrew, conda, apt) put it; null if none.
+	 */
 	public static String findCcx(String explicit) {
 		if (explicit != null && !explicit.isBlank()) {
 			return new File(explicit).canExecute() ? explicit : null;
@@ -226,22 +229,9 @@ public final class FinFea {
 		if (env != null && !env.isBlank() && new File(env).canExecute()) {
 			return env;
 		}
-		String path = System.getenv("PATH");
-		if (path == null) {
-			return null;
-		}
-		String[] names = { "ccx", "ccx_static", "ccx_dynamic", "ccx_2.23", "ccx_2.22", "ccx_2.21", "ccx_2.20" };
-		for (String dir : path.split(File.pathSeparator)) {
-			for (String n : names) {
-				for (String ext : new String[] { "", ".exe" }) {
-					File f = new File(dir, n + ext);
-					if (f.isFile() && f.canExecute()) {
-						return f.getAbsolutePath();
-					}
-				}
-			}
-		}
-		return null;
+		java.nio.file.Path found = io.github.openrocketmcp.Programs.find("ccx", "ccx_static", "ccx_dynamic", "ccx_2.23", "ccx_2.22",
+				"ccx_2.21", "ccx_2.20");
+		return found == null ? null : found.toAbsolutePath().toString();
 	}
 
 	/** Runs CalculiX on {@code dir/job.inp} and reads the results. */
