@@ -153,10 +153,10 @@ class AppToolsTest {
 		for (JsonElement t : list.getAsJsonArray("tools")) {
 			String name = t.getAsJsonObject().get("name").getAsString();
 			JsonObject props = t.getAsJsonObject().getAsJsonObject("inputSchema").getAsJsonObject("properties");
-			for (String key : List.of("items", "sections", "levels", "circuits", "variables", "sensors")) {
-				if (props != null && props.has(key) && props.getAsJsonObject(key).has("items")) {
+			for (String key : props == null ? List.<String>of() : props.keySet()) {
+				if (props.getAsJsonObject(key).has("items") && props.getAsJsonObject(key).get("items").isJsonObject()) {
 					JsonObject items = props.getAsJsonObject(key).getAsJsonObject("items");
-					if (items.has("type") && items.get("type").getAsString().equals("object")) {
+					if (items.has("type") && items.get("type").toString().equals("\"object\"")) {
 						assertTrue(items.has("properties"), name + "." + key + " describes its item fields");
 					}
 				}

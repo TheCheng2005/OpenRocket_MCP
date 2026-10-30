@@ -31,6 +31,8 @@ export const CATALOG: Group[] = [
     items: [
       { tool: "check_requirements", label: "Rule check", blurb: "Simulates the flight and checks it against the competition rules and your team standards.", main: ["simulation", "includeWindCase"] },
       { tool: "design_status", label: "Readiness", blurb: "What is done, what is missing, and what to do next.", main: ["configuration"] },
+      { tool: "verify_claims", label: "Check our notes", blurb: "Type what the meeting notes or messages say (apogee, masses, the motor, a part's thickness) and each is checked against the design: match, mismatch, or why it could not be checked.", main: ["claims", "simulation"] },
+      { tool: "advanced_probation", label: "Probation level (LC)", blurb: "Launch Canada advanced probation level and AASI from the propellant volume, static-fire Isp and altitudes.", main: ["glppVolume", "staticFireIsp", "totalImpulse", "propellantMass", "targetAltitude", "actualAltitude", "predictedAltitude"] },
     ],
   },
   {
@@ -54,6 +56,7 @@ export const CATALOG: Group[] = [
       { tool: "ejection_charge", label: "Ejection charge", blurb: "Black powder for a bay, from its volume and the pins to break.", main: ["bayTube", "bayDiameter", "bayLength", "pinType", "pinCount", "pressure"] },
       { tool: "opening_shock", label: "Opening shock", blurb: "Opening load of a canopy at a given speed and mass.", main: ["mass", "velocity", "cd", "diameter"] },
       { tool: "recovery_bay_fit", label: "Recovery bay fit", blurb: "Whether the parachutes, cords and hardware fit in the bay, and the length needed.", main: ["items", "bayComponent", "availableLength", "packingFactor"] },
+      { tool: "search_parachutes", label: "Parachute catalogue", blurb: "Parachutes in OpenRocket's parts database by diameter and maker, with Cd and packed size.", main: ["minDiameter", "maxDiameter", "manufacturer", "limit"] },
       { tool: "descent_energy", label: "Landing energy", blurb: "Kinetic energy of each section at touchdown.", main: ["sections", "descentRate", "energyLimit"] },
     ],
   },
@@ -61,6 +64,7 @@ export const CATALOG: Group[] = [
     title: "Structures",
     items: [
       { tool: "fin_flutter", label: "Fin flutter", blurb: "Fin flutter speed against airspeed along the flight.", main: ["finSet", "shearModulus", "thickness"] },
+      { tool: "fin_fea", label: "Fin stress (FEA)", blurb: "Finite-element model of one fin under the worst aerodynamic load of the flight (a gust at max q or the largest q × angle of attack): stress, tip deflection and vibration modes. Runs CalculiX when it is installed, else writes the model to run elsewhere.", main: ["finSet", "thickness", "safetyFactor", "gustSpeed", "run"], defaults: (n) => ({ plotPath: `plots/${n}-fin-stress.svg` }) },
       { tool: "structural_loads", label: "Airframe loads", blurb: "Axial and bending loads at each airframe joint, at max q with a gust.", main: ["gustSpeed", "safetyFactor", "allowableStress"] },
       { tool: "aero_heating", label: "Aerodynamic heating", blurb: "Skin temperature screen for the nose and fins.", main: ["noseTipRadius"] },
       { tool: "compare_materials", label: "Material trade", blurb: "Flies the fins or airframe in other materials and thicknesses.", main: ["parts", "materials", "thicknesses"] },
@@ -71,10 +75,12 @@ export const CATALOG: Group[] = [
     title: "Launch and avionics",
     items: [
       { tool: "add_avionics_bay", label: "Avionics bay", blurb: "Builds the electronics bay between two airframe tubes: coupler, bulkheads, altimeter circuits with batteries and switches, charges, U-bolts and the tracker.", main: ["upperTube", "lowerTube", "altimeters", "tracker", "couplerLength", "switchBand", "packRecovery"] },
+      { tool: "weather_forecast", label: "Launch-day forecast", blurb: "Wind by altitude, temperature and pressure at the launch site for the launch hour (Open-Meteo), applied to the simulation.", main: ["latitude", "longitude", "time", "apply", "forecastJson"] },
       { tool: "rail_buttons", label: "Rail buttons", blurb: "Rail button positions, rail exit speed and tip-off.", main: ["forward", "aft", "crosswind", "apply"] },
       { tool: "flight_card", label: "Flight card", blurb: "Writes the launch-day flight card.", main: ["path"], defaults: (n) => ({ path: `${n}-flight-card.md` }) },
       { tool: "altimeter_settings", label: "Altimeter settings", blurb: "Settings for the primary and backup altimeters: deployment, Mach lockout, port size.", main: ["bay", "bayVolume"] },
       { tool: "sensor_check", label: "Sensor ranges", blurb: "Sensor ranges against what the flight reaches.", main: ["sensors", "simulation"] },
+      { tool: "sensor_data", label: "Flight software test data", blurb: "Writes what the flight computer's sensors would read through the simulated flight (accelerometer, gyro, barometer, GPS, with noise) as CSV, to test the flight software on the bench.", main: ["path", "rate", "gpsRate", "sensors"], defaults: (n) => ({ path: `${n}-sensors.csv` }) },
       { tool: "radio_link", label: "Radio link", blurb: "Tracker radio link margin in flight and after landing.", main: ["frequencyMhz", "txPowerDbm", "rxSensitivityDbm", "groundStationHeight"] },
       { tool: "power_budget", label: "Power budget", blurb: "Battery life of each avionics circuit through the pad wait and the flight.", main: ["circuits", "padWait", "recoveryTime"] },
       { tool: "wind_profile", label: "Winds aloft", blurb: "Sets wind by altitude for the simulations, from levels you enter or a power law.", main: ["mode", "levels", "groundSpeed", "direction", "exponent"] },
@@ -86,12 +92,14 @@ export const CATALOG: Group[] = [
       { tool: "monte_carlo", label: "Monte Carlo dispersion", defaults: (n) => ({ plotPath: `plots/${n}-landing.svg` }), blurb: "Many flights with varied wind, launch angle and more: landing spread and worst cases.", main: ["runs", "windSpeed", "windSpeedSd", "windDirection"] },
       { tool: "rank_motors", label: "Rank motors", blurb: "Flies each motor that fits the mount and ranks them.", main: ["mount", "objective", "targetApogee", "minClass", "maxClass", "certLevel"] },
       { tool: "sweep", label: "Parameter sweep", plot: { list: "results", left: ["apogee"], right: ["minStability", "maxStability"] }, blurb: "Flies the design with one property set to each value in a list.", main: ["component", "parameter", "values"] },
+      { tool: "optimize_fins", label: "Fin planform optimizer", blurb: "Searches root chord, tip chord, span, sweep and stock thickness for the fins that best meet the goal while staying stable and clear of flutter.", main: ["finSet", "objective", "targetApogee", "thicknesses", "maxSpan", "apply"], defaults: (n) => ({ plotPath: `plots/${n}-fins.svg` }) },
       { tool: "optimize", label: "Optimizer", blurb: "Changes the parts you choose, within limits, to reach a goal while meeting the rules.", main: ["variables", "objective", "targetApogee", "meetRules", "apply"] },
     ],
   },
   {
     title: "Compare and import",
     items: [
+      { tool: "add_from_link", label: "Part from a shop link", blurb: "Puts a product into the design from its web page: a parachute, motor, catalogue part or electronics. Paste the page's text when the shop cannot be reached.", main: ["url", "pageText", "kind", "parent", "component", "apply"] },
       { tool: "compare_designs", label: "Compare designs", blurb: "Differences in parts and flight against another open design or a file.", main: ["baselineDesignId", "baselinePath", "sameConditions"], files: { baselinePath: "ork,rkt" } },
       { tool: "progress_log", label: "Progress log", blurb: "Records where the design stands, and what changed since a milestone or date.", main: ["mode", "label", "note", "since"] },
       { tool: "history", label: "Edit history", blurb: "The edits made in this session that can be undone.", main: [] },
@@ -125,4 +133,8 @@ export const PART_INPUTS: Record<string, string[] | "any" | "mount"> = {
   lowerTube: ["BodyTube"],
   bayComponent: ["BodyTube", "TubeCoupler", "NoseCone"],
   component: "any",
+  parent: "any",
 };
+
+/** Text inputs that take a pasted page or file: a full-width box. */
+export const LONG_INPUTS = ["pageText", "forecastJson"];

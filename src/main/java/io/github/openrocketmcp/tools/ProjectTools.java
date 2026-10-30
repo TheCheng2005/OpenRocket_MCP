@@ -60,7 +60,15 @@ public final class ProjectTools {
 						.array("claims", "What the notes say, one entry per number or choice: {quantity (e.g. \"apogee\", \"rail exit\", "
 								+ "\"dry mass\", \"main descent rate\", \"motor\") or component + property, value (as written, with its "
 								+ "unit), tolerance? (\"5%\" or \"200 ft\"), source? (e.g. \"Oct 12 meeting\")}.",
-								Schema.type("object", null), true)
+								Schema.object()
+										.str("quantity", "What the number is, e.g. \"apogee\", \"rail exit\", \"dry mass\", \"motor\" "
+												+ "(or give component + property).", false)
+										.str("component", "A part by name, with property, e.g. \"Fins\".", false)
+										.str("property", "The part's property, e.g. \"thickness\", \"material\".", false)
+										.str("value", "As written, with its unit: \"~30k ft\", \">= 2 cal\", \"1/8 in\".", true)
+										.str("tolerance", "Optional: \"5%\" or \"200 ft\".", false)
+										.str("source", "Optional: where it was said, e.g. \"Oct 12 meeting\".", false)
+										.item(), true)
 						.build(),
 				true, a -> verify(ctx, a)));
 

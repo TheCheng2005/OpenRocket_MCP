@@ -19,7 +19,7 @@ live margins, flight data after a launch, and an optional assistant. See [the pl
 | Standards | (not in OpenRocket) | The team's standards, which every check uses: the competition rule set, the launch site, recovery and structures safety factors, shear pin ratings, material data, altimeter, battery and radio settings. Only what the team changes goes into its file (`openrocket-mcp.json`); a dot marks those values, and each can go back to its default. |
 | Targets | (not in OpenRocket) | The team's targets: a minimum, goal and maximum for apogee, speeds, rail exit, stability, flutter margin, mass, descent rates, landing and more, each with the margin to the nearer limit (met, close within 5%, missed), checked again after each edit. The competition rules sit beside them. |
 | Flight data | (not in OpenRocket) | After a flight: load the altimeter log and see it against the simulation flown in the day's conditions, with the drag factor that matches the measured apogee. Read a folder of past rockets and logs to see how well apogee was predicted over the years, and open or compare any of them. |
-| Analysis | (not in OpenRocket) | 42 analyses from the engine, by area: rule check and readiness; stability and drag vs Mach, ballast, shape trades; recovery loads, parachute sizing, late deployment, shear pins, ejection charge, opening shock, bay fit, landing energy; fin flutter, airframe loads, heating, material trade, pressure vessel; rail buttons, flight card, altimeter settings, sensors, radio link, power budget, winds aloft; Monte Carlo, motor ranking, parameter sweep, optimizer; compare designs, progress log, edit history, RASAero table import, flight log against the simulation; report, CSV and geometry export. Pick one, fill in what it asks for (simulation, parts and other designs from lists, files with Browse, lists of items as small tables), run. Results show as tables with pass, warn and fail in colour, plots, and a Show button for files it writes. |
+| Analysis | (not in OpenRocket) | 50 analyses from the engine, by area: rule check, readiness, checking meeting notes against the design, Launch Canada probation level; stability and drag vs Mach, ballast, shape trades; recovery loads, parachute sizing, late deployment, shear pins, ejection charge, opening shock, bay fit, parachute catalogue, landing energy; fin flutter, fin stress (FEA with CalculiX), airframe loads, heating, material trade, pressure vessel; avionics bay, launch-day forecast, rail buttons, flight card, altimeter settings, sensors, simulated sensor data for flight software, radio link, power budget, winds aloft; Monte Carlo, motor ranking, parameter sweep, fin planform optimizer, optimizer; part from a shop link, compare designs, progress log, edit history, RASAero table import, flight log against the simulation; report, CSV and geometry export. Pick one, fill in what it asks for (simulation, parts and other designs from lists, files with Browse, lists of items as small tables), run. Results show as tables with pass, warn and fail in colour, plots, and a Show button for files it writes. |
 
 Every panel and section folds (click its title). The Parts and Properties panels fold to a strip at the side to give
 the view more room. What is folded is remembered.
@@ -71,6 +71,8 @@ Settings (the gear, top right) has the units, metric or imperial and per quantit
 ![Analysis: rule check](rocketmaxxing/analysis.png)
 
 ![Recovery bay fit, with its list of items](rocketmaxxing/bay-fit.png)
+
+![Checking what the meeting notes say against the design](rocketmaxxing/claims.png)
 
 ![Motors](rocketmaxxing/motors.png)
 
@@ -187,6 +189,7 @@ Use OpenRocket on the same file for:
 - custom plot setups (the Analysis page exports flight data);
 - importing a fin outline from an image or a CSV file.
 
-The engine also does these, so far through the assistant (or Claude over MCP) only: fin FEA, fin shape optimisation,
-weather forecasts, product links to parts, parachute search by descent rate, simulated sensor data, checking meeting
-notes and the Launch Canada probation levels.
+Every engine analysis is now on the Analysis page. Two need something outside the app: the fin FEA runs CalculiX
+when it is installed (otherwise it writes the model to run elsewhere), and the launch-day forecast needs internet
+access to Open-Meteo (offline, paste Open-Meteo's JSON into the form). A product link works offline the same way:
+paste the page's text.

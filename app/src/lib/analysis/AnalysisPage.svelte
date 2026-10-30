@@ -8,7 +8,7 @@
   import Result from "./Result.svelte";
   import ResultPlot from "./ResultPlot.svelte";
   import RowsEditor from "./RowsEditor.svelte";
-  import { CATALOG, OVERRIDES, PART_INPUTS, type Analysis } from "./catalog";
+  import { CATALOG, LONG_INPUTS, OVERRIDES, PART_INPUTS, type Analysis } from "./catalog";
   import { analysis } from "./store.svelte";
   import RocketLoader from "../RocketLoader.svelte";
   import { firstSentence, label } from "./text";
@@ -38,7 +38,7 @@
   let stale = $derived(!!outcome && (outcome.designId !== app.design?.designId || outcome.revision < app.revision));
   let running = $state(false);
 
-  type Kind = "sim" | "config" | "part" | "design" | "file" | "rows" | "enum" | "qty" | "bool" | "number" | "list" | "text";
+  type Kind = "sim" | "config" | "part" | "design" | "file" | "rows" | "enum" | "qty" | "bool" | "number" | "list" | "text" | "long";
 
   function kind(key: string, s: any): Kind | null {
     if (key === "designId") return null;
@@ -55,7 +55,7 @@
       if (s.items?.type === "object") return s.items.properties ? "rows" : null;
       return s.items ? "list" : null;
     }
-    if (s.type === "string") return "text";
+    if (s.type === "string") return LONG_INPUTS.includes(key) ? "long" : "text";
     return null; // objects and lists of objects need their own forms (tier 2)
   }
 
@@ -205,6 +205,11 @@
       <span class="lab" title={help}>{label(i.key)}{#if i.required}<b class="req">*</b>{/if}</span>
       <RowsEditor items={i.schema.items} bind:value={values[i.key]} {parts} />
     </div>
+  {:else if i.kind === "long"}
+    <label class="rowsfield" title={help}>
+      <span class="lab">{label(i.key)}{#if i.required}<b class="req">*</b>{/if}</span>
+      <textarea class="long" rows="4" bind:value={values[i.key]} placeholder={firstSentence(help)}></textarea>
+    </label>
   {:else}
   <label class="row" title={help}>
     <span class="lab">{label(i.key)}{#if i.required}<b class="req">*</b>{/if}</span>
@@ -435,6 +440,20 @@
     flex-direction: column;
     gap: 3px;
     padding: 2px 0 4px;
+  }
+  .long {
+    resize: vertical;
+    font: inherit;
+    font-size: 12px;
+    padding: 4px 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .long:focus {
+    outline: none;
+    border-color: var(--select);
   }
   .file {
     display: flex;
