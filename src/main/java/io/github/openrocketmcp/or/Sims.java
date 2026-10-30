@@ -133,6 +133,13 @@ public final class Sims {
 				d.doc.addSimulation(base);
 			}
 		}
+		// A simulation of a configuration with no motor never leaves the pad: every result read from it would be empty
+		// (a landing speed of n/a, no fin loads), so say what is missing instead.
+		FlightConfiguration flown = rocket.getFlightConfiguration(base.getFlightConfigurationId());
+		if (!allowNoMotors && flown != null && !flown.hasMotors()) {
+			throw new ToolException("Flight configuration '" + flown.getName() + "' (simulation '" + base.getName()
+					+ "') has no motor, so there is no flight to take results from. Choose a motor first (set_motor).");
+		}
 		if (o == null || !o.any()) {
 			return base;
 		}

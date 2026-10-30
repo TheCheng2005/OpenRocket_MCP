@@ -12,6 +12,7 @@ import com.google.gson.JsonPrimitive;
 
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.rocketcomponent.BodyTube;
+import info.openrocket.core.rocketcomponent.FlightConfigurationId;
 import info.openrocket.core.rocketcomponent.MassComponent;
 import info.openrocket.core.rocketcomponent.Parachute;
 import info.openrocket.core.rocketcomponent.RocketComponent;
@@ -104,6 +105,21 @@ class PhysicalTest {
 		find(d, MassComponent.class).setComponentMass(0.2);
 		Sims.ensure(sim);
 		assertTrue(!d.doc.isSaved(), "an edit still marks it changed");
+	}
+
+	@Test
+	void aSimulationWithoutAMotorSaysSo() throws Exception {
+		// The simulation stays tied to its configuration after the motor is taken out (the screen showed "lands ballistic
+		// at n/a" and "no flight data" instead).
+		Designs.Design d = new Designs().openExample("Dual parachute");
+		Simulation sim = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults());
+		FlightConfigurationId empty = new FlightConfigurationId();
+		d.doc.getRocket().createFlightConfiguration(empty);
+		sim.setFlightConfigurationId(empty);
+		ToolException e = assertThrows(ToolException.class,
+				() -> Sims.prepare(d, sim.getName(), null, Sims.Overrides.none(), Standards.defaults()));
+		assertTrue(e.getMessage().contains("has no motor") && e.getMessage().contains(sim.getName()), e.getMessage());
+		assertEquals(ToolException.Kind.INPUT, e.kind());
 	}
 
 	@Test

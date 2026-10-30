@@ -60,6 +60,18 @@ the Monte Carlo landing map and the flight log against the simulation.
 
 ![Flight log against the simulation](rocketmaxxing/flight-log.png)
 
+Each analysis has an ⓘ beside its one-line summary. It says what to have ready before running it (a motor, the
+parachutes' deployment, material constants, CalculiX for the fin FEA), what the result holds, how it is worked out,
+what it is not (the fin FEA is one clamped plate under a uniform pressure, not a model of the build), and an example
+with numbers. Each input has its own ⓘ: what it means, an example in your unit system, what is used when it is left
+empty, and the unit a bare number is read in (a wind direction of 270 is 270 degrees, the direction the wind blows
+from). The boxes show an example (e.g. 270 deg, e.g. 20 km/h). Inputs marked * are needed; where any one of a few
+will do (the bay's tube, diameter or volume for the ejection charge), each is marked and the line under the form says
+so. Shear pins are picked from the team standards' list. An analysis that reads the flight says so when the
+configuration has no motor, with a link to the Motors page, instead of running on an empty flight.
+
+![What the fin FEA needs and gives](rocketmaxxing/analysis-guide.png)
+
 Analysis results are kept while the app is open and dimmed when the design has changed since they ran. Results
 that are text from the engine follow the metric or imperial setting, but not the per-quantity units.
 

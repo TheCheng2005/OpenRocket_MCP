@@ -13,6 +13,10 @@
   import RocketLoader from "../RocketLoader.svelte";
   import { firstSentence, label } from "./text";
   import { KINDS, openIssues } from "../issues/issues.svelte";
+  import Tip from "../Tip.svelte";
+  import { GUIDES, needsFlight, type Guide } from "./guides";
+  import { bareUnit, example, fieldHelp, type FieldHelp } from "./fields";
+  import { units } from "../units.svelte";
 
   // The engine's analyses: pick one, fill in what it needs (the design is filled in), run, read the result.
 
@@ -21,6 +25,13 @@
   let designs = $state<{ designId: string; name: string }[]>([]);
 
   listTools().then((list) => (infos = Object.fromEntries(list.map((t) => [t.name, t]))));
+
+  // The team's shear pins, so a pin type is chosen from the ones the standards rate rather than typed.
+  let pins = $state<string[]>([]);
+  call<{ merged: any }>("app_standards")
+    .then((s) => (pins = Object.keys(s.merged?.recovery?.shearPins ?? {})))
+    .catch(() => {});
+  let imperial = $derived(units.system === "imperial");
 
   $effect(() => {
     void app.revision;
@@ -35,12 +46,13 @@
 
   let entry = $derived(CATALOG.flatMap((g) => g.items).find((a) => a.tool === analysis.selected) ?? CATALOG[0].items[0]);
   let info = $derived(infos[entry.tool]);
+  let guide = $derived(GUIDES[entry.tool]);
   let outcome = $derived(analysis.results[entry.tool]);
   let failure = $derived(analysis.failures[entry.tool]);
   let stale = $derived(!!outcome && (outcome.designId !== app.design?.designId || outcome.revision < app.revision));
   let running = $state(false);
 
-  type Kind = "sim" | "config" | "part" | "design" | "file" | "rows" | "enum" | "qty" | "bool" | "number" | "list" | "text" | "long";
+  type Kind = "sim" | "config" | "part" | "pin" | "design" | "file" | "rows" | "enum" | "qty" | "bool" | "number" | "list" | "text" | "long";
 
   function kind(key: string, s: any): Kind | null {
     if (key === "designId") return null;
@@ -49,6 +61,7 @@
     if (key === "baselineDesignId") return "design";
     if (entry.files?.[key]) return "file";
     if (PART_INPUTS[key]) return "part";
+    if (key === "pinType" && pins.length) return "pin";
     if (s.enum) return "enum";
     if (Array.isArray(s.type)) return "qty";
     if (s.type === "boolean") return "bool";
@@ -66,15 +79,18 @@
     kind: Kind;
     schema: any;
     required: boolean;
+    /** One of the analysis's either-or inputs (at least one of them is needed). */
+    oneOf: boolean;
   }
 
   let inputs = $derived.by(() => {
     const props = info?.inputSchema.properties ?? {};
     const req = new Set(info?.inputSchema.required ?? []);
+    const either = new Set(entry.oneOf ?? []);
     const all: Input[] = [];
     for (const [key, schema] of Object.entries(props)) {
       const k = kind(key, schema);
-      if (k) all.push({ key, kind: k, schema, required: req.has(key) });
+      if (k) all.push({ key, kind: k, schema, required: req.has(key), oneOf: either.has(key) });
     }
     const main = entry.main.map((k) => all.find((i) => i.key === k)).filter((i): i is Input => !!i);
     for (const i of all) if (i.required && !main.includes(i)) main.unshift(i);
@@ -114,11 +130,64 @@
     }
   }
 
-  let missing = $derived(
-    inputs.main
-      .filter((i) => i.required && (i.kind === "rows" ? filledRows(values[i.key] ?? "").length === 0 : !(values[i.key] ?? "").trim()))
-      .map((i) => label(i.key)),
-  );
+  function filled(i: Input): boolean {
+    return i.kind === "rows" ? filledRows(values[i.key] ?? "").length > 0 : !!(values[i.key] ?? "").trim();
+  }
+
+  /** The either-or inputs this analysis has, as "Bay tube, Bay diameter or Bay volume". */
+  let eitherList = $derived.by(() => {
+    const names = [...inputs.main, ...inputs.more].filter((i) => i.oneOf).map((i) => label(i.key));
+    return names.length > 1 ? names.slice(0, -1).join(", ") + " or " + names[names.length - 1] : names.join("");
+  });
+
+  // The configuration the analysis will fly when no simulation is named: the one chosen here, else the active one.
+  let flown = $derived.by(() => {
+    const d = app.design;
+    if (!d || (values?.simulation ?? "").trim()) return null;
+    const id = (values?.configuration ?? "").trim() || d.selected;
+    // OpenRocket's own placeholder configuration (a new rocket's) is not in the list and never has a motor.
+    return d.configurations.find((c) => c.id === id) ?? { id, name: "[No motors]", hasMotors: false };
+  });
+  let noMotor = $derived(needsFlight(entry.tool) && !!flown && !flown.hasMotors);
+
+  let missing = $derived.by(() => {
+    const out = inputs.main.filter((i) => i.required && !filled(i)).map((i) => label(i.key));
+    const either = [...inputs.main, ...inputs.more].filter((i) => i.oneOf);
+    if (either.length && !either.some(filled)) out.push(eitherList);
+    if (noMotor) out.push("a motor");
+    return out;
+  });
+
+  /** The engine's description of an input, without the unit sentence every quantity carries. */
+  function described(i: Input): string {
+    return (i.schema.description ?? "").replace(/\s*Number = SI units, or a string with units, e\.g\. "20 ft\/s"\./, "").trim();
+  }
+
+  /** What the engine uses when the input is left empty, from its description. */
+  function whenEmpty(i: Input): string {
+    const d = described(i);
+    const m = d.match(/\(default:? ([^)]+)\)/i) ?? d.match(/Default: ([^.]+)\./);
+    return m ? m[1].trim() : "";
+  }
+
+  function quantities(i: Input): boolean {
+    return i.kind === "qty" || (i.kind === "list" && Array.isArray(i.schema.items?.type));
+  }
+
+  function placeholder(i: Input): string {
+    const ex = example(fieldHelp(entry.tool, i.key), imperial);
+    if (ex) return "e.g. " + ex;
+    if (i.kind === "qty") return "number and unit";
+    if (i.kind === "list") return "comma separated";
+    return "";
+  }
+
+  /** A number typed without a unit gets the field's unit (a bare 270 for a direction is 270 deg, not radians). */
+  function withUnit(i: Input, x: string): string | number {
+    if (!NUMBER.test(x)) return x;
+    const u = bareUnit(fieldHelp(entry.tool, i.key), imperial);
+    return u ? `${x} ${u}` : Number(x);
+  }
 
   function flatten(n: TreeNode | undefined, out: TreeNode[] = []): TreeNode[] {
     if (!n) return out;
@@ -161,11 +230,11 @@
       }
       if (i.kind === "bool") out[i.key] = raw === "true";
       else if (i.kind === "number") out[i.key] = NUMBER.test(raw) ? Number(raw) : raw;
-      else if (i.kind === "qty") out[i.key] = NUMBER.test(raw) ? Number(raw) : raw;
+      else if (i.kind === "qty") out[i.key] = withUnit(i, raw);
       else if (i.kind === "list") {
         const numeric = i.schema.items?.type === "number" || i.schema.items?.type === "integer";
         out[i.key] = raw.split(/[,;]+/).map((x) => x.trim()).filter(Boolean)
-          .map((x) => (numeric || Array.isArray(i.schema.items?.type)) && NUMBER.test(x) ? Number(x) : x);
+          .map((x) => (quantities(i) ? withUnit(i, x) : numeric && NUMBER.test(x) ? Number(x) : x));
       } else out[i.key] = raw;
     }
     if (!info?.inputSchema.properties?.designId) delete out.designId;
@@ -208,62 +277,99 @@
   }
 </script>
 
+{#snippet about(i: Input, h: FieldHelp)}
+  {@const ex = example(h, imperial)}
+  {@const empty = whenEmpty(i)}
+  {@const unit = bareUnit(h, imperial)}
+  <div class="about">
+    <p class="th">{label(i.key)}{#if i.required}<span class="muted"> · required</span>{:else if i.oneOf}<span class="muted"> · one of {eitherList} is needed</span>{/if}</p>
+    {#if h.help || described(i)}<p>{h.help ?? described(i)}</p>{/if}
+    {#if ex}<p><span class="k">Example</span>{ex}</p>{/if}
+    {#if empty && !i.required}<p><span class="k">If empty</span>{empty}</p>{/if}
+    {#if quantities(i)}
+      <p class="muted">{unit ? `A number without a unit is read as ${unit}.` : "Type the unit after the number. A number without one is in SI units: m, kg, s, N, Pa, m/s."}</p>
+    {/if}
+  </div>
+{/snippet}
+
+{#snippet lab(i: Input, isLabel: boolean)}
+  {@const h = fieldHelp(entry.tool, i.key)}
+  <span class="lab">
+    {#if isLabel}<label for={"a-" + i.key}>{label(i.key)}</label>{:else}{label(i.key)}{/if}{#if i.required || i.oneOf}<b class="req" title={i.required ? "Required" : `One of ${eitherList} is needed`}>*</b>{/if}<Tip label="About {label(i.key)}">{@render about(i, h)}</Tip>
+  </span>
+{/snippet}
+
 {#snippet field(i: Input)}
-  {@const help = i.schema.description ?? ""}
   {#if i.kind === "rows"}
     <div class="rowsfield" class:bad={failure?.field === i.key}>
-      <span class="lab" title={help}>{label(i.key)}{#if i.required}<b class="req">*</b>{/if}</span>
+      {@render lab(i, false)}
       <RowsEditor items={i.schema.items} bind:value={values[i.key]} {parts} />
     </div>
   {:else if i.kind === "long"}
-    <label class="rowsfield" class:bad={failure?.field === i.key} title={help}>
-      <span class="lab">{label(i.key)}{#if i.required}<b class="req">*</b>{/if}</span>
-      <textarea class="long" rows="4" bind:value={values[i.key]} placeholder={firstSentence(help)}></textarea>
-    </label>
+    <div class="rowsfield" class:bad={failure?.field === i.key}>
+      {@render lab(i, true)}
+      <textarea id={"a-" + i.key} class="long" rows="4" bind:value={values[i.key]} placeholder={firstSentence(described(i))}></textarea>
+    </div>
   {:else}
-  <label class="row" class:bad={failure?.field === i.key} title={failure?.field === i.key ? failure.text : help}>
-    <span class="lab">{label(i.key)}{#if i.required}<b class="req">*</b>{/if}</span>
+  <div class="row" class:bad={failure?.field === i.key} title={failure?.field === i.key ? failure.text : undefined}>
+    {@render lab(i, true)}
     {#if i.kind === "sim"}
-      <select class="select" bind:value={values[i.key]}>
+      <select id={"a-" + i.key} class="select" bind:value={values[i.key]}>
         <option value="">Active configuration</option>
         {#each sims as s}<option value={s}>{s}</option>{/each}
       </select>
     {:else if i.kind === "config"}
-      <select class="select" bind:value={values[i.key]}>
+      <select id={"a-" + i.key} class="select" bind:value={values[i.key]}>
         <option value="">Active</option>
         {#each app.design?.configurations ?? [] as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
       </select>
     {:else if i.kind === "part"}
-      <select class="select" bind:value={values[i.key]}>
+      <select id={"a-" + i.key} class="select" bind:value={values[i.key]}>
         <option value="">{i.required ? "Choose…" : "Default"}</option>
         {#each partsFor(i.key) as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
       </select>
+    {:else if i.kind === "pin"}
+      <select id={"a-" + i.key} class="select" bind:value={values[i.key]}>
+        <option value="">{i.required ? "Choose…" : "Team default"}</option>
+        {#each pins as p}<option value={p}>{p}</option>{/each}
+      </select>
     {:else if i.kind === "design"}
-      <select class="select" bind:value={values[i.key]}>
+      <select id={"a-" + i.key} class="select" bind:value={values[i.key]}>
         <option value="">None</option>
         {#each designs as d (d.designId)}<option value={d.designId}>{d.name}</option>{/each}
       </select>
     {:else if i.kind === "file"}
       <span class="file">
-        <input class="input" bind:value={values[i.key]} placeholder="path of the file" />
+        <input id={"a-" + i.key} class="input" bind:value={values[i.key]} placeholder="path of the file" />
         <button class="btn" type="button" onclick={() => browse(i.key)}>Browse…</button>
       </span>
     {:else if i.kind === "enum"}
-      <select class="select" bind:value={values[i.key]}>
+      <select id={"a-" + i.key} class="select" bind:value={values[i.key]}>
         {#if !i.required}<option value="">Default</option>{/if}
         {#each i.schema.enum as e}<option value={e}>{e}</option>{/each}
       </select>
     {:else if i.kind === "bool"}
-      <select class="select" bind:value={values[i.key]}>
+      <select id={"a-" + i.key} class="select" bind:value={values[i.key]}>
         <option value="">Default</option><option value="true">Yes</option><option value="false">No</option>
       </select>
     {:else}
-      <input class="input" bind:value={values[i.key]}
-        placeholder={i.kind === "qty" ? "with unit, e.g. 3 in" : i.kind === "list" ? "comma separated" : i.key === "pinType" ? "e.g. 4-40 nylon" : ""}
+      <input id={"a-" + i.key} class="input" bind:value={values[i.key]} placeholder={placeholder(i)}
         onkeydown={(e) => e.key === "Enter" && go()} />
     {/if}
-  </label>
+  </div>
   {/if}
+{/snippet}
+
+{#snippet guideBody(g: Guide)}
+  <div class="guide">
+    <h4>Before you run</h4>
+    <ul>{#each g.needs as n}<li>{n}</li>{/each}</ul>
+    <h4>You get</h4>
+    <ul>{#each g.gives as n}<li>{n}</li>{/each}</ul>
+    {#if g.how}<h4>How it works</h4><p>{g.how}</p>{/if}
+    {#if g.not}<h4>What it is not</h4><p>{g.not}</p>{/if}
+    {#if g.example}<h4>Example</h4><p>{g.example}</p>{/if}
+  </div>
 {/snippet}
 
 {#snippet fold(id: string, title: string, list: Input[])}
@@ -308,14 +414,31 @@
         <button class="btn primary run" disabled={running || !info || missing.length > 0} onclick={go}><Play size={14} /> {running ? "Running…" : "Run"}</button>
       {/snippet}
       <div class="form">
+        <!-- Built afresh for each analysis, so a list left empty shows its first choice (Default) rather than nothing. -->
+        {#key entry.tool}
         {#if info}
-          <p class="desc" title={info.description}>{entry.blurb ?? firstSentence(info.description)}</p>
+          <p class="desc">
+            {entry.blurb ?? firstSentence(info.description)}
+            {#if guide}<Tip wide size={14} label="What {entry.label} needs and gives">{@render guideBody(guide)}</Tip>{/if}
+          </p>
+          {#if noMotor}
+            <div class="need">
+              <b>Needs a motor.</b> Configuration “{flown?.name}” has none, so there is no flight to analyse.
+              <button class="link" onclick={() => (app.page = "motors")}>Choose a motor</button>
+            </div>
+          {/if}
           <div class="fields">{#each inputs.main as i (i.key)}{@render field(i)}{/each}</div>
           {@render fold("analysis.more", "More options", inputs.more)}
           {@render fold("analysis.conditions", "Launch conditions for this run", inputs.conditions)}
+          {#if [...inputs.main, ...inputs.more].some((i) => i.required || i.oneOf)}
+            <p class="legend"><b class="req">*</b> needed{#if entry.oneOf} (of {eitherList}, one is enough){/if} · ⓘ what to enter</p>
+          {:else}
+            <p class="legend">Everything is optional: empty inputs use the design and the team standards · ⓘ what to enter</p>
+          {/if}
         {:else}
           <p class="muted">Loading…</p>
         {/if}
+        {/key}
       </div>
     </Panel>
 
@@ -454,6 +577,60 @@
   .req {
     color: var(--bad);
     margin-left: 2px;
+  }
+  .lab label {
+    cursor: default;
+  }
+  .need {
+    margin: 0 0 8px;
+    padding: 6px 10px;
+    border-left: 3px solid var(--warn);
+    border-radius: var(--radius);
+    background: var(--warn-soft, var(--surface-2));
+  }
+  .legend {
+    margin: 8px 0 0;
+    font-size: 11.5px;
+    color: var(--ink-3);
+  }
+  .about p,
+  .guide p {
+    margin: 0 0 5px;
+  }
+  .about p:last-child,
+  .guide p:last-child {
+    margin-bottom: 0;
+  }
+  .about .th {
+    font-weight: 600;
+  }
+  .about .k {
+    display: inline-block;
+    min-width: 62px;
+    margin-right: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--ink-3);
+  }
+  .guide h4 {
+    margin: 8px 0 3px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-3);
+  }
+  .guide h4:first-child {
+    margin-top: 0;
+  }
+  .guide ul {
+    margin: 0 0 4px;
+    padding-left: 16px;
+  }
+  .guide li {
+    margin: 0 0 3px;
   }
   .row .input,
   .row .select {

@@ -2,6 +2,7 @@ package io.github.openrocketmcp.units;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -57,6 +58,13 @@ class UnitsTest {
 				() -> Units.toSi("20 ft/s", Dim.LENGTH));
 		assertEquals(true, e.getMessage().contains("velocity"));
 		assertThrows(IllegalArgumentException.class, () -> Units.toSi("20 furlongs", Dim.LENGTH));
+	}
+
+	@Test
+	void anUnreadableValueGetsAnExampleOfItsOwnKind() {
+		// A thickness answered with "e.g. 20 ft/s" sent people looking for a speed.
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> Units.toSi("abc", Dim.LENGTH));
+		assertTrue(e.getMessage().contains("\"4.0 in\" or \"98 mm\"") && !e.getMessage().contains("ft/s"), e.getMessage());
 	}
 
 	@Test
