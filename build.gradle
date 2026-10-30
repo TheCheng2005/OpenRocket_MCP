@@ -219,13 +219,18 @@ tasks.register('rocketmaxxingInstaller', Exec) {
                '--runtime-image', mcpbDir.get().dir('runtime').asFile.path,
                '--java-options', '-Xss4m', '--icon', icon.path, '--dest', out.get().asFile.path]
     if (type != 'app-image') {
-        cmd += ['--license-file', 'LICENSE']
+        // Double-clicking an OpenRocket or RockSim design opens it in RocketMaxxing.
+        cmd += ['--license-file', 'LICENSE',
+                '--file-associations', file('app/packaging/ork.properties').path,
+                '--file-associations', file('app/packaging/rkt.properties').path]
     }
     if (hostOs.isWindows() && type != 'app-image') {
         cmd += ['--win-menu', '--win-shortcut', '--win-dir-chooser', '--win-per-user-install',
                 '--win-upgrade-uuid', '5d3c7c0e-5b0e-4f53-9b6a-6c6f7f1d2a11']
     } else if (hostOs.isLinux() && type != 'app-image') {
-        cmd += ['--linux-shortcut', '--linux-menu-group', 'Science', '--linux-app-category', 'science']
+        // JDK 17's desktop entry leaves out %F, so a double-clicked design would not reach the app: ours adds it.
+        cmd += ['--linux-shortcut', '--linux-menu-group', 'Science', '--linux-app-category', 'science',
+                '--resource-dir', file('app/packaging/linux').path]
     }
     commandLine cmd
     doLast {

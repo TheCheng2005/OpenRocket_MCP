@@ -357,6 +357,7 @@ public final class AppTools {
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("version", App.VERSION);
 		out.put("engineVersion", Main.VERSION);
+		out.put("macOS", List.copyOf(MacDesktop.ACTIVE)); // Dock, Finder and menu handlers in place (empty elsewhere)
 		out.put("examples", List.of(Designs.EXAMPLES));
 		List<Map<String, Object>> open = new ArrayList<>();
 		for (Designs.Design d : ctx.designs.all()) {

@@ -9,11 +9,15 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import io.github.openrocketmcp.Main;
 import io.github.openrocketmcp.mcp.Log;
 import io.github.openrocketmcp.mcp.McpServer;
+import io.github.openrocketmcp.mcp.Schema;
+import io.github.openrocketmcp.mcp.ToolDef;
 import io.github.openrocketmcp.or.OrRuntime;
 import io.github.openrocketmcp.standards.Standards;
 import io.github.openrocketmcp.tools.Context;
@@ -34,7 +38,13 @@ public final class App {
 			  --ui DIR          folder of the built interface (default: next to the program)
 			  --no-browser      do not open a window; print the address instead
 			  --dev URL         also accept calls from a development server, e.g. http://localhost:5173
+			  FILE.ork ...      designs to open (a running RocketMaxxing for the same folder opens them instead)
 			""";
+
+	/** The page's address once the server is up; files that arrive before that wait in {@code pending}. */
+	private static String baseUrl;
+	private static boolean windows;
+	private static final List<String> pending = new ArrayList<>();
 
 	private App() {
 	}
@@ -51,34 +61,82 @@ public final class App {
 			boolean screen = !linux || notBlank(System.getenv("DISPLAY")) || notBlank(System.getenv("WAYLAND_DISPLAY"));
 			System.setProperty("java.awt.headless", screen ? "false" : "true");
 		}
-		OrRuntime.init(); // before any request: OpenRocket's databases fail for good if touched before it starts
 		Path ws = Path.of(opt(a, "--workspace", System.getProperty("user.home") + File.separator + NAME)).toAbsolutePath().normalize();
 		Files.createDirectories(ws);
+		List<String> files = designFiles(a);
+		boolean noBrowser = a.contains("--no-browser");
+		String devUrl = opt(a, "--dev", null);
+
+		// One app per designs folder: a later launch hands its files to the running one and exits.
+		Instance instance = devUrl == null ? new Instance(ws) : null;
+		if (instance != null && !instance.claim()) {
+			String running = instance.handOver(files, !noBrowser, 90_000);
+			if (running != null) {
+				if (noBrowser) {
+					System.out.println("Open " + running);
+				}
+				Log.info(NAME + " is already running for " + ws + "; handed over to it.");
+				System.exit(0);
+			}
+			Log.info("Another " + NAME + " holds " + ws + " but does not answer; starting anyway.");
+			instance = null;
+		}
+
+		// macOS: the Dock and Finder talk to the app from the start (a design double-clicked to launch it arrives now).
+		AtomicReference<Context> ctxRef = new AtomicReference<>();
+		boolean dock = devUrl == null && MacDesktop.install(() -> show(List.of()), App::show, () -> unsaved(ctxRef.get()));
+
+		OrRuntime.init(); // before any request: OpenRocket's databases fail for good if touched before it starts
 		Context ctx = new Context(Standards.discover(ws), ws, false);
+		ctxRef.set(ctx);
 		McpServer server = Main.build(ctx, s -> AppTools.register(s, ctx), false);
 		server.guard(new DesignLocks(ctx));
 		server.handleLine("{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\","
 				+ "\"capabilities\":{},\"clientInfo\":{\"name\":\"" + NAME + "\",\"version\":\"" + VERSION + "\"}}}");
 		Main.warmUp();
 		List<String> dev = new ArrayList<>();
-		String devUrl = opt(a, "--dev", null);
 		if (devUrl != null) {
 			dev.add(devUrl.replaceAll("/+$", ""));
 		}
 		AppServer app = new AppServer(server, ui(opt(a, "--ui", System.getProperty("rocketmaxxing.ui"))), dev);
 		app.files(ws);
+		server.tool(new ToolDef("app_window", "App: window", "Opens a window of the running app (another launch asks for it), "
+				+ "with designs to open; returns its address.",
+				Schema.object().array("files", "Design files to open.", Schema.type("string", null), false)
+						.bool("window", "Open a window (default true).", false).build(),
+				false, x -> {
+					List<String> given = x.has("files") ? x.strList("files") : List.of();
+					if (x.bool("window", true)) {
+						show(given);
+					}
+					return Map.of("url", withFiles(app.url(), given));
+				}));
 		InetSocketAddress bound = app.start(Integer.parseInt(opt(a, "--port", "0")));
-		Runtime.getRuntime().addShutdownHook(new Thread(app::stop));
+		Instance held = instance;
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+			app.stop();
+			if (held != null) {
+				held.release();
+			}
+		}));
 		String url = app.url();
-		Log.info(NAME + " " + VERSION + " (engine " + Main.VERSION + ") on http://127.0.0.1:" + bound.getPort() + " ; workspace " + ws);
-		boolean window = !a.contains("--no-browser") && devUrl == null && open(url);
+		if (instance != null) {
+			instance.publish(bound.getPort(), app.token());
+		}
+		Log.info(NAME + " " + VERSION + " (engine " + Main.VERSION + ") on http://127.0.0.1:" + bound.getPort() + " ; workspace " + ws
+				+ (MacDesktop.ACTIVE.isEmpty() ? "" : " ; macOS: " + String.join(", ", MacDesktop.ACTIVE)));
+		boolean window = !noBrowser && devUrl == null && ready(url, files);
 		if (!window) {
-			System.out.println("Open " + url);
+			System.out.println("Open " + withFiles(url, files));
 			if (devUrl != null) {
 				System.out.println("Development: open " + devUrl + "/#token=" + app.token() + "&port=" + bound.getPort());
 			}
 			new CountDownLatch(1).await();
 			return;
+		}
+		if (dock) {
+			// macOS: the app stays in the Dock with no window, as Mac apps do, until it is quit.
+			new CountDownLatch(1).await();
 		}
 		// Desktop use: stop once the window has been gone for two minutes (the page checks in every 20 s).
 		while (true) {
@@ -90,6 +148,69 @@ public final class App {
 				System.exit(0);
 			}
 		}
+	}
+
+	/** Opens the first window, with the files given at launch and any that arrived while starting. */
+	private static synchronized boolean ready(String url, List<String> files) {
+		List<String> first = new ArrayList<>(files);
+		first.addAll(pending);
+		pending.clear();
+		windows = open(withFiles(url, first));
+		baseUrl = url;
+		return windows;
+	}
+
+	/**
+	 * A window with these designs open. The page keeps one window: a new one replaces the one before (a browser
+	 * window cannot be brought to the front from here), so the Dock, a second launch and Finder all land in front.
+	 */
+	static synchronized void show(List<String> files) {
+		if (baseUrl == null) {
+			pending.addAll(files);
+			return;
+		}
+		if (windows) {
+			open(withFiles(baseUrl, files));
+		}
+	}
+
+	static String withFiles(String url, List<String> files) {
+		StringBuilder b = new StringBuilder(url);
+		for (String f : files) {
+			b.append("&open=").append(java.net.URLEncoder.encode(f, java.nio.charset.StandardCharsets.UTF_8));
+		}
+		return b.toString();
+	}
+
+	/** The design files among the arguments (what Windows and Linux pass for a double-clicked file). */
+	static List<String> designFiles(List<String> a) {
+		List<String> out = new ArrayList<>();
+		for (int i = 0; i < a.size(); i++) {
+			String s = a.get(i);
+			if (s.startsWith("--")) {
+				if (List.of("--workspace", "--port", "--ui", "--dev").contains(s)) {
+					i++;
+				}
+				continue;
+			}
+			if (s.toLowerCase(Locale.ROOT).matches(".*\\.(ork|rkt)") && Files.isRegularFile(Path.of(s))) {
+				out.add(Path.of(s).toAbsolutePath().normalize().toString());
+			}
+		}
+		return out;
+	}
+
+	/** Names of open designs with unsaved changes. */
+	static List<String> unsaved(Context ctx) {
+		List<String> out = new ArrayList<>();
+		if (ctx != null) {
+			for (var d : ctx.designs.all()) {
+				if (!d.doc.isSaved()) {
+					out.add(d.name());
+				}
+			}
+		}
+		return out;
 	}
 
 	private static boolean notBlank(String s) {

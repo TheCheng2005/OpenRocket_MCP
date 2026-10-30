@@ -3,6 +3,9 @@
 
 const KEY = "rocketmaxxing.token";
 
+/** Designs to open, passed in the window's address (a double-clicked file, a second launch). */
+export const launchFiles: string[] = new URLSearchParams(location.hash.replace(/^#/, "")).getAll("open");
+
 function readToken(): string {
   const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
   const t = hash.get("token");

@@ -166,6 +166,21 @@ the working branches, after starting each packaged app and using it; the install
    like any other app.
 4. It opens in Chrome or Edge in app mode if one is installed, otherwise in Safari. Designs go in `~/RocketMaxxing`.
 
+On the Mac, RocketMaxxing lives in the Dock; its window is a browser's, so the menu bar at the top shows the browser's
+menus while you work in it. Clicking the Dock icon brings the window back (closing the window keeps the app running,
+as Mac apps do), and the Dock icon's menu and RocketMaxxing's own menu bar (shown when you click the Dock icon) have
+Show RocketMaxxing Window and Open Design (⌘O). About and Quit are in the RocketMaxxing menu; Quit asks first when a
+design has unsaved changes. Double-clicking an `.ork` or `.rkt` file in Finder opens it in RocketMaxxing (or use
+Open With). Shortcuts are shown as ⌘ and work with Cmd: ⌘S, ⇧⌘S, ⌘O, ⌘Z, ⇧⌘Z.
+
+### One app, one window
+
+On every system there is one RocketMaxxing per designs folder. Starting it again, or double-clicking a design while it
+runs, hands over to the running app instead of starting a second one, and a new window opens with the design; the
+older window steps aside (it closes, or says to use the new one), since a browser window cannot be brought to the
+front from outside. Everything open stays open, and the new window returns to the page you were on. On Windows and
+Linux the installers also register `.ork` and `.rkt`, and the app stops two minutes after its window is closed.
+
 Optional extras are found where Homebrew, MacPorts or conda put them, even though an app started from the Dock does
 not see the Terminal's PATH: `brew install ffmpeg` for MP4 videos, CalculiX (`conda install -c conda-forge calculix`)
 for the fin FEA, and Claude Code or Codex for the assistant.
@@ -180,7 +195,8 @@ build/install/openrocket-mcp/bin/rocketmaxxing        # Windows: build\install\o
 ```
 
 The app opens in its own window (Chrome or Edge in app mode if installed, otherwise your default browser). The file
-dialogs start in `~/RocketMaxxing`. The app quits two minutes after its window is closed.
+dialogs start in `~/RocketMaxxing`. On Windows and Linux the app quits two minutes after its window is closed; on the
+Mac it stays in the Dock until you quit it.
 
 | Option | |
 |---|---|
@@ -188,6 +204,7 @@ dialogs start in `~/RocketMaxxing`. The app quits two minutes after its window i
 | `--port N` | Local port (default: any free one) |
 | `--no-browser` | Print the address instead of opening a window |
 | `--dev URL` | Also accept calls from a development server |
+| `FILE.ork ...` | Designs to open (a running RocketMaxxing for the same folder opens them) |
 
 ## How it works
 

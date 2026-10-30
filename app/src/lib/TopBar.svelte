@@ -5,6 +5,7 @@
   import RocketLoader from "./RocketLoader.svelte";
   import { assistant, who } from "./assistant/assistant.svelte";
   import { issues, openIssues, unseen } from "./issues/issues.svelte";
+  import { keys, MAC } from "./keys";
 
   let fresh = $derived(unseen());
   let watch = $derived(app.design ? app.flightIssues.length : 0);
@@ -20,15 +21,15 @@
 
   <div class="group">
     <button class="btn ghost" onclick={newDesign} title="New design"><FilePlus2 size={16} /> New</button>
-    <button class="btn ghost" onclick={openDialog} title="Open (Ctrl+O)"><FolderOpen size={16} /> Open</button>
-    <button class="btn ghost" onclick={() => save(false)} disabled={!app.design} title="Save (Ctrl+S), save as (Ctrl+Shift+S)">
+    <button class="btn ghost" onclick={openDialog} title="Open ({keys('O')})"><FolderOpen size={16} /> Open</button>
+    <button class="btn ghost" onclick={() => save(false)} disabled={!app.design} title="Save ({keys('S')}), save as ({keys('S', true)})">
       <Save size={16} /> Save
     </button>
   </div>
   <span class="sep"></span>
   <div class="group">
-    <button class="btn ghost icon" onclick={undo} disabled={!app.design?.canUndo} title="Undo (Ctrl+Z)"><Undo2 size={16} /></button>
-    <button class="btn ghost icon" onclick={redo} disabled={!app.design?.canRedo} title="Redo (Ctrl+Y)"><Redo2 size={16} /></button>
+    <button class="btn ghost icon" onclick={undo} disabled={!app.design?.canUndo} title="Undo ({keys('Z')})"><Undo2 size={16} /></button>
+    <button class="btn ghost icon" onclick={redo} disabled={!app.design?.canRedo} title="Redo ({MAC ? keys('Z', true) : keys('Y')})"><Redo2 size={16} /></button>
   </div>
 
   {#if app.design}

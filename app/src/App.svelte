@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { connected, keepAlive } from "./lib/api";
-  import { app, init, run, undo, redo, save, openDialog, removeSelected } from "./lib/state.svelte";
+  import { connected, keepAlive, launchFiles } from "./lib/api";
+  import { app, init, run, undo, redo, save, openDialog, openPath, removeSelected, type Page } from "./lib/state.svelte";
+  import { oneWindow, rememberPage, lastPage } from "./lib/oneWindow";
   import TopBar from "./lib/TopBar.svelte";
   import NavRail from "./lib/NavRail.svelte";
   import Home from "./lib/Home.svelte";
@@ -21,13 +22,28 @@
   import { assistant, loadSettings } from "./lib/assistant/assistant.svelte";
 
   let ready = $state(false);
+  let replaced = $state(false);
+  const PAGES: Page[] = ["home", "design", "motors", "flights", "flightdata", "targets", "standards", "analysis"];
 
   onMount(() => {
     if (!connected) return;
     keepAlive();
     watchPageErrors();
-    run(init).finally(() => (ready = true));
+    oneWindow(() => (replaced = true));
+    run(init)
+      .then(async () => {
+        // Designs double-clicked in Finder or Explorer, or handed over by a second launch; else where the last window was.
+        for (const f of launchFiles) await openPath(f);
+        const last = lastPage() as Page | null;
+        if (launchFiles.length && app.design) app.page = "design";
+        else if (last && PAGES.includes(last) && app.design) app.page = last;
+      })
+      .finally(() => (ready = true));
     loadSettings();
+  });
+
+  $effect(() => {
+    if (ready) rememberPage(app.page);
   });
 
   function typing(e: KeyboardEvent) {
@@ -95,6 +111,14 @@
   </div>
   <Toasts />
   <AskDialog />
+  {#if replaced}
+    <div class="replaced" role="alert">
+      <div>
+        <b>RocketMaxxing continues in the newer window.</b>
+        <p>Everything open here is open there too. You can close this one.</p>
+      </div>
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -119,6 +143,20 @@
     margin: auto;
     color: var(--ink-3);
     font-size: 16px;
+  }
+  .replaced {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--surface) 85%, transparent);
+    backdrop-filter: blur(2px);
+    text-align: center;
+  }
+  .replaced p {
+    margin: 6px 0 0;
+    color: var(--ink-2);
   }
   .offline {
     max-width: 520px;

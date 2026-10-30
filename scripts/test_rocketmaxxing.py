@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,7 +20,8 @@ BIN = os.path.join(ROOT, "build", "install", "openrocket-mcp", "bin", "rocketmax
 
 def main():
     cmd = sys.argv[1:] or [BIN]
-    p = subprocess.Popen(cmd + ["--no-browser", "--port", "0", "--workspace", tempfile.mkdtemp()],
+    workspace = tempfile.mkdtemp()
+    p = subprocess.Popen(cmd + ["--no-browser", "--port", "0", "--workspace", workspace],
                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
         url = None
@@ -55,6 +57,19 @@ def main():
         motors = call("search_motors", {"limit": 3})
         assert motors["matches"] > 1000 and motors["motors"], motors
         assert call("draw_rocket", {"designId": d, "path": "rocket.svg"}), "no drawing"
+        if sys.platform == "darwin":
+            # The Dock, Finder and the menu bar reach the app (handlers need the Mac's window server).
+            assert {"openFile", "reopen", "quit"} <= set(session["macOS"]), session["macOS"]
+
+        # A second launch for the same folder hands its design to the running app and exits.
+        example = os.path.join(ROOT, "docs", "examples", "maple-10k.ork")
+        second = subprocess.run(cmd + ["--no-browser", "--workspace", workspace, example],
+                                capture_output=True, text=True, timeout=120)
+        assert second.returncode == 0, second.stderr[-2000:]
+        handed = re.search(r"Open (http://127\.0\.0\.1:\d+)/#token=[0-9a-f]+(\S*)", second.stdout)
+        assert handed and handed.group(1) == url, "the second launch did not hand over: " + second.stdout + second.stderr[-500:]
+        assert "maple-10k.ork" in urllib.parse.unquote(handed.group(2)), handed.group(0)
+
         try:
             urllib.request.urlopen(urllib.request.Request(url + "/rpc", b"{}", {"Authorization": "Bearer wrong"}))
             raise AssertionError("a wrong token was accepted")
