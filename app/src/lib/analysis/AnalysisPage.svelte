@@ -12,6 +12,7 @@
   import { analysis } from "./store.svelte";
   import RocketLoader from "../RocketLoader.svelte";
   import { firstSentence, label } from "./text";
+  import { KINDS, openIssues } from "../issues/issues.svelte";
 
   // The engine's analyses: pick one, fill in what it needs (the design is filled in), run, read the result.
 
@@ -35,6 +36,7 @@
   let entry = $derived(CATALOG.flatMap((g) => g.items).find((a) => a.tool === analysis.selected) ?? CATALOG[0].items[0]);
   let info = $derived(infos[entry.tool]);
   let outcome = $derived(analysis.results[entry.tool]);
+  let failure = $derived(analysis.failures[entry.tool]);
   let stale = $derived(!!outcome && (outcome.designId !== app.design?.designId || outcome.revision < app.revision));
   let running = $state(false);
 
@@ -175,8 +177,9 @@
     const tool = entry.tool;
     const a = args();
     running = true;
+    delete analysis.failures[tool];
     const t0 = performance.now();
-    const r = await run(() => callFull(tool, a));
+    const r = await run(() => callFull(tool, a), entry.label, (l) => (analysis.failures[tool] = l));
     running = false;
     if (!r) return;
     if (!info?.annotations?.readOnlyHint) await refresh(); // it may have changed the design (apply)
@@ -192,6 +195,13 @@
     }
   }
 
+  /** The result without its top-level problem list when those already show as notes above it. */
+  function noted(d: any) {
+    if (!d || typeof d !== "object" || Array.isArray(d) || !outcome?.issues?.length) return d;
+    const { PROBLEMS: _p, problems: _q, ...rest } = d;
+    return rest;
+  }
+
   function choose(a: Analysis) {
     ensure(a);
     analysis.selected = a.tool;
@@ -201,17 +211,17 @@
 {#snippet field(i: Input)}
   {@const help = i.schema.description ?? ""}
   {#if i.kind === "rows"}
-    <div class="rowsfield">
+    <div class="rowsfield" class:bad={failure?.field === i.key}>
       <span class="lab" title={help}>{label(i.key)}{#if i.required}<b class="req">*</b>{/if}</span>
       <RowsEditor items={i.schema.items} bind:value={values[i.key]} {parts} />
     </div>
   {:else if i.kind === "long"}
-    <label class="rowsfield" title={help}>
+    <label class="rowsfield" class:bad={failure?.field === i.key} title={help}>
       <span class="lab">{label(i.key)}{#if i.required}<b class="req">*</b>{/if}</span>
       <textarea class="long" rows="4" bind:value={values[i.key]} placeholder={firstSentence(help)}></textarea>
     </label>
   {:else}
-  <label class="row" title={help}>
+  <label class="row" class:bad={failure?.field === i.key} title={failure?.field === i.key ? failure.text : help}>
     <span class="lab">{label(i.key)}{#if i.required}<b class="req">*</b>{/if}</span>
     {#if i.kind === "sim"}
       <select class="select" bind:value={values[i.key]}>
@@ -315,12 +325,27 @@
       {/snippet}
       <div class="out" class:stale>
         {#if running}<RocketLoader text={entry.label} />{/if}
+        {#if failure && !running}
+          <div class="issue k-{failure.kind} error">
+            <span class="tag">{KINDS[failure.kind].label}</span>
+            <div>
+              {failure.text}
+              {#if failure.field}<div class="sub">Check {label(failure.field)}, marked in the form above.</div>{/if}
+              {#if failure.bug}<div class="sub">A bug in RocketMaxxing. <button class="link" onclick={openIssues}>Report it</button></div>{/if}
+            </div>
+          </div>
+        {/if}
+        {#if outcome && !failure}
+          {#each outcome.issues ?? [] as i, j (j)}
+            <div class="issue k-{i.kind} {i.severity}"><span class="tag">{KINDS[i.kind].label}</span><div>{i.text}</div></div>
+          {/each}
+        {/if}
         {#if outcome}
           {#if entry.plot}<ResultPlot data={outcome.data} spec={entry.plot} />{/if}
           {#each outcome.images as img}<img src={img.src} alt="Plot" />{/each}
-          <Result value={outcome.data} />
+          <Result value={noted(outcome.data)} />
         {:else}
-          {#if !running}<p class="muted">Not run yet.</p>{/if}
+          {#if !running && !failure}<p class="muted">Not run yet.</p>{/if}
         {/if}
       </div>
     </Panel>
@@ -433,6 +458,61 @@
   .row .input,
   .row .select {
     width: 100%;
+  }
+  .row.bad .input,
+  .row.bad .select,
+  .rowsfield.bad textarea {
+    border-color: var(--bad);
+    box-shadow: 0 0 0 1px var(--bad);
+  }
+  .row.bad .lab,
+  .rowsfield.bad .lab {
+    color: var(--bad);
+    font-weight: 600;
+  }
+  .issue {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    margin: 0 0 6px;
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    border-left: 3px solid var(--kind);
+    background: var(--surface-2);
+    font-size: 12.5px;
+    --kind: var(--ink-3);
+  }
+  .issue.k-input {
+    --kind: var(--select);
+  }
+  .issue.k-physics {
+    --kind: var(--bad);
+  }
+  .issue.k-physics.warning,
+  .issue.k-output {
+    --kind: var(--warn);
+  }
+  .issue.k-system {
+    --kind: var(--ink-2);
+  }
+  .issue .tag {
+    flex: none;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--kind);
+  }
+  .issue .sub {
+    margin-top: 2px;
+    color: var(--ink-3);
+  }
+  .link {
+    border: 0;
+    background: transparent;
+    color: var(--select);
+    padding: 0;
+    text-decoration: underline;
   }
   .rowsfield {
     grid-column: 1 / -1;

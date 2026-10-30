@@ -593,6 +593,26 @@ public final class Sims {
 				}
 			}
 		}
+		// OpenRocket's own warnings from the run (large angle of attack, a gap in the airframe, fins thicker than the
+		// model allows...), worded as it words them. A tumble it also reports as the abort above. Its high-speed
+		// deployment warning (any device above 20 m/s, so nearly every drogue at apogee) is left to recovery_analysis,
+		// which judges each opening load against the team's standards.
+		boolean aborted = !out.isEmpty();
+		info.openrocket.core.logging.WarningSet ws = data.getWarningSet();
+		if (ws != null) {
+			java.util.Set<String> seen = new java.util.HashSet<>();
+			for (info.openrocket.core.logging.Warning w : ws) {
+				if (w.getPriority() == info.openrocket.core.logging.MessagePriority.LOW
+						|| w instanceof info.openrocket.core.logging.Warning.HighSpeedDeployment
+						|| aborted && w.equals(info.openrocket.core.logging.Warning.TUMBLE_UNDER_THRUST)) {
+					continue;
+				}
+				String text = w.toString().replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
+				if (!text.isEmpty() && seen.add(text)) {
+					out.add("OpenRocket warns: " + text + (text.endsWith(".") ? "" : "."));
+				}
+			}
+		}
 		double mach = data.getMaxMachNumber();
 		if (mach > MACH_LIMIT) {
 			out.add("Max Mach " + Units.num(mach) + " is beyond OpenRocket's aerodynamics (validated to about Mach "

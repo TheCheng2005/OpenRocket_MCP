@@ -1,10 +1,17 @@
 <script lang="ts">
   import { app } from "./state.svelte";
+  import { KINDS, openIssues } from "./issues/issues.svelte";
 </script>
 
 <div class="toasts" aria-live="polite">
   {#each app.toasts as t (t.id)}
-    <div class="toast {t.kind}">{t.text}</div>
+    <div class="toast {t.kind} {t.issue ? 'k-' + t.issue.kind : ''}">
+      {#if t.issue}<b class="tag">{KINDS[t.issue.kind].label}</b>{/if}
+      <span class="text">{t.text}</span>
+      {#if t.issue}
+        <button class="more" onclick={() => { openIssues(); app.toasts = app.toasts.filter((x) => x.id !== t.id); }}>Details</button>
+      {/if}
+    </div>
   {/each}
 </div>
 
@@ -17,9 +24,13 @@
     flex-direction: column;
     gap: 8px;
     z-index: 50;
-    max-width: 440px;
+    max-width: 460px;
   }
   .toast {
+    display: flex;
+    flex: none;
+    align-items: baseline;
+    gap: 8px;
     padding: 7px 12px;
     border-radius: var(--radius);
     background: var(--ink);
@@ -30,5 +41,29 @@
   .toast.error {
     background: var(--bad);
     color: #fff;
+  }
+  .toast.error.k-input {
+    background: var(--ink);
+    color: var(--surface);
+  }
+  .text {
+    flex: 1;
+    min-width: 0;
+  }
+  .tag {
+    flex: none;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.85;
+  }
+  .more {
+    flex: none;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-decoration: underline;
+    padding: 0;
+    font-size: 12px;
   }
 </style>

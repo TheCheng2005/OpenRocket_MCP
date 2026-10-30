@@ -68,6 +68,26 @@ along the rocket from behind. 3D can be turned, and Cut-away opens the airframe.
 
 Settings (the gear, top right) has the units, metric or imperial and per quantity, and light or dark theme.
 
+### Problems
+
+Every error and warning says whose problem it is:
+
+| Kind | Means | Where it shows |
+|---|---|---|
+| Input | Something in what was asked can't be used: a value, a unit, a name. | The pop-up, the field in the Analysis form (marked red), the result. |
+| Physics | The rocket or its flight: it doesn't lift off, tumbles, never reaches apogee; OpenRocket's own warnings (large angle of attack, a gap in the airframe, fins too thick for its model). | Under the Design summary after every edit, the result, the Flights table (a warning sign on the run), the rule check. |
+| Output | A result to treat with care: a value that could not be computed, or one from beyond where the model is valid (past Mach 3; OpenRocket's body calculations past Mach 1). | Under the Design summary, the result, the rule check ("Within the models' range"). |
+| System | Something on this computer or in RocketMaxxing failed, not the design: no internet, a file that can't be written, a program not installed, or a bug. | The pop-up and the result. |
+
+The warning sign at the top right opens the Problems list: what to watch in the current design's flight, then
+every error since the app started, newest first, with where it happened. It is red when there are errors you haven't
+looked at, amber when the flight has something to watch. A bug in RocketMaxxing (in the engine or in the window)
+comes with an error ID and a report: Copy report, Save report, or Report on GitHub, which opens a new issue with the
+report filled in for you to read and send. The report has the versions, what was asked and where it failed, but not
+the design. The engine's log has the same error ID next to the full trace.
+
+![Problems](rocketmaxxing/problems.png)
+
 ![Analysis: rule check](rocketmaxxing/analysis.png)
 
 ![Recovery bay fit, with its list of items](rocketmaxxing/bay-fit.png)

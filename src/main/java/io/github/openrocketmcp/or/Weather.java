@@ -73,12 +73,12 @@ public final class Weather {
 			HttpResponse<String> r = c.send(HttpRequest.newBuilder(URI.create(u)).timeout(Duration.ofSeconds(30))
 					.header("User-Agent", "openrocket-mcp").GET().build(), HttpResponse.BodyHandlers.ofString());
 			if (r.statusCode() != 200) {
-				throw new ToolException("Weather service returned HTTP " + r.statusCode() + ": "
+				throw ToolException.system("Weather service returned HTTP " + r.statusCode() + ": "
 						+ r.body().substring(0, Math.min(300, r.body().length())));
 			}
 			return JsonParser.parseString(r.body()).getAsJsonObject();
 		} catch (IOException e) {
-			throw new ToolException("Could not reach the weather service (" + e.getMessage() + "). Without internet access, "
+			throw ToolException.system("Could not reach the weather service (" + e.getMessage() + "). Without internet access, "
 					+ "paste the forecast JSON from " + u.substring(0, Math.min(80, u.length())) + "... as forecastJson, or enter "
 					+ "the winds by hand with wind_profile.");
 		} catch (InterruptedException e) {

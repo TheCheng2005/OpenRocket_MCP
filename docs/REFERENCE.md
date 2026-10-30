@@ -520,9 +520,19 @@ The project side of a chief engineer's job. Reading notes and posting updates go
 - **Flights that cannot happen are flagged:** when OpenRocket stops a simulation (no lift-off, tumbling under thrust,
   a parachute out under thrust), or a flight passes Mach 3 (beyond its aerodynamics) or 150 G, `run_simulation` lists
   it first under `PROBLEMS`, `check_requirements` fails "Physically sound flight", and the flight card and review report
-  open with it. `recovery_analysis` warns when no parachute opened (a ballistic landing).
+  open with it. OpenRocket's own warnings from the run (large angle of attack, a gap or jump in the airframe, fins too
+  thick for its model, body calculations past Mach 1...) are listed the same way, as "OpenRocket warns: ...". Its
+  high-speed deployment warning is left out: `recovery_analysis` judges each opening load against the team's
+  standards instead, and warns when no parachute opened (a ballistic landing). Notes about the model's range rather
+  than the flight (past Mach 3, OpenRocket's supersonic body caveat) are `check_requirements` "Within the models' range".
 - **Errors are sentences:** a failure says what was wrong and how to fix it; an internal error says it is a bug in the
-  server and asks for a report.
+  server, gives an error ID (also in the server's log, next to the stack trace) and asks for a report.
+- **Whose problem it is:** every error, and every note on a result, also comes in the result's `_meta` under
+  `io.github.openrocketmcp/issues` as `{kind, severity, text, field?, id?, bug?, report?}` for clients that show them
+  (the RocketMaxxing app does). `kind` is `input` (the request: a value, unit or name; `field` names the argument),
+  `physics` (the rocket or its flight), `output` (a value that could not be computed, or one from beyond where the model
+  is valid) or `system` (no internet, a file, a missing program, or a bug: `bug`, `id` and `report`, which has the
+  versions and stack trace but no design data). The text a model reads is unchanged.
 - **Component names:** an id, a full name, or a piece of a name that only one part has (`"Apex"` for
   `Apex 12" Drogue Parachute`).
 - **Files people bring** (altimeter logs, mass budgets, aero tables) may be UTF-8 or Windows-1252, as Excel and many

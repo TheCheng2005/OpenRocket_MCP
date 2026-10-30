@@ -1,9 +1,13 @@
 <script lang="ts">
-  import { FilePlus2, FolderOpen, Save, Undo2, Redo2, Settings as Gear, MessageSquare } from "@lucide/svelte";
+  import { FilePlus2, FolderOpen, Save, Undo2, Redo2, Settings as Gear, MessageSquare, TriangleAlert } from "@lucide/svelte";
   import { app, newDesign, openDialog, save, undo, redo, selectConfig } from "./state.svelte";
   import Settings from "./Settings.svelte";
   import RocketLoader from "./RocketLoader.svelte";
   import { assistant, who } from "./assistant/assistant.svelte";
+  import { issues, openIssues, unseen } from "./issues/issues.svelte";
+
+  let fresh = $derived(unseen());
+  let watch = $derived(app.design ? app.flightIssues.length : 0);
 
   let settings = $state(false);
 </script>
@@ -54,6 +58,16 @@
       <MessageSquare size={16} /> {who()}{#if assistant.running}…{/if}
     </button>
   {/if}
+  <button
+    class="btn ghost problems"
+    class:on={issues.open}
+    class:bad={fresh > 0}
+    class:warn={fresh === 0 && watch > 0}
+    onclick={() => (issues.open ? (issues.open = false) : openIssues())}
+    title={fresh ? `${fresh} new error${fresh === 1 ? "" : "s"}` : watch ? `${watch} thing${watch === 1 ? "" : "s"} to watch in the flight` : "Problems: errors and warnings"}
+  >
+    <TriangleAlert size={16} />{#if fresh || watch}<span class="count">{fresh || watch}</span>{/if}
+  </button>
   <button class="btn ghost icon" onclick={() => (settings = true)} title="Settings: units, theme, assistant"><Gear size={17} /></button>
 </header>
 
@@ -62,6 +76,20 @@
 {/if}
 
 <style>
+  .problems {
+    gap: 3px;
+    padding: 0 7px;
+  }
+  .problems.bad {
+    color: var(--bad);
+  }
+  .problems.warn {
+    color: var(--warn);
+  }
+  .count {
+    font-size: 12px;
+    font-weight: 600;
+  }
   .btn.on {
     background: var(--surface-3);
     color: var(--ink);

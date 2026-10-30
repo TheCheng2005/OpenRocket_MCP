@@ -271,7 +271,7 @@ final class Assistant {
 		if (kind != null) {
 			Path exe = AgentCli.find(kind);
 			if (exe == null) {
-				throw new ToolException(kind.label + " is not installed on this computer (see Settings > Assistant).");
+				throw ToolException.system(kind.label + " is not installed on this computer (see Settings > Assistant).");
 			}
 			event("you", text, null);
 			running = true;

@@ -403,7 +403,7 @@ public final class RecoveryTools {
 				}
 			}
 			if (dep == null) {
-				throw new ToolException("Device '" + a.str("device") + "' did not deploy in the simulation.");
+				throw ToolException.physics("Device '" + a.str("device") + "' did not deploy in the simulation.");
 			}
 			mass = dep.mass();
 			if (!a.has("cd")) {

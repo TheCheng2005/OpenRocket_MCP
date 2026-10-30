@@ -1,7 +1,8 @@
 // What the app shows, and everything it does to a design. Each action is one engine tool call followed by a refresh,
 // so the screen always shows the engine's own state (and undo covers every edit).
 
-import { call, ToolError } from "./api";
+import { call, callFull, ToolError, type Issue } from "./api";
+import { record, type Logged } from "./issues/issues.svelte";
 import { units, setSystem as setUnitSystem } from "./units.svelte";
 
 export interface TreeNode {
@@ -146,7 +147,9 @@ export const app = $state({
   flight: null as QuickFlight | null,
   flying: false,
   busy: 0,
-  toasts: [] as { id: number; text: string; kind: "error" | "info" }[],
+  toasts: [] as { id: number; text: string; kind: "error" | "info"; issue?: Logged }[],
+  /** Physics and output notes on the quick flight of the active configuration, kept current after every edit. */
+  flightIssues: [] as Issue[],
   ask: null as null | { title: string; label: string; value: string; resolve: (v: string | null) => void },
   revision: 0, // bumped after every change, so pages reload what they show
   checks: null as Checks | null,
@@ -237,7 +240,7 @@ export function checkTargets(delay = 0) {
     app.targeting = true;
     call<TargetList>("targets", { designId: d.designId })
       .then((t) => seq === targetSeq && (app.targets = { ...t, designId: d.designId }))
-      .catch((e) => seq === targetSeq && (app.targets = { error: e.message, designId: d.designId }))
+      .catch((e) => seq === targetSeq && (app.targets = { error: quietly(e, "Targets"), designId: d.designId }))
       .finally(() => seq === targetSeq && (app.targeting = false));
   }, delay);
 }
@@ -264,7 +267,7 @@ export function checkRules(delay = 0) {
     app.checking = true;
     call<Checks>("check_requirements", { designId: d.designId })
       .then((c) => seq === checkSeq && (app.checks = { ...c, designId: d.designId }))
-      .catch((e) => seq === checkSeq && (app.checks = { error: e.message, designId: d.designId }))
+      .catch((e) => seq === checkSeq && (app.checks = { error: quietly(e, "Rule check"), designId: d.designId }))
       .finally(() => seq === checkSeq && (app.checking = false));
   }, delay);
 }
@@ -278,12 +281,42 @@ export function toast(text: string, kind: "error" | "info" = "info") {
 }
 
 /** Runs an engine action, showing its error (if any) instead of throwing. */
-export async function run<T>(f: () => Promise<T>): Promise<T | undefined> {
+const PAGES: Record<Page, string> = {
+  home: "Start", design: "Design", motors: "Motors", flights: "Flights", flightdata: "Flight data", targets: "Targets",
+  standards: "Standards", analysis: "Analysis",
+};
+
+/** Puts a failure in the problems list and shows it, labelled with whose problem it is. */
+export function report(e: unknown, where = PAGES[app.page]): Logged {
+  const l =
+    e instanceof ToolError
+      ? record(e.issue, where, e.tool, e.args)
+      : record(
+          { kind: "system", severity: "error", text: "The app hit an error: " + (e instanceof Error ? e.message : String(e)), bug: true, report: e instanceof Error ? e.stack : undefined },
+          where,
+        );
+  const id = ++toastId;
+  app.toasts.push({ id, text: l.text, kind: "error", issue: l });
+  setTimeout(() => (app.toasts = app.toasts.filter((t) => t.id !== id)), 9000);
+  return l;
+}
+
+/** A background check's failure: into the problems list without a pop-up (it shows in its own panel). */
+function quietly(e: unknown, where: string): string {
+  if (e instanceof ToolError) return record(e.issue, where, e.tool, e.args).text;
+  const text = e instanceof Error ? e.message : String(e);
+  record({ kind: "system", severity: "error", text, bug: true, report: e instanceof Error ? e.stack : undefined }, where);
+  return text;
+}
+
+/** Runs an action; a failure is reported (and handed to {@code onIssue}, e.g. to mark the form field). */
+export async function run<T>(f: () => Promise<T>, where?: string, onIssue?: (l: Logged) => void): Promise<T | undefined> {
   app.busy++;
   try {
     return await f();
   } catch (e) {
-    toast(e instanceof ToolError || e instanceof Error ? e.message : String(e), "error");
+    const l = report(e, where);
+    onIssue?.(l);
     return undefined;
   } finally {
     app.busy--;
@@ -406,9 +439,17 @@ export async function refresh() {
   app.revision++;
   const seq = ++flightSeq;
   app.flying = true;
-  call<QuickFlight>("app_quick_flight", { designId: id })
-    .then((f) => seq === flightSeq && (app.flight = f))
-    .catch((e) => seq === flightSeq && (app.flight = { error: e.message }))
+  callFull("app_quick_flight", { designId: id })
+    .then((r) => {
+      if (seq !== flightSeq) return;
+      app.flight = r.data as QuickFlight;
+      app.flightIssues = r.issues;
+    })
+    .catch((e) => {
+      if (seq !== flightSeq) return;
+      app.flight = { error: quietly(e, "Quick flight") };
+      app.flightIssues = e instanceof ToolError ? [e.issue] : [];
+    })
     .finally(() => seq === flightSeq && (app.flying = false));
   if (autoCheck()) {
     checkRules(600);

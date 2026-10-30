@@ -2,6 +2,7 @@
   import { TriangleAlert } from "@lucide/svelte";
   import { app } from "../state.svelte";
   import { fmt, num } from "../units.svelte";
+  import { KINDS } from "../issues/issues.svelte";
 
   let st = $derived(app.design?.stability ?? {});
   let f = $derived(app.flight);
@@ -9,7 +10,11 @@
   // Against the rule set's minimum (Launch Canada: 1.5 cal); 1 cal when the rule set has none.
   let floor = $derived(st.floor ?? 1);
   let level = $derived(margin === null ? "" : margin < floor ? "bad" : margin < floor + 0.5 ? "warn" : "good");
-  let notes = $derived([...(f?.problems ?? []), ...(st.warnings ?? [])]);
+  // The flight's notes with whose problem each is (physics, output); the stability warnings are physics too.
+  let notes = $derived([
+    ...app.flightIssues.map((i) => ({ kind: i.kind, severity: i.severity, text: i.text })),
+    ...((st.warnings ?? []) as string[]).map((text) => ({ kind: "physics" as const, severity: "warning", text })),
+  ]);
 </script>
 
 <div class="sum">
@@ -35,7 +40,7 @@
 </div>
 {#if notes.length}
   <ul class="notes">
-    {#each notes as n}<li><TriangleAlert size={13} /> {n}</li>{/each}
+    {#each notes as n}<li class="k-{n.kind} {n.severity}"><TriangleAlert size={13} /> <b>{KINDS[n.kind].label}</b> {n.text}</li>{/each}
   </ul>
 {/if}
 
@@ -103,8 +108,21 @@
   }
   .notes li {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: 5px;
+  }
+  .notes li :global(svg) {
+    flex: none;
+    align-self: center;
+  }
+  .notes li.error {
+    color: var(--bad);
+  }
+  .notes b {
+    flex: none;
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
   @media (max-width: 1100px) {
     .sum {

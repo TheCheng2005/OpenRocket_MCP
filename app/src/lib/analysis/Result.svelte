@@ -1,7 +1,7 @@
 <script lang="ts">
   import { FolderOpen } from "@lucide/svelte";
   import { call } from "../api";
-  import { toast } from "../state.svelte";
+  import { report } from "../state.svelte";
   import { isPath, isPrimitive, label, status } from "./text";
   import Self from "./Result.svelte";
 
@@ -33,7 +33,7 @@
     try {
       await call("app_reveal", { path });
     } catch (e) {
-      toast((e as Error).message);
+      report(e);
     }
   }
 </script>

@@ -43,7 +43,7 @@ public final class AltimeterSettings {
 		Branch br = Branch.of(main);
 		double apogee = Sims.eventTime(main, FlightEvent.Type.APOGEE);
 		if (Double.isNaN(apogee)) {
-			throw new ToolException("The simulation never reaches apogee; fix the flight first (run_simulation).");
+			throw ToolException.physics("The simulation never reaches apogee; fix the flight first (run_simulation).");
 		}
 		Map<String, Object> out = new LinkedHashMap<>();
 		Map<String, Object> flight = new LinkedHashMap<>();

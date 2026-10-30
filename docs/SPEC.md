@@ -483,12 +483,21 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   recovery devices refused; values OpenRocket clamps are read back and reported.
 - `Standards.validate` on load and patch: shape against the defaults (a value object may be written as just its
   value) and every quantity through `Limits`.
-- `Sims.problems`: OpenRocket's SIM_ABORT events (with advice per cause), Mach above 3 and peaks above 150 G. Shown in
-  `run_simulation` (`PROBLEMS`, first), `check_requirements` ("Physically sound flight": FAIL when stopped, WARN when
-  outside the models), the flight card and the report. OpenRocket's "BUG: ... NaN" failure becomes an explanation.
+- `Sims.problems`: OpenRocket's SIM_ABORT events (with advice per cause), its own run warnings of normal or high
+  priority except high-speed deployment (left to `recovery_analysis`), Mach above 3 and peaks above 150 G. Shown in
+  `run_simulation` (`PROBLEMS`, first), `check_requirements` ("Physically sound flight": FAIL when stopped, WARN
+  otherwise; "Within the models' range" for notes on the model's validity), the flight card and the report.
+  OpenRocket's "BUG: ... NaN" failure becomes an explanation.
 - `McpServer.unexpected`: malformed JSON and unparsable numbers are the caller's to fix and say so; OpenRocket's own
-  IllegalArgumentExceptions pass through as sentences; anything else is reported as a server bug.
-- Tests: `LimitsTest`, `PhysicalTest` (refused edits, clamped values reported, a rocket that cannot lift off).
+  IllegalArgumentExceptions pass through as sentences; anything else is reported as a server bug with an error ID
+  (logged with the stack trace).
+- `Issues`: each error and result note also goes in `_meta["io.github.openrocketmcp/issues"]` with its kind: `input`
+  (`ToolException`'s default; `field` from a quoted argument name, "not a valid <name>", or a quoted value given for
+  one argument only), `physics` (`ToolException.physics`, and problems about the flight), `output` (non-finite numbers
+  by path, problems about a model's range) or `system` (`ToolException.system`: network, external programs; and bugs,
+  with `id` and a `report` of versions and stack trace).
+- Tests: `LimitsTest`, `PhysicalTest` (refused edits, clamped values reported, a rocket that cannot lift off,
+  OpenRocket's warnings), `IssuesTest` (kinds, fields, bug IDs and reports, result notes).
 
 ### Parachute sizes and product links (v0.20.0)
 

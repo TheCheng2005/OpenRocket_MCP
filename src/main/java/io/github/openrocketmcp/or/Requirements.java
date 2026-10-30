@@ -27,6 +27,7 @@ import info.openrocket.core.simulation.FlightDataType;
 import info.openrocket.core.simulation.FlightEvent;
 import info.openrocket.core.simulation.SimulationOptions;
 import io.github.openrocketmcp.calc.Atmosphere;
+import io.github.openrocketmcp.mcp.Issues;
 import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.standards.Standards;
 import io.github.openrocketmcp.units.Dim;
@@ -117,9 +118,14 @@ public final class Requirements {
 		FlightDataBranch main = data.getBranch(0);
 
 		// A flight OpenRocket stopped, or one beyond what the models cover, puts every number below in doubt.
+		// Physics (the flight itself) and output (numbers from beyond where a model is valid) in their own rows.
 		for (String p : Sims.problems(sim)) {
-			r.add(p.contains("stopped") ? Status.FAIL : Status.WARN, "Physically sound flight",
-					"the simulation runs to landing within OpenRocket's models", p, "");
+			if (Issues.kindOf(p) == ToolException.Kind.OUTPUT) {
+				r.add(Status.WARN, "Within the models' range", "the flight stays where OpenRocket's models are valid", p, "");
+			} else {
+				r.add(p.contains("stopped") ? Status.FAIL : Status.WARN, "Physically sound flight",
+						"the simulation runs to landing", p, "");
+			}
 		}
 
 		// Launch conditions used by the simulation

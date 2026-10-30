@@ -16,6 +16,7 @@ import info.openrocket.core.rocketcomponent.MassComponent;
 import info.openrocket.core.rocketcomponent.Parachute;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.TrapezoidFinSet;
+import io.github.openrocketmcp.mcp.Issues;
 import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.standards.Standards;
 
@@ -77,6 +78,18 @@ class PhysicalTest {
 		assertTrue(Sims.summarize(sim).containsKey("PROBLEMS"));
 		var report = Requirements.check(sim, null, Standards.defaults()).render("x");
 		assertTrue(report.toString().contains("Physically sound flight"), report.toString());
+	}
+
+	@Test
+	void openRocketsOwnWarningsAreProblems() throws Exception {
+		Simulation sim = Sims.prepare(maple(), null, null, Sims.Overrides.none(), Standards.defaults());
+		Sims.ensure(sim);
+		var problems = Sims.problems(sim);
+		String supersonic = problems.stream().filter(p -> p.contains("supersonic")).findFirst().orElse(null);
+		assertTrue(supersonic != null && supersonic.startsWith("OpenRocket warns: "), problems.toString());
+		assertEquals(ToolException.Kind.OUTPUT, Issues.kindOf(supersonic), "accuracy of the result, not the flight");
+		assertTrue(problems.stream().noneMatch(p -> p.contains("deployment at high speed")), "recovery_analysis judges that");
+		assertEquals(ToolException.Kind.PHYSICS, Issues.kindOf("OpenRocket warns: Large angle of attack encountered."));
 	}
 
 	@Test

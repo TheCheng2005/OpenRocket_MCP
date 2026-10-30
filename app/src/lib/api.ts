@@ -30,7 +30,50 @@ export function fileUrl(path: string): string {
   return `/file?token=${encodeURIComponent(token)}&path=${encodeURIComponent(path)}&v=${Date.now()}`;
 }
 
-export class ToolError extends Error {}
+/**
+ * Whose problem something is: what was asked (input), a result to treat with care (output), the computer or
+ * RocketMaxxing itself (system), or the rocket's flight (physics). The engine tags each error and result note.
+ */
+export type IssueKind = "input" | "output" | "system" | "physics";
+
+export interface Issue {
+  kind: IssueKind;
+  severity: "error" | "warning";
+  text: string;
+  /** The argument it is about, for the form field to mark. */
+  field?: string;
+  /** An engine bug: its ID (also in the engine's log) and the details for a report. */
+  id?: string;
+  bug?: boolean;
+  report?: string;
+}
+
+const ISSUES = "io.github.openrocketmcp/issues";
+
+function issuesOf(result: any): Issue[] {
+  const list = result?._meta?.[ISSUES];
+  return Array.isArray(list) ? list : [];
+}
+
+export class ToolError extends Error {
+  issue: Issue;
+  tool: string;
+  args: Record<string, unknown>;
+
+  constructor(message: string, issue?: Issue, tool = "", args: Record<string, unknown> = {}) {
+    super(message);
+    this.issue = issue ?? { kind: "system", severity: "error", text: message };
+    this.tool = tool;
+    this.args = args;
+  }
+}
+
+/** The error of a failed call, with the engine's issue (whose problem it is, and the field). */
+function failure(name: string, args: Record<string, unknown>, result: any): ToolError {
+  const text = (result?.content?.[0]?.text ?? "").replace(/^Error:\s*/, "");
+  const issue = issuesOf(result)[0] ?? { kind: "input", severity: "error", text };
+  return new ToolError(text, { ...issue, text: issue.text || text }, name, args);
+}
 
 /** JSON as the engine writes it; a bare NaN or Infinity in a value position (never valid JSON) reads as null. */
 function parse(text: string): unknown {
@@ -50,17 +93,18 @@ async function rpc(method: string, params: unknown): Promise<any> {
       body: JSON.stringify({ jsonrpc: "2.0", id: nextId++, method, params }),
     });
   } catch {
-    throw new ToolError("Lost the connection to RocketMaxxing. Restart the app.");
+    throw new ToolError("Lost the connection to the RocketMaxxing engine. Restart the app.");
   }
   if (res.status === 401) {
     throw new ToolError("This window is not connected. Restart RocketMaxxing.");
   }
   if (!res.ok) {
-    throw new ToolError(`The engine answered ${res.status}.`);
+    throw new ToolError(`The engine answered ${res.status}.`, { kind: "system", severity: "error", text: `The engine answered ${res.status}.`, bug: true });
   }
   const msg = await res.json();
   if (msg.error) {
-    throw new ToolError(msg.error.message ?? "Engine error");
+    const text = msg.error.message ?? "Engine error";
+    throw new ToolError(text, { kind: "system", severity: "error", text, bug: true });
   }
   return msg.result;
 }
@@ -70,7 +114,7 @@ export async function call<T = any>(name: string, args: Record<string, unknown> 
   const result = await rpc("tools/call", { name, arguments: args });
   const text: string = result?.content?.[0]?.text ?? "";
   if (result?.isError) {
-    throw new ToolError(text.replace(/^Error:\s*/, ""));
+    throw failure(name, args, result);
   }
   try {
     return parse(text) as T;
@@ -95,12 +139,15 @@ export function tools(): Promise<ToolInfo[]> {
   return toolList;
 }
 
-/** Calls a tool and also returns the pictures it attached (plots). */
-export async function callFull(name: string, args: Record<string, unknown> = {}): Promise<{ data: any; images: { src: string }[] }> {
+/** Calls a tool and also returns the pictures it attached (plots) and its notes (physics, output). */
+export async function callFull(
+  name: string,
+  args: Record<string, unknown> = {},
+): Promise<{ data: any; images: { src: string }[]; issues: Issue[] }> {
   const result = await rpc("tools/call", { name, arguments: args });
   const text: string = result?.content?.[0]?.text ?? "";
   if (result?.isError) {
-    throw new ToolError(text.replace(/^Error:\s*/, ""));
+    throw failure(name, args, result);
   }
   let data: any;
   try {
@@ -111,7 +158,7 @@ export async function callFull(name: string, args: Record<string, unknown> = {})
   const images = (result?.content ?? [])
     .filter((c: any) => c.type === "image")
     .map((c: any) => ({ src: `data:${c.mimeType};base64,${c.data}` }));
-  return { data, images };
+  return { data, images, issues: issuesOf(result) };
 }
 
 /** Tells the launcher the window is still open (it stops the engine once the window has been closed a while). */

@@ -252,12 +252,12 @@ public final class FinFea {
 		Process pr = pb.start();
 		if (!pr.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
 			pr.destroyForcibly();
-			throw new ToolException("CalculiX did not finish within " + timeoutSeconds + " s.");
+			throw ToolException.system("CalculiX did not finish within " + timeoutSeconds + " s.");
 		}
 		Path dat = dir.resolve(job + ".dat"), frd = dir.resolve(job + ".frd");
 		if (pr.exitValue() != 0 || !Files.exists(dat) || !Files.exists(frd)) {
 			String log = Files.exists(dir.resolve(job + ".log")) ? Files.readString(dir.resolve(job + ".log")) : "";
-			throw new ToolException("CalculiX failed (exit " + pr.exitValue() + "): " + tail(log, 600));
+			throw ToolException.system("CalculiX failed (exit " + pr.exitValue() + "): " + tail(log, 600));
 		}
 		return parse(Files.readString(dat), Files.readString(frd), deck);
 	}

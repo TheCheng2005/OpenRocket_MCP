@@ -42,6 +42,7 @@ import info.openrocket.core.util.Coordinate;
 import info.openrocket.core.util.ORColor;
 import io.github.openrocketmcp.Main;
 import io.github.openrocketmcp.mcp.Args;
+import io.github.openrocketmcp.mcp.Log;
 import io.github.openrocketmcp.mcp.McpServer;
 import io.github.openrocketmcp.mcp.Schema;
 import io.github.openrocketmcp.mcp.ToolDef;
@@ -1335,13 +1336,21 @@ public final class AppTools {
 			Map<String, Object> m = new LinkedHashMap<>();
 			m.put("name", s.getName());
 			if (!s.getRocket().getFlightConfiguration(s.getFlightConfigurationId()).hasMotors()) {
-				m.put("error", "The configuration has no motors.");
+				m.put("error", "The configuration has no motors: choose one on the Motors page.");
+				m.put("errorKind", ToolException.Kind.INPUT.id());
 			} else {
 				try {
 					Sims.ensure(s);
 					m.put("results", results(s));
-				} catch (RuntimeException e) {
+				} catch (ToolException e) {
 					m.put("error", e.getMessage());
+					m.put("errorKind", e.kind().id());
+				} catch (RuntimeException e) {
+					// OpenRocket failing inside its own simulation: not the user's input; the log has the trace.
+					Log.error("Simulation " + s.getName() + " failed", e);
+					m.put("error", "OpenRocket failed to simulate it (" + e.getClass().getSimpleName()
+							+ (e.getMessage() == null ? "" : ": " + e.getMessage()) + ").");
+					m.put("errorKind", ToolException.Kind.SYSTEM.id());
 				}
 			}
 			out.add(m);

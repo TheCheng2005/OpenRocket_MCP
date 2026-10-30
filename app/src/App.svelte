@@ -16,6 +16,8 @@
   import RocketLoader from "./lib/RocketLoader.svelte";
   import AskDialog from "./lib/AskDialog.svelte";
   import AssistantDrawer from "./lib/assistant/AssistantDrawer.svelte";
+  import IssuesDrawer from "./lib/issues/IssuesDrawer.svelte";
+  import { issues, watchPageErrors } from "./lib/issues/issues.svelte";
   import { assistant, loadSettings } from "./lib/assistant/assistant.svelte";
 
   let ready = $state(false);
@@ -23,6 +25,7 @@
   onMount(() => {
     if (!connected) return;
     keepAlive();
+    watchPageErrors();
     run(init).finally(() => (ready = true));
     loadSettings();
   });
@@ -86,6 +89,7 @@
           <AnalysisPage />
         {/if}
       </main>
+      {#if issues.open}<IssuesDrawer />{/if}
       {#if assistant.open && assistant.settings?.enabled}<AssistantDrawer />{/if}
     </div>
   </div>

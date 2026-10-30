@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { Plus, Play, PlayCircle, Trash2, Clapperboard } from "@lucide/svelte";
+  import { Plus, Play, PlayCircle, Trash2, Clapperboard, TriangleAlert } from "@lucide/svelte";
   import VideoDialog from "../media/VideoDialog.svelte";
   import RocketLoader from "../RocketLoader.svelte";
   import { untrack } from "svelte";
-  import { call } from "../api";
-  import { act, app, run } from "../state.svelte";
+  import { call, ToolError, type IssueKind } from "../api";
+  import { act, app, report, run } from "../state.svelte";
   import { fmt, num, pretty, toShown, unitOf, type Dim } from "../units.svelte";
   import Plot, { type Series } from "../Plot.svelte";
   import SimForm from "./SimForm.svelte";
@@ -50,7 +50,12 @@
     running = true;
     const r = await act("app_sim_run", all ? {} : { simulation: sel });
     running = false;
-    for (const x of r?.runs ?? []) if (x.error) app.toasts.push({ id: Date.now() + Math.random(), text: `${x.name}: ${x.error}`, kind: "error" });
+    for (const x of r?.runs ?? []) {
+      if (!x.error) continue;
+      const kind = (x.errorKind ?? "system") as IssueKind;
+      const text = `${x.name}: ${x.error}`;
+      report(new ToolError(text, { kind, severity: "error", text }, "app_sim_run"), "Flights");
+    }
     plotKey++;
   }
 
@@ -162,7 +167,12 @@
             {@const st = STATUS[s.status] ?? ["none", s.status]}
             <tr class:sel={i === sel} onclick={() => (sel = i)}>
               <td><span class="dot {st[0]}" title={st[1]}></span></td>
-              <td>{s.name}</td>
+              <td>
+                {s.name}
+                {#if s.results.problems?.length}
+                  <span class="probs" title={s.results.problems.join("\n")}><TriangleAlert size={13} /></span>
+                {/if}
+              </td>
               <td>{s.configurationName}</td>
               <td class="num">{fmt(s.results.apogee, "DISTANCE")}</td>
               <td class="num">{fmt(s.results.maxVelocity, "VELOCITY")}{#if s.results.maxMach}<span class="muted mach">Mach {s.results.maxMach.toFixed(2)}</span>{/if}</td>
@@ -225,6 +235,11 @@
 {#if video && current}<VideoDialog simulation={current.index} name={current.name} close={() => (video = false)} />{/if}
 
 <style>
+  .probs {
+    color: var(--warn);
+    vertical-align: -2px;
+    margin-left: 3px;
+  }
   .page {
     flex: 1;
     min-height: 0;

@@ -507,14 +507,15 @@ public final class McpServer {
 			badChoice = normalizeChoices(tool.inputSchema(), args.raw());
 		}
 		if (badChoice != null) {
-			return textResult("Error: " + badChoice, true);
+			return failed(textResult("Error: " + badChoice, true), ToolException.Kind.INPUT, badChoice,
+					Issues.field(badChoice, tool.inputSchema(), args.raw()), null, null);
 		}
 		Guard g = guard;
 		Lock lock = null;
 		try {
 			lock = g == null ? null : g.lockFor(tool, args);
 		} catch (ToolException e) {
-			return textResult("Error: " + e.getMessage(), true);
+			return failed(textResult("Error: " + e.getMessage(), true), e.kind(), e.getMessage(), e.field(), null, null);
 		}
 		if (lock != null) {
 			lock.lock();
@@ -524,7 +525,12 @@ public final class McpServer {
 			Limits.precheck(args.raw(), tool.inputSchema());
 			Object value = withoutInternal(tool.handler().call(args));
 			// Compact JSON: indentation roughly doubles the size of every result the model has to read.
-			JsonObject r = textResult(outputFilter.apply(value instanceof String s ? s : compact.toJson(value)), false);
+			JsonElement tree = value instanceof String ? null : compact.toJsonTree(value);
+			JsonObject r = textResult(outputFilter.apply(value instanceof String s ? s : compact.toJson(tree)), false);
+			JsonArray notes = tree == null ? new JsonArray() : Issues.ofResult(tree);
+			if (!notes.isEmpty()) {
+				meta(r).add(Issues.META_KEY, notes);
+			}
 			for (CallContext.Image im : ctx.images()) {
 				JsonObject c = new JsonObject();
 				c.addProperty("type", "image");
@@ -537,15 +543,47 @@ public final class McpServer {
 			}
 			return r;
 		} catch (ToolException e) {
-			return textResult(outputFilter.apply("Error: " + e.getMessage()), true);
+			String field = e.field() != null ? e.field() : e.kind() == ToolException.Kind.INPUT ? Issues.field(e.getMessage(), tool.inputSchema(), args.raw()) : null;
+			return failed(textResult(outputFilter.apply("Error: " + e.getMessage()), true), e.kind(), e.getMessage(), field, null, null);
 		} catch (Exception e) {
-			Log.error("Tool " + toolName + " failed", e);
-			return textResult(outputFilter.apply("Error: " + unexpected(toolName, e)), true);
+			ToolException.Kind kind = Issues.kindOfUnexpected(e);
+			String id = Issues.isBug(e) ? Issues.newId() : null;
+			Log.error("Tool " + toolName + " failed" + (id == null ? "" : " [error " + id + "]"), e);
+			String text = unexpected(toolName, e) + (id == null ? "" : " Error ID " + id + ".");
+			return failed(textResult(outputFilter.apply("Error: " + text), true), kind, text,
+					kind == ToolException.Kind.INPUT ? Issues.field(text, tool.inputSchema(), args.raw()) : null, id,
+					id == null ? null : Issues.report(name, version, toolName, e));
 		} finally {
 			if (lock != null) {
 				lock.unlock();
 			}
 		}
+	}
+
+	/** An error result with its issue for the app: whose problem it is, the argument it is about, a bug's ID and report. */
+	private static JsonObject failed(JsonObject r, ToolException.Kind kind, String text, String field, String id, String report) {
+		JsonObject issue = Issues.issue(kind, "error", text);
+		if (field != null) {
+			issue.addProperty("field", field);
+		}
+		if (id != null) {
+			issue.addProperty("id", id);
+			issue.addProperty("bug", true);
+		}
+		if (report != null) {
+			issue.addProperty("report", report);
+		}
+		JsonArray a = new JsonArray();
+		a.add(issue);
+		meta(r).add(Issues.META_KEY, a);
+		return r;
+	}
+
+	private static JsonObject meta(JsonObject r) {
+		if (!r.has("_meta")) {
+			r.add("_meta", new JsonObject());
+		}
+		return r.getAsJsonObject("_meta");
 	}
 
 	private static JsonObject textResult(String text, boolean isError) {
