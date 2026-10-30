@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { FilePlus2, FolderOpen, Save, Undo2, Redo2, Settings as Gear, Loader, MessageSquare } from "@lucide/svelte";
+  import { FilePlus2, FolderOpen, Save, Undo2, Redo2, Settings as Gear, MessageSquare } from "@lucide/svelte";
   import { app, newDesign, openDialog, save, undo, redo, selectConfig } from "./state.svelte";
   import Settings from "./Settings.svelte";
+  import RocketLoader from "./RocketLoader.svelte";
   import { assistant, who } from "./assistant/assistant.svelte";
 
   let settings = $state(false);
@@ -35,7 +36,7 @@
 
   <div class="spacer"></div>
 
-  {#if app.busy > 0}<span class="busy" title="Working"><Loader size={16} /></span>{/if}
+  {#if app.busy > 0}<span class="busy" title="Working"><RocketLoader size="tiny" /></span>{/if}
 
   {#if app.design}
     <label class="config">

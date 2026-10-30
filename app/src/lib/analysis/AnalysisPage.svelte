@@ -10,6 +10,7 @@
   import RowsEditor from "./RowsEditor.svelte";
   import { CATALOG, OVERRIDES, PART_INPUTS, type Analysis } from "./catalog";
   import { analysis } from "./store.svelte";
+  import RocketLoader from "../RocketLoader.svelte";
   import { firstSentence, label } from "./text";
 
   // The engine's analyses: pick one, fill in what it needs (the design is filled in), run, read the result.
@@ -308,12 +309,13 @@
         {#if outcome}<span class="meta">{stale ? "Design changed since this ran. " : ""}{(outcome.ms / 1000).toFixed(1)} s</span>{/if}
       {/snippet}
       <div class="out" class:stale>
+        {#if running}<RocketLoader text={entry.label} />{/if}
         {#if outcome}
           {#if entry.plot}<ResultPlot data={outcome.data} spec={entry.plot} />{/if}
           {#each outcome.images as img}<img src={img.src} alt="Plot" />{/each}
           <Result value={outcome.data} />
         {:else}
-          <p class="muted">Not run yet.</p>
+          {#if !running}<p class="muted">Not run yet.</p>{/if}
         {/if}
       </div>
     </Panel>

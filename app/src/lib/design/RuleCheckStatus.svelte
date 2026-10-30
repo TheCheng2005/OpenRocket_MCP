@@ -2,6 +2,7 @@
   import { RefreshCw } from "@lucide/svelte";
   import { app, checkRules } from "../state.svelte";
   import { status } from "../analysis/text";
+  import RocketLoader from "../RocketLoader.svelte";
 
   // Counts for the rule check panel's title bar, shown even when the panel is folded.
   let c = $derived(app.checks && app.checks.designId === app.design?.designId ? app.checks : null);
@@ -16,7 +17,7 @@
 </script>
 
 <span class="counts">
-  {#if app.checking}<span>checking…</span>{/if}
+  {#if app.checking}<span title="Checking"><RocketLoader size="tiny" /></span>{/if}
   {#if c?.checks}
     <span class:bad={counts.fail > 0}>{counts.fail} fail</span>
     <span class:warn={counts.warn > 0}>{counts.warn} warn</span>

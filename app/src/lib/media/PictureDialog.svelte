@@ -4,6 +4,7 @@
   import { call, fileUrl } from "../api";
   import { app, run } from "../state.svelte";
   import Modal from "../Modal.svelte";
+  import RocketLoader from "../RocketLoader.svelte";
   import { exportPath } from "./media";
 
   // A picture of the design for reviews and build notes: shaded 3-D (exploded, cut-away or outside, with a numbered parts
@@ -67,7 +68,7 @@
       <img src={fileUrl(result.file)} alt="The design" />
       <p class="muted path"><Image size={13} /> {result.file}</p>
     {:else if busy}
-      <p class="muted">Drawing…</p>
+      <RocketLoader text="Drawing the picture" />
     {/if}
   </div>
   {#if result?.parts?.length}

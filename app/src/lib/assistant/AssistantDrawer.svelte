@@ -3,6 +3,7 @@
   import { X, SquarePen, Send, Square, Check, CircleAlert } from "@lucide/svelte";
   import { assistant, send, stop, reset, who, MODEL_NAMES, CLAUDE_CODE_MODELS, PROVIDER_NAMES } from "./assistant.svelte";
   import { markdown } from "./text";
+  import RocketLoader from "../RocketLoader.svelte";
 
   // Claude beside the design: what the team asks, what Claude answers, and each tool it used (open one to see what it
   // sent and got back). Changes it makes show in the app at once and undo like any other edit.
@@ -94,7 +95,7 @@
         <div class="note" class:error={e.kind === "error"}>{e.text}</div>
       {/if}
     {/each}
-    {#if assistant.running}<div class="working muted">{who()} is working…</div>{/if}
+    {#if assistant.running}<div class="working"><RocketLoader size="small" /></div>{/if}
   </div>
 
   <footer>

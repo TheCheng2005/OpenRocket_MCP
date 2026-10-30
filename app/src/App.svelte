@@ -13,6 +13,7 @@
   import FlightDataPage from "./lib/flightdata/FlightDataPage.svelte";
   import StandardsPage from "./lib/standards/StandardsPage.svelte";
   import Toasts from "./lib/Toasts.svelte";
+  import RocketLoader from "./lib/RocketLoader.svelte";
   import AskDialog from "./lib/AskDialog.svelte";
   import AssistantDrawer from "./lib/assistant/AssistantDrawer.svelte";
   import { assistant, loadSettings } from "./lib/assistant/assistant.svelte";
@@ -66,7 +67,7 @@
       <NavRail />
       <main>
         {#if !ready}
-          <div class="loading">Loading…</div>
+          <div class="loading"><RocketLoader text="Starting OpenRocket and loading its motors and parts" /></div>
         {:else if app.page === "home" || !app.design}
           <Home />
         {:else if app.page === "design"}

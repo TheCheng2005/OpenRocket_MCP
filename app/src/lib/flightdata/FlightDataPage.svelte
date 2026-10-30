@@ -7,6 +7,7 @@
   import Panel from "../Panel.svelte";
   import Plot from "../Plot.svelte";
   import AccuracyChart from "./AccuracyChart.svelte";
+  import RocketLoader from "../RocketLoader.svelte";
   import { fd, type Library, type LogResult } from "./store.svelte";
 
   // After the flight: one altimeter log against the simulation, and the team's past rockets with how well their
@@ -138,6 +139,7 @@
           </div>
         </div>
 
+        {#if fd.comparing}<RocketLoader text="Flying the simulation in the day's conditions and fitting the drag" />{/if}
         {#if log}
           {#if plot}
             <Plot x={plot.x} series={plot.series} xLabel="Time from launch (s)" leftLabel={"Altitude (" + pretty(unitOf("DISTANCE").unit) + ")"} height={280} />
@@ -183,6 +185,7 @@
           <button class="btn" onclick={browseFolder}><FolderOpen size={14} /> Folder…</button>
           <button class="btn primary" disabled={fd.scanning} onclick={scan}>{fd.scanning ? "Reading…" : "Read"}</button>
         </div>
+        {#if fd.scanning}<RocketLoader text="Reading every design and log in the folder" />{/if}
         {#if lib}
           <p class="summary">
             {lib.designs.length} design{lib.designs.length === 1 ? "" : "s"}, {lib.flights.length} flight log{lib.flights.length === 1 ? "" : "s"}

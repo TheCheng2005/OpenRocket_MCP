@@ -78,6 +78,11 @@ Settings (the gear, top right) has the units, metric or imperial and per quantit
 
 Edits can be undone (up to 50). Nothing is written to the file until you save.
 
+While the engine works (starting up, a long analysis, a video), a small rocket flies past whatever happens to be up
+there (geese, an airliner, a kite, the Moon, a satellite, a UFO...) and says what it is up to.
+
+![Loading](rocketmaxxing/loader.gif)
+
 ## The assistant (optional)
 
 Settings > AI assistant puts an assistant beside the design. It works through the same tools as the app (and as the

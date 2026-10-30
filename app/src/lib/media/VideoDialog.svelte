@@ -3,6 +3,7 @@
   import { call, fileUrl } from "../api";
   import { app, run } from "../state.svelte";
   import Modal from "../Modal.svelte";
+  import RocketLoader from "../RocketLoader.svelte";
   import { exportPath, pathOf, sizeOf } from "./media";
 
   // The simulated flight as a video: a chase camera on the rocket, the separations and canopies, the numbers on screen.
@@ -60,7 +61,7 @@
   </div>
   <p class="muted note">The flight is played in real time through the burn, apogee and each deployment; the coast and the descent are sped up to fit the length.</p>
 
-  {#if busy}<p class="muted">Simulating and drawing every frame; this takes about a minute for a long video.</p>{/if}
+  {#if busy}<RocketLoader text="Simulating the flight and drawing every frame: about a minute for a long video." />{/if}
   {#if result}
     {#if video}
       <!-- svelte-ignore a11y_media_has_caption -->

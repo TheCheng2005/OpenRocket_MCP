@@ -7,6 +7,7 @@
   import RuleCheck from "../design/RuleCheck.svelte";
   import RuleCheckStatus from "../design/RuleCheckStatus.svelte";
   import Gauge from "./Gauge.svelte";
+  import RocketLoader from "../RocketLoader.svelte";
 
   // The team's own targets with the margin to each, next to the competition rules. Both are checked again after
   // every edit; a limit typed here is saved in the team standards file, where Claude reads the same targets.
@@ -82,7 +83,7 @@
     <Panel id="targets.list" title="Targets" fill>
       {#snippet status()}
         <span class="counts">
-          {#if app.targeting}<span>checking…</span>{/if}
+          {#if app.targeting}<RocketLoader size="tiny" />{/if}
           {#if t?.targets}
             <span class:bad={counts.FAIL > 0}>{counts.FAIL} missed</span>
             <span class:warn={counts.WARN > 0}>{counts.WARN} close</span>
@@ -96,7 +97,7 @@
       {/snippet}
       <div class="body" class:stale={app.targeting}>
         {#if !t}
-          <p class="muted pad">Flying the design…</p>
+          <RocketLoader text="Flying the design to measure it against the targets" />
         {:else if t.error}
           <p class="muted pad">{t.error}</p>
         {:else}
