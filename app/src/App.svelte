@@ -11,6 +11,7 @@
   import AnalysisPage from "./lib/analysis/AnalysisPage.svelte";
   import TargetsPage from "./lib/targets/TargetsPage.svelte";
   import FlightDataPage from "./lib/flightdata/FlightDataPage.svelte";
+  import StandardsPage from "./lib/standards/StandardsPage.svelte";
   import Toasts from "./lib/Toasts.svelte";
   import AskDialog from "./lib/AskDialog.svelte";
   import AssistantDrawer from "./lib/assistant/AssistantDrawer.svelte";
@@ -76,6 +77,8 @@
           <FlightsPage />
         {:else if app.page === "flightdata"}
           <FlightDataPage />
+        {:else if app.page === "standards"}
+          <StandardsPage />
         {:else if app.page === "targets"}
           <TargetsPage />
         {:else if app.page === "analysis"}

@@ -13,9 +13,10 @@ live margins, flight data after a launch, and an optional assistant. See [the pl
 
 | RocketMaxxing | OpenRocket | Notes |
 |---|---|---|
-| Design | Rocket design | Parts list on the left, the rocket in the middle, the selected part's properties on the right (no pop-up dialog). The add-part buttons are below the view; the ones that can't go where you are pointing are greyed out. Summary shows stability against your rule set's minimum, mass, length and a quick flight of the active configuration. Fins show their outline (freeform fins are drawn and edited there); parts with a catalogue have a Catalogue button; every part can be given a paint colour. |
-| Motors | Motors & Configuration | Motors, recovery and stages as three tables on one page, a row per flight configuration. The motor list can be searched, filtered to motors that fit the mount, and shows the thrust curve. |
-| Flights | Flight simulations | The simulations, the launch conditions of the selected one, and its plot. |
+| Design | Rocket design | Parts list on the left, the rocket in the middle, the selected part's properties on the right (no pop-up dialog). The add-part buttons are below the view; the ones that can't go where you are pointing are greyed out. Summary shows stability against your rule set's minimum, mass, length and a quick flight of the active configuration. Fins show their outline (freeform fins are drawn and edited there); parts with a catalogue have a Catalogue button; every part can be given a paint colour. Picture makes an exploded, cut-away or outside 3-D image with a numbered parts list, or the side drawing with CG and CP. The Avionics bay button lays out a whole electronics bay between two tubes. |
+| Motors | Motors & Configuration | Motors, recovery and stages as three tables on one page, a row per flight configuration. The motor list is OpenRocket's own database (the thrustcurve.org motors that come with OpenRocket 24.12, offline): it can be searched, filtered to motors that fit the mount, and shows the thrust curve. Import file adds a .eng, .rse or zipped motor file; Your own motor makes one from static-fire data (a thrust curve to paste or load from CSV, or an average thrust and burn time) with its masses, delays and CG. Both are kept in the designs folder's `motors/` and load whenever the app starts, so a design keeps its motor. |
+| Flights | Flight simulations | The simulations, the launch conditions of the selected one, and its plot. Video turns the selected flight into an animation (a chase camera, the separations and canopies, the numbers on screen): a GIF, an MP4 when ffmpeg is installed, and a sheet of key-moment stills. |
+| Standards | (not in OpenRocket) | The team's standards, which every check uses: the competition rule set, the launch site, recovery and structures safety factors, shear pin ratings, material data, altimeter, battery and radio settings. Only what the team changes goes into its file (`openrocket-mcp.json`); a dot marks those values, and each can go back to its default. |
 | Targets | (not in OpenRocket) | The team's targets: a minimum, goal and maximum for apogee, speeds, rail exit, stability, flutter margin, mass, descent rates, landing and more, each with the margin to the nearer limit (met, close within 5%, missed), checked again after each edit. The competition rules sit beside them. |
 | Flight data | (not in OpenRocket) | After a flight: load the altimeter log and see it against the simulation flown in the day's conditions, with the drag factor that matches the measured apogee. Read a folder of past rockets and logs to see how well apogee was predicted over the years, and open or compare any of them. |
 | Analysis | (not in OpenRocket) | 42 analyses from the engine, by area: rule check and readiness; stability and drag vs Mach, ballast, shape trades; recovery loads, parachute sizing, late deployment, shear pins, ejection charge, opening shock, bay fit, landing energy; fin flutter, airframe loads, heating, material trade, pressure vessel; rail buttons, flight card, altimeter settings, sensors, radio link, power budget, winds aloft; Monte Carlo, motor ranking, parameter sweep, optimizer; compare designs, progress log, edit history, RASAero table import, flight log against the simulation; report, CSV and geometry export. Pick one, fill in what it asks for (simulation, parts and other designs from lists, files with Browse, lists of items as small tables), run. Results show as tables with pass, warn and fail in colour, plots, and a Show button for files it writes. |
@@ -40,6 +41,17 @@ database, nearest the part's diameter first.
 ![Freeform fin editor](rocketmaxxing/fin-editor.png)
 
 ![Parts catalogue](rocketmaxxing/catalogue.png)
+
+Pictures, drawings and videos go to the designs folder's `exports/`, and show in the app as soon as they are made. None
+of them needs an assistant.
+
+![Picture: exploded view with parts list](rocketmaxxing/picture.png)
+
+![Flight video](rocketmaxxing/video.png)
+
+![Your own motor](rocketmaxxing/own-motor.png)
+
+![Team standards](rocketmaxxing/standards.png)
 
 Plots in Analysis: stability and Cd against Mach, the parameter sweep, late deployment, the parachute size chart,
 the Monte Carlo landing map and the flight log against the simulation.
@@ -169,3 +181,7 @@ Use OpenRocket on the same file for:
 - decals and textures, the photo studio, fin templates, printing;
 - custom plot setups (the Analysis page exports flight data);
 - importing a fin outline from an image or a CSV file.
+
+The engine also does these, so far through the assistant (or Claude over MCP) only: fin FEA, fin shape optimisation,
+weather forecasts, product links to parts, parachute search by descent rate, simulated sensor data, checking meeting
+notes and the Launch Canada probation levels.

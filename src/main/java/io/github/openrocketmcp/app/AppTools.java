@@ -943,6 +943,18 @@ public final class AppTools {
 		}
 	}
 
+	/** Values not set (null, such as the launch site's altitude) as "", so they reach the page as fields to fill in. */
+	static JsonObject unset(JsonObject o) {
+		for (Map.Entry<String, JsonElement> e : o.entrySet()) {
+			if (e.getValue().isJsonNull()) {
+				e.setValue(new com.google.gson.JsonPrimitive(""));
+			} else if (e.getValue().isJsonObject()) {
+				unset(e.getValue().getAsJsonObject());
+			}
+		}
+		return o;
+	}
+
 	/** What the standards page shows: the team's own values, the values in use, the defaults, and the rule sets. */
 	static Map<String, Object> standards(Context ctx) throws IOException {
 		Path file = standardsFile(ctx);
@@ -950,8 +962,8 @@ public final class AppTools {
 		out.put("file", file.toString());
 		out.put("fileExists", Files.exists(file));
 		out.put("team", teamFile(file));
-		out.put("merged", ctx.standards().data());
-		out.put("defaults", Standards.defaultsJson());
+		out.put("merged", unset(ctx.standards().data().deepCopy()));
+		out.put("defaults", unset(Standards.defaultsJson()));
 		List<Map<String, String>> rules = new ArrayList<>();
 		for (String id : Standards.BUILT_IN_RULES) {
 			rules.add(Map.of("id", id, "name", Standards.ruleSetName(id)));

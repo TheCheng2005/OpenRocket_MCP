@@ -70,6 +70,7 @@ export const CATALOG: Group[] = [
   {
     title: "Launch and avionics",
     items: [
+      { tool: "add_avionics_bay", label: "Avionics bay", blurb: "Builds the electronics bay between two airframe tubes: coupler, bulkheads, altimeter circuits with batteries and switches, charges, U-bolts and the tracker.", main: ["upperTube", "lowerTube", "altimeters", "tracker", "couplerLength", "switchBand", "packRecovery"] },
       { tool: "rail_buttons", label: "Rail buttons", blurb: "Rail button positions, rail exit speed and tip-off.", main: ["forward", "aft", "crosswind", "apply"] },
       { tool: "flight_card", label: "Flight card", blurb: "Writes the launch-day flight card.", main: ["path"], defaults: (n) => ({ path: `${n}-flight-card.md` }) },
       { tool: "altimeter_settings", label: "Altimeter settings", blurb: "Settings for the primary and backup altimeters: deployment, Mach lockout, port size.", main: ["bay", "bayVolume"] },
@@ -120,6 +121,8 @@ export const PART_INPUTS: Record<string, string[] | "any" | "mount"> = {
   mount: "mount",
   noseCone: ["NoseCone"],
   bayTube: ["BodyTube", "TubeCoupler"],
+  upperTube: ["BodyTube"],
+  lowerTube: ["BodyTube"],
   bayComponent: ["BodyTube", "TubeCoupler", "NoseCone"],
   component: "any",
 };

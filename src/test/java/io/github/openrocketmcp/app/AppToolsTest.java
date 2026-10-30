@@ -372,4 +372,62 @@ class AppToolsTest {
 		call("app_appearance", tubeArgs + ", \"color\": \"\"}");
 		assertFalse(call("app_component", tubeArgs + "}").has("paint"), "back to the default look");
 	}
+
+	@Test
+	void teamStandardsKeepOnlyWhatTheTeamSet(@TempDir Path ws) throws Exception {
+		Context c = new Context(Standards.defaults(), ws, false);
+		McpServer app = Main.build(c, s -> AppTools.register(s, c, ws.resolve("assistant.json")), false);
+		java.util.function.BiFunction<String, String, JsonObject> rpc = (tool, args) -> {
+			JsonObject r = app.handleLine("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"" + tool
+					+ "\",\"arguments\":" + args + "}}").getAsJsonObject("result");
+			JsonObject o = new JsonObject();
+			o.addProperty("isError", r.get("isError").getAsBoolean());
+			o.addProperty("text", r.getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString());
+			return o;
+		};
+		rpc.apply("app_set_standards", "{\"patch\": {\"recovery\": {\"harnessSafetyFactor\": 2.5, \"shearPins\": {\"2-56 nylon\": {\"strength\": \"35 lbf\"}}}, \"launchSite\": {\"railLength\": \"6 m\"}}}");
+		Path file = ws.resolve(Standards.FILE_NAME);
+		assertEquals("{\"recovery\":{\"harnessSafetyFactor\":2.5,\"shearPins\":{\"2-56 nylon\":{\"strength\":\"35 lbf\"}}},\"launchSite\":{\"railLength\":\"6 m\"}}",
+				JsonParser.parseString(Files.readString(file)).toString(), "only the team's values, not the defaults");
+		assertEquals(2.5, c.standards().q("recovery.harnessSafetyFactor", io.github.openrocketmcp.units.Dim.DIMENSIONLESS, 0));
+		assertEquals(155.687, c.standards().pinStrength("2-56 nylon"), 0.01);
+		assertEquals(140, c.standards().pinStrength("4-40 nylon"), 1e-9, "the default pins are still there");
+		// Back to the default: the key leaves the file and the default applies again.
+		rpc.apply("app_set_standards", "{\"patch\": {\"launchSite\": {\"railLength\": null}}}");
+		assertFalse(Files.readString(file).contains("launchSite"));
+		assertEquals(5.6388, c.standards().q("launchSite.railLength", io.github.openrocketmcp.units.Dim.LENGTH, 0), 1e-4);
+		// A value the checks would misread is refused, and the file is left as it was.
+		String before = Files.readString(file);
+		JsonObject bad = rpc.apply("app_set_standards", "{\"patch\": {\"recovery\": \"lots\"}}");
+		assertTrue(bad.get("isError").getAsBoolean(), bad.toString());
+		assertEquals(before, Files.readString(file));
+		JsonObject read = JsonParser.parseString(rpc.apply("app_standards", "{}").get("text").getAsString()).getAsJsonObject();
+		assertTrue(read.getAsJsonObject("defaults").has("recovery"));
+		assertEquals(2.5, read.getAsJsonObject("team").getAsJsonObject("recovery").get("harnessSafetyFactor").getAsDouble());
+		assertTrue(read.getAsJsonArray("ruleSets").size() >= 3);
+	}
+
+	@Test
+	void motorFilesAreKeptWithTheDesigns(@TempDir Path ws, @TempDir Path downloads) throws Exception {
+		Context c = new Context(Standards.defaults(), ws, false);
+		McpServer app = Main.build(c, s -> AppTools.register(s, c, ws.resolve("assistant.json")), false);
+		Path eng = downloads.resolve("team-k500.eng");
+		Files.writeString(eng, "; a test motor\nTeamTest-K500 54 400 0 0.8 1.4 TeamTest\n0.05 600\n1.0 550\n2.0 500\n2.2 0\n;\n");
+		JsonObject r = app.handleLine("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"app_import_motor\",\"arguments\":{\"path\":"
+				+ new com.google.gson.Gson().toJson(eng.toString()) + "}}}").getAsJsonObject("result");
+		String text = r.getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString();
+		assertFalse(r.get("isError").getAsBoolean(), text);
+		JsonObject out = JsonParser.parseString(text).getAsJsonObject();
+		assertEquals("TeamTest-K500", out.getAsJsonArray("motors").get(0).getAsJsonObject().get("designation").getAsString());
+		Path kept = ws.resolve("motors/team-k500.eng");
+		assertTrue(Files.exists(kept), "a copy stays in the designs folder");
+		assertEquals(Files.readString(eng), Files.readString(kept));
+		// A bad file is refused and nothing is kept.
+		Path junk = downloads.resolve("junk.eng");
+		Files.writeString(junk, "not a motor");
+		JsonObject bad = app.handleLine("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"app_import_motor\",\"arguments\":{\"path\":"
+				+ new com.google.gson.Gson().toJson(junk.toString()) + "}}}").getAsJsonObject("result");
+		assertTrue(bad.get("isError").getAsBoolean());
+		assertFalse(Files.exists(ws.resolve("motors/junk.eng")));
+	}
 }

@@ -363,7 +363,8 @@ public final class Motors {
 			delays.append("P");
 		} else {
 			for (double d : c.delays()) {
-				delays.append(delays.length() == 0 ? "" : "-").append(Units.num(d));
+				// OpenRocket's RockSim reader splits the list on commas ("10-14", the .eng style, reads as no delays).
+				delays.append(delays.length() == 0 ? "" : ",").append(Units.num(d));
 			}
 		}
 		StringBuilder xml = new StringBuilder();

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { app, addPart, placement, findNode } from "../state.svelte";
+  import { analysis } from "../analysis/store.svelte";
   import ComponentIcon from "../ComponentIcon.svelte";
 
   // OpenRocket's add-component buttons, in the same groups.
@@ -11,6 +12,12 @@
     { title: "Mass", parts: [["Parachute", "Parachute"], ["Streamer", "Streamer"], ["ShockCord", "Shock cord"], ["MassComponent", "Mass"]] },
     { title: "Assembly", parts: [["AxialStage", "Stage"], ["ParallelStage", "Boosters"], ["PodSet", "Pods"]] },
   ];
+
+  /** A whole avionics bay, laid out by the engine: its form is on the Analysis page. */
+  function avionicsBay() {
+    analysis.selected = "add_avionics_bay";
+    app.page = "analysis";
+  }
 
   // Where each kind of part would go from the current selection (null: nowhere).
   let can = $derived.by(() => {
@@ -41,6 +48,15 @@
       </div>
     </div>
   {/each}
+  <div class="group">
+    <div class="gt">Built for you</div>
+    <div class="tiles">
+      <button class="tile" title="Coupler, bulkheads, altimeters with batteries and switches, charges and tracker, laid out between two tubes" onclick={avionicsBay}>
+        <ComponentIcon type="TubeCoupler" size={32} />
+        <span>Avionics bay</span>
+      </button>
+    </div>
+  </div>
 </div>
 
 <style>
