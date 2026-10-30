@@ -2,7 +2,7 @@
   import { X } from "@lucide/svelte";
   import { app, setSystem, autoCheck, setAutoCheck } from "./state.svelte";
   import { units, choices, choose, unitOf, pretty, type Dim } from "./units.svelte";
-  import { prefs, setTheme, type Theme } from "./prefs.svelte";
+  import { prefs, setTheme, setScheme, SCHEMES, type Theme, type Scheme } from "./prefs.svelte";
   import { assistant, configure, checkConnections, MODEL_NAMES, CLAUDE_CODE_MODELS, type Provider } from "./assistant/assistant.svelte";
 
   let { close }: { close: () => void } = $props();
@@ -24,8 +24,20 @@
     ["TIME", "Time"], ["ANGLE", "Angle"], ["AREA", "Area"], ["VOLUME", "Volume"], ["PRESSURE", "Pressure"],
     ["DENSITY", "Density"], ["TEMPERATURE", "Temperature"],
   ];
-  const THEMES: [Theme, string][] = [["system", "Same as the system"], ["light", "Light"], ["dark", "Dark"]];
+  const THEMES: [Theme, string][] = [["system", "System"], ["light", "Light"], ["dark", "Dark"]];
+  const COLOURS = SCHEMES.filter((x) => !x.vision);
+  const VISION = SCHEMES.filter((x) => x.vision);
 </script>
+
+{#snippet tile(sc: Scheme)}
+  <button class="scheme" class:on={prefs.scheme === sc.id} role="radio" aria-checked={prefs.scheme === sc.id} title={sc.vision ?? sc.name}
+    onclick={() => setScheme(sc.id)}>
+    <span class="sw" style:background={sc.swatch[0]}>
+      <i style:background={sc.swatch[1]}></i><i style:background={sc.swatch[2]}></i>
+    </span>
+    <span class="nm">{sc.name}</span>
+  </button>
+{/snippet}
 
 <svelte:window onkeydown={(e) => e.key === "Escape" && close()} />
 
@@ -59,10 +71,17 @@
 
       <h4>Appearance</h4>
       <div class="row">
-        <span>Theme</span>
-        <select class="select" value={prefs.theme} onchange={(e) => setTheme((e.target as HTMLSelectElement).value as Theme)}>
-          {#each THEMES as [t, label] (t)}<option value={t}>{label}</option>{/each}
-        </select>
+        <span>Light or dark</span>
+        <div class="seg">
+          {#each THEMES as [t, label] (t)}<button class:on={prefs.theme === t} onclick={() => setTheme(t)}>{label}</button>{/each}
+        </div>
+      </div>
+      <div class="schemes" role="radiogroup" aria-label="Colour scheme">
+        {#each COLOURS as sc (sc.id)}{@render tile(sc)}{/each}
+      </div>
+      <p class="note">For colour vision: pass, warning and failure colours that stay apart (PASS, WARN and FAIL are always written out too).</p>
+      <div class="schemes" role="radiogroup" aria-label="Colour scheme for colour vision">
+        {#each VISION as sc (sc.id)}{@render tile(sc)}{/each}
       </div>
 
       <h4>Checks</h4>
@@ -249,6 +268,48 @@
   .units {
     display: flex;
     flex-direction: column;
+  }
+  .schemes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    gap: 8px;
+    margin: 8px 0 4px;
+  }
+  .scheme {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    text-align: left;
+  }
+  .scheme:hover {
+    border-color: var(--line-strong);
+  }
+  .scheme.on {
+    border-color: var(--select);
+    box-shadow: 0 0 0 1px var(--select);
+  }
+  .sw {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 4px;
+    height: 34px;
+    padding: 5px;
+    border-radius: 4px;
+    border: 1px solid rgb(0 0 0 / 12%);
+  }
+  .sw i {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1.5px solid rgb(255 255 255 / 85%);
+  }
+  .nm {
+    font-size: 12px;
   }
   .seg {
     display: flex;

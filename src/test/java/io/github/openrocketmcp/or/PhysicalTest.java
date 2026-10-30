@@ -99,6 +99,8 @@ class PhysicalTest {
 		Simulation sim = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults());
 		Sims.ensure(sim);
 		assertTrue(d.doc.isSaved(), "refreshing the flight is not an edit");
+		Variants.windCase(sim, d.doc, 8.0);
+		assertTrue(d.doc.isSaved(), "nor is flying a variant of it (the rule check's wind case)");
 		find(d, MassComponent.class).setComponentMass(0.2);
 		Sims.ensure(sim);
 		assertTrue(!d.doc.isSaved(), "an edit still marks it changed");

@@ -35,8 +35,8 @@
     flex: none;
     display: flex;
     flex-direction: column;
-    background: var(--surface);
-    border-right: 1px solid var(--line);
+    background: var(--chrome);
+    border-right: 1px solid var(--chrome-line);
   }
   button {
     display: flex;
@@ -47,17 +47,17 @@
     border: 0;
     border-left: 3px solid transparent;
     background: transparent;
-    color: var(--ink-2);
+    color: var(--chrome-ink-2);
     font-size: 11.5px;
   }
   button:hover:not(:disabled) {
-    background: var(--surface-2);
-    color: var(--ink);
+    background: var(--chrome-2);
+    color: var(--chrome-ink);
   }
   button.on {
-    border-left-color: var(--accent);
-    background: var(--surface-3);
-    color: var(--ink);
+    border-left-color: var(--chrome-mark);
+    background: var(--chrome-3);
+    color: var(--chrome-ink);
     font-weight: 600;
   }
   button:disabled {

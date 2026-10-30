@@ -1,5 +1,6 @@
 import { mount } from "svelte";
 import "./app.css";
+import "./schemes.css";
 import App from "./App.svelte";
 import { applyTheme } from "./lib/prefs.svelte";
 

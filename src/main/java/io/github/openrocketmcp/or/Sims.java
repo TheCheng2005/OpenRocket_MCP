@@ -226,15 +226,8 @@ public final class Sims {
 				&& sim.getStatus() == Simulation.Status.UPTODATE) {
 			return data;
 		}
-		// Flying a simulation again only refreshes its results: a design that was saved stays saved (opening a file
-		// and looking at its flight is not an edit, and Quit should not ask about it).
-		OpenRocketDocument doc = documentOf(sim);
-		boolean saved = doc != null && doc.isSaved();
 		FlightData out = run(sim);
 		FLOWN.put(sim, stamp(sim));
-		if (saved) {
-			doc.setSaved(true);
-		}
 		return out;
 	}
 
@@ -274,6 +267,11 @@ public final class Sims {
 			listeners[listeners.length - 2] = table;
 		}
 		FastSim.install(sim);
+		// Flying is not an edit: refreshing a simulation's results, or flying a variant of it (the wind case, Monte
+		// Carlo, a sweep), leaves a saved design saved, so opening a file and checking it does not mark it changed
+		// and Quit does not ask about it. (Calls on a design run one at a time, so nothing else edits it meanwhile.)
+		OpenRocketDocument doc = documentOf(sim);
+		boolean saved = doc != null && doc.isSaved();
 		try {
 			sim.simulate(listeners);
 		} catch (Exception e) {
@@ -286,6 +284,10 @@ public final class Sims {
 						+ "(undo reverts it) and get_design for odd masses or lengths.", e);
 			}
 			throw new ToolException("Simulation '" + sim.getName() + "' failed: " + why, e);
+		} finally {
+			if (saved) {
+				doc.setSaved(true);
+			}
 		}
 		FlightData data = sim.getSimulatedData();
 		if (data == null || data.getBranchCount() == 0) {

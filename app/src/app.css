@@ -32,6 +32,14 @@
   --shadow: none;
   --shadow-pop: 0 6px 24px rgb(0 0 0 / 18%);
   --radius: 4px;
+  /* The chrome (navigation rail and top bar): the page's own surfaces unless a colour scheme sets them. */
+  --chrome: var(--surface);
+  --chrome-2: var(--surface-2);
+  --chrome-3: var(--surface-3);
+  --chrome-ink: var(--ink);
+  --chrome-ink-2: var(--ink-2);
+  --chrome-line: var(--line);
+  --chrome-mark: var(--accent);
   --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
   color-scheme: light;

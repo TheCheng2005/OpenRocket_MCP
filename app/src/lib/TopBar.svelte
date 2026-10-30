@@ -81,19 +81,36 @@
     gap: 3px;
     padding: 0 7px;
   }
-  .problems.bad {
-    color: var(--bad);
-  }
-  .problems.warn {
-    color: var(--warn);
-  }
   .count {
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 600;
+    line-height: 16px;
+    min-width: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    text-align: center;
+  }
+  /* A badge, so it reads on any scheme's bar. */
+  .problems.bad .count {
+    background: var(--bad);
+    color: #fff;
+  }
+  .problems.warn .count {
+    background: var(--warn);
+    color: #1d1600;
   }
   .btn.on {
-    background: var(--surface-3);
-    color: var(--ink);
+    background: var(--chrome-3);
+    color: var(--chrome-ink);
+  }
+  /* Buttons on the bar take the chrome's colours (a colour scheme may make it dark). */
+  header > .btn.ghost,
+  .group > .btn.ghost {
+    color: var(--chrome-ink);
+  }
+  header > .btn.ghost:hover:not(:disabled),
+  .group > .btn.ghost:hover:not(:disabled) {
+    background: var(--chrome-2);
   }
   header {
     height: 40px;
@@ -102,8 +119,9 @@
     align-items: center;
     gap: 6px;
     padding: 0 8px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--line);
+    background: var(--chrome);
+    color: var(--chrome-ink);
+    border-bottom: 1px solid var(--chrome-line);
   }
   .brand {
     display: flex;
@@ -112,7 +130,7 @@
     font-weight: 600;
     padding-right: 10px;
     margin-right: 2px;
-    border-right: 1px solid var(--line);
+    border-right: 1px solid var(--chrome-line);
   }
   .group {
     display: flex;
@@ -121,7 +139,7 @@
   .sep {
     width: 1px;
     height: 20px;
-    background: var(--line);
+    background: var(--chrome-line);
   }
   .icon {
     padding: 0 7px;
@@ -140,7 +158,7 @@
     text-overflow: ellipsis;
   }
   .edited {
-    color: var(--ink-3);
+    color: var(--chrome-ink-2);
     white-space: nowrap;
   }
   .spacer {
@@ -148,7 +166,7 @@
   }
   .busy {
     display: flex;
-    color: var(--ink-3);
+    color: var(--chrome-ink-2);
     animation: spin 1s linear infinite;
   }
   @keyframes spin {
@@ -160,7 +178,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    color: var(--ink-3);
+    color: var(--chrome-ink-2);
   }
   .config .select {
     max-width: 240px;
