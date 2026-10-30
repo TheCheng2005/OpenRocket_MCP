@@ -229,7 +229,9 @@ public final class AppTools {
 						.build(),
 				false, a -> appearance(ctx, a)));
 		add(s, new ToolDef("app_model", "App: 3-D model", "Meshes of every part of the active configuration, with CG and CP.",
-				Schema.object().str("designId", DESIGN, true).build(), true, a -> model(ctx, a)));
+				Schema.object().str("designId", DESIGN, true)
+						.array("known", "meshId of meshes the window already has: those are left out.", Schema.type("string", null), false)
+						.build(), true, a -> model(ctx, a)));
 		add(s, new ToolDef("app_quick_flight", "App: quick flight", "Flight summary of the active configuration (not saved).",
 				Schema.object().str("designId", DESIGN, true).build(), true, a -> quickFlight(ctx, a)));
 		add(s, new ToolDef("app_configs", "App: motors and configuration",
@@ -565,10 +567,18 @@ public final class AppTools {
 
 	// ------------------------------------------------------------------------------------------- 3-D model and flight
 
+	/** A mesh's identity: its length and a CRC of its text (the window compares, nothing else relies on it). */
+	static String meshId(String mesh) {
+		java.util.zip.CRC32 crc = new java.util.zip.CRC32();
+		crc.update(mesh.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1));
+		return Long.toHexString(crc.getValue()) + "-" + Integer.toHexString(mesh.length());
+	}
+
 	static Map<String, Object> model(Context ctx, Args a) {
 		Designs.Design d = ctx.designs.get(a.str("designId"));
 		FlightConfiguration fc = d.doc.getRocket().getSelectedConfiguration();
 		Map<String, Object> out = new LinkedHashMap<>();
+		java.util.Set<String> known = a.has("known") ? new java.util.HashSet<>(a.strList("known")) : java.util.Set.of();
 		try {
 			Map<String, Object> r = Workbench.rocket(fc);
 			List<Map<String, Object>> parts = new ArrayList<>();
@@ -577,6 +587,15 @@ public final class AppTools {
 				Map<String, Object> p = new LinkedHashMap<>((Map<String, Object>) o);
 				p.remove("props"); // the editor reads these itself, with values the app can edit
 				p.remove("mass");
+				// An edit usually changes one part: the window keeps the meshes (and what it built from them) by id, and
+				// gets only the new ones.
+				if (p.get("mesh") instanceof String mesh) {
+					String id = meshId(mesh);
+					p.put("meshId", id);
+					if (known.contains(id)) {
+						p.remove("mesh");
+					}
+				}
 				if (p.get("id") instanceof String id) {
 					String painted = paint(Components.find(d.doc.getRocket(), id));
 					if (painted != null) {
@@ -600,8 +619,15 @@ public final class AppTools {
 		if (!fc.hasMotors()) {
 			return Map.of("noMotors", true);
 		}
-		Simulation sim = Sims.prepare(d, null, fc.getId().toString(), null, ctx.standards(), false).copy();
-		Sims.run(sim);
+		Simulation sim = Sims.prepare(d, null, fc.getId().toString(), null, ctx.standards(), false);
+		if (d.doc.getSimulations().contains(sim)) {
+			// The document's flight of this configuration: the rule check and targets read the same one, so after an
+			// edit it is flown once for all three (calls on a design run one at a time).
+			Sims.ensure(sim);
+		} else {
+			sim = sim.copy();
+			Sims.run(sim);
+		}
 		return results(sim);
 	}
 

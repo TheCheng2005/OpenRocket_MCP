@@ -19,10 +19,15 @@ import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import info.openrocket.core.document.Simulation;
+
 import io.github.openrocketmcp.mcp.HttpTransport;
 import io.github.openrocketmcp.mcp.Log;
 import io.github.openrocketmcp.mcp.McpServer;
+import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.OrRuntime;
+import io.github.openrocketmcp.or.Requirements;
+import io.github.openrocketmcp.or.Sims;
 import io.github.openrocketmcp.standards.Standards;
 import io.github.openrocketmcp.tools.AdvancedTools;
 import io.github.openrocketmcp.tools.AeroTools;
@@ -212,19 +217,52 @@ public final class Main {
 		server.serve(System.in, protocol);
 	}
 
-	/** Loads OpenRocket's motor and parts databases in the background so the first tool call is fast. */
+	/**
+	 * Loads OpenRocket's motor and parts databases in the background, side by side, so the first tool call is fast;
+	 * then flies a built-in example once, so the first real flight and rule check do not pay for Java warming up
+	 * (cold, they took about four times as long).
+	 */
 	public static void warmUp() {
+		Thread presets = new Thread(() -> {
+			try {
+				OrRuntime.presets();
+			} catch (RuntimeException e) {
+				Log.error("OpenRocket parts database failed to load", e);
+			}
+		}, "openrocket-presets");
+		presets.setDaemon(true);
+		presets.start();
 		Thread warm = new Thread(() -> {
 			try {
 				OrRuntime.motors();
-				OrRuntime.presets();
+				presets.join();
 				Log.info("OpenRocket databases loaded");
+				warmFlight();
 			} catch (RuntimeException e) {
 				Log.error("OpenRocket initialization failed", e);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
 			}
 		}, "openrocket-init");
 		warm.setDaemon(true);
+		warm.setPriority(Thread.MIN_PRIORITY);
 		warm.start();
+	}
+
+	/**
+	 * One flight, rule check and 3-D model of a built-in example, on its own copy (nothing the user has open is
+	 * touched).
+	 */
+	private static void warmFlight() {
+		try {
+			Designs.Design d = new Designs().openExample("Dual parachute");
+			io.github.openrocketmcp.report.Workbench.rocket(d.doc.getRocket().getSelectedConfiguration());
+			Simulation sim = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults(), false);
+			Sims.run(sim);
+			Requirements.check(sim, null, Standards.defaults());
+		} catch (Exception | LinkageError e) {
+			Log.info("Warm-up flight skipped: " + e); // only a speed-up
+		}
 	}
 
 	static String opt(List<String> a, String name, String fallback) {

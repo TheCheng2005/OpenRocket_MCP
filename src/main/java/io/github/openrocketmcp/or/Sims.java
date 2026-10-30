@@ -11,6 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.WeakHashMap;
 
+import info.openrocket.core.document.OpenRocketDocument;
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.logging.Warning;
 import info.openrocket.core.motor.Motor;
@@ -225,9 +226,38 @@ public final class Sims {
 				&& sim.getStatus() == Simulation.Status.UPTODATE) {
 			return data;
 		}
+		// Flying a simulation again only refreshes its results: a design that was saved stays saved (opening a file
+		// and looking at its flight is not an edit, and Quit should not ask about it).
+		OpenRocketDocument doc = documentOf(sim);
+		boolean saved = doc != null && doc.isSaved();
 		FlightData out = run(sim);
 		FLOWN.put(sim, stamp(sim));
+		if (saved) {
+			doc.setSaved(true);
+		}
 		return out;
+	}
+
+	private static final java.lang.reflect.Field DOCUMENT;
+
+	static {
+		java.lang.reflect.Field f = null;
+		try {
+			f = Simulation.class.getDeclaredField("document");
+			f.setAccessible(true);
+		} catch (ReflectiveOperationException | RuntimeException e) {
+			// another OpenRocket version: re-flown results then mark the design edited, as OpenRocket itself does
+		}
+		DOCUMENT = f;
+	}
+
+	/** The design a simulation belongs to (OpenRocket keeps it private), or null. */
+	static OpenRocketDocument documentOf(Simulation sim) {
+		try {
+			return DOCUMENT == null ? null : (OpenRocketDocument) DOCUMENT.get(sim);
+		} catch (ReflectiveOperationException | RuntimeException e) {
+			return null;
+		}
 	}
 
 	public static FlightData run(Simulation sim, SimulationListener... listeners) {

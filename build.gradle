@@ -30,7 +30,9 @@ dependencies {
 application {
     mainClass = 'io.github.openrocketmcp.Main'
     applicationName = 'openrocket-mcp'
-    applicationDefaultJvmArgs = ['-Djava.awt.headless=true', '-Xss4m']
+    // The parallel collector: Monte Carlo and motor ranking ran about 20 % faster than with G1 (short pauses at this
+    // heap size; nothing here is latency-critical).
+    applicationDefaultJvmArgs = ['-Djava.awt.headless=true', '-Xss4m', '-XX:+UseParallelGC']
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -135,7 +137,7 @@ def rocketmaxxingScripts = tasks.register('rocketmaxxingScripts', CreateStartScr
     applicationName = 'rocketmaxxing'
     outputDir = layout.buildDirectory.dir('rocketmaxxing-scripts').get().asFile
     classpath = tasks.named('jar').get().outputs.files + configurations.runtimeClasspath
-    defaultJvmOpts = ['-Xss4m']
+    defaultJvmOpts = ['-Xss4m', '-XX:+UseParallelGC']
 }
 
 distributions {
@@ -217,7 +219,7 @@ tasks.register('rocketmaxxingInstaller', Exec) {
                '--main-jar', tasks.named('jar').get().archiveFileName.get(),
                '--main-class', 'io.github.openrocketmcp.app.App',
                '--runtime-image', mcpbDir.get().dir('runtime').asFile.path,
-               '--java-options', '-Xss4m', '--icon', icon.path, '--dest', out.get().asFile.path]
+               '--java-options', '-Xss4m -XX:+UseParallelGC', '--icon', icon.path, '--dest', out.get().asFile.path]
     if (type != 'app-image') {
         // Double-clicking an OpenRocket or RockSim design opens it in RocketMaxxing.
         cmd += ['--license-file', 'LICENSE',

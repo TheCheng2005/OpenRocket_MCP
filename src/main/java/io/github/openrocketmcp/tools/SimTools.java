@@ -12,8 +12,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import info.openrocket.core.document.Simulation;
 import info.openrocket.core.rocketcomponent.RocketComponent;
+import info.openrocket.core.document.OpenRocketDocument;
+import info.openrocket.core.document.Simulation;
 import info.openrocket.core.simulation.FlightData;
 import info.openrocket.core.simulation.FlightDataType;
 import io.github.openrocketmcp.mcp.Args;
@@ -143,7 +144,7 @@ public final class SimTools {
 					Simulation wind = null;
 					double maxWind = ctx.standards().rule("maxGroundWind.value", Dim.VELOCITY);
 					if (a.bool("includeWindCase", true) && !Double.isNaN(maxWind)) {
-						wind = Variants.windCase(sim, ctx.designs.get(a.str("designId", null)).doc, maxWind);
+						wind = windCase(sim, ctx.designs.get(a.str("designId", null)).doc, maxWind);
 					}
 					return Requirements.check(sim, wind, ctx.standards()).render(ctx.standards().rulesName());
 				}));
@@ -157,6 +158,28 @@ public final class SimTools {
 						+ "with its target, the margin to the nearer limit and PASS/WARN (within 5%)/FAIL. Competition rules are "
 						+ "check_requirements; these are the team's design goals.",
 				simSelect(Schema.object()).build(), true, a -> Targets.evaluate(runSelected(ctx, a), ctx.standards())));
+	}
+
+	/** The last wind case of each simulation, with the flight it was made from. */
+	private record WindCase(FlightData base, double speed, Simulation sim) {
+	}
+
+	private static final Map<Simulation, WindCase> WIND_CASES = java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+
+	/**
+	 * The rule set's maximum-wind flight of {@code sim}. It is flown again only when the base flight was (a change to
+	 * the rocket, the motor or the conditions gives the base new results), so a rule check right after another, or
+	 * after the quick flight of the same design, does not fly it twice.
+	 */
+	static Simulation windCase(Simulation sim, OpenRocketDocument doc, double speed) {
+		FlightData base = sim.getSimulatedData();
+		WindCase c = WIND_CASES.get(sim);
+		if (c != null && c.base() == base && c.speed() == speed) {
+			return c.sim();
+		}
+		Simulation wind = Variants.windCase(sim, doc, speed);
+		WIND_CASES.put(sim, new WindCase(base, speed, wind));
+		return wind;
 	}
 
 	private static Object sweep(Context ctx, Args a) {

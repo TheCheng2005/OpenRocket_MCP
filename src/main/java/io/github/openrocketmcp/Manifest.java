@@ -62,7 +62,7 @@ public final class Manifest {
 		JsonObject cfg = new JsonObject();
 		cfg.addProperty("command", "${__dirname}/runtime/bin/java");
 		JsonArray a = new JsonArray();
-		List.of("-Djava.awt.headless=true", "-Xss4m", "-cp", "${__dirname}/lib/*", "io.github.openrocketmcp.Main").forEach(a::add);
+		List.of("-Djava.awt.headless=true", "-Xss4m", "-XX:+UseParallelGC", "-cp", "${__dirname}/lib/*", "io.github.openrocketmcp.Main").forEach(a::add);
 		cfg.add("args", a);
 		JsonObject env = new JsonObject();
 		env.addProperty("OPENROCKET_MCP_WORKSPACE", "${user_config.workspace}");

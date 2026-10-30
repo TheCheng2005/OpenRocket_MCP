@@ -6,22 +6,37 @@
   import TopBar from "./lib/TopBar.svelte";
   import NavRail from "./lib/NavRail.svelte";
   import Home from "./lib/Home.svelte";
-  import DesignPage from "./lib/design/DesignPage.svelte";
-  import MotorsPage from "./lib/motors/MotorsPage.svelte";
-  import FlightsPage from "./lib/flights/FlightsPage.svelte";
-  import AnalysisPage from "./lib/analysis/AnalysisPage.svelte";
-  import TargetsPage from "./lib/targets/TargetsPage.svelte";
-  import FlightDataPage from "./lib/flightdata/FlightDataPage.svelte";
-  import StandardsPage from "./lib/standards/StandardsPage.svelte";
+  import type { Component } from "svelte";
   import Toasts from "./lib/Toasts.svelte";
   import RocketLoader from "./lib/RocketLoader.svelte";
   import AskDialog from "./lib/AskDialog.svelte";
-  import AssistantDrawer from "./lib/assistant/AssistantDrawer.svelte";
-  import IssuesDrawer from "./lib/issues/IssuesDrawer.svelte";
   import { issues, watchPageErrors } from "./lib/issues/issues.svelte";
   import { assistant, loadSettings } from "./lib/assistant/assistant.svelte";
 
   let ready = $state(false);
+
+  // Each page's code (three.js for the design view, the plots, the analyses) loads when it is first shown, so the
+  // start screen comes up on a small script; the rest is fetched in the background once the app has started.
+  type Lazy = () => Promise<{ default: Component }>;
+  const PAGE_CODE: Record<Exclude<Page, "home">, Lazy> = {
+    design: () => import("./lib/design/DesignPage.svelte"),
+    motors: () => import("./lib/motors/MotorsPage.svelte"),
+    flights: () => import("./lib/flights/FlightsPage.svelte"),
+    flightdata: () => import("./lib/flightdata/FlightDataPage.svelte"),
+    standards: () => import("./lib/standards/StandardsPage.svelte"),
+    targets: () => import("./lib/targets/TargetsPage.svelte"),
+    analysis: () => import("./lib/analysis/AnalysisPage.svelte"),
+  };
+  const issuesCode: Lazy = () => import("./lib/issues/IssuesDrawer.svelte");
+  const assistantCode: Lazy = () => import("./lib/assistant/AssistantDrawer.svelte");
+  const loaded = new Map<Lazy, Promise<{ default: Component }>>();
+  const load = (f: Lazy) => {
+    if (!loaded.has(f)) loaded.set(f, f());
+    return loaded.get(f)!;
+  };
+  function prefetch() {
+    for (const f of [PAGE_CODE.design, ...Object.values(PAGE_CODE), issuesCode, assistantCode]) load(f).catch(() => {});
+  }
   let replaced = $state(false);
   const PAGES: Page[] = ["home", "design", "motors", "flights", "flightdata", "targets", "standards", "analysis"];
 
@@ -38,7 +53,10 @@
         if (launchFiles.length && app.design) app.page = "design";
         else if (last && PAGES.includes(last) && app.design) app.page = last;
       })
-      .finally(() => (ready = true));
+      .finally(() => {
+        ready = true;
+        setTimeout(prefetch, 300);
+      });
     loadSettings();
   });
 
@@ -89,24 +107,18 @@
           <div class="loading"><RocketLoader text="Starting OpenRocket and loading its motors and parts" /></div>
         {:else if app.page === "home" || !app.design}
           <Home />
-        {:else if app.page === "design"}
-          <DesignPage />
-        {:else if app.page === "motors"}
-          <MotorsPage />
-        {:else if app.page === "flights"}
-          <FlightsPage />
-        {:else if app.page === "flightdata"}
-          <FlightDataPage />
-        {:else if app.page === "standards"}
-          <StandardsPage />
-        {:else if app.page === "targets"}
-          <TargetsPage />
-        {:else if app.page === "analysis"}
-          <AnalysisPage />
+        {:else}
+          {#key app.page}
+            {#await load(PAGE_CODE[app.page])}
+              <div class="loading"><RocketLoader size="small" /></div>
+            {:then m}
+              <m.default />
+            {/await}
+          {/key}
         {/if}
       </main>
-      {#if issues.open}<IssuesDrawer />{/if}
-      {#if assistant.open && assistant.settings?.enabled}<AssistantDrawer />{/if}
+      {#if issues.open}{#await load(issuesCode) then m}<m.default />{/await}{/if}
+      {#if assistant.open && assistant.settings?.enabled}{#await load(assistantCode) then m}<m.default />{/await}{/if}
     </div>
   </div>
   <Toasts />

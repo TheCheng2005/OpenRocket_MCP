@@ -93,6 +93,18 @@ class PhysicalTest {
 	}
 
 	@Test
+	void reflyingASavedDesignKeepsItSaved() throws Exception {
+		Designs.Design d = maple();
+		assertTrue(d.doc.isSaved(), "just opened");
+		Simulation sim = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults());
+		Sims.ensure(sim);
+		assertTrue(d.doc.isSaved(), "refreshing the flight is not an edit");
+		find(d, MassComponent.class).setComponentMass(0.2);
+		Sims.ensure(sim);
+		assertTrue(!d.doc.isSaved(), "an edit still marks it changed");
+	}
+
+	@Test
 	void aSoundFlightHasNoProblems() throws Exception {
 		Designs.Design d = new Designs().openExample("Dual parachute");
 		Simulation sim = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults());

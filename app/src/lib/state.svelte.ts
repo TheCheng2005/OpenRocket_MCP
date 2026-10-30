@@ -3,6 +3,7 @@
 
 import { call, callFull, ToolError, type Issue } from "./api";
 import { record, type Logged } from "./issues/issues.svelte";
+import { complete, knownMeshes } from "./design/meshStore";
 import { units, setSystem as setUnitSystem } from "./units.svelte";
 
 export interface TreeNode {
@@ -97,7 +98,9 @@ export interface Part {
   explode: number[];
   id?: string;
   type: string;
-  mesh: string;
+  /** Left out when the window already has it (see design/meshes.ts). */
+  mesh?: string;
+  meshId?: string;
 }
 
 export interface Model {
@@ -359,12 +362,9 @@ function remember(path: string | null) {
 }
 
 async function load(designId: string) {
-  const d = await call<Design>("app_design", { designId });
-  app.design = d;
   app.selected = "rocket";
-  remember(d.path);
-  await refresh();
-  if (app.page === "home") app.page = "design";
+  await refresh(designId);
+  if (app.design) remember(app.design.path);
 }
 
 export async function openExample(name: string) {
@@ -426,17 +426,37 @@ export async function save(as = false) {
 
 let flightSeq = 0;
 
+/** The 3-D model, without the meshes the window already has (again in full if one it counted on is gone). */
+async function loadModel(designId: string): Promise<Model> {
+  const m = await call<Model>("app_model", { designId, known: knownMeshes() });
+  return complete(m.parts) ? m : call<Model>("app_model", { designId });
+}
+
 /** Re-reads the design, the 3-D model, the open editor, and (in the background) the quick flight. */
-export async function refresh() {
-  const d = app.design;
-  if (!d) return;
-  const id = d.designId;
-  const [design, model] = await Promise.all([call<Design>("app_design", { designId: id }), call<Model>("app_model", { designId: id })]);
+export async function refresh(designId?: string) {
+  const id = designId ?? app.design?.designId;
+  if (!id) return;
+  // The design first: the tree and the page show while the 3-D model (the larger reply) is still on its way.
+  const designReply = call<Design>("app_design", { designId: id });
+  const modelReply = loadModel(id);
+  const design = await designReply;
   app.design = design;
-  app.model = model;
   if (!exists(design.tree, app.selected)) app.selected = "rocket";
-  app.editor = await call<Editor>("app_component", { designId: id, component: app.selected });
+  if (designId && app.page === "home") app.page = "design";
+  app.model = await modelReply;
+  // The editor and the quick flight are asked for together: the flight's request does not wait for the page to
+  // finish drawing (calls on a design are answered one at a time, in order, so the editor still comes first).
+  const editorReply = call<Editor>("app_component", { designId: id, component: app.selected });
+  startQuickFlight(id);
+  app.editor = await editorReply;
   app.revision++;
+  if (autoCheck()) {
+    checkRules(600);
+    checkTargets(600);
+  }
+}
+
+function startQuickFlight(id: string) {
   const seq = ++flightSeq;
   app.flying = true;
   callFull("app_quick_flight", { designId: id })
@@ -451,10 +471,6 @@ export async function refresh() {
       app.flightIssues = e instanceof ToolError ? [e.issue] : [];
     })
     .finally(() => seq === flightSeq && (app.flying = false));
-  if (autoCheck()) {
-    checkRules(600);
-    checkTargets(600);
-  }
 }
 
 function exists(n: TreeNode, id: string): boolean {

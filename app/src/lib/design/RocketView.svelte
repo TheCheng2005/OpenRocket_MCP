@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import * as THREE from "three";
   import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-  import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+  import { geometry, kept, trim } from "./meshes";
   import { Maximize, Scissors } from "@lucide/svelte";
   import { app, select, type Part } from "../state.svelte";
 
@@ -40,18 +40,14 @@
 
   const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#888";
 
-  function decode(b64: string): Float32Array {
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new Float32Array(bytes.buffer);
-  }
-
   function build(parts: Part[]) {
     for (const m of meshes) {
-      m.mesh.geometry.dispose();
+      // Geometry is kept by mesh id (design/meshes.ts) and reused by the next build; only materials are per build.
+      if (!kept(m.part.meshId)) {
+        m.mesh.geometry.dispose();
+        m.edges.geometry.dispose();
+      }
       (m.mesh.material as THREE.Material).dispose();
-      m.edges.geometry.dispose();
       (m.edges.material as THREE.Material).dispose();
     }
     scene.remove(rocket);
@@ -60,12 +56,12 @@
     let x1 = 0;
     let r = 0;
     const clip = [new THREE.Plane(new THREE.Vector3(0, 0, -1), 0)];
+    const inUse = new Set<string>();
     for (const p of parts) {
-      const pos = decode(p.mesh);
-      if (pos.length === 0) continue;
-      let geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-      geo = toCreasedNormals(geo, Math.PI / 5);
+      const built = geometry(p.meshId, p.mesh);
+      if (!built) continue;
+      if (p.meshId) inUse.add(p.meshId);
+      const geo = built.geo;
       const mat = new THREE.MeshStandardMaterial({
         color: new THREE.Color(p.color),
         roughness: 0.55,
@@ -77,16 +73,16 @@
       });
       if (p.cutOpen) mat.clippingPlanes = clip;
       const mesh = new THREE.Mesh(geo, mat);
-      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), new THREE.LineBasicMaterial({ color: 0x334155 }));
+      const edges = new THREE.LineSegments(built.edges, new THREE.LineBasicMaterial({ color: 0x334155 }));
       if (p.cutOpen) (edges.material as THREE.LineBasicMaterial).clippingPlanes = clip;
       mesh.userData.part = p;
       rocket.add(mesh, edges);
       meshes.push({ mesh, edges, part: p });
       x1 = Math.max(x1, p.x1);
-      geo.computeBoundingSphere();
-      const bb = new THREE.Box3().setFromBufferAttribute(geo.getAttribute("position") as THREE.BufferAttribute);
+      const bb = geo.boundingBox!;
       r = Math.max(r, Math.abs(bb.max.y), Math.abs(bb.min.y), Math.abs(bb.max.z), Math.abs(bb.min.z));
     }
+    trim(inUse);
     length = Math.max(x1, 0.05);
     radius = Math.max(r, 0.005);
     scene.add(rocket);
@@ -251,7 +247,24 @@
     fit();
   }
 
+  /** Runs after the browser has painted: the tree, numbers and page show first, the 3-D work comes a frame later. */
+  function afterPaint(f: () => void) {
+    requestAnimationFrame(() => setTimeout(f, 0));
+  }
+
   onMount(() => {
+    let stopped = false;
+    let cleanup: (() => void) | undefined;
+    afterPaint(() => {
+      if (!stopped) cleanup = setup();
+    });
+    return () => {
+      stopped = true;
+      cleanup?.();
+    };
+  });
+
+  function setup(): (() => void) | undefined {
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true });
     } catch {
@@ -281,8 +294,10 @@
     theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     mq.addEventListener("change", style);
     if (app.model) {
+      lastModel = app.model;
       build(app.model.parts);
       fit();
+      lastLength = length;
     }
     return () => {
       ro.disconnect();
@@ -291,7 +306,7 @@
       controls?.dispose();
       renderer.dispose();
     };
-  });
+  }
 
   // Rebuild when the engine sends a new model; restyle when the selection changes.
   let lastModel: unknown = null;
@@ -299,12 +314,15 @@
   $effect(() => {
     const m = app.model;
     if (!scene || !m || m === lastModel) return;
-    lastModel = m;
-    build(m.parts);
-    // Keep the camera where the user put it unless the rocket's size changed a lot (a new design, a big edit).
-    if (Math.abs(length - lastLength) > 0.25 * Math.max(length, lastLength) || !lastLength) fit();
-    else render();
-    lastLength = length;
+    afterPaint(() => {
+      if (m !== app.model || m === lastModel) return; // a newer model came meanwhile, or this one is built
+      lastModel = m;
+      build(m.parts);
+      // Keep the camera where the user put it unless the rocket's size changed a lot (a new design, a big edit).
+      if (Math.abs(length - lastLength) > 0.25 * Math.max(length, lastLength) || !lastLength) fit();
+      else render();
+      lastLength = length;
+    });
   });
   $effect(() => {
     void app.selected;

@@ -217,6 +217,11 @@ Mac it stays in the Dock until you quit it.
 - The window calls the engine's ordinary tools (`open_design`, `add_component`, `set_motor`, `undo`, `save_design`, ...)
   and a few app-only ones (`app_*`) that return plain SI numbers. The MCP server doesn't register the `app_*` tools.
 - Edits go through the same property code as the chat tool `edit_components`.
+- Speed: the engine starts in about a second (OpenRocket's plugins are registered from a list instead of a scan of
+  every jar), loads the motor and parts databases side by side, then flies a built-in example in the background so
+  the first real flight is warm. After an edit the design is flown once for the quick flight, the rule check and the
+  targets (the maximum-wind case is reused until the flight changes), and only the parts whose shape changed are
+  sent to the window, which keeps the 3-D geometry of the others. Each page's code loads when it is first shown.
 
 Code:
 - `src/main/java/io/github/openrocketmcp/app/`: launcher, local server, app tools, part editors, the assistant.
