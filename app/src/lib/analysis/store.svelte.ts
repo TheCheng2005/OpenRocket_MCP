@@ -14,7 +14,8 @@ export interface Outcome {
 }
 
 export const analysis = $state({
-  selected: "check_requirements",
+  // "start": the Start here overview.
+  selected: "start",
   values: {} as Record<string, Record<string, string>>,
   results: {} as Record<string, Outcome>,
   /** The last run of each analysis that failed, until it runs again. */

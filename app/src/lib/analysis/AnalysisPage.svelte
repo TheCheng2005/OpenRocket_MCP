@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { Play, ChevronDown, Search, X } from "@lucide/svelte";
+  import { Play, ChevronDown, Search, X, Compass } from "@lucide/svelte";
   import { call, callFull, tools as listTools, type ToolInfo } from "../api";
   import { app, refresh, run, type TreeNode } from "../state.svelte";
   import { isOpen, toggle } from "../panels.svelte";
@@ -8,6 +8,7 @@
   import Result from "./Result.svelte";
   import ResultPlot from "./ResultPlot.svelte";
   import RowsEditor from "./RowsEditor.svelte";
+  import StartHere from "./StartHere.svelte";
   import { CATALOG, LONG_INPUTS, OVERRIDES, PART_INPUTS, type Analysis } from "./catalog";
   import { analysis } from "./store.svelte";
   import RocketLoader from "../RocketLoader.svelte";
@@ -50,6 +51,8 @@
   let entry = $derived(CATALOG.flatMap((g) => g.items).find((a) => a.tool === analysis.selected) ?? CATALOG[0].items[0]);
   let info = $derived(infos[entry.tool]);
   let guide = $derived(GUIDES[entry.tool]);
+  /** The Start here overview instead of an analysis. */
+  let starting = $derived(analysis.selected === "start");
   let outcome = $derived(analysis.results[entry.tool]);
   let failure = $derived(analysis.failures[entry.tool]);
   let stale = $derived(!!outcome && (outcome.designId !== app.design?.designId || outcome.revision < app.revision));
@@ -416,7 +419,7 @@
       <nav class="cat">
         {#if filtered}
           {#each filtered as x (x.a.tool)}
-            <button class="item flat" class:on={x.a.tool === entry.tool} onclick={() => choose(x.a)} title={x.a.blurb}>
+            <button class="item flat" class:on={x.a.tool === analysis.selected} onclick={() => choose(x.a)} title={x.a.blurb}>
               <span class="nm">{x.a.label}<span class="grp">{x.group}</span></span>
               {#if analysis.results[x.a.tool]}<span class="ran" title="Has a result"></span>{/if}
             </button>
@@ -424,6 +427,9 @@
             <p class="none">No analysis matches “{filter}”. The search ({MAC ? "⌘K" : "Ctrl+K"}) also finds pages, parts and settings.</p>
           {/each}
         {:else}
+        <button class="item start" class:on={starting} onclick={() => (analysis.selected = "start")}>
+          <span class="si"><Compass size={15} /> Start here</span>
+        </button>
         {#each CATALOG as g (g.title)}
           {@const gid = "analysis.group." + g.title}
           <button class="gh" onclick={() => toggle(gid)} aria-expanded={isOpen(gid)}>
@@ -431,7 +437,7 @@
           </button>
           {#if isOpen(gid)}
             {#each g.items as a (a.tool)}
-              <button class="item" class:on={a.tool === entry.tool} onclick={() => choose(a)}>
+              <button class="item" class:on={a.tool === analysis.selected} onclick={() => choose(a)}>
                 {a.label}
                 {#if analysis.results[a.tool]}<span class="ran" title="Has a result"></span>{/if}
               </button>
@@ -444,6 +450,11 @@
   </div>
 
   <div class="main">
+    {#if starting}
+    <Panel id="analysis.start" title="Start here: which analysis answers your question?" fill>
+      <StartHere choose={(tool) => { const a = CATALOG.flatMap((g) => g.items).find((x) => x.tool === tool); if (a) choose(a); }} />
+    </Panel>
+    {:else}
     <Panel id="analysis.inputs" title={entry.label}>
       {#snippet tools()}
         {#if missing.length}<span class="meta">Needs: {missing.join(", ")}</span>{/if}
@@ -508,6 +519,7 @@
         {/if}
       </div>
     </Panel>
+    {/if}
   </div>
 </div>
 
@@ -607,6 +619,17 @@
     background: transparent;
     color: var(--ink-3);
     padding: 2px;
+  }
+  .item.start {
+    padding-left: 10px;
+    margin: 4px 0 2px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .si {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
   .item.flat {
     padding-left: 12px;

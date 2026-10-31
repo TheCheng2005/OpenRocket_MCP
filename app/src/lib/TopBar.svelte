@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FilePlus2, FolderOpen, Save, Undo2, Redo2, Settings as Gear, TriangleAlert, Search, Bot } from "@lucide/svelte";
+  import { FilePlus2, FolderOpen, Save, Undo2, Redo2, Settings as Gear, TriangleAlert, Search, Bot, CircleHelp } from "@lucide/svelte";
   import { app, newDesign, openDialog, save, undo, redo, selectConfig } from "./state.svelte";
   import Settings from "./Settings.svelte";
   import RocketLoader from "./RocketLoader.svelte";
@@ -72,6 +72,7 @@
   >
     <TriangleAlert size={16} />{#if fresh || watch}<span class="count">{fresh || watch}</span>{/if}
   </button>
+  <button class="btn ghost icon" onclick={() => (ui.guide = "start")} title="Guide: how to use RocketMaxxing" aria-label="Guide"><CircleHelp size={17} /></button>
   <button class="btn ghost icon" onclick={() => (ui.settings = "")} title="Settings: units, theme, assistant"><Gear size={17} /></button>
 </header>
 

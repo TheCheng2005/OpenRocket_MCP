@@ -3,6 +3,8 @@
   import { label } from "../analysis/text";
   import StdNode from "./StdNode.svelte";
   import { NAMED, at, isNote, isObject, parse, type Json } from "./std";
+  import Tip from "../Tip.svelte";
+  import { STD_HELP } from "../guide/content";
 
   // One group of team standards: its values as rows, named tables, lists, notes, and groups inside it.
   let {
@@ -28,15 +30,23 @@
   const shown = (v: Json | undefined) => (v === null || v === undefined ? "" : String(v));
   const columnsOf = (items: Json[]) => [...new Set(items.flatMap((i) => (isObject(i) ? Object.keys(i) : [])))];
   let adding = $state<Record<string, string>>({});
+  /** What a value means: by its path ("recovery.openingForceCoefficient"), or by its name for tables and lists. */
+  const help = (k: string) => STD_HELP[[...path, k].join(".")] ?? STD_HELP[k];
 </script>
 
-{#each notes as k (k)}<p class="note">{cur[k] ?? def[k]}</p>{/each}
+{#if notes.length}
+  <!-- The defaults' sources and assumptions: folded, so the values come first. -->
+  <details class="notes">
+    <summary>Sources and assumptions ({notes.length})</summary>
+    {#each notes as k (k)}<p class="note">{cur[k] ?? def[k]}</p>{/each}
+  </details>
+{/if}
 
 {#each rows as k (k)}
   {@const p = [...path, k]}
   {@const v = cur[k]}
   <div class="row" class:team={teamHas(p)}>
-    <span class="name" title={k}>{label(k)}</span>
+    <span class="name" title={k}>{label(k)}{#if help(k)}<Tip label="About {label(k)}">{help(k)}</Tip>{/if}</span>
     {#if typeof (v ?? def[k]) === "boolean"}
       <input type="checkbox" checked={!!v} onchange={(e) => set(p, e.currentTarget.checked)} />
     {:else}
@@ -53,8 +63,9 @@
 {#each tables as k (k)}
   {@const entries = Object.entries(isObject(cur[k]) ? cur[k] : {}).filter(([n]) => !isNote(n))}
   {@const cols = columnsOf(entries.map(([, e]) => e)).filter((c) => c !== "source")}
-  <div class="block">
-    <div class="title">{label(k)}</div>
+  <!-- Long tables (a property for every material) start folded, so a section fits on the screen. -->
+  <details class="block" open={entries.length <= 4}>
+    <summary class="title">{label(k)} <span class="count">{entries.length}</span>{#if help(k)}<Tip label="About {label(k)}">{help(k)}</Tip>{/if}</summary>
     <table class="grid">
       <thead><tr><th>Name</th>{#if cols.length}{#each cols as c (c)}<th>{label(c)}</th>{/each}{:else}<th>Value</th>{/if}<th>Source</th><th></th></tr></thead>
       <tbody>
@@ -82,14 +93,14 @@
       </tbody>
     </table>
     <div class="add">
-      <input class="input" placeholder="New name, e.g. 2-56 nylon" bind:value={adding[k]} />
+      <input class="input" placeholder={k === "shearPins" ? "New pin, e.g. 2-56 nylon" : k === "measuredPackingFactors" ? "New bay, e.g. 2027 main bay" : "New material, e.g. kevlar"} bind:value={adding[k]} />
       <button class="btn" disabled={!adding[k]?.trim()} onclick={() => {
         const first = cols[0];
         set([...path, k, adding[k].trim()], first ? { [first]: "" } : "");
         adding[k] = "";
       }}><Plus size={13} /> Add</button>
     </div>
-  </div>
+  </details>
 {/each}
 
 {#each lists as k (k)}
@@ -98,7 +109,7 @@
   {@const p = [...path, k]}
   <div class="block">
     <div class="title">
-      {label(k)}
+      {label(k)}{#if help(k)}<Tip label="About {label(k)}">{help(k)}</Tip>{/if}
       {#if teamHas(p)}<button class="tool" title="Back to the defaults" onclick={() => set(p, null)}><RotateCcw size={13} /></button>{:else}<span class="muted small">default</span>{/if}
     </div>
     <div class="scroll">
@@ -132,6 +143,18 @@
 {/each}
 
 <style>
+  .notes {
+    margin: 0 0 6px;
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .notes summary {
+    cursor: pointer;
+    width: max-content;
+  }
+  .notes summary:hover {
+    color: var(--select);
+  }
   .note {
     margin: 2px 0 8px;
     font-size: 12px;
@@ -170,6 +193,29 @@
   .group {
     padding-left: 12px;
     border-left: 2px solid var(--line);
+  }
+  summary.title {
+    cursor: pointer;
+    list-style: none;
+  }
+  summary.title::-webkit-details-marker {
+    display: none;
+  }
+  summary.title::before {
+    content: "▸";
+    color: var(--ink-3);
+    width: 10px;
+  }
+  details[open] > summary.title::before {
+    content: "▾";
+  }
+  summary.title:hover {
+    color: var(--select);
+  }
+  .count {
+    font-weight: 400;
+    font-size: 11px;
+    color: var(--ink-3);
   }
   .title {
     display: flex;

@@ -31,13 +31,14 @@
   const issuesCode: Lazy = () => import("./lib/issues/IssuesDrawer.svelte");
   const assistantCode: Lazy = () => import("./lib/assistant/AssistantDrawer.svelte");
   const searchCode: Lazy = () => import("./lib/search/Search.svelte");
+  const guideCode: Lazy = () => import("./lib/guide/Guide.svelte");
   const loaded = new Map<Lazy, Promise<{ default: Component }>>();
   const load = (f: Lazy) => {
     if (!loaded.has(f)) loaded.set(f, f());
     return loaded.get(f)!;
   };
   function prefetch() {
-    for (const f of [PAGE_CODE.design, ...Object.values(PAGE_CODE), issuesCode, assistantCode, searchCode]) load(f).catch(() => {});
+    for (const f of [PAGE_CODE.design, ...Object.values(PAGE_CODE), issuesCode, assistantCode, searchCode, guideCode]) load(f).catch(() => {});
   }
   let replaced = $state(false);
   const PAGES: Page[] = ["home", "design", "motors", "flights", "flightdata", "targets", "standards", "analysis"];
@@ -129,6 +130,7 @@
   <Toasts />
   <AskDialog />
   {#if ui.search}{#await load(searchCode) then m}<m.default />{/await}{/if}
+  {#if ui.guide !== null}{#await load(guideCode) then m}<m.default />{/await}{/if}
   {#if replaced}
     <div class="replaced" role="alert">
       <div>

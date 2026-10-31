@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { FilePlus2, FolderOpen, FileText } from "@lucide/svelte";
+  import { FilePlus2, FolderOpen, FileText, CircleHelp } from "@lucide/svelte";
+  import { ui } from "./search/ui.svelte";
   import { app, newDesign, openDialog, openExample, openPath, recent } from "./state.svelte";
   import ComponentIcon from "./ComponentIcon.svelte";
   import Panel from "./Panel.svelte";
@@ -26,6 +27,7 @@
       <div class="actions">
         <button class="act" onclick={newDesign}><FilePlus2 size={22} /> <span><b>New design</b><small>An empty rocket</small></span></button>
         <button class="act" onclick={openDialog}><FolderOpen size={22} /> <span><b>Open…</b><small>OpenRocket .ork or RockSim .rkt</small></span></button>
+        <button class="act" onclick={() => (ui.guide = "start")}><CircleHelp size={22} /> <span><b>Guide</b><small>How to use RocketMaxxing, step by step</small></span></button>
       </div>
     </Panel>
     <Panel id="home.recent" title="Recent">

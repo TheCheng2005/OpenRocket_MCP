@@ -9,6 +9,23 @@ live margins, flight data after a launch, and an optional assistant. See [the pl
 
 ![Design page](rocketmaxxing/design.png)
 
+## Getting help in the app
+
+- **Guide** (the ? at the top right, or Guide on the Start page): a first session step by step, with a button to
+  each place; what each page is for; which analysis answers which question, with a design-review order; what the
+  team standards hold and which analyses use each section; shortcuts.
+- **Analysis › Start here** (the page opens on it): the analyses grouped by the question they answer (is it ready
+  and legal, is it stable, will recovery work, will it hold together, which motor, launch day, reports), each with
+  why you would run it, and a design review in order.
+- **Standards**: a short explanation with links to each section, an ⓘ per section (what it holds, which analyses
+  read it) and per value (what it means, with an example). The defaults' sources and assumptions, and the long
+  per-material tables (shear modulus, strength…), fold away until opened.
+- **ⓘ on every analysis and input**, and **search** (⌘K / Ctrl+K) for anything by what it is for.
+
+![Guide: which analysis](rocketmaxxing/guide.png)
+
+![Analysis: Start here](rocketmaxxing/start-here.png)
+
 ## Pages
 
 | RocketMaxxing | OpenRocket | Notes |

@@ -5,6 +5,10 @@
   import Panel from "../Panel.svelte";
   import StdNode from "./StdNode.svelte";
   import { at, patchFor, type Json } from "./std";
+  import Tip from "../Tip.svelte";
+  import { isOpen, toggle } from "../panels.svelte";
+  import { STD_SECTIONS } from "../guide/content";
+  import { ui } from "../search/ui.svelte";
 
   // The team's standards: the competition rule set, the launch site, and the safety factors, ratings and material data
   // the checks use. Only what the team changes is written to its file (openrocket-mcp.json), so it stays short and
@@ -41,13 +45,46 @@
     ["structures", "Structures and materials"],
     ["electronics", "Electronics"],
   ];
+  const JUMP: [string, string, boolean][] = [
+    ["competition", "Competition", true], ["launchSite", "Launch site", true], ["recovery", "Recovery", true],
+    ["structures", "Structures and materials", true], ["electronics", "Electronics", false],
+  ];
+
+  /** Opens a section if it is folded and brings it into view. */
+  function jump(key: string, initial: boolean) {
+    if (!isOpen("std." + key, initial)) toggle("std." + key, initial);
+    requestAnimationFrame(() => document.getElementById("std-" + key)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
   let ruleset = $derived(std ? String(at(std.merged, ["ruleset"]) ?? "none") : "");
 </script>
 
+{#snippet about(key: string)}
+  <Tip wide label="What this section is for">
+    <p class="tp"><b>Holds:</b> {STD_SECTIONS[key].holds}</p>
+    <p class="tp"><b>Used by:</b> {STD_SECTIONS[key].usedBy}</p>
+  </Tip>
+{/snippet}
+
 <div class="page">
   {#if std}
+    <div class="intro">
+      <p>
+        Your team's numbers, used by every check: the rules you compete under, your launch site, safety factors, pin
+        ratings and material data. Change a value here and every analysis that uses it changes. <span class="dot">●</span>
+        marks your team's own values, ↺ returns one to the default, and each ⓘ says what a value means and which
+        analyses use it. Set the competition, launch site, shear pins and fin material first.
+      </p>
+      <div class="jump">
+        <span class="muted">Jump to</span>
+        {#each JUMP as [key, name, initial] (key)}<button onclick={() => jump(key, initial)}>{name}</button>{/each}
+        <button class="guide" onclick={() => (ui.guide = "standards")}>Guide to the standards</button>
+      </div>
+    </div>
     <div class="col">
+      <div id="std-competition"></div>
       <Panel id="std.competition" title="Competition">
+        {#snippet status()}{@render about("competition")}{/snippet}
         <div class="body">
           <div class="row">
             <span>Rule set</span>
@@ -73,14 +110,18 @@
         </div>
       </Panel>
       {#each SECTIONS.slice(0, 2) as [key, title] (key)}
+        <div id="std-{key}"></div>
         <Panel id="std.{key}" {title}>
+          {#snippet status()}{@render about(key)}{/snippet}
           <div class="body"><StdNode path={[key]} std={std} {set} /></div>
         </Panel>
       {/each}
     </div>
     <div class="col">
       {#each SECTIONS.slice(2) as [key, title] (key)}
+        <div id="std-{key}"></div>
         <Panel id="std.{key}" {title} initial={key !== "electronics"}>
+          {#snippet status()}{@render about(key)}{/snippet}
           <div class="body"><StdNode path={[key]} std={std} {set} /></div>
         </Panel>
       {/each}
@@ -105,6 +146,45 @@
     .page {
       grid-template-columns: 1fr;
     }
+  }
+  .intro {
+    grid-column: 1 / -1;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .intro p {
+    margin: 0 0 6px;
+    color: var(--ink-2);
+    max-width: 1000px;
+  }
+  .jump {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .jump button {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-2);
+    padding: 2px 10px;
+    font-size: 12.5px;
+    color: var(--ink);
+  }
+  .jump button:hover {
+    border-color: var(--select);
+  }
+  .jump .guide {
+    margin-left: auto;
+    border: 0;
+    background: transparent;
+    color: var(--select);
+    text-decoration: underline;
+  }
+  .tp {
+    margin: 0 0 5px;
   }
   .col {
     display: flex;

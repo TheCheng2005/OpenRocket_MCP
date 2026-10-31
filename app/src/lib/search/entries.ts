@@ -128,6 +128,9 @@ export function entries(): Entry[] {
     { kind: "action", title: "Save as", sub: "Save under a new name", keys: "copy file", shortcut: keys("S", true), off: noDesign, run: () => save(true) },
     { kind: "action", title: "Undo", sub: "Undo the last edit", shortcut: keys("Z"), off: open && app.design?.canUndo ? undefined : "Nothing to undo", run: undo },
     { kind: "action", title: "Redo", sub: "Redo the edit undone", shortcut: MAC ? keys("Z", true) : keys("Y"), off: open && app.design?.canRedo ? undefined : "Nothing to redo", run: redo },
+    { kind: "action", title: "Guide", sub: "How to use RocketMaxxing: getting started, the pages, which analysis", keys: "help how to instructions tutorial manual start", run: () => (ui.guide = "start") },
+    { kind: "action", title: "Which analysis do I need?", sub: "Guide: the analyses by the question they answer", keys: "help guide choose analysis question", run: () => (ui.guide = "analyses") },
+    { kind: "action", title: "What are the team standards?", sub: "Guide: what each section holds and which analyses use it", keys: "help guide standards explain", run: () => (ui.guide = "standards") },
     { kind: "action", title: "Problems", sub: "Errors and warnings, and reporting a bug", keys: "errors warnings issues bug report", run: openIssues },
     { kind: "action", title: "Choose a motor", sub: "Motors page", keys: "set motor pick motor", off: noDesign, run: () => go("motors") },
   );
