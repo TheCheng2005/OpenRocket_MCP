@@ -131,9 +131,13 @@ export function entries(): Entry[] {
     { kind: "action", title: "Problems", sub: "Errors and warnings, and reporting a bug", keys: "errors warnings issues bug report", run: openIssues },
     { kind: "action", title: "Choose a motor", sub: "Motors page", keys: "set motor pick motor", off: noDesign, run: () => go("motors") },
   );
-  if (assistant.settings?.enabled) {
-    out.push({ kind: "action", title: `Ask ${who()}`, sub: "The AI assistant, about this design", keys: "AI assistant chat claude codex", run: () => (assistant.open = true) });
-  }
+  out.push({
+    kind: "action",
+    title: assistant.settings?.enabled ? `Ask ${who()}` : "AI assistant",
+    sub: assistant.settings?.enabled ? "About this design" : "Set it up and ask about the design",
+    keys: "AI assistant agent robot bot chat claude codex chatgpt",
+    run: () => (assistant.open = true),
+  });
 
   // Parts to add, where they would go from the current selection.
   for (const g of PART_GROUPS) {
@@ -188,7 +192,7 @@ export function entries(): Entry[] {
     { kind: "setting", title: "Dark theme", keys: "appearance mode night", run: () => setTheme("dark") },
     { kind: "setting", title: "Theme follows the system", keys: "appearance mode auto", run: () => setTheme("system") },
     { kind: "setting", title: "Automatic rule check", sub: "Settings", keys: "checks auto", run: settings("Checks") },
-    { kind: "setting", title: "AI assistant", sub: "Settings: Claude, ChatGPT or an API key", keys: "claude codex chatgpt api key connect", run: settings("AI assistant") },
+    { kind: "setting", title: "AI assistant connection", sub: "Claude, ChatGPT or an API key", keys: "claude codex chatgpt api key connect agent", run: settings("AI assistant") },
   );
   for (const sc of SCHEMES) {
     out.push({

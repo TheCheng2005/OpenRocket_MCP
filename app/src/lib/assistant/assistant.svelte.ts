@@ -89,6 +89,17 @@ export async function checkConnections() {
   }
 }
 
+/** What is still missing before the assistant can answer, or null when it is ready. */
+export function missing(): string | null {
+  const s = assistant.settings;
+  if (!s) return "Loading…";
+  if (!s.enabled) return "Choose how to connect.";
+  if (s.provider === "api") return s.hasKey ? null : "Add your Anthropic API key.";
+  const c = assistant.connections?.find((x) => x.id === s.provider);
+  if (c && (!c.installed || c.signedIn === false)) return c.detail ?? `${c.label} is not ready.`;
+  return null;
+}
+
 /** Who the assistant is in the drawer and the top bar. */
 export function who(): string {
   const s = assistant.settings;

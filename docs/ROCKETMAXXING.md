@@ -139,9 +139,13 @@ there (geese, an airliner, a kite, the Moon, a satellite, a UFO...) and says wha
 
 ## The assistant (optional)
 
-Settings > AI assistant puts an assistant beside the design. It works through the same tools as the app (and as the
-MCP server), so what it changes shows at once and undoes like any other edit; each tool it used can be opened to see
-what it sent and got back. It is off until you turn it on, and connects one of three ways:
+The robot button at the top right (Assistant, or Claude or Codex once connected) opens the assistant beside the
+design. Until it is connected the panel shows the setup: choose one of the three ways below, and it says whether Claude
+Code and Codex are installed and signed in on this computer and what is still needed; Start opens the conversation.
+The sliders button in the panel's header comes back to the setup, and Settings > AI assistant has the same choices
+(and turns it off). It works through the same tools as the app (and as the MCP server), so what it changes shows at
+once and undoes like any other edit; each tool it used can be opened to see what it sent and got back. It is off until
+you choose a way to connect:
 
 | Connect with | What you need | Billing |
 |---|---|---|
@@ -166,6 +170,8 @@ Whichever way, your messages, the open design's data and the tools' results go t
 OpenAI (Codex).
 
 ![Connecting the assistant](rocketmaxxing/connect.png)
+
+![Setting it up from the robot button](rocketmaxxing/assistant-setup.png)
 
 ![The assistant](rocketmaxxing/assistant.png)
 

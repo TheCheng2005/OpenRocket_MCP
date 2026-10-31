@@ -123,7 +123,7 @@
         {/if}
       </main>
       {#if issues.open}{#await load(issuesCode) then m}<m.default />{/await}{/if}
-      {#if assistant.open && assistant.settings?.enabled}{#await load(assistantCode) then m}<m.default />{/await}{/if}
+      {#if assistant.open}{#await load(assistantCode) then m}<m.default />{/await}{/if}
     </div>
   </div>
   <Toasts />

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FilePlus2, FolderOpen, Save, Undo2, Redo2, Settings as Gear, MessageSquare, TriangleAlert, Search } from "@lucide/svelte";
+  import { FilePlus2, FolderOpen, Save, Undo2, Redo2, Settings as Gear, TriangleAlert, Search, Bot } from "@lucide/svelte";
   import { app, newDesign, openDialog, save, undo, redo, selectConfig } from "./state.svelte";
   import Settings from "./Settings.svelte";
   import RocketLoader from "./RocketLoader.svelte";
@@ -57,11 +57,11 @@
     </label>
   {/if}
 
-  {#if assistant.settings?.enabled}
-    <button class="btn ghost" class:on={assistant.open} onclick={() => (assistant.open = !assistant.open)} title="Ask {who()} about the design">
-      <MessageSquare size={16} /> {who()}{#if assistant.running}…{/if}
-    </button>
-  {/if}
+  <button class="btn ghost bot" class:on={assistant.open} onclick={() => (assistant.open = !assistant.open)}
+    title={assistant.settings?.enabled ? `Ask ${who()} about the design` : "AI assistant: set it up and ask about the design"}
+    aria-label="AI assistant" aria-pressed={assistant.open}>
+    <Bot size={18} /><span>{assistant.settings?.enabled ? who() : "Assistant"}{#if assistant.running}…{/if}</span>
+  </button>
   <button
     class="btn ghost problems"
     class:on={issues.open}
@@ -111,6 +111,9 @@
     border-radius: 4px;
   }
   @media (max-width: 1100px) {
+    .bot span {
+      display: none;
+    }
     .find {
       width: auto;
     }

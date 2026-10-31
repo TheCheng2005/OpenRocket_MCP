@@ -1,13 +1,22 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { X, SquarePen, Send, Square, Check, CircleAlert } from "@lucide/svelte";
-  import { assistant, send, stop, reset, who, MODEL_NAMES, CLAUDE_CODE_MODELS, PROVIDER_NAMES } from "./assistant.svelte";
+  import { X, SquarePen, Send, Square, Check, CircleAlert, Settings2, Bot } from "@lucide/svelte";
+  import { assistant, send, stop, reset, who, missing, MODEL_NAMES, CLAUDE_CODE_MODELS, PROVIDER_NAMES } from "./assistant.svelte";
+  import AssistantSetup from "./AssistantSetup.svelte";
   import { markdown } from "./text";
   import RocketLoader from "../RocketLoader.svelte";
 
   // Claude beside the design: what the team asks, what Claude answers, and each tool it used (open one to see what it
   // sent and got back). Changes it makes show in the app at once and undo like any other edit.
   let text = $state("");
+  // Setup shows while something is missing and stays until Start (so the team sees it worked), and again from the
+  // header's connection button.
+  let setup = $state(false);
+  let need = $derived(missing());
+  $effect(() => {
+    if (need && assistant.settings) setup = true;
+  });
+  let showSetup = $derived(setup || !!need);
   let list: HTMLDivElement | undefined = $state();
 
   const SUGGESTIONS = [
@@ -20,7 +29,7 @@
   /** How it is connected, under the name: the plan or the key, and the model. */
   let via = $derived.by(() => {
     const s = assistant.settings;
-    if (!s) return "";
+    if (!s || !s.enabled) return "Not set up yet";
     if (s.provider === "claude-code") return `Claude Code, your Claude plan · ${CLAUDE_CODE_MODELS[s.claudeCodeModel] ?? s.claudeCodeModel}`;
     if (s.provider === "codex") return `Codex, your ChatGPT plan${s.codexModel ? " · " + s.codexModel : ""}`;
     return `${PROVIDER_NAMES.api} · ${MODEL_NAMES[s.model] ?? s.model}`;
@@ -58,13 +67,36 @@
 <aside class="drawer" aria-label="Assistant">
   <header>
     <div class="who">
-      <b>{who()}</b>
+      <b>{assistant.settings?.enabled ? who() : "AI assistant"}</b>
       <span class="muted">{via}</span>
     </div>
-    <button class="tool" title="New conversation" disabled={assistant.running} onclick={reset}><SquarePen size={16} /></button>
+    {#if !need}
+      <button class="tool" class:on={setup} title="How the assistant connects" aria-pressed={setup} onclick={() => (setup = !setup)}><Settings2 size={16} /></button>
+    {/if}
+    <button class="tool" title="New conversation" disabled={assistant.running || showSetup} onclick={reset}><SquarePen size={16} /></button>
     <button class="tool" title="Close" onclick={() => (assistant.open = false)}><X size={16} /></button>
   </header>
 
+  {#if showSetup}
+  <div class="setup">
+    <div class="hello">
+      <span class="bot"><Bot size={22} /></span>
+      <div>
+        <b>Ask an AI about your rocket</b>
+        <p>
+          It works through RocketMaxxing's own tools: it runs simulations, the rule check, recovery and structures
+          analyses, and can change the design (every change can be undone). Choose how it connects:
+        </p>
+      </div>
+    </div>
+    <AssistantSetup />
+    {#if need}
+      <p class="todo"><b>Still needed:</b> {need}</p>
+    {:else}
+      <button class="btn primary start" onclick={() => (setup = false)}><Bot size={15} /> Start asking {who()}</button>
+    {/if}
+  </div>
+  {:else}
   <div class="list" bind:this={list}>
     {#if !assistant.events.length}
       <p class="muted intro">
@@ -106,9 +138,52 @@
       <button class="btn primary" disabled={!text.trim()} onclick={submit}><Send size={14} /> Send</button>
     {/if}
   </footer>
+  {/if}
 </aside>
 
 <style>
+  .setup {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 12px;
+  }
+  .hello {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .hello p {
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-2);
+  }
+  .bot {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--select-soft);
+    color: var(--select);
+  }
+  .todo {
+    margin: 10px 0 0;
+    padding: 6px 10px;
+    border-left: 3px solid var(--warn);
+    border-radius: var(--radius);
+    background: var(--warn-soft);
+    font-size: 12.5px;
+  }
+  .start {
+    margin-top: 10px;
+    width: 100%;
+    justify-content: center;
+  }
+  .tool.on {
+    color: var(--select);
+  }
   .drawer {
     width: 400px;
     flex: none;
