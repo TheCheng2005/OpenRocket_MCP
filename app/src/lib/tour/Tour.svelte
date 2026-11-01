@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { X } from "@lucide/svelte";
-  import { tour, go, end } from "./tour.svelte";
+  import { tour, go, end } from "./session.svelte";
 
   // The tour on screen: the rest of the window dims, the part a step is about stays lit, and a card beside it says
   // what it is for. Back, Next, the arrow keys and Escape move through it; the page underneath waits until the end.

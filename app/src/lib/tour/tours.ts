@@ -4,7 +4,7 @@ import { app } from "../state.svelte";
 import { analysis } from "../analysis/store.svelte";
 import { keys } from "../keys";
 import { ui } from "../search/ui.svelte";
-import { start, type Step } from "./tour.svelte";
+import { start, type Step } from "./session.svelte";
 
 export function designSteps(): Step[] {
   return [

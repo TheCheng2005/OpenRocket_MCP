@@ -13,7 +13,7 @@
   import { issues, watchPageErrors } from "./lib/issues/issues.svelte";
   import { assistant, loadSettings } from "./lib/assistant/assistant.svelte";
   import { ui } from "./lib/search/ui.svelte";
-  import { tour } from "./lib/tour/tour.svelte";
+  import { tour } from "./lib/tour/session.svelte";
   import Tour from "./lib/tour/Tour.svelte";
 
   let ready = $state(false);

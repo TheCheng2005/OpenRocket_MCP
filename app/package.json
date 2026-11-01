@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "check": "svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "prebuild": "node scripts/check-names.mjs"
   },
   "dependencies": {
     "@lucide/svelte": "1.63.0",

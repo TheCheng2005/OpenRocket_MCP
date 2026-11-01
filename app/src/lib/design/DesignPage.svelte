@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ArrowUp, ArrowDown, Copy, Trash2, Image, Route, X } from "@lucide/svelte";
   import { designTour } from "../tour/tours";
-  import { seen, markSeen } from "../tour/tour.svelte";
+  import { seen, markSeen } from "../tour/session.svelte";
   import PictureDialog from "../media/PictureDialog.svelte";
   import { app, move, duplicate, removeSelected, findNode } from "../state.svelte";
   import { isOpen } from "../panels.svelte";
