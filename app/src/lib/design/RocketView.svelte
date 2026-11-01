@@ -512,7 +512,7 @@
   {/if}
   <div class="marker cg" bind:this={cgEl} title="Centre of gravity (at launch)"><span>CG</span></div>
   <div class="marker cp" bind:this={cpEl} title="Centre of pressure (Mach 0.3)"><span>CP</span></div>
-  <div class="bar">
+  <div class="bar" data-tour="view-modes">
     <div class="seg" role="group" aria-label="View">
       <button class:on={mode === "side"} onclick={() => setMode("side")}>Side</button>
       <button class:on={mode === "back"} onclick={() => setMode("back")}>Back</button>

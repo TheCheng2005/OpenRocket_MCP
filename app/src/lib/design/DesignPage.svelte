@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { ArrowUp, ArrowDown, Copy, Trash2, Image } from "@lucide/svelte";
+  import { ArrowUp, ArrowDown, Copy, Trash2, Image, Route, X } from "@lucide/svelte";
+  import { designTour } from "../tour/tours";
+  import { seen, markSeen } from "../tour/tour.svelte";
   import PictureDialog from "../media/PictureDialog.svelte";
   import { app, move, duplicate, removeSelected, findNode } from "../state.svelte";
   import { isOpen } from "../panels.svelte";
@@ -15,6 +17,12 @@
   let isRoot = $derived(app.selected === "rocket");
   let target = $derived(findNode(app.design?.tree, app.selected)?.name ?? "");
   let picture = $state(false);
+  // The first time the page is shown, a line above the view offers the tour (once; the View panel keeps a button).
+  let offer = $state(!seen("design"));
+  function noThanks() {
+    markSeen("design");
+    offer = false;
+  }
 </script>
 
 <div class="design">
@@ -31,9 +39,18 @@
   </div>
 
   <div class="center">
+    {#if offer}
+      <div class="offer" role="note">
+        <Route size={16} />
+        <span><b>New to the Design page?</b> A one-minute tour shows what each part of it does.</span>
+        <button class="btn primary small" onclick={() => { offer = false; designTour(); }}>Take the tour</button>
+        <button class="tool" onclick={noThanks} aria-label="Not now" title="Not now (the View panel has a Tour button)"><X size={15} /></button>
+      </div>
+    {/if}
     <Panel id="design.view" title="View" fill>
       {#snippet tools()}
-        <button class="tool wide" title="Picture or drawing of the design, for reviews and build notes" onclick={() => (picture = true)}><Image size={15} /> Picture</button>
+        <button class="tool wide" title="A guided tour of this page" onclick={() => { offer = false; designTour(); }}><Route size={15} /> Tour</button>
+        <button class="tool wide" data-tour="picture" title="Picture or drawing of the design, for reviews and build notes" onclick={() => (picture = true)}><Image size={15} /> Picture</button>
       {/snippet}
       <div class="view"><RocketView /></div>
     </Panel>
@@ -60,6 +77,20 @@
 {#if picture}<PictureDialog close={() => (picture = false)} />{/if}
 
 <style>
+  .offer {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px 6px 12px;
+    border: 1px solid var(--select);
+    border-radius: var(--radius);
+    background: var(--select-soft);
+    color: var(--ink);
+  }
+  .offer span {
+    flex: 1;
+  }
   .design {
     flex: 1;
     min-height: 0;

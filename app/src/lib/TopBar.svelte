@@ -47,7 +47,7 @@
   {#if app.busy > 0}<span class="busy" title="Working"><RocketLoader size="tiny" /></span>{/if}
 
   {#if app.design}
-    <label class="config">
+    <label class="config" data-tour="config">
       <span>Configuration</span>
       <select class="select" value={app.design.selected} onchange={(e) => selectConfig((e.target as HTMLSelectElement).value)}>
         {#each app.design.configurations as c (c.id)}

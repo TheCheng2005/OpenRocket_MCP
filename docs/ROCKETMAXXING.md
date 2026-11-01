@@ -14,6 +14,10 @@ live margins, flight data after a launch, and an optional assistant. See [the pl
 - **Guide** (the ? at the top right, or Guide on the Start page): a first session step by step, with a button to
   each place; what each page is for; which analysis answers which question, with a design-review order; what the
   team standards hold and which analyses use each section; shortcuts.
+- **Design page tour**: offered the first time the Design page opens, and from the Tour button on the View panel,
+  the Guide or the search ("tour"). Twelve steps, each lighting up one part of the page (parts list, view and its
+  modes, pictures, properties, summary, rule check, Add part, configuration, top bar) with what it is for and how to
+  use it. Arrow keys or Back / Next move through it; Escape ends it.
 - **Analysis › Start here** (the page opens on it): the analyses grouped by the question they answer (is it ready
   and legal, is it stable, will recovery work, will it hold together, which motor, launch day, reports), each with
   why you would run it, and a design review in order.
@@ -25,6 +29,8 @@ live margins, flight data after a launch, and an optional assistant. See [the pl
 ![Guide: which analysis](rocketmaxxing/guide.png)
 
 ![Analysis: Start here](rocketmaxxing/start-here.png)
+
+![Design page tour](rocketmaxxing/tour.png)
 
 ## Pages
 

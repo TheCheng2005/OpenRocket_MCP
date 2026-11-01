@@ -13,6 +13,8 @@
   import { issues, watchPageErrors } from "./lib/issues/issues.svelte";
   import { assistant, loadSettings } from "./lib/assistant/assistant.svelte";
   import { ui } from "./lib/search/ui.svelte";
+  import { tour } from "./lib/tour/tour.svelte";
+  import Tour from "./lib/tour/Tour.svelte";
 
   let ready = $state(false);
 
@@ -131,6 +133,7 @@
   <AskDialog />
   {#if ui.search}{#await load(searchCode) then m}<m.default />{/await}{/if}
   {#if ui.guide !== null}{#await load(guideCode) then m}<m.default />{/await}{/if}
+  {#if tour.name}<Tour />{/if}
   {#if replaced}
     <div class="replaced" role="alert">
       <div>

@@ -5,6 +5,7 @@
   import { analysis } from "../analysis/store.svelte";
   import { CATALOG } from "../analysis/catalog";
   import { ui } from "../search/ui.svelte";
+  import { designTour } from "../tour/tours";
   import { PAGE_HELP, QUESTIONS, REVIEW, STD_SECTIONS, STEPS, TIPS } from "./content";
 
   // How to use RocketMaxxing: a first session step by step, what each page is for, which analysis answers which
@@ -62,6 +63,10 @@
           {/each}
         </ol>
         {#if !app.design}<p class="muted">The steps after the first need an open design.</p>{/if}
+        <div class="tourline">
+          <span><b>Prefer to be shown?</b> The Design page tour points at each part of the page in turn.</span>
+          <button class="go" disabled={!app.design} title={app.design ? "" : "Open a design first"} onclick={() => designTour()}>Take the Design tour <ArrowRight size={13} /></button>
+        </div>
       {:else if tab === "pages"}
         <p class="lead">The bar on the left has one button per page.</p>
         <dl class="pages">
@@ -207,6 +212,16 @@
   }
   .pages {
     margin: 0;
+  }
+  .tourline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    background: var(--select-soft);
   }
   .pages dt,
   .tips dt {

@@ -28,11 +28,11 @@
 </script>
 
 {#if side && !open}
-  <button class="strip {side}" onclick={() => toggle(id, initial)} title="Show {title.toLowerCase()}">
+  <button class="strip {side}" data-panel={id} onclick={() => toggle(id, initial)} title="Show {title.toLowerCase()}">
     <span>{title}</span>
   </button>
 {:else}
-  <section class="panel" class:fill={fill && open} class:side>
+  <section class="panel" class:fill={fill && open} class:side data-panel={id}>
     <header>
       {#if side}
         <span class="title">{title}</span>

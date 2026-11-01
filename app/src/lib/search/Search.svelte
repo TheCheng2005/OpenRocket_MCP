@@ -50,6 +50,7 @@
       list?.querySelector(".hit.at")?.scrollIntoView({ block: "nearest" });
     } else if (ev.key === "Enter") {
       ev.preventDefault();
+      ev.stopPropagation(); // what it opens (a tour) must not take this Enter as its own
       choose(found[at]);
     } else if (ev.key === "Escape") {
       ev.preventDefault();
