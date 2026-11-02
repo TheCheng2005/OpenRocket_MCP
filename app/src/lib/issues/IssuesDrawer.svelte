@@ -8,7 +8,7 @@
   // Every problem in one place, by whose it is: the request (input), the flight (physics), a result to treat with
   // care (output), the computer or RocketMaxxing (system). Bugs in RocketMaxxing come with a report to send.
 
-  const REPO_ISSUES = "https://github.com/TheCheng2005/OpenRocket_MCP/issues/new";
+  const REPO_ISSUES = "https://github.com/TheCheng2005/RocketMaxxing/issues/new";
 
   let only = $state<IssueKind | null>(null);
   let copied = $state(0);

@@ -175,6 +175,6 @@ public final class Web {
 			}
 		}
 
-		private static final String AGENT = "Mozilla/5.0 (compatible; openrocket-mcp; +https://github.com/TheCheng2005/OpenRocket_MCP)";
+		private static final String AGENT = "Mozilla/5.0 (compatible; openrocket-mcp; +https://github.com/TheCheng2005/RocketMaxxing)";
 	}
 }

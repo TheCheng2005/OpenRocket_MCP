@@ -1,6 +1,13 @@
-# OpenRocket MCP
+# RocketMaxxing
 
-Talk to Claude about your rocket, and it answers with real [OpenRocket](https://openrocket.info) simulations.
+Rocket design and engineering checks for student competition teams, on [OpenRocket](https://openrocket.info)'s own
+physics. Two ways to use it:
+
+- **[RocketMaxxing, the desktop app](docs/ROCKETMAXXING.md)** (Mac, Windows, Linux): design the rocket in 3-D, see the
+  competition rules re-checked after every edit, and run 50 engineering analyses (recovery loads, fin flutter, shear
+  pins, ejection charges, parachute sizing and more) without writing code or keeping spreadsheets.
+- **OpenRocket MCP, for AI assistants:** talk to Claude (or Codex) about your rocket, and it answers with real
+  OpenRocket simulations. The rest of this page is about this part.
 
 Built for student competition teams and amateur rocketeers, and set up for **Launch Canada 2027** out of the box. Ask
 in plain words, in feet or metres; Claude runs the numbers, checks them against the competition rules and your team's
@@ -197,7 +204,7 @@ See [docs/TEAM.md](docs/TEAM.md) for the set-up.
 Works with **Claude Desktop**, **claude.ai**, **Claude Code** and **Codex**.
 
 **Claude Desktop (easiest).** Download the extension for your computer from the
-[Releases page](https://github.com/TheCheng2005/OpenRocket_MCP/releases) — `win32` for Windows, `darwin-arm64` for
+[Releases page](https://github.com/TheCheng2005/RocketMaxxing/releases) — `win32` for Windows, `darwin-arm64` for
 Apple-silicon Macs, `darwin-x64` for Intel Macs, `linux` for Linux — and double-click it. Claude Desktop asks for your
 rocket folder (where your `.ork` files live) and you are done. Nothing else to install: Java and OpenRocket come
 inside it. (If your team runs a team server, Claude Desktop can use that instead: see below.)
@@ -295,7 +302,7 @@ It uses the same `.ork` files. Build it with `./gradlew rocketmaxxing` and run
 
 ## Contributing
 
-Found a number that looks wrong, or want a new capability? [Open an issue](https://github.com/TheCheng2005/OpenRocket_MCP/issues/new/choose).
+Found a number that looks wrong, or want a new capability? [Open an issue](https://github.com/TheCheng2005/RocketMaxxing/issues/new/choose).
 Code, rule sets and flight data are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License

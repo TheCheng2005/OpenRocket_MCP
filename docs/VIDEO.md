@@ -5,7 +5,7 @@ from [EXAMPLES.md](EXAMPLES.md). Record it once in about 10 minutes; speed up th
 
 ## Before recording
 
-- [ ] Install the extension from the [Releases page](https://github.com/TheCheng2005/OpenRocket_MCP/releases) *on camera*
+- [ ] Install the extension from the [Releases page](https://github.com/TheCheng2005/RocketMaxxing/releases) *on camera*
       (shot 1), or beforehand if you want a shorter video.
 - [ ] Make a clean rocket folder, e.g. `Documents/Rockets`, and put
       [`maple-10k-pdr.ork`](examples/maple-10k-pdr.ork) in it. Choose it as the rocket folder when installing.
@@ -26,7 +26,7 @@ from [EXAMPLES.md](EXAMPLES.md). Record it once in about 10 minutes; speed up th
 | 5 | Where it lands | `Where will it land in a 15 km/h west wind? Include our build and motor uncertainty, and draw the landing map.` | 200 simulated flights, distances, and the landing map | 15 s |
 | 6 | Does it pass | `Does it pass Launch Canada? Then make us the launch-day flight card.` | "No failures", the warnings with rule numbers, and the flight card | 15 s |
 | 7 | Show it off | `Animate the flight for our team's social media.` | The key-moment stills in the chat; the GIF (and MP4 with ffmpeg) saved in the rocket folder. Play the GIF over the end of the clip | 10 s |
-| — | End card | — | Title + "github.com/TheCheng2005/OpenRocket_MCP" | 5 s |
+| — | End card | — | Title + "github.com/TheCheng2005/RocketMaxxing" | 5 s |
 
 Tip: if an answer is long, scroll to the one line that matters (FAIL / PASS, the apogee, "No failures") and hold for
 two seconds. Zoom into it in editing if your editor can.

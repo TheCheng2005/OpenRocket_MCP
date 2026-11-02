@@ -302,8 +302,8 @@ for the fin FEA, and Claude Code or Codex for the assistant.
 To run from source: Java 17 or newer. Building the interface the first time also needs Node.js 20 or newer.
 
 ```bash
-git clone https://github.com/TheCheng2005/OpenRocket_MCP.git
-cd OpenRocket_MCP
+git clone https://github.com/TheCheng2005/RocketMaxxing.git
+cd RocketMaxxing
 ./gradlew rocketmaxxing
 build/install/openrocket-mcp/bin/rocketmaxxing        # Windows: build\install\openrocket-mcp\bin\rocketmaxxing.bat
 ```
