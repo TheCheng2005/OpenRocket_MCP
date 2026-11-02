@@ -72,8 +72,14 @@ public final class Variants {
 		if (edit != null) {
 			edit.accept(copy);
 		}
+		// What-if runs must not mark the design as changed: duplicating already tells the document, before the
+		// listener can be taken off, so its saved state is kept across it.
+		boolean saved = doc != null && doc.isSaved();
 		Simulation sim = base.duplicateSimulation(copy);
-		sim.removeChangeListener(doc); // what-if runs must not mark the design as changed
+		sim.removeChangeListener(doc);
+		if (saved) {
+			doc.setSaved(true);
+		}
 		if (o != null) {
 			Sims.apply(sim.getOptions(), o);
 		}

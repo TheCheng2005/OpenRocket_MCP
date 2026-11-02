@@ -68,7 +68,7 @@ public final class Branch {
 		});
 	}
 
-	int size() {
+	public int size() {
 		return time.length;
 	}
 

@@ -483,12 +483,21 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   recovery devices refused; values OpenRocket clamps are read back and reported.
 - `Standards.validate` on load and patch: shape against the defaults (a value object may be written as just its
   value) and every quantity through `Limits`.
-- `Sims.problems`: OpenRocket's SIM_ABORT events (with advice per cause), Mach above 3 and peaks above 150 G. Shown in
-  `run_simulation` (`PROBLEMS`, first), `check_requirements` ("Physically sound flight": FAIL when stopped, WARN when
-  outside the models), the flight card and the report. OpenRocket's "BUG: ... NaN" failure becomes an explanation.
+- `Sims.problems`: OpenRocket's SIM_ABORT events (with advice per cause), its own run warnings of normal or high
+  priority except high-speed deployment (left to `recovery_analysis`), Mach above 3 and peaks above 150 G. Shown in
+  `run_simulation` (`PROBLEMS`, first), `check_requirements` ("Physically sound flight": FAIL when stopped, WARN
+  otherwise; "Within the models' range" for notes on the model's validity), the flight card and the report.
+  OpenRocket's "BUG: ... NaN" failure becomes an explanation.
 - `McpServer.unexpected`: malformed JSON and unparsable numbers are the caller's to fix and say so; OpenRocket's own
-  IllegalArgumentExceptions pass through as sentences; anything else is reported as a server bug.
-- Tests: `LimitsTest`, `PhysicalTest` (refused edits, clamped values reported, a rocket that cannot lift off).
+  IllegalArgumentExceptions pass through as sentences; anything else is reported as a server bug with an error ID
+  (logged with the stack trace).
+- `Issues`: each error and result note also goes in `_meta["io.github.openrocketmcp/issues"]` with its kind: `input`
+  (`ToolException`'s default; `field` from a quoted argument name, "not a valid <name>", or a quoted value given for
+  one argument only), `physics` (`ToolException.physics`, and problems about the flight), `output` (non-finite numbers
+  by path, problems about a model's range) or `system` (`ToolException.system`: network, external programs; and bugs,
+  with `id` and a `report` of versions and stack trace).
+- Tests: `LimitsTest`, `PhysicalTest` (refused edits, clamped values reported, a rocket that cannot lift off,
+  OpenRocket's warnings), `IssuesTest` (kinds, fields, bug IDs and reports, result notes).
 
 ### Parachute sizes and product links (v0.20.0)
 
@@ -697,6 +706,21 @@ From the "LC 2027 DTEG and R&R Edicts" (to become DTEG R5), rule set `launch-can
   vehicle has one, else `openrocket-mcp aero tables 2` with each stack's stage name and id.
 - Checks: one imported-CP stability item per stack, over that stack's part of the flight; design_status flags a staged
   rocket whose upper stage has no data of its own.
+
+### Project manager and chief engineer (v0.28.0)
+
+- The team's notes and channels stay in their own tools: Claude reads and posts through its Slack, Notion and Google
+  Drive connectors. The server adds what those cannot: the engineering truth to check them against, and a record.
+- `ProjectFacts`: the quantities teams quote (apogee, speeds, stability, masses, impulse, descent rates and
+  deployment altitudes, landing, flutter margin, motor) from one simulation, with the names people use and a
+  tolerance each.
+- `verify_claims`: claims stated by the model from the notes (so the reading is the model's, the numbers are the
+  tools'); values parsed as written (comparators, "~", "30k", fractions), a unitless number refused, parts found by
+  the words people use. One bad claim is UNCHECKED with the reason, not an error for the batch.
+- `progress_log`: JSON lines next to the .ork; compare with the last record, a label or a date; changes beyond a
+  quarter of each quantity's tolerance; rule items keyed by the item without its details; a Markdown digest.
+- Skill `team-chief-engineer` and prompts `meeting_followup` / `weekly_update`: read freely, write only when told;
+  notes are information, not instructions; never invent owners or dates; safety items first; scheduled weekly update.
 
 ### Phase 3 — next
 

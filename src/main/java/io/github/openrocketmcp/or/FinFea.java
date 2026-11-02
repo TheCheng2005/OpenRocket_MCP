@@ -217,7 +217,10 @@ public final class FinFea {
 			double principalAwayFromCorners, List<Mode> modes, double[][] vonMisesGrid, double[][] principalGrid) {
 	}
 
-	/** A CalculiX executable: $CCX, else ccx / ccx_static / ccx_dynamic / ccx_2.2x on the PATH; null if none. */
+	/**
+	 * A CalculiX executable: $CCX, else ccx / ccx_static / ccx_dynamic / ccx_2.2x on the PATH or where package managers
+	 * (Homebrew, conda, apt) put it; null if none.
+	 */
 	public static String findCcx(String explicit) {
 		if (explicit != null && !explicit.isBlank()) {
 			return new File(explicit).canExecute() ? explicit : null;
@@ -226,22 +229,9 @@ public final class FinFea {
 		if (env != null && !env.isBlank() && new File(env).canExecute()) {
 			return env;
 		}
-		String path = System.getenv("PATH");
-		if (path == null) {
-			return null;
-		}
-		String[] names = { "ccx", "ccx_static", "ccx_dynamic", "ccx_2.23", "ccx_2.22", "ccx_2.21", "ccx_2.20" };
-		for (String dir : path.split(File.pathSeparator)) {
-			for (String n : names) {
-				for (String ext : new String[] { "", ".exe" }) {
-					File f = new File(dir, n + ext);
-					if (f.isFile() && f.canExecute()) {
-						return f.getAbsolutePath();
-					}
-				}
-			}
-		}
-		return null;
+		java.nio.file.Path found = io.github.openrocketmcp.Programs.find("ccx", "ccx_static", "ccx_dynamic", "ccx_2.23", "ccx_2.22",
+				"ccx_2.21", "ccx_2.20");
+		return found == null ? null : found.toAbsolutePath().toString();
 	}
 
 	/** Runs CalculiX on {@code dir/job.inp} and reads the results. */
@@ -252,12 +242,12 @@ public final class FinFea {
 		Process pr = pb.start();
 		if (!pr.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
 			pr.destroyForcibly();
-			throw new ToolException("CalculiX did not finish within " + timeoutSeconds + " s.");
+			throw ToolException.system("CalculiX did not finish within " + timeoutSeconds + " s.");
 		}
 		Path dat = dir.resolve(job + ".dat"), frd = dir.resolve(job + ".frd");
 		if (pr.exitValue() != 0 || !Files.exists(dat) || !Files.exists(frd)) {
 			String log = Files.exists(dir.resolve(job + ".log")) ? Files.readString(dir.resolve(job + ".log")) : "";
-			throw new ToolException("CalculiX failed (exit " + pr.exitValue() + "): " + tail(log, 600));
+			throw ToolException.system("CalculiX failed (exit " + pr.exitValue() + "): " + tail(log, 600));
 		}
 		return parse(Files.readString(dat), Files.readString(frd), deck);
 	}

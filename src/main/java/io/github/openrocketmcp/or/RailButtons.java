@@ -122,7 +122,7 @@ public final class RailButtons {
 				}
 			}
 			if (rows.size() < 3 || rows.get(rows.size() - 1)[0] < railLength * 0.5) {
-				throw new ToolException("The simulation never climbs the rail (no thrust, or too heavy); fix that first "
+				throw ToolException.physics("The simulation never climbs the rail (no thrust, or too heavy); fix that first "
 						+ "(run_simulation).");
 			}
 			travel = new double[rows.size()];

@@ -652,6 +652,34 @@ def raw(s, tool, args, token=None, cancel_after=None):
             return m["result"], notes
 
 
+def scenario_project(s, tmp):
+    """'Go through our meeting notes: do the numbers still hold? And what changed since PDR?'"""
+    sc = "project manager"
+    import shutil
+    ork = os.path.join(tmp, "pm-maple.ork")
+    shutil.copy(os.path.join(ROOT, "docs/examples/maple-10k.ork"), ork)
+    d = s.call("open_design", {"path": ork})["designId"]
+    apogee = s.call("run_simulation", {"designId": d})["flight"]["apogee"].split(" (")[0]
+    v = s.call("verify_claims", {"designId": d, "claims": [
+        {"quantity": "apogee", "value": apogee, "source": "meeting"},
+        {"quantity": "apogee", "value": "~20k ft", "source": "Slack"},
+        {"quantity": "rail exit", "value": "at least 100 ft/s"},
+        {"component": "fins", "property": "material", "value": "carbon"},
+        {"quantity": "apogee", "value": "3000"}]})
+    st = [c["status"] for c in v["claims"]]
+    check(sc, "notes checked against the design (match, mismatch, unitless refused)",
+          st == ["MATCH", "MISMATCH", "MATCH", "MATCH", "UNCHECKED"], st)
+    s.call("progress_log", {"designId": d, "label": "PDR", "note": "baseline"})
+    s.call("edit_components", {"designId": d, "changes": [{"component": "Fins", "properties": {"thickness": "2 mm"}}]})
+    p = s.call("progress_log", {"designId": d, "note": "thinner fins"})
+    check(sc, "progress record shows what changed since the last one (and the flutter item got worse)",
+          "flutter" in json.dumps(p.get("changes", {})) and "Changed:" in p.get("digest", ""), json.dumps(p)[:300])
+    h = s.call("progress_log", {"designId": d, "mode": "history"})
+    check(sc, "history kept next to the design, milestone labelled",
+          h["records"] == 2 and h["history"][0].get("label") == "PDR" and os.path.exists(os.path.join(tmp, "pm-maple.progress.jsonl")))
+    s.call("close_design", {"designId": d})
+
+
 def scenario_user_experience(s, d, tmp):
     """Pictures in the chat, progress and cancel, status, undo, and the landing map for Google Earth."""
     sc = "user experience"
@@ -805,7 +833,8 @@ def main():
                      ("Design review", lambda: scenario_design_review(s, scratch["d"], tmp)),
                      ("Avionics bay", lambda: scenario_avionics(s, tmp)),
                      ("Fins, FEA and CFD", lambda: scenario_fins_fea_cfd(s, scratch["d"], tmp)),
-                     ("User experience", lambda: scenario_user_experience(s, scratch["d"], tmp))]:
+                     ("User experience", lambda: scenario_user_experience(s, scratch["d"], tmp)),
+                     ("Project manager", lambda: scenario_project(s, tmp))]:
         print(f"\n== {name}")
         try:
             fn()

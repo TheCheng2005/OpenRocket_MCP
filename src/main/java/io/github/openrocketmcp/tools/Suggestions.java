@@ -31,8 +31,11 @@ public final class Suggestions {
 
 	static final List<Feature> FEATURES = List.of(
 			new Feature("design_status", "Start and review", "Where do we stand, and what's left before the next review?"),
+			new Feature("verify_claims", "Start and review", "Check our meeting notes and Slack threads against the design: do the numbers we quote still hold?"),
+			new Feature("progress_log", "Start and review", "Keep a weekly record of where the design stands and draft our status update."),
 			new Feature("show_design", "Start and review", "Show us the rocket and its flight: 3-D, cut-away, flight plots and checks we can click through."),
 			new Feature("check_requirements", "Start and review", "Does it pass the competition rules, including in maximum wind?"),
+			new Feature("targets", "Start and review", "How far are we from our own targets (apogee, rail exit speed, descent rates)?"),
 			new Feature("generate_report", "Start and review", "Make the design review package (report, stability plots, data)."),
 			new Feature("compare_designs", "Start and review", "What changed since the version we showed at the last review?"),
 			new Feature("undo", "Start and review", "Undo that (every change in the session can be undone or redone)."),
@@ -94,10 +97,13 @@ public final class Suggestions {
 	static final Map<String, List<String>> NEXT = Map.ofEntries(
 			Map.entry("open_design", List.of("show_design", "design_status", "capabilities")),
 			Map.entry("get_design", List.of("render_3d", "draw_rocket", "mass_budget")),
-			Map.entry("design_status", List.of("check_requirements", "generate_report", "capabilities")),
+			Map.entry("design_status", List.of("check_requirements", "progress_log", "generate_report")),
+			Map.entry("verify_claims", List.of("progress_log", "design_status", "compare_designs")),
+			Map.entry("progress_log", List.of("verify_claims", "generate_report", "show_design")),
 			Map.entry("run_simulation", List.of("show_design", "check_requirements", "monte_carlo", "fin_flutter", "aero_heating")),
 			Map.entry("show_design", List.of("check_requirements", "animate_flight", "generate_report")),
-			Map.entry("check_requirements", List.of("generate_report", "compare_designs", "monte_carlo")),
+			Map.entry("check_requirements", List.of("targets", "generate_report", "compare_designs")),
+			Map.entry("targets", List.of("check_requirements", "optimize", "rank_motors")),
 			Map.entry("set_motor", List.of("rail_buttons", "fin_flutter", "flight_card")),
 			Map.entry("rank_motors", List.of("optimize", "rail_buttons", "fin_flutter")),
 			Map.entry("size_parachute", List.of("parachute_sizes", "add_from_link", "recovery_bay_fit")),

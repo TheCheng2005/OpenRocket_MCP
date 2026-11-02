@@ -77,17 +77,17 @@ public final class Web {
 
 	private static String body(URI u, Response r) {
 		if (r.status() == 403 || r.status() == 429 || r.status() == 503) {
-			throw new ToolException(u.getHost() + " refused the request (HTTP " + r.status() + "; many shops block automated "
+			throw ToolException.system(u.getHost() + " refused the request (HTTP " + r.status() + "; many shops block automated "
 					+ "access). Open the page, select all, copy, and pass the text as pageText instead.");
 		}
 		if (r.status() != 200) {
-			throw new ToolException(u + " returned HTTP " + r.status() + ".");
+			throw ToolException.system(u + " returned HTTP " + r.status() + ".");
 		}
 		return r.body();
 	}
 
 	private static ToolException unreachable(URI u, IOException e) {
-		return new ToolException("Could not read " + u.getHost() + " (" + e.getMessage() + "). Without internet access from this "
+		return ToolException.system("Could not read " + u.getHost() + " (" + e.getMessage() + "). Without internet access from this "
 				+ "server, open the page, select all, copy, and pass the text as pageText.");
 	}
 

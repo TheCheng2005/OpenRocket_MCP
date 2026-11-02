@@ -150,6 +150,11 @@ public final class Units {
 	private static final Pattern FRACTION = Pattern.compile("\\s*(?:(\\d+)\\s+)?(\\d+)\\s*/\\s*(\\d+)\\s*(.*)");
 
 	public static Parsed parse(String text) {
+		return parse(text, null);
+	}
+
+	/** As above; {@code expected} (or null) picks the example an unreadable value is answered with. */
+	static Parsed parse(String text, Dim expected) {
 		// Accept this server's own dual-unit output as input: "274.3 mm (10.8 in)" means 274.3 mm.
 		text = text.replaceFirst("\\s*\\([^()]*\\)\\s*$", "");
 		// Fractions as teams write stock sizes: "1/8 in", "1 1/4 in", "3/16in".
@@ -164,7 +169,8 @@ public final class Units {
 		}
 		Matcher m = QUANTITY.matcher(text);
 		if (!m.matches()) {
-			throw new IllegalArgumentException("Cannot parse quantity '" + text + "'. Use a number with a unit, e.g. \"20 ft/s\".");
+			throw new IllegalArgumentException("Cannot parse quantity '" + text + "'. Use a number with a unit, e.g. "
+					+ (expected == null ? "\"20 ft/s\"" : example(expected)) + ".");
 		}
 		double value = Double.parseDouble(m.group(1));
 		String unit = m.group(2);
@@ -182,17 +188,23 @@ public final class Units {
 	 * Converts a string or number into SI for the expected dimension. Numbers are SI. Grams are accepted for
 	 * CHARGE_MASS and LENGTH units for DISTANCE (and vice versa), since those are the same physical dimension.
 	 */
+	/** "a length", "an angle": the dimension's name with its article. */
+	static String article(Dim d) {
+		String n = d.name().toLowerCase(Locale.ROOT).replace('_', ' ');
+		return ("aeiou".indexOf(n.charAt(0)) >= 0 ? "an " : "a ") + n;
+	}
+
 	public static double toSi(Object value, Dim expected) {
 		if (value instanceof Number n) {
 			return n.doubleValue();
 		}
-		Parsed p = parse(String.valueOf(value));
+		Parsed p = parse(String.valueOf(value), expected);
 		if (p.dim() == null) {
 			return p.si();
 		}
 		if (!compatible(p.dim(), expected)) {
-			throw new IllegalArgumentException("'" + value + "' is a " + p.dim().name().toLowerCase(Locale.ROOT)
-					+ " but a " + expected.name().toLowerCase(Locale.ROOT) + " was expected (e.g. "
+			throw new IllegalArgumentException("'" + value + "' is " + article(p.dim()) + " but " + article(expected)
+					+ " was expected (e.g. "
 					+ example(expected) + ").");
 		}
 		return p.si();
@@ -228,6 +240,12 @@ public final class Units {
 			case TEMPERATURE -> "\"25 C\" or \"77 F\"";
 			case DIMENSIONLESS -> "1.5";
 		};
+	}
+
+	/** {factor, offset} of a unit symbol (SI = value * factor + offset), or null for an unknown unit. */
+	public static double[] scale(String unit) {
+		Unit u = lookup(unit);
+		return u == null ? null : new double[] { u.factor(), u.offset() };
 	}
 
 	/** Converts an SI value into the given unit symbol. */

@@ -30,4 +30,14 @@ class MotorsTest {
 		assertEquals(30, m.getLaunchMass(), 1e-6);
 		assertEquals(18, m.getBurnoutMass(), 1e-6);
 	}
+
+	@Test
+	void customMotorKeepsItsDelays() throws Exception {
+		OrRuntime.init();
+		ThrustCurveMotor m = Motors.createCustom(new Motors.CustomMotor("UTAT", "DelayTest", "solid", 0.075, 0.7, 5.9, 3.2,
+				new double[] { 0, 0.05, 3.3, 3.5 }, new double[] { 0, 2600, 2100, 0 }, Double.NaN, Double.NaN,
+				new double[] { 10, 14 }, null), null);
+		assertEquals(2, m.getStandardDelays().length, "both delays read back from the .rse");
+		assertEquals(14, Motors.defaultDelay(m), 1e-9);
+	}
 }

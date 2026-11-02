@@ -12,10 +12,12 @@ import com.google.gson.JsonPrimitive;
 
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.rocketcomponent.BodyTube;
+import info.openrocket.core.rocketcomponent.FlightConfigurationId;
 import info.openrocket.core.rocketcomponent.MassComponent;
 import info.openrocket.core.rocketcomponent.Parachute;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.TrapezoidFinSet;
+import io.github.openrocketmcp.mcp.Issues;
 import io.github.openrocketmcp.mcp.ToolException;
 import io.github.openrocketmcp.standards.Standards;
 
@@ -77,6 +79,47 @@ class PhysicalTest {
 		assertTrue(Sims.summarize(sim).containsKey("PROBLEMS"));
 		var report = Requirements.check(sim, null, Standards.defaults()).render("x");
 		assertTrue(report.toString().contains("Physically sound flight"), report.toString());
+	}
+
+	@Test
+	void openRocketsOwnWarningsAreProblems() throws Exception {
+		Simulation sim = Sims.prepare(maple(), null, null, Sims.Overrides.none(), Standards.defaults());
+		Sims.ensure(sim);
+		var problems = Sims.problems(sim);
+		String supersonic = problems.stream().filter(p -> p.contains("supersonic")).findFirst().orElse(null);
+		assertTrue(supersonic != null && supersonic.startsWith("OpenRocket warns: "), problems.toString());
+		assertEquals(ToolException.Kind.OUTPUT, Issues.kindOf(supersonic), "accuracy of the result, not the flight");
+		assertTrue(problems.stream().noneMatch(p -> p.contains("deployment at high speed")), "recovery_analysis judges that");
+		assertEquals(ToolException.Kind.PHYSICS, Issues.kindOf("OpenRocket warns: Large angle of attack encountered."));
+	}
+
+	@Test
+	void reflyingASavedDesignKeepsItSaved() throws Exception {
+		Designs.Design d = maple();
+		assertTrue(d.doc.isSaved(), "just opened");
+		Simulation sim = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults());
+		Sims.ensure(sim);
+		assertTrue(d.doc.isSaved(), "refreshing the flight is not an edit");
+		Variants.windCase(sim, d.doc, 8.0);
+		assertTrue(d.doc.isSaved(), "nor is flying a variant of it (the rule check's wind case)");
+		find(d, MassComponent.class).setComponentMass(0.2);
+		Sims.ensure(sim);
+		assertTrue(!d.doc.isSaved(), "an edit still marks it changed");
+	}
+
+	@Test
+	void aSimulationWithoutAMotorSaysSo() throws Exception {
+		// The simulation stays tied to its configuration after the motor is taken out (the screen showed "lands ballistic
+		// at n/a" and "no flight data" instead).
+		Designs.Design d = new Designs().openExample("Dual parachute");
+		Simulation sim = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults());
+		FlightConfigurationId empty = new FlightConfigurationId();
+		d.doc.getRocket().createFlightConfiguration(empty);
+		sim.setFlightConfigurationId(empty);
+		ToolException e = assertThrows(ToolException.class,
+				() -> Sims.prepare(d, sim.getName(), null, Sims.Overrides.none(), Standards.defaults()));
+		assertTrue(e.getMessage().contains("has no motor") && e.getMessage().contains(sim.getName()), e.getMessage());
+		assertEquals(ToolException.Kind.INPUT, e.kind());
 	}
 
 	@Test

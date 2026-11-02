@@ -6,7 +6,7 @@ plain-language overview.
 
 ## Tools
 
-The 82 tools, grouped by what a team is doing (one of them, `workbench_data`, serves the interactive view and is hidden
+The 85 tools, grouped by what a team is doing (one of them, `workbench_data`, serves the interactive view and is hidden
 from the model by hosts that show views). Bold marks the main job of each tool.
 
 ### Session
@@ -420,6 +420,30 @@ from the model by hosts that show views). Bold marks the main job of each tool.
   - It can write a Markdown summary, and warns when an edit is hidden by a mass override.
 - `list_files`: designs, motor files, tables and reports in the workspace.
 
+### Project and team
+
+The project side of a chief engineer's job. Reading notes and posting updates go through the client's own connectors
+(Slack, Notion, Google Drive); these tools supply the engineering. See [TEAM.md](TEAM.md).
+
+- `verify_claims`: **what the notes say, checked against the design.** The model reads the meeting notes, messages or
+  documents and states each number or choice as a claim; the tool compares it with the design and its simulation.
+  - **Quantities**, under the names people use: apogee, time to apogee, max speed, Mach, max acceleration, rail exit,
+    minimum and maximum ascent stability, static margin, liftoff and burnout (dry) mass, thrust-to-weight, total
+    impulse, burn time, length, diameter, CG, CP, drogue and main descent rates and deployment altitudes, landing
+    distance, fin flutter margin and the motor. **Parts**: any component's property (`component` + `property`), with
+    "fins", "nose cone", "main", "drogue" or "motor mount" understood when the design has one such part.
+  - **Values as written**: "~30k ft", ">= 2 cal", "at least 100 ft/s", "under 25 lb", "Mach 1.3", "1/8 in". A number
+    without a unit is not guessed (notes mix feet and metres). Default tolerances per quantity (3% apogee, 0.1 cal
+    stability, 2% mass...; wider for "~"), or `tolerance` per claim.
+  - Each claim returns MATCH, MISMATCH (the design's value and the difference) or UNCHECKED (why), with its `source`.
+- `progress_log`: **the design's record over time.** `record` (default) keeps a dated snapshot next to the design file
+  (`NAME.progress.jsonl`; designs not saved yet: the workspace's `progress/` folder): the headline numbers, every
+  rule-check failure and warning and every set-up item still open. It compares with the last record, a `label`
+  (milestones such as "PDR") or a date (`since`): numbers that moved beyond a quarter of their tolerance, the motor,
+  problems fixed, new and worse. `digest` is the update as Markdown for a channel or a Notion page (`path` also writes
+  it to a file). `preview` compares without recording; `history` lists the records. Unsaved-edit notices are left
+  out (session state, not progress), and a rule item keeps its identity when its details change (a fin material).
+
 ### Reports
 
 - `generate_report`: a Markdown design review. It has the rule checks, stability by stage, a wind-sensitivity flight-card
@@ -447,6 +471,13 @@ from the model by hosts that show views). Bold marks the main job of each tool.
     - dual-event recovery;
     - drogue descent 50–150 ft/s;
     - main deployment ≤ 1500 ft and main descent < 30 ft/s.
+- `targets`: **the team's own targets and the margin to each**. The team sets limits in the standards file
+  (`"targets": {"apogee": {"min": "9500 ft", "max": "10500 ft", "goal": "10000 ft"}}`) on apogee, top speed and Mach,
+  peak acceleration, rail exit speed, thrust to weight on the rail, lowest and highest ascent stability (cal, above
+  100 ft/s), fin flutter margin, lift-off mass, time to apogee, drogue and main descent rates, landing speed and
+  distance, and flight time. It simulates and returns every number with its limits, the margin to the nearer one and
+  PASS, WARN (met by less than 5%) or FAIL. The flutter margin falls back to `structures.flutterMinMargin`. These are
+  design goals; `check_requirements` is the competition's rules.
 - `get_standards`, `update_standards`, `load_standards`, `set_units`: the team standards and units.
 
 ### LC 2027 advanced programmes
@@ -489,9 +520,19 @@ from the model by hosts that show views). Bold marks the main job of each tool.
 - **Flights that cannot happen are flagged:** when OpenRocket stops a simulation (no lift-off, tumbling under thrust,
   a parachute out under thrust), or a flight passes Mach 3 (beyond its aerodynamics) or 150 G, `run_simulation` lists
   it first under `PROBLEMS`, `check_requirements` fails "Physically sound flight", and the flight card and review report
-  open with it. `recovery_analysis` warns when no parachute opened (a ballistic landing).
+  open with it. OpenRocket's own warnings from the run (large angle of attack, a gap or jump in the airframe, fins too
+  thick for its model, body calculations past Mach 1...) are listed the same way, as "OpenRocket warns: ...". Its
+  high-speed deployment warning is left out: `recovery_analysis` judges each opening load against the team's
+  standards instead, and warns when no parachute opened (a ballistic landing). Notes about the model's range rather
+  than the flight (past Mach 3, OpenRocket's supersonic body caveat) are `check_requirements` "Within the models' range".
 - **Errors are sentences:** a failure says what was wrong and how to fix it; an internal error says it is a bug in the
-  server and asks for a report.
+  server, gives an error ID (also in the server's log, next to the stack trace) and asks for a report.
+- **Whose problem it is:** every error, and every note on a result, also comes in the result's `_meta` under
+  `io.github.openrocketmcp/issues` as `{kind, severity, text, field?, id?, bug?, report?}` for clients that show them
+  (the RocketMaxxing app does). `kind` is `input` (the request: a value, unit or name; `field` names the argument),
+  `physics` (the rocket or its flight), `output` (a value that could not be computed, or one from beyond where the model
+  is valid) or `system` (no internet, a file, a missing program, or a bug: `bug`, `id` and `report`, which has the
+  versions and stack trace but no design data). The text a model reads is unchanged.
 - **Component names:** an id, a full name, or a piece of a name that only one part has (`"Apex"` for
   `Apex 12" Drogue Parachute`).
 - **Files people bring** (altimeter logs, mass budgets, aero tables) may be UTF-8 or Windows-1252, as Excel and many
@@ -691,11 +732,13 @@ macOS arm64 / x64, and attaches the bundles to GitHub releases for `v*` tags.
 
 ## Claude integration
 
-- MCP prompts: `what_can_you_do` (a tour fitted to the team's design), `recovery_review`, `design_review`,
+- MCP prompts: `what_can_you_do` (a tour fitted to the team's design), `meeting_followup` (notes checked against the
+  design, follow-up drafted), `weekly_update` (progress record and update), `recovery_review`, `design_review`,
   `motor_selection`; resources: `openrocket://standards`,
   `openrocket://rules`, `openrocket://methods`.
-- Claude Code skill: `.claude/skills/rocket-design-review` (the review workflow); the same skill for Codex and other
-  agents in `.agents/skills/rocket-design-review` (kept identical by `SkillsTest`).
+- Claude Code skills: `.claude/skills/rocket-design-review` (the review workflow) and
+  `.claude/skills/team-chief-engineer` (project manager and chief engineer: notes, action items, weekly update); the
+  same skills for Codex and other agents in `.agents/skills/` (kept identical by `SkillsTest`).
 - Codex: stdio (`command`) or the team server (`url` + `bearer_token_env_var`) in `~/.codex/config.toml`; raise
   `tool_timeout_sec` (default 60 s) for dispersion and motor ranking. Codex offers the tools to its model under the
   `mcp__openrocket` namespace with the schemas unchanged. `scripts/test_codex.py` runs the real Codex CLI against the

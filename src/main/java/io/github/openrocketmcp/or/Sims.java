@@ -11,6 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.WeakHashMap;
 
+import info.openrocket.core.document.OpenRocketDocument;
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.logging.Warning;
 import info.openrocket.core.motor.Motor;
@@ -132,6 +133,13 @@ public final class Sims {
 				d.doc.addSimulation(base);
 			}
 		}
+		// A simulation of a configuration with no motor never leaves the pad: every result read from it would be empty
+		// (a landing speed of n/a, no fin loads), so say what is missing instead.
+		FlightConfiguration flown = rocket.getFlightConfiguration(base.getFlightConfigurationId());
+		if (!allowNoMotors && flown != null && !flown.hasMotors()) {
+			throw new ToolException("Flight configuration '" + flown.getName() + "' (simulation '" + base.getName()
+					+ "') has no motor, so there is no flight to take results from. Choose a motor first (set_motor).");
+		}
 		if (o == null || !o.any()) {
 			return base;
 		}
@@ -230,6 +238,28 @@ public final class Sims {
 		return out;
 	}
 
+	private static final java.lang.reflect.Field DOCUMENT;
+
+	static {
+		java.lang.reflect.Field f = null;
+		try {
+			f = Simulation.class.getDeclaredField("document");
+			f.setAccessible(true);
+		} catch (ReflectiveOperationException | RuntimeException e) {
+			// another OpenRocket version: re-flown results then mark the design edited, as OpenRocket itself does
+		}
+		DOCUMENT = f;
+	}
+
+	/** The design a simulation belongs to (OpenRocket keeps it private), or null. */
+	static OpenRocketDocument documentOf(Simulation sim) {
+		try {
+			return DOCUMENT == null ? null : (OpenRocketDocument) DOCUMENT.get(sim);
+		} catch (ReflectiveOperationException | RuntimeException e) {
+			return null;
+		}
+	}
+
 	public static FlightData run(Simulation sim, SimulationListener... listeners) {
 		FLOWN.remove(sim); // a run with other listeners (or a failed one) is not reusable
 		// Turbulence always follows the simulation's random seed, so every tool (run, check, optimize, sweep) sees the
@@ -244,6 +274,11 @@ public final class Sims {
 			listeners[listeners.length - 2] = table;
 		}
 		FastSim.install(sim);
+		// Flying is not an edit: refreshing a simulation's results, or flying a variant of it (the wind case, Monte
+		// Carlo, a sweep), leaves a saved design saved, so opening a file and checking it does not mark it changed
+		// and Quit does not ask about it. (Calls on a design run one at a time, so nothing else edits it meanwhile.)
+		OpenRocketDocument doc = documentOf(sim);
+		boolean saved = doc != null && doc.isSaved();
 		try {
 			sim.simulate(listeners);
 		} catch (Exception e) {
@@ -256,6 +291,10 @@ public final class Sims {
 						+ "(undo reverts it) and get_design for odd masses or lengths.", e);
 			}
 			throw new ToolException("Simulation '" + sim.getName() + "' failed: " + why, e);
+		} finally {
+			if (saved) {
+				doc.setSaved(true);
+			}
 		}
 		FlightData data = sim.getSimulatedData();
 		if (data == null || data.getBranchCount() == 0) {
@@ -459,14 +498,18 @@ public final class Sims {
 		return row;
 	}
 
-	/** Ascent stability window (rail exit to apogee, airspeed > 100 ft/s); null without those events. */
+	/**
+	 * Ascent stability window (rail exit to apogee, airspeed > 100 ft/s); null without those events, or when the rocket never
+	 * flies that fast.
+	 */
 	public static Window ascentStability(FlightDataBranch b) {
 		double rail = eventTime(b, FlightEvent.Type.LAUNCHROD);
 		double apogee = eventTime(b, FlightEvent.Type.APOGEE);
 		if (Double.isNaN(rail) || Double.isNaN(apogee)) {
 			return null;
 		}
-		return extremes(b, FlightDataType.TYPE_STABILITY, rail, apogee, 30.48);
+		Window w = extremes(b, FlightDataType.TYPE_STABILITY, rail, apogee, 30.48);
+		return Double.isNaN(w.min()) ? null : w;
 	}
 
 	/** Compact flight summary for the model: key numbers per branch (stage). */
@@ -589,6 +632,26 @@ public final class Sims {
 				}
 			}
 		}
+		// OpenRocket's own warnings from the run (large angle of attack, a gap in the airframe, fins thicker than the
+		// model allows...), worded as it words them. A tumble it also reports as the abort above. Its high-speed
+		// deployment warning (any device above 20 m/s, so nearly every drogue at apogee) is left to recovery_analysis,
+		// which judges each opening load against the team's standards.
+		boolean aborted = !out.isEmpty();
+		info.openrocket.core.logging.WarningSet ws = data.getWarningSet();
+		if (ws != null) {
+			java.util.Set<String> seen = new java.util.HashSet<>();
+			for (info.openrocket.core.logging.Warning w : ws) {
+				if (w.getPriority() == info.openrocket.core.logging.MessagePriority.LOW
+						|| w instanceof info.openrocket.core.logging.Warning.HighSpeedDeployment
+						|| aborted && w.equals(info.openrocket.core.logging.Warning.TUMBLE_UNDER_THRUST)) {
+					continue;
+				}
+				String text = w.toString().replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
+				if (!text.isEmpty() && seen.add(text)) {
+					out.add("OpenRocket warns: " + text + (text.endsWith(".") ? "" : "."));
+				}
+			}
+		}
 		double mach = data.getMaxMachNumber();
 		if (mach > MACH_LIMIT) {
 			out.add("Max Mach " + Units.num(mach) + " is beyond OpenRocket's aerodynamics (validated to about Mach "
@@ -654,7 +717,7 @@ public final class Sims {
 		return t;
 	}
 
-	private static Dim dimOf(UnitGroup g) {
+	public static Dim dimOf(UnitGroup g) {
 		if (g == UnitGroup.UNITS_DISTANCE) {
 			return Dim.DISTANCE;
 		}

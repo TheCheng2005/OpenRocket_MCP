@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'io.github.openrocketmcp'
-version = '0.27.0'
+version = '0.28.0'
 
 
 repositories {
@@ -19,6 +19,8 @@ dependencies {
     // SVG -> PNG for images shown in the chat (our plots and drawings).
     implementation 'org.apache.xmlgraphics:batik-transcoder:1.19'
     implementation 'org.apache.xmlgraphics:batik-codec:1.19'
+    // RocketMaxxing's optional assistant (the team's own API key; off by default).
+    implementation 'com.anthropic:anthropic-java:3.2.0'
 
     testImplementation platform('org.junit:junit-bom:5.13.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -28,7 +30,9 @@ dependencies {
 application {
     mainClass = 'io.github.openrocketmcp.Main'
     applicationName = 'openrocket-mcp'
-    applicationDefaultJvmArgs = ['-Djava.awt.headless=true', '-Xss4m']
+    // The parallel collector: Monte Carlo and motor ranking ran about 20 % faster than with G1 (short pauses at this
+    // heap size; nothing here is latency-critical).
+    applicationDefaultJvmArgs = ['-Djava.awt.headless=true', '-Xss4m', '-XX:+UseParallelGC']
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -90,10 +94,152 @@ tasks.register('mcpb', Zip) {
     from(mcpbDir.map { it.file('manifest.json') })
     from('LICENSE')
     from('src/main/resources/openrocketmcp/icon.png')
-    into('lib') { from layout.buildDirectory.dir('install/openrocket-mcp/lib') }
+    into('lib') {
+        from layout.buildDirectory.dir('install/openrocket-mcp/lib')
+        // The desktop app's assistant (the Anthropic SDK and what it brings) is not part of the MCP server.
+        exclude 'anthropic-java-*', 'okhttp-*', 'okio-*', 'kotlin-*', 'jackson-*', 'jsonschema-*'
+    }
     into('runtime') {
         from mcpbDir.map { it.dir('runtime') }
         // Keep the launcher executable after Claude Desktop unpacks the extension.
         filesMatching(['bin/**', 'lib/jspawnhelper', 'lib/jexec']) { mode = 0755 }
+    }
+}
+
+// ------------------------------------------------------------------------------------------------------------------
+// RocketMaxxing, the desktop app: the same engine with its own interface (app/, Svelte + three.js; needs Node.js).
+//   ./gradlew rocketmaxxing   ->   build/install/openrocket-mcp/bin/rocketmaxxing
+def appUiDir = layout.buildDirectory.dir('rocketmaxxing-ui')
+def npm = hostOs.isWindows() ? 'npm.cmd' : 'npm'
+
+tasks.register('rocketmaxxingNpmCi', Exec) {
+    workingDir 'app'
+    inputs.files('app/package.json', 'app/package-lock.json')
+    outputs.dir('app/node_modules')
+    commandLine npm, 'ci', '--no-audit', '--no-fund'
+}
+
+tasks.register('rocketmaxxingUi', Exec) {
+    group = 'build'
+    description = 'Builds the RocketMaxxing interface into build/rocketmaxxing-ui.'
+    dependsOn 'rocketmaxxingNpmCi'
+    workingDir 'app'
+    inputs.dir('app/src')
+    inputs.files('app/index.html', 'app/vite.config.ts', 'app/package-lock.json')
+    inputs.dir('app/public')
+    outputs.dir(appUiDir)
+    environment 'ROCKETMAXXING_OUT', appUiDir.get().asFile.path
+    commandLine npm, 'run', 'build'
+}
+
+def rocketmaxxingScripts = tasks.register('rocketmaxxingScripts', CreateStartScripts) {
+    mainClass = 'io.github.openrocketmcp.app.App'
+    applicationName = 'rocketmaxxing'
+    outputDir = layout.buildDirectory.dir('rocketmaxxing-scripts').get().asFile
+    classpath = tasks.named('jar').get().outputs.files + configurations.runtimeClasspath
+    defaultJvmOpts = ['-Xss4m', '-XX:+UseParallelGC']
+}
+
+distributions {
+    main {
+        contents {
+            from(rocketmaxxingScripts) { into 'bin' }
+            from(appUiDir) { into 'ui' }
+        }
+    }
+}
+
+tasks.named('installDist') { mustRunAfter 'rocketmaxxingUi' }
+tasks.named('distZip') { mustRunAfter 'rocketmaxxingUi' }
+tasks.named('distTar') { mustRunAfter 'rocketmaxxingUi' }
+
+tasks.register('rocketmaxxing') {
+    group = 'distribution'
+    description = 'Builds the RocketMaxxing desktop app: build/install/openrocket-mcp/bin/rocketmaxxing'
+    dependsOn 'rocketmaxxingUi', 'installDist'
+}
+
+// ------------------------------------------------------------------------------------------------------------------
+// RocketMaxxing installers with Java included (jpackage over the trimmed runtime above). Each platform builds its own:
+//   ./gradlew rocketmaxxingInstaller   ->   build/installers/  (.msi on Windows (needs WiX), .dmg on macOS, .deb on Linux)
+//   ./gradlew rocketmaxxingInstaller -PinstallerType=app-image   ->   a folder that runs without installing
+def appVersion = (file('src/main/java/io/github/openrocketmcp/app/App.java').text =~ /VERSION = "([^"]+)"/)[0][1]
+def packagingDir = layout.buildDirectory.dir('jpackage')
+
+tasks.register('rocketmaxxingPackageInput', Sync) {
+    dependsOn 'rocketmaxxing'
+    from(layout.buildDirectory.dir('install/openrocket-mcp/lib'))
+    // jpackage puts the input next to the jars; the app looks for its interface there.
+    into('ui') { from appUiDir }
+    into packagingDir.map { it.dir('input') }
+}
+
+// Windows wants an .ico and macOS an .icns: both can hold PNG images, so they are wrapped from the app's PNG icons.
+tasks.register('rocketmaxxingIcons') {
+    def png256 = file('app/packaging/icon-256.png'), png512 = file('app/packaging/icon-512.png')
+    def out = packagingDir.map { it.dir('icons') }
+    inputs.files(png256, png512)
+    outputs.dir(out)
+    doLast {
+        def dir = out.get().asFile
+        dir.mkdirs()
+        byte[] small = png256.bytes, big = png512.bytes
+        def ico = new ByteArrayOutputStream()
+        def le = { int v, int n -> (0..<n).each { ico.write((v >> (8 * it)) & 0xff) } }
+        le(0, 2); le(1, 2); le(1, 2)                                // header: icon, one image
+        ico.write(0); ico.write(0); ico.write(0); ico.write(0)      // 256 x 256, no palette
+        le(1, 2); le(32, 2); le(small.length, 4); le(22, 4)         // planes, bits, size, offset
+        ico.write(small)
+        new File(dir, 'RocketMaxxing.ico').bytes = ico.toByteArray()
+        def icns = new ByteArrayOutputStream()
+        def be = { int v -> [24, 16, 8, 0].each { icns.write((v >> it) & 0xff) } }
+        icns.write('icns'.bytes); be(8 + 8 + small.length + 8 + big.length)
+        icns.write('ic08'.bytes); be(8 + small.length); icns.write(small)
+        icns.write('ic09'.bytes); be(8 + big.length); icns.write(big)
+        new File(dir, 'RocketMaxxing.icns').bytes = icns.toByteArray()
+        java.nio.file.Files.copy(png512.toPath(), new File(dir, 'RocketMaxxing.png').toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    }
+}
+
+tasks.register('rocketmaxxingInstaller', Exec) {
+    group = 'distribution'
+    description = 'Builds the RocketMaxxing installer for this platform, Java included: build/installers'
+    dependsOn 'rocketmaxxingPackageInput', 'rocketmaxxingIcons', 'mcpbRuntime'
+    def type = project.findProperty('installerType') ?: (hostOs.isWindows() ? 'msi' : hostOs.isMacOsX() ? 'dmg' : 'deb')
+    def out = layout.buildDirectory.dir('installers')
+    def jpackage = new File(System.getProperty('java.home'), 'bin/jpackage' + (hostOs.isWindows() ? '.exe' : ''))
+    def icon = packagingDir.get().file('icons/RocketMaxxing.' + (hostOs.isWindows() ? 'ico' : hostOs.isMacOsX() ? 'icns' : 'png')).asFile
+    doFirst { delete out }
+    // macOS bundle versions must start at 1 or more (jpackage refuses 0.x there): 0.1.0 is given to it as 1.1.0, and the
+    // .dmg is renamed back to the app's own version below. The app itself still reports 0.1.0.
+    def bundleVersion = hostOs.isMacOsX() && appVersion.startsWith('0.') ? '1.' + appVersion.substring(2) : appVersion
+    def cmd = [jpackage.path, '--type', type, '--name', 'RocketMaxxing', '--app-version', bundleVersion,
+               '--vendor', 'RocketMaxxing', '--description', 'Competition rocket design, simulation and checks, offline',
+               '--input', packagingDir.get().dir('input').asFile.path,
+               '--main-jar', tasks.named('jar').get().archiveFileName.get(),
+               '--main-class', 'io.github.openrocketmcp.app.App',
+               '--runtime-image', mcpbDir.get().dir('runtime').asFile.path,
+               '--java-options', '-Xss4m -XX:+UseParallelGC', '--icon', icon.path, '--dest', out.get().asFile.path]
+    if (type != 'app-image') {
+        // Double-clicking an OpenRocket or RockSim design opens it in RocketMaxxing.
+        cmd += ['--license-file', 'LICENSE',
+                '--file-associations', file('app/packaging/ork.properties').path,
+                '--file-associations', file('app/packaging/rkt.properties').path]
+    }
+    if (hostOs.isWindows() && type != 'app-image') {
+        cmd += ['--win-menu', '--win-shortcut', '--win-dir-chooser', '--win-per-user-install',
+                '--win-upgrade-uuid', '5d3c7c0e-5b0e-4f53-9b6a-6c6f7f1d2a11']
+    } else if (hostOs.isLinux() && type != 'app-image') {
+        // JDK 17's desktop entry leaves out %F, so a double-clicked design would not reach the app: ours adds it.
+        cmd += ['--linux-shortcut', '--linux-menu-group', 'Science', '--linux-app-category', 'science',
+                '--resource-dir', file('app/packaging/linux').path]
+    }
+    commandLine cmd
+    doLast {
+        if (bundleVersion != appVersion) {
+            out.get().asFile.eachFileMatch(~/RocketMaxxing-.*\.(dmg|pkg)/) { f ->
+                f.renameTo(new File(f.parentFile, "RocketMaxxing-${appVersion}.${f.name.tokenize('.').last()}"))
+            }
+        }
     }
 }

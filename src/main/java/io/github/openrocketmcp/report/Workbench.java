@@ -124,6 +124,11 @@ public final class Workbench {
 		}
 	}
 
+	/** The parts of a configuration as the view draws them (meshes, colours, exploded layout), without a flight. */
+	public static Map<String, Object> rocket(FlightConfiguration fc) {
+		return rocket(fc, null);
+	}
+
 	static Map<String, Object> rocket(FlightConfiguration fc, FlightAnimation anim) {
 		Map<String, Object> r = new LinkedHashMap<>();
 		Analysis.Stability st = Analysis.stability(fc, 0.3);

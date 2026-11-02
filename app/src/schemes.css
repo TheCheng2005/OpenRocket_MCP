@@ -1,0 +1,302 @@
+/* Colour schemes (Settings > Appearance; list in lib/prefs.svelte.ts). Each sets the chrome (navigation rail and top
+   bar), the accent and the selection, in a light and a dark version; the two colour-vision schemes also set the pass /
+   warn / fail colours (Okabe-Ito and Paul Tol palettes). The default scheme is app.css itself. [data-dark] follows the
+   light / dark / system choice. */
+
+:root[data-scheme="nebula"] {
+  --chrome: #3b1840;
+  --chrome-2: #4a2251;
+  --chrome-3: #5a2d62;
+  --chrome-ink: #f4eaf6;
+  --chrome-ink-2: #cdb6d2;
+  --chrome-line: #2c1030;
+  --chrome-mark: #e8b04a;
+  --accent: #8e3fa8;
+  --accent-ink: #ffffff;
+  --accent-soft: #f4e8f8;
+  --select: #6d4bd1;
+  --select-soft: #ebe5fb;
+}
+
+:root[data-scheme="nebula"][data-dark] {
+  --chrome: #3b1840;
+  --chrome-2: #4a2251;
+  --chrome-3: #5a2d62;
+  --chrome-ink: #f4eaf6;
+  --chrome-ink-2: #cdb6d2;
+  --chrome-line: #2c1030;
+  --chrome-mark: #e8b04a;
+  --accent: #c77ddb;
+  --accent-ink: #1d0a22;
+  --accent-soft: #3a2242;
+  --select: #a88bff;
+  --select-soft: #2b2347;
+}
+
+:root[data-scheme="afterburner"] {
+  --chrome: #7c2d12;
+  --chrome-2: #8f3816;
+  --chrome-3: #a3441c;
+  --chrome-ink: #fff4ec;
+  --chrome-ink-2: #f2c4a8;
+  --chrome-line: #5e210c;
+  --chrome-mark: #ffd166;
+  --accent: #e8590c;
+  --accent-ink: #ffffff;
+  --accent-soft: #fff0e6;
+}
+
+:root[data-scheme="afterburner"][data-dark] {
+  --chrome: #7c2d12;
+  --chrome-2: #8f3816;
+  --chrome-3: #a3441c;
+  --chrome-ink: #fff4ec;
+  --chrome-ink-2: #f2c4a8;
+  --chrome-line: #5e210c;
+  --chrome-mark: #ffd166;
+  --accent: #ff8a4c;
+  --accent-ink: #1a0d04;
+  --accent-soft: #3a2314;
+}
+
+:root[data-scheme="sunburst"] {
+  --chrome: #fbe58a;
+  --chrome-2: #f6da62;
+  --chrome-3: #efcd3b;
+  --chrome-ink: #3a2e00;
+  --chrome-ink-2: #5f4d0a;
+  --chrome-line: #e3c443;
+  --chrome-mark: #8a5a00;
+  --accent: #b7791f;
+  --accent-ink: #ffffff;
+  --accent-soft: #fdf3dc;
+}
+
+:root[data-scheme="sunburst"][data-dark] {
+  --chrome: #3b3210;
+  --chrome-2: #4a3f15;
+  --chrome-3: #5a4c1a;
+  --chrome-ink: #fff3c4;
+  --chrome-ink-2: #e3d39a;
+  --chrome-line: #2b240a;
+  --chrome-mark: #f6c33b;
+  --accent: #f2b844;
+  --accent-ink: #231a02;
+  --accent-soft: #3a2e0f;
+}
+
+:root[data-scheme="aurora"] {
+  --chrome: #0f4a3c;
+  --chrome-2: #155a49;
+  --chrome-3: #1b6b57;
+  --chrome-ink: #e9f7f2;
+  --chrome-ink-2: #a9d6c8;
+  --chrome-line: #0a382d;
+  --chrome-mark: #7ee2b8;
+  --accent: #12866a;
+  --accent-ink: #ffffff;
+  --accent-soft: #e1f5ee;
+}
+
+:root[data-scheme="aurora"][data-dark] {
+  --chrome: #0f4a3c;
+  --chrome-2: #155a49;
+  --chrome-3: #1b6b57;
+  --chrome-ink: #e9f7f2;
+  --chrome-ink-2: #a9d6c8;
+  --chrome-line: #0a382d;
+  --chrome-mark: #7ee2b8;
+  --accent: #3cc79b;
+  --accent-ink: #052119;
+  --accent-soft: #133a2f;
+}
+
+:root[data-scheme="deepsea"] {
+  --chrome: #0c3a5a;
+  --chrome-2: #12496f;
+  --chrome-3: #185884;
+  --chrome-ink: #e8f3fb;
+  --chrome-ink-2: #a7c9e2;
+  --chrome-line: #082b43;
+  --chrome-mark: #5bc0f8;
+  --accent: #1479b8;
+  --accent-ink: #ffffff;
+  --accent-soft: #e1f0fa;
+}
+
+:root[data-scheme="deepsea"][data-dark] {
+  --chrome: #0c3a5a;
+  --chrome-2: #12496f;
+  --chrome-3: #185884;
+  --chrome-ink: #e8f3fb;
+  --chrome-ink-2: #a7c9e2;
+  --chrome-line: #082b43;
+  --chrome-mark: #5bc0f8;
+  --accent: #4fb1ee;
+  --accent-ink: #04182a;
+  --accent-soft: #12324a;
+}
+
+:root[data-scheme="rose"] {
+  --chrome: #5b1a36;
+  --chrome-2: #6d2243;
+  --chrome-3: #802a50;
+  --chrome-ink: #fceef4;
+  --chrome-ink-2: #e3b3c8;
+  --chrome-line: #461329;
+  --chrome-mark: #ffb3cf;
+  --accent: #c2255c;
+  --accent-ink: #ffffff;
+  --accent-soft: #fde8ef;
+}
+
+:root[data-scheme="rose"][data-dark] {
+  --chrome: #5b1a36;
+  --chrome-2: #6d2243;
+  --chrome-3: #802a50;
+  --chrome-ink: #fceef4;
+  --chrome-ink-2: #e3b3c8;
+  --chrome-line: #461329;
+  --chrome-mark: #ffb3cf;
+  --accent: #f06595;
+  --accent-ink: #24050f;
+  --accent-soft: #3d1525;
+}
+
+:root[data-scheme="midnight"] {
+  --chrome: #1c2558;
+  --chrome-2: #253070;
+  --chrome-3: #2e3b86;
+  --chrome-ink: #eef0ff;
+  --chrome-ink-2: #b3bbe8;
+  --chrome-line: #141b43;
+  --chrome-mark: #8ea2ff;
+  --accent: #3b5bdb;
+  --accent-ink: #ffffff;
+  --accent-soft: #e7ebfd;
+}
+
+:root[data-scheme="midnight"][data-dark] {
+  --chrome: #1c2558;
+  --chrome-2: #253070;
+  --chrome-3: #2e3b86;
+  --chrome-ink: #eef0ff;
+  --chrome-ink-2: #b3bbe8;
+  --chrome-line: #141b43;
+  --chrome-mark: #8ea2ff;
+  --accent: #7c94ff;
+  --accent-ink: #0b1033;
+  --accent-soft: #1f2752;
+}
+
+:root[data-scheme="graphite"] {
+  --chrome: #2e333a;
+  --chrome-2: #3a4048;
+  --chrome-3: #464d57;
+  --chrome-ink: #f1f3f5;
+  --chrome-ink-2: #b8bfc8;
+  --chrome-line: #23272c;
+  --chrome-mark: #c5ccd5;
+  --accent: #4b5563;
+  --accent-ink: #ffffff;
+  --accent-soft: #eceef1;
+  --select: #3b6aa8;
+  --select-soft: #e0e9f5;
+}
+
+:root[data-scheme="graphite"][data-dark] {
+  --chrome: #2e333a;
+  --chrome-2: #3a4048;
+  --chrome-3: #464d57;
+  --chrome-ink: #f1f3f5;
+  --chrome-ink-2: #b8bfc8;
+  --chrome-line: #23272c;
+  --chrome-mark: #c5ccd5;
+  --accent: #a7b0bc;
+  --accent-ink: #111418;
+  --accent-soft: #2a2f36;
+}
+
+:root[data-scheme="redgreen"] {
+  --chrome: #1f3047;
+  --chrome-2: #28405e;
+  --chrome-3: #315075;
+  --chrome-ink: #eef4fb;
+  --chrome-ink-2: #b2c3d8;
+  --chrome-line: #172537;
+  --chrome-mark: #e69f00;
+  --accent: #0072b2;
+  --accent-ink: #ffffff;
+  --accent-soft: #e0f0fa;
+  --select: #0072b2;
+  --select-soft: #dceefa;
+  --good: #009e73;
+  --good-soft: #ddf3ec;
+  --warn: #b57d00;
+  --warn-soft: #fdf1d6;
+  --bad: #d55e00;
+  --bad-soft: #fbe6d6;
+}
+
+:root[data-scheme="redgreen"][data-dark] {
+  --chrome: #1f3047;
+  --chrome-2: #28405e;
+  --chrome-3: #315075;
+  --chrome-ink: #eef4fb;
+  --chrome-ink-2: #b2c3d8;
+  --chrome-line: #172537;
+  --chrome-mark: #e69f00;
+  --accent: #56b4e9;
+  --accent-ink: #04121c;
+  --accent-soft: #12324a;
+  --select: #56b4e9;
+  --select-soft: #15334a;
+  --good: #2fc79b;
+  --good-soft: #11342a;
+  --warn: #e6b13a;
+  --warn-soft: #362a0e;
+  --bad: #ff8a3d;
+  --bad-soft: #3e2210;
+}
+
+:root[data-scheme="blueyellow"] {
+  --chrome: #2b2b33;
+  --chrome-2: #37373f;
+  --chrome-3: #44444e;
+  --chrome-ink: #f3f3f6;
+  --chrome-ink-2: #c0c0c8;
+  --chrome-line: #202026;
+  --chrome-mark: #ee7733;
+  --accent: #b8337a;
+  --accent-ink: #ffffff;
+  --accent-soft: #fbe7f1;
+  --select: #00838f;
+  --select-soft: #dff3f4;
+  --good: #0077bb;
+  --good-soft: #e0eef8;
+  --warn: #c35a00;
+  --warn-soft: #fdebdf;
+  --bad: #cc3311;
+  --bad-soft: #fbe3de;
+}
+
+:root[data-scheme="blueyellow"][data-dark] {
+  --chrome: #2b2b33;
+  --chrome-2: #37373f;
+  --chrome-3: #44444e;
+  --chrome-ink: #f3f3f6;
+  --chrome-ink-2: #c0c0c8;
+  --chrome-line: #202026;
+  --chrome-mark: #ee7733;
+  --accent: #f06ba8;
+  --accent-ink: #2a0716;
+  --accent-soft: #3e1a2c;
+  --select: #33bbcc;
+  --select-soft: #12363a;
+  --good: #4aa8e8;
+  --good-soft: #13304a;
+  --warn: #ff9a5c;
+  --warn-soft: #3d2414;
+  --bad: #ff6b4a;
+  --bad-soft: #3f1a13;
+}

@@ -1,0 +1,296 @@
+:root {
+  --bg: #e4e7eb;
+  --surface: #ffffff;
+  --surface-2: #f3f4f6;
+  --surface-3: #e6e9ed;
+  --line: #d0d4da;
+  --line-strong: #b4bac3;
+  --ink: #1d2329;
+  --ink-2: #4b535c;
+  --ink-3: #7b828b;
+  --accent: #d9480f;
+  --accent-ink: #ffffff;
+  --accent-soft: #fff0e6;
+  --select: #2563c9;
+  --select-soft: #dce8fb;
+  --good: #1f9d55;
+  --warn: #c98a00;
+  --bad: #d63333;
+  --good-soft: #e3f6ea;
+  --warn-soft: #fff5d9;
+  --bad-soft: #fde7e7;
+  --icon-ink: #2c3a4d;
+  --fam-body: #9cc3ff;
+  --fam-fins: #8fe0c4;
+  --fam-outside: #c9d3e0;
+  --fam-inside: #ffd38a;
+  --fam-recovery: #ffb3c7;
+  --fam-mass: #cdb6ff;
+  --fam-assembly: #d6dde8;
+  --view-bg: #fbfbfc;
+  --grid: #e3e8ef;
+  --shadow: none;
+  --shadow-pop: 0 6px 24px rgb(0 0 0 / 18%);
+  --radius: 4px;
+  /* The chrome (navigation rail and top bar): the page's own surfaces unless a colour scheme sets them. */
+  --chrome: var(--surface);
+  --chrome-2: var(--surface-2);
+  --chrome-3: var(--surface-3);
+  --chrome-ink: var(--ink);
+  --chrome-ink-2: var(--ink-2);
+  --chrome-line: var(--line);
+  --chrome-mark: var(--accent);
+  --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141b;
+    --surface: #171e27;
+    --surface-2: #1c2430;
+    --surface-3: #243042;
+    --line: #2a3546;
+    --line-strong: #3a475b;
+    --ink: #e7edf5;
+    --ink-2: #aeb9c8;
+    --ink-3: #7f8b9c;
+    --accent: #ff7a2f;
+    --accent-ink: #1a0d04;
+    --accent-soft: #3a2314;
+    --select: #5b9dff;
+    --select-soft: #1c2d47;
+    --good: #43c47a;
+    --warn: #e5b33a;
+    --bad: #ff6464;
+    --good-soft: #15301f;
+    --warn-soft: #33290f;
+    --bad-soft: #3a1818;
+    --icon-ink: #d9e2ee;
+    --fam-body: #2f5f9e;
+    --fam-fins: #23705a;
+    --fam-outside: #46546a;
+    --fam-inside: #8a6420;
+    --fam-recovery: #8a3550;
+    --fam-mass: #5b4593;
+    --fam-assembly: #3b4658;
+    --view-bg: #131a23;
+    --grid: #1f2936;
+    --shadow: none;
+    --shadow-pop: 0 10px 40px rgb(0 0 0 / 50%);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0f141b;
+  --surface: #171e27;
+  --surface-2: #1c2430;
+  --surface-3: #243042;
+  --line: #2a3546;
+  --line-strong: #3a475b;
+  --ink: #e7edf5;
+  --ink-2: #aeb9c8;
+  --ink-3: #7f8b9c;
+  --accent: #ff7a2f;
+  --accent-ink: #1a0d04;
+  --accent-soft: #3a2314;
+  --select: #5b9dff;
+  --select-soft: #1c2d47;
+  --good: #43c47a;
+  --warn: #e5b33a;
+  --bad: #ff6464;
+  --good-soft: #15301f;
+  --warn-soft: #33290f;
+  --bad-soft: #3a1818;
+  --icon-ink: #d9e2ee;
+  --fam-body: #2f5f9e;
+  --fam-fins: #23705a;
+  --fam-outside: #46546a;
+  --fam-inside: #8a6420;
+  --fam-recovery: #8a3550;
+  --fam-mass: #5b4593;
+  --fam-assembly: #3b4658;
+  --view-bg: #131a23;
+  --grid: #1f2936;
+  --shadow: none;
+  --shadow-pop: 0 10px 40px rgb(0 0 0 / 50%);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font: 13px/1.4 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  height: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--select);
+  outline-offset: 1px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.btn.primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+  background: var(--accent);
+}
+
+.btn.ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.btn.ghost:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+
+.btn.big {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.input,
+.select {
+  height: 28px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.input:focus,
+.select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--select);
+  box-shadow: none;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.muted {
+  color: var(--ink-3);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+table.grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+}
+
+table.grid th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: 12px;
+  text-align: left;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+table.grid td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+table.grid tr.sel td {
+  background: var(--select-soft);
+}
+
+table.grid tbody tr:hover td {
+  background: var(--surface-2);
+}
+
+table.grid tbody tr.sel:hover td {
+  background: var(--select-soft);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}

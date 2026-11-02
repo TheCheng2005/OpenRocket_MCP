@@ -68,6 +68,10 @@ class ElectricalTest {
 		assertTrue(refused.apply("[{\"name\":\"A\",\"voltage\":9,\"capacityMah\":500,\"currentMa\":10,\"internalResistance\":-1}]")
 				.contains("internalResistance"));
 		assertTrue(refused.apply("[\"abc\"]").contains("object"));
+		// Internal resistance and pyro channels are optional.
+		Electrical.Circuit c = Electrical.circuits(JsonParser.parseString("[{\"name\":\"A\",\"voltage\":9,\"capacityMah\":500,\"currentMa\":10}]")
+				.getAsJsonArray()).get(0);
+		assertEquals(0, c.pyroChannels());
 	}
 
 	@Test

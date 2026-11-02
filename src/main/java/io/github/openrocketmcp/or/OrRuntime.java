@@ -5,7 +5,6 @@ import com.google.inject.AbstractModule;
 import info.openrocket.core.database.ComponentPresetDao;
 import info.openrocket.core.database.ComponentPresetDatabase;
 import info.openrocket.core.database.motor.ThrustCurveMotorSetDatabase;
-import info.openrocket.core.plugin.PluginModule;
 import info.openrocket.core.startup.Application;
 import info.openrocket.core.startup.OpenRocketCore;
 
@@ -22,11 +21,14 @@ public final class OrRuntime {
 		if (initialized) {
 			return;
 		}
-		System.setProperty("java.awt.headless", "true");
+		if (System.getProperty("java.awt.headless") == null) {
+			System.setProperty("java.awt.headless", "true"); // a server; the desktop app sets false for its file dialogs
+		}
 		// OpenRocket's core module binds the preset database but not the ComponentPresetDao interface that the .ork
 		// loader asks for (the desktop app binds it in its GUI module). Without it, designs that use catalogue parts
 		// (e.g. the "Deployable payload" example) fail to open.
-		OpenRocketCore.initialize(new PluginModule(), new AbstractModule() { // PluginModule: what initialize() passes
+		// KnownPlugins: what initialize() passes (PluginModule), without scanning the whole classpath for it.
+		OpenRocketCore.initialize(KnownPlugins.create(), new AbstractModule() {
 			@Override
 			protected void configure() {
 				bind(ComponentPresetDao.class).to(ComponentPresetDatabase.class);
