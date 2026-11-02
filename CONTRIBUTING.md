@@ -5,7 +5,7 @@ physics change is checked against an independent reference.**
 
 ## Ways to help without writing code
 
-- **Report a result that looks wrong** ([template](https://github.com/TheCheng2005/OpenRocket_MCP/issues/new?template=wrong-result.yml)):
+- **Report a result that looks wrong** ([template](https://github.com/TheCheng2005/RocketMaxxing/issues/new?template=wrong-result.yml)):
   a number that disagrees with your hand calculation, RASAero, a ground test or a flight log. These are the most
   valuable reports we get.
 - **Send flight data.** An altimeter log plus the `.ork` you flew lets us measure how close the predictions are. Remove
@@ -93,7 +93,7 @@ The design-review skill ships twice: `.claude/skills/rocket-design-review` (Clau
 ## Security
 
 Please report security problems (for example with the team server's token or file sandbox) privately through
-[GitHub security advisories](https://github.com/TheCheng2005/OpenRocket_MCP/security/advisories/new), not in a public issue.
+[GitHub security advisories](https://github.com/TheCheng2005/RocketMaxxing/security/advisories/new), not in a public issue.
 
 ## License
 

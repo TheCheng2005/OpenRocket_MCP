@@ -47,9 +47,9 @@ public final class Manifest {
 		m.add("author", author);
 		JsonObject repo = new JsonObject();
 		repo.addProperty("type", "git");
-		repo.addProperty("url", "https://github.com/TheCheng2005/OpenRocket_MCP");
+		repo.addProperty("url", "https://github.com/TheCheng2005/RocketMaxxing");
 		m.add("repository", repo);
-		m.addProperty("homepage", "https://github.com/TheCheng2005/OpenRocket_MCP");
+		m.addProperty("homepage", "https://github.com/TheCheng2005/RocketMaxxing");
 		m.addProperty("license", "GPL-3.0-or-later");
 		m.addProperty("icon", "icon.png");
 		JsonArray keywords = new JsonArray();
