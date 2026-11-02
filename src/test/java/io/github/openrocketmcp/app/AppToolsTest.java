@@ -112,6 +112,59 @@ class AppToolsTest {
 		assertTrue(parent != null);
 	}
 
+	/** Dragging a part in the parts list: into another part, to a place among its parts; pasting a copy there. */
+	@Test
+	void partsMoveIntoOtherPartsAndPaste() {
+		String d = call("open_design", "{\"path\":\"docs/examples/maple-10k.ork\"}").get("designId").getAsString();
+		JsonObject tree = call("app_design", "{\"designId\":\"" + d + "\"}").getAsJsonObject("tree");
+		String chute = find(tree, "Parachute");
+		String from = parentOf(tree, chute, null);
+		String fins = find(tree, "TrapezoidFinSet");
+		String lower = parentOf(tree, fins, null);
+		assertNotEquals(from, lower);
+		call("app_move", "{\"designId\":\"" + d + "\",\"component\":\"" + chute + "\",\"parent\":\"" + lower + "\",\"index\":0}");
+		JsonObject moved = call("app_design", "{\"designId\":\"" + d + "\"}").getAsJsonObject("tree");
+		assertEquals(lower, parentOf(moved, chute, null));
+		assertEquals(chute, child(moved, lower, 0));
+		// Same parent: the index counts places before the move, so "after the second" lands second.
+		String second = child(moved, lower, 2);
+		call("app_move", "{\"designId\":\"" + d + "\",\"component\":\"" + chute + "\",\"parent\":\"" + lower + "\",\"index\":3}");
+		assertEquals(chute, child(call("app_design", "{\"designId\":\"" + d + "\"}").getAsJsonObject("tree"), lower, 2));
+		assertEquals(second, child(call("app_design", "{\"designId\":\"" + d + "\"}").getAsJsonObject("tree"), lower, 1));
+		// Not into itself, not into a part that cannot hold it.
+		assertTrue(call("app_move", "{\"designId\":\"" + d + "\",\"component\":\"" + lower + "\",\"parent\":\"" + fins + "\"}", true)
+				.get("text").getAsString().contains("inside itself"));
+		String nose = find(tree, "NoseCone");
+		assertTrue(call("app_move", "{\"designId\":\"" + d + "\",\"component\":\"" + fins + "\",\"parent\":\"" + nose + "\"}", true)
+				.get("text").getAsString().contains("cannot hold"));
+		// Paste: a copy into another part, at its start.
+		JsonObject copy = call("app_duplicate", "{\"designId\":\"" + d + "\",\"component\":\"" + chute + "\",\"parent\":\"" + from + "\",\"index\":0}");
+		JsonObject pasted = call("app_design", "{\"designId\":\"" + d + "\"}").getAsJsonObject("tree");
+		assertEquals(copy.get("id").getAsString(), child(pasted, from, 0));
+		assertEquals(count(tree, "Parachute") + 1, count(pasted, "Parachute"));
+		// One undo per drop.
+		call("undo", "{\"designId\":\"" + d + "\",\"steps\":3}");
+		assertEquals(from, parentOf(call("app_design", "{\"designId\":\"" + d + "\"}").getAsJsonObject("tree"), chute, null));
+	}
+
+	static String child(JsonObject tree, String parent, int i) {
+		JsonObject p = node(tree, parent);
+		return p.getAsJsonArray("children").get(i).getAsJsonObject().get("id").getAsString();
+	}
+
+	static JsonObject node(JsonObject n, String id) {
+		if (n.get("id").getAsString().equals(id)) {
+			return n;
+		}
+		for (JsonElement c : n.getAsJsonArray("children")) {
+			JsonObject f = node(c.getAsJsonObject(), id);
+			if (f != null) {
+				return f;
+			}
+		}
+		return null;
+	}
+
 	@Test
 	void motorsSimulationsAndFlightData() {
 		String d = call("open_design", "{\"path\":\"docs/examples/maple-10k.ork\"}").get("designId").getAsString();

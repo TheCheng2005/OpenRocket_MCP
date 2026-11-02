@@ -11,6 +11,35 @@ export { kept } from "./meshStore";
 export interface Built {
   geo: THREE.BufferGeometry;
   edges: THREE.BufferGeometry;
+  /** A fin set split into its fins (made when first needed), for the exploded view, where each fin slides out. */
+  fins?: Built[];
+}
+
+/** A fin set's fins, each its own geometry: the triangles come fin by fin, an equal share each. */
+export function finPieces(b: Built, n: number): Built[] {
+  if (b.fins && b.fins.length === n) return b.fins;
+  const pos = b.geo.getAttribute("position").array as Float32Array;
+  const nor = b.geo.getAttribute("normal")?.array as Float32Array | undefined;
+  const per = Math.floor(pos.length / 9 / n) * 9; // floats per fin, whole triangles
+  const out: Built[] = [];
+  for (let k = 0; k < n; k++) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(pos.slice(k * per, (k + 1) * per), 3));
+    if (nor) geo.setAttribute("normal", new THREE.BufferAttribute(nor.slice(k * per, (k + 1) * per), 3));
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
+    out.push({ geo, edges: new THREE.EdgesGeometry(geo, 30) });
+  }
+  b.fins?.forEach(disposeBuilt);
+  b.fins = out;
+  return out;
+}
+
+export function disposeBuilt(b: Built) {
+  b.geo.dispose();
+  b.edges.dispose();
+  b.fins?.forEach(disposeBuilt);
+  b.fins = undefined;
 }
 
 const cache = store as Map<string, Built>;
@@ -50,8 +79,7 @@ export function trim(inUse: Set<string>): void {
   for (const [id, b] of cache) {
     if (cache.size <= MAX) break;
     if (inUse.has(id)) continue;
-    b.geo.dispose();
-    b.edges.dispose();
+    disposeBuilt(b);
     cache.delete(id);
   }
 }

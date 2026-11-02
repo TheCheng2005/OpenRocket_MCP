@@ -47,6 +47,35 @@ live margins, flight data after a launch, and an optional assistant. See [the pl
 Every panel and section folds (click its title). The Parts and Properties panels fold to a strip at the side to give
 the view more room. What is folded is remembered.
 
+### Moving and lining up parts
+
+- **In the parts list**, drag a part onto another to put it inside (the row is outlined), or between two rows to place
+  it there (a line shows where). A folded row held under the pointer unfolds. Only places the part can go light up: a
+  parachute goes into a tube, not into the stage. Alt+↑ and Alt+↓ move the selected part up or down; the arrow keys
+  walk the list (→ unfolds, ← folds or goes to the parent, F2 renames).
+- **Right-click** a part for Rename, Duplicate, Copy, Paste, Move up, Move down and Delete. Copy and paste
+  (Ctrl+C, Ctrl+V; ⌘C, ⌘V on a Mac) put a copy, with everything inside it, into the selected part, where Add part
+  would put a new one. Delete says what it removed; Ctrl+Z brings it back.
+- **In the view**, point at a part to see its name; drag the selected part to slide it along the rocket. Its front,
+  back or middle snaps to the edges of its parent and of the parts beside it, with a line where they meet and a
+  readout of how far it moved ("Back lines up with the back of Upper airframe"). Hold Alt to place it freely. Body
+  tubes, nose cones and transitions follow one another, so they are reordered in the list instead.
+- **Properties › Position › Line up** puts the part at the front, middle or back of the part it is in, in one step.
+- **Number boxes** step with ↑ and ↓ (Shift: ten times more, Alt: ten times less). The **Find a setting** box at the
+  top of Properties shows any setting of the part by name, folded sections included.
+
+![Sliding a part: it lines up with the back of its tube](rocketmaxxing/move-part.png)
+
+![Dragging a part into another in the parts list](rocketmaxxing/drag-parts.png)
+
+**Exploded** in the view's bar pulls the rocket apart: the sections along the axis, the fins out from the tube, and
+the parts inside laid out in rows under their section. The slider sets how far; pointing at a part names it, and the
+selected part has a dashed line back to where it is installed. It works in the side and 3-D views and can be asked
+for from the search (Exploded view). The 3-D view is lit like a photo studio, with a shadow under the rocket and
+paint shine; Fit frames the whole rocket in every view.
+
+![Exploded 3-D view](rocketmaxxing/exploded.png)
+
 The Design page has a Rule check panel: the competition rule check runs again a moment after each edit, and its title
 shows the fail, warn and pass counts even when it is folded. It can be turned off in Settings.
 

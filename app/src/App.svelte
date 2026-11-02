@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { connected, keepAlive, launchFiles } from "./lib/api";
-  import { app, init, run, undo, redo, save, openDialog, openPath, removeSelected, type Page } from "./lib/state.svelte";
+  import { app, init, run, undo, redo, save, openDialog, openPath, removeSelected, move, copySelected, paste, duplicate, type Page } from "./lib/state.svelte";
   import { oneWindow, rememberPage, lastPage } from "./lib/oneWindow";
   import TopBar from "./lib/TopBar.svelte";
   import NavRail from "./lib/NavRail.svelte";
@@ -91,10 +91,22 @@
     } else if (mod && e.key.toLowerCase() === "o") {
       e.preventDefault();
       openDialog();
-    } else if ((e.key === "Delete" || e.key === "Backspace") && !typing(e) && app.page === "design") {
+    } else if (app.page === "design" && !typing(e) && !overlay()) {
+      // The parts: delete, move, copy and paste, as in a file list. Not while a dialog or the tour is on top.
+      const k = e.key.toLowerCase();
+      if (e.key === "Delete" || e.key === "Backspace") removeSelected();
+      else if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) move(e.key === "ArrowUp" ? -1 : 1);
+      else if (mod && k === "c" && !String(getSelection() ?? "")) copySelected();
+      else if (mod && k === "v") paste();
+      else if (mod && k === "d") duplicate();
+      else return;
       e.preventDefault();
-      removeSelected();
     }
+  }
+
+  /** Whether a dialog, the search or the tour covers the page (its keys are its own). */
+  function overlay() {
+    return !!document.querySelector('.veil, [role="dialog"], [aria-modal="true"]');
   }
 </script>
 

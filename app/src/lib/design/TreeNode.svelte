@@ -1,14 +1,17 @@
 <script lang="ts">
   import { ChevronRight, Flame, Scale } from "@lucide/svelte";
-  import { app, select, type TreeNode as Node } from "../state.svelte";
+  import { app, select, moveTo, type TreeNode as Node } from "../state.svelte";
   import ComponentIcon from "../ComponentIcon.svelte";
   import Self from "./TreeNode.svelte";
+  import { tree, toggleFold, zoneAt, dropTarget } from "./treeState.svelte";
 
   let { node, depth }: { node: Node; depth: number } = $props();
-  let open = $state(true);
+  let open = $derived(!tree.folded.has(node.id));
   let row: HTMLDivElement | undefined = $state();
   let selected = $derived(app.selected === node.id);
   let previewed = $derived(app.hover === node.id && !selected);
+  let zone = $derived(tree.drop?.id === node.id ? tree.drop.zone : null);
+  let dragged = $derived(tree.dragging?.id === node.id);
   // A new part's row flashes once; restarting the animation needs the class off for a frame.
   let flashing = $state(false);
   $effect(() => {
@@ -23,26 +26,99 @@
   $effect(() => {
     if (selected) row?.scrollIntoView({ block: "nearest" });
   });
+
+  // Dragging rows: before or after a row (its top or bottom quarter), or into it (the middle). A folded row held
+  // over for a moment unfolds, so a part can go deep without unfolding first.
+  let unfoldTimer: ReturnType<typeof setTimeout> | undefined;
+  function start(e: DragEvent) {
+    if (node.id === "rocket") return;
+    tree.dragging = { id: node.id, type: node.type };
+    tree.menu = null;
+    e.dataTransfer?.setData("text/plain", node.name);
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+  }
+  function over(e: DragEvent) {
+    if (!tree.dragging || !row) return;
+    const r = row.getBoundingClientRect();
+    const z = zoneAt(node, (e.clientY - r.top) / r.height);
+    if (!z) {
+      if (tree.drop?.id === node.id) tree.drop = null;
+      return;
+    }
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    if (tree.drop?.id !== node.id || tree.drop.zone !== z) {
+      tree.drop = { id: node.id, zone: z };
+      // The view marks where it would go: the part it would go into.
+      const t = dropTarget(node.id, z);
+      app.hover = t ? t[0] : null;
+    }
+    if (z === "into" && !open && node.children.length && !unfoldTimer) {
+      unfoldTimer = setTimeout(() => {
+        if (tree.drop?.id === node.id && tree.folded.has(node.id)) toggleFold(node.id);
+        unfoldTimer = undefined;
+      }, 650);
+    }
+  }
+  function leave(e: DragEvent) {
+    if (row && e.relatedTarget instanceof globalThis.Node && row.contains(e.relatedTarget)) return;
+    clearTimeout(unfoldTimer);
+    unfoldTimer = undefined;
+    if (tree.drop?.id === node.id) tree.drop = null;
+  }
+  function drop(e: DragEvent) {
+    e.preventDefault();
+    const d = tree.dragging, z = tree.drop?.id === node.id ? tree.drop.zone : null;
+    end();
+    if (!d || !z) return;
+    const t = dropTarget(node.id, z);
+    if (t) moveTo(d.id, t[0], t[1]);
+  }
+  function end() {
+    clearTimeout(unfoldTimer);
+    unfoldTimer = undefined;
+    tree.dragging = null;
+    tree.drop = null;
+    app.hover = null;
+  }
+  function menu(e: MouseEvent) {
+    e.preventDefault();
+    if (app.selected !== node.id) select(node.id);
+    tree.menu = { id: node.id, x: e.clientX, y: e.clientY };
+  }
 </script>
 
+<!-- svelte-ignore a11y_click_events_have_key_events (the list's arrow keys and Enter are handled in Tree.svelte) -->
 <div
   bind:this={row}
   class="row"
   class:sel={selected}
   class:hov={previewed}
   class:flash={flashing}
-  onmouseenter={() => (app.hover = node.id)}
-  onmouseleave={() => app.hover === node.id && (app.hover = null)}
+  class:dragged
+  class:before={zone === "before"}
+  class:after={zone === "after"}
+  class:into={zone === "into"}
+  data-id={node.id}
+  draggable={node.id !== "rocket"}
+  ondragstart={start}
+  ondragover={over}
+  ondragleave={leave}
+  ondrop={drop}
+  ondragend={end}
+  oncontextmenu={menu}
+  onmouseenter={() => !tree.dragging && (app.hover = node.id)}
+  onmouseleave={() => !tree.dragging && app.hover === node.id && (app.hover = null)}
   style="padding-left: {4 + depth * 14}px"
   role="treeitem"
   aria-selected={selected}
   aria-expanded={node.children.length ? open : undefined}
-  tabindex="0"
+  aria-level={depth + 1}
+  tabindex={selected ? 0 : -1}
   onclick={() => select(node.id)}
-  onkeydown={(e) => e.key === "Enter" && select(node.id)}
 >
   {#if node.children.length}
-    <button class="tw" class:open onclick={(e) => (e.stopPropagation(), (open = !open))} aria-label={open ? "Collapse" : "Expand"}>
+    <button class="tw" class:open tabindex="-1" onclick={(e) => (e.stopPropagation(), toggleFold(node.id))} aria-label={open ? "Collapse" : "Expand"}>
       <ChevronRight size={14} />
     </button>
   {:else}
@@ -61,6 +137,7 @@
 
 <style>
   .row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 5px;
@@ -72,6 +149,10 @@
   .row:hover {
     background: var(--surface-2);
   }
+  .row:focus-visible {
+    outline: 2px solid var(--select);
+    outline-offset: -2px;
+  }
   .row.sel {
     background: var(--select-soft);
     box-shadow: inset 3px 0 0 var(--select);
@@ -79,6 +160,30 @@
   }
   .row.hov {
     box-shadow: inset 0 0 0 1px var(--select);
+  }
+  .row.dragged {
+    opacity: 0.45;
+  }
+  .row.before::before,
+  .row.after::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--select);
+    pointer-events: none;
+  }
+  .row.before::before {
+    top: -1px;
+  }
+  .row.after::after {
+    bottom: -1px;
+  }
+  .row.into {
+    background: var(--select-soft);
+    box-shadow: inset 0 0 0 2px var(--select);
   }
   .row.flash {
     animation: added 1.2s ease-out;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { BookOpen, ChevronDown, TriangleAlert } from "@lucide/svelte";
+  import { BookOpen, ChevronDown, TriangleAlert, Search, X } from "@lucide/svelte";
   import { app, editField, act } from "../state.svelte";
   import { fmt } from "../units.svelte";
   import { isOpen, toggle } from "../panels.svelte";
@@ -27,6 +27,29 @@
   $effect(() => {
     name = ed?.name ?? "";
   });
+
+  // A filter over every setting of the part, folded sections included: "wall" finds the wall thickness.
+  let find = $state("");
+  let found = $derived.by(() => {
+    const q = find.trim().toLowerCase();
+    if (!q || !ed) return null;
+    const out: { section: string; f: import("../state.svelte").FieldDef }[] = [];
+    for (const s of ed.sections) for (const f of s.fields) if (f.key !== "name" && (f.label.toLowerCase().includes(q) || s.title.toLowerCase().includes(q))) out.push({ section: s.title, f });
+    return out;
+  });
+
+  // Lining the part up in its parent in one step (one undo): where it is measured from, and no offset.
+  const ALIGN: [string, string, string][] = [
+    ["TOP", "Front", "Its front at the front of the part it is in"],
+    ["MIDDLE", "Middle", "Centred in the part it is in"],
+    ["BOTTOM", "Back", "Its back at the back of the part it is in"],
+  ];
+  let position = $derived(ed?.sections.find((s) => s.title === "Position")?.fields ?? []);
+  let method = $derived(position.find((f) => f.key === "axialMethod")?.value as string | undefined);
+  let offset = $derived(position.find((f) => f.key === "axialOffset")?.value as number | undefined);
+  function align(m: string) {
+    act("edit_components", { changes: [{ component: ed!.id, properties: { axialMethod: m, axialOffset: 0 } }] });
+  }
 </script>
 
 {#if ed}
@@ -54,7 +77,24 @@
       <button class="btn" onclick={() => (catalog = true)}><BookOpen size={14} /> Catalogue…</button>
     </div>
   {/if}
+  {#if ed.type !== "Rocket"}
+    <div class="find">
+      <Search size={13} />
+      <input bind:value={find} placeholder="Find a setting (e.g. thickness)" aria-label="Find a setting" onkeydown={(e) => e.key === "Escape" && (find = "")} />
+      {#if find}<button class="clear" onclick={() => (find = "")} aria-label="Clear"><X size={13} /></button>{/if}
+    </div>
+  {/if}
   <div class="sections">
+    {#if found}
+      <div class="fields">
+        {#each found as { section, f } (section + f.key)}
+          <div class="from">{section}</div>
+          <Field {f} />
+        {:else}
+          <p class="muted none">No setting of a {ed.label.toLowerCase()} matches “{find}”.</p>
+        {/each}
+      </div>
+    {:else}
     {#if rocketFields.length}
       <div class="fields">
         {#each rocketFields as f (f.key)}<Field {f} />{/each}
@@ -74,12 +114,14 @@
         {#if open}
           <div class="fields">
             {#each s.fields as f (f.key)}<Field {f} />{/each}
+            {#if s.title === "Position"}{@render lineUp()}{/if}
           </div>
         {/if}
       </section>
     {/each}
     {#if ed.type !== "Rocket"}
       {@render folding("Appearance", look)}
+    {/if}
     {/if}
   </div>
   {#if catalog}<CatalogPicker component={ed.id} close={() => (catalog = false)} />{/if}
@@ -95,6 +137,22 @@
     </button>
     {#if open}<div class="fields">{@render body()}</div>{/if}
   </section>
+{/snippet}
+
+{#snippet lineUp()}
+  {#if method === "AFTER"}
+    <p class="muted small note">An airframe piece follows the one above it. To change the order, drag it in the parts list.</p>
+  {:else if method}
+    <div class="row">
+      <span class="label">Line up</span>
+      <div class="align" role="group" aria-label="Line up in the part it is in">
+        {#each ALIGN as [m, label, title] (m)}
+          <button class="btn" class:on={method === m && Math.abs(offset ?? 1) < 1e-9} {title} onclick={() => align(m)}>{label}</button>
+        {/each}
+      </div>
+    </div>
+    <p class="muted small note">Or drag it along the rocket in the view.</p>
+  {/if}
 {/snippet}
 
 {#snippet fin()}
@@ -244,6 +302,62 @@
   }
   .small {
     font-size: 12px;
+  }
+  .find {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 10px 2px;
+    padding: 0 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--ink-3);
+    background: var(--surface);
+  }
+  .find:focus-within {
+    border-color: var(--select);
+  }
+  .find input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    height: 26px;
+    background: transparent;
+    color: var(--ink);
+  }
+  .clear {
+    display: grid;
+    border: 0;
+    background: transparent;
+    color: var(--ink-3);
+    padding: 2px;
+  }
+  .from {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .none {
+    margin: 6px 0;
+  }
+  .align {
+    display: flex;
+    gap: 4px;
+  }
+  .align .btn {
+    flex: 1;
+    justify-content: center;
+    padding: 0 4px;
+  }
+  .align .btn.on {
+    background: var(--select-soft);
+    border-color: var(--select);
+  }
+  .note {
+    margin: 2px 0 0;
   }
   .sections > .fields {
     padding: 8px 10px;

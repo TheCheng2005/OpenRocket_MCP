@@ -5,6 +5,7 @@ import { call, callFull, ToolError, type Issue } from "./api";
 import { record, type Logged } from "./issues/issues.svelte";
 import { complete, knownMeshes } from "./design/meshStore";
 import { units, setSystem as setUnitSystem } from "./units.svelte";
+import { MAC } from "./keys";
 
 export interface TreeNode {
   id: string;
@@ -97,6 +98,8 @@ export interface Part {
   plateDirs?: number[][];
   explode: number[];
   id?: string;
+  /** Painted parts: 0 (matte) to 1 (glossy). */
+  shine?: number;
   type: string;
   /** Left out when the window already has it (see design/meshes.ts). */
   mesh?: string;
@@ -555,19 +558,65 @@ export async function removeSelected() {
   if (!app.design || app.selected === "rocket") return;
   const tree = app.design.tree;
   const p = parentOf(tree, app.selected);
-  await change("remove_component", { component: app.selected });
+  const name = findNode(tree, app.selected)?.name;
+  const r = await change("remove_component", { component: app.selected });
+  if (r !== undefined && name) toast(`Deleted ${name}. ${MAC ? "⌘Z" : "Ctrl+Z"} brings it back.`);
   if (p) await select(exists(app.design.tree, p.id) ? p.id : "rocket");
 }
 
+/** Whether the selected part can move up (-1) or down (+1) among its siblings. */
+export function canMove(by: number): boolean {
+  const tree = app.design?.tree;
+  if (!tree || app.selected === "rocket") return false;
+  const p = parentOf(tree, app.selected);
+  if (!p) return false;
+  const i = p.children.findIndex((c) => c.id === app.selected) + by;
+  return i >= 0 && i < p.children.length;
+}
+
 export async function move(by: number) {
-  if (app.selected === "rocket") return;
+  if (!canMove(by)) return;
   await change("app_move", { component: app.selected, by });
+}
+
+/** Moves a part into another part (or the same one), at {@code index} counted before the move. */
+export async function moveTo(id: string, parent: string, index: number) {
+  const r = await change("app_move", { component: id, parent, index });
+  if (r) await select(id);
 }
 
 export async function duplicate() {
   if (app.selected === "rocket") return;
   const r = await change("app_duplicate", { component: app.selected });
-  if (r?.id) await select(r.id);
+  if (r?.id) await select(r.id, true);
+}
+
+/** The part copied with Ctrl+C: pasted (with what is inside it) where Add part would put a new one of its kind. */
+export const clipboard = $state({ id: null as string | null, type: "", name: "" });
+
+export function copySelected() {
+  const n = findNode(app.design?.tree, app.selected);
+  if (!n || n.id === "rocket") return;
+  clipboard.id = n.id;
+  clipboard.type = n.type;
+  clipboard.name = n.name;
+  toast(`Copied ${n.name}. ${MAC ? "⌘V" : "Ctrl+V"} pastes it into the selected part.`);
+}
+
+export async function paste() {
+  const d = app.design;
+  if (!d || !clipboard.id) return;
+  if (!exists(d.tree, clipboard.id)) {
+    toast(`${clipboard.name} is no longer in this design.`);
+    return;
+  }
+  const at = placement(clipboard.type);
+  if (!at) {
+    toast(`A ${clipboard.name} cannot go in the selected part. Select a part it fits in.`, "error");
+    return;
+  }
+  const r = await change("app_duplicate", { component: clipboard.id, parent: at.parent, index: at.index });
+  if (r?.id) await select(r.id, true);
 }
 
 export async function undo() {

@@ -158,12 +158,18 @@ public final class AppTools {
 				Schema.object().str("designId", DESIGN, true).str("component", "Component id.", true)
 						.str("key", "Field key.", true).prop("value", new JsonObject(), true).build(),
 				false, a -> edit(ctx, a)));
-		add(s, new ToolDef("app_move", "App: move a component", "Move a component up or down among its siblings.",
+		add(s, new ToolDef("app_move", "App: move a component",
+				"Move a component up or down among its siblings, or into another part (parent, at index).",
 				Schema.object().str("designId", DESIGN, true).str("component", "Component id.", true)
-						.integer("by", "-1 up, +1 down.", true).build(),
+						.integer("by", "-1 up, +1 down.", false).str("parent", "Part to move it into (id, or rocket).", false)
+						.integer("index", "Place among the new parent's parts, counted before the move (default the end).", false)
+						.build(),
 				false, a -> move(ctx, a)));
-		add(s, new ToolDef("app_duplicate", "App: duplicate a component", "Copy a component (with its parts) right after it.",
-				Schema.object().str("designId", DESIGN, true).str("component", "Component id.", true).build(), false,
+		add(s, new ToolDef("app_duplicate", "App: duplicate a component",
+				"Copy a component (with its parts) right after it, or into another part (parent, at index): paste.",
+				Schema.object().str("designId", DESIGN, true).str("component", "Component id.", true)
+						.str("parent", "Part to put the copy in (id, or rocket).", false)
+						.integer("index", "Place among that part's parts (default the end).", false).build(), false,
 				a -> duplicate(ctx, a)));
 		// Read-only as far as undo goes: choosing which configuration to look at is not an edit of the design.
 		add(s, new ToolDef("app_select_configuration", "App: select configuration", "Make a flight configuration the active one.",
@@ -543,6 +549,24 @@ public final class AppTools {
 		if (p == null) {
 			throw new ToolException("The rocket itself cannot move.");
 		}
+		if (a.has("parent")) {
+			// Dragged in the parts list: into another part, or to a place among the new parent's parts.
+			RocketComponent np = holder(d, a.str("parent"), c);
+			int index = a.integer("index", np.getChildCount());
+			if (np == p) {
+				int from = p.getChildPosition(c);
+				index = Math.max(0, Math.min(index > from ? index - 1 : index, p.getChildCount() - 1));
+				if (index == from) {
+					return Map.of("moved", c.getName(), "unchanged", true);
+				}
+				p.moveChild(c, index);
+			} else {
+				p.removeChild(c);
+				np.addChild(c, Math.max(0, Math.min(index, np.getChildCount())));
+			}
+			d.doc.setSaved(false);
+			return Map.of("moved", c.getName(), "into", np.getName());
+		}
 		int to = p.getChildPosition(c) + a.integer("by", 0);
 		if (to < 0 || to >= p.getChildCount()) {
 			throw new ToolException(c.getName() + " is already at the " + (to < 0 ? "top" : "bottom") + ".");
@@ -550,6 +574,20 @@ public final class AppTools {
 		p.moveChild(c, to);
 		d.doc.setSaved(false);
 		return Map.of("moved", c.getName());
+	}
+
+	/** The part {@code parentId} names, checked that it can hold {@code c} and is not {@code c} or inside it. */
+	static RocketComponent holder(Designs.Design d, String parentId, RocketComponent c) {
+		RocketComponent np = find(d, parentId);
+		for (RocketComponent x = np; x != null; x = x.getParent()) {
+			if (x == c) {
+				throw new ToolException(c.getName() + " cannot go inside itself.");
+			}
+		}
+		if (!np.isCompatible(c)) {
+			throw new ToolException(np.getName() + " (" + np.getComponentName() + ") cannot hold a " + c.getComponentName() + ".");
+		}
+		return np;
 	}
 
 	static Map<String, Object> duplicate(Context ctx, Args a) {
@@ -560,7 +598,13 @@ public final class AppTools {
 			throw new ToolException("The rocket itself cannot be duplicated.");
 		}
 		RocketComponent copy = c.copy();
-		p.addChild(copy, p.getChildPosition(c) + 1);
+		if (a.has("parent")) {
+			// Pasted: into the part chosen, at the place given (default its end).
+			RocketComponent np = holder(d, a.str("parent"), copy);
+			np.addChild(copy, Math.max(0, Math.min(a.integer("index", np.getChildCount()), np.getChildCount())));
+		} else {
+			p.addChild(copy, p.getChildPosition(c) + 1);
+		}
 		d.doc.setSaved(false);
 		return Map.of("id", Components.shortId(copy), "name", copy.getName());
 	}
@@ -597,9 +641,11 @@ public final class AppTools {
 					}
 				}
 				if (p.get("id") instanceof String id) {
-					String painted = paint(Components.find(d.doc.getRocket(), id));
+					RocketComponent pc = Components.find(d.doc.getRocket(), id);
+					String painted = paint(pc);
 					if (painted != null) {
 						p.put("color", painted);
+						p.put("shine", pc.getAppearance().getShine());
 					}
 				}
 				parts.add(p);

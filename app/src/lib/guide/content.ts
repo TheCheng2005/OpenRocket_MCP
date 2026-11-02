@@ -17,7 +17,7 @@ export const STEPS: { title: string; text: string; page?: Page; analysis?: strin
 /** What each page is for. */
 export const PAGE_HELP: { page: Page; title: string; text: string }[] = [
   { page: "home", title: "Start", text: "Open a file, a recent design or an example." },
-  { page: "design", title: "Design", text: "The parts list, the 3-D view (Side, Back, 3D, cut-away), the selected part's properties, the summary (stability, apogee, rail exit) and the live rule check. Add parts from Add part; select one first and the new part goes into it." },
+  { page: "design", title: "Design", text: "The parts list, the 3-D view (Side, Back, 3D, cut-away, exploded), the selected part's properties, the summary (stability, apogee, rail exit) and the live rule check. Add parts from Add part; select one first and the new part goes into it. Drag parts in the list to move them into another part; drag the selected part along the rocket in the view to slide it, lined up with its neighbours." },
   { page: "motors", title: "Motors", text: "Flight configurations: the motor in each mount, ejection delays, when each parachute deploys and when stages separate." },
   { page: "flights", title: "Flights", text: "Saved simulations with their launch conditions (wind, rail, site), and plots of any flight variable." },
   { page: "targets", title: "Targets", text: "Your team's own goals (apogee window, rail exit, stability…) with live margins next to the competition's rules." },
@@ -209,6 +209,10 @@ export const TIPS: [string, string][] = [
   ["*", "A needed input. Empty inputs use the design and the team standards."],
   [keys("Z"), "Undo any edit, including those an analysis or the assistant made."],
   [keys("S"), `Save; ${keys("S", true)} saves as.`],
+  ["Parts", `Drag in the list to move a part into another; Alt+↑/↓ moves it up or down; ${keys("D")} duplicates; ${keys("C")} and ${keys("V")} copy and paste into the selected part; right-click for all of these.`],
+  ["Move", "Drag the selected part along the rocket in the view: it lines up with the edges of the parts near it (hold Alt to place it freely). Properties › Position › Line up puts it at the front, middle or back of its parent."],
+  ["↑ ↓", "In a number box, the arrow keys step the value (Shift: ten times more, Alt: ten times less)."],
+  ["Find", "The box at the top of Properties finds any setting of the part, folded sections included."],
   ["Units", "Type a unit with any number (3 in, 20 km/h, 270 deg). Settings switches metric and imperial."],
   ["Problems", "The warning triangle at the top right lists errors and flight warnings, and reports a bug."],
   ["Assistant", "The robot button: ask Claude or ChatGPT about the design; it uses the same tools."],

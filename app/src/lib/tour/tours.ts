@@ -15,17 +15,17 @@ export function designSteps(): Step[] {
     {
       title: "Parts",
       target: '[data-panel="design.parts"]',
-      text: "Every part of the rocket in order, nose to tail, with what is inside each tube indented under it. Click one to select it; pointing at one marks it in the view. The buttons at the top move the selected part up or down, duplicate it or delete it (Delete key).",
+      text: "Every part of the rocket in order, nose to tail, with what is inside each tube indented under it. Click one to select it; pointing at one marks it in the view. Drag a part to move it: onto a part to put it inside, between two to place it there. Right-click for duplicate, copy, paste and delete; the arrow keys walk the list.",
     },
     {
       title: "The view",
       target: '[data-panel="design.view"]',
-      text: "The rocket as OpenRocket draws it. The blue CG marker is the centre of gravity at launch, the red CP marker the centre of pressure; CG must be ahead of (left of) CP. Click a part to select it, drag to move, scroll or pinch to zoom.",
+      text: "The rocket as OpenRocket draws it. The blue CG marker is the centre of gravity at launch, the red CP marker the centre of pressure; CG must be ahead of (left of) CP. Point at a part to see its name, click to select it. Drag the selected part to slide it along the rocket: it lines up with the edges near it (Alt: freely). Drag elsewhere to move the view, scroll or pinch to zoom.",
     },
     {
       title: "Side, Back, 3D",
       target: '[data-tour="view-modes"]',
-      text: "Side is OpenRocket's see-through figure, Back looks along the rocket from behind (fin layout), 3D can be turned by dragging. In 3D, Cut-away opens the airframe to show what is inside. Fit brings the whole rocket back into view.",
+      text: "Side is OpenRocket's see-through figure, Back looks along the rocket from behind (fin layout), 3D can be turned by dragging. Exploded pulls it apart: sections along the axis, fins out, the parts inside laid out below (the slider sets how far). In 3D, Cut-away opens the airframe. Fit brings everything back into view.",
     },
     {
       title: "Pictures and drawings",
@@ -35,7 +35,7 @@ export function designSteps(): Step[] {
     {
       title: "Properties",
       target: '[data-panel="design.props"]',
-      text: "The selected part's settings: sizes, material, finish, and for some parts a Catalogue… button for real catalogue parts. Type any unit (3 in, 75 mm). Under Overrides, enter a weighed mass: a scale beats an estimate, and every check uses it.",
+      text: "The selected part's settings: sizes, material, finish, and for some parts a Catalogue… button for real catalogue parts. Type any unit (3 in, 75 mm), or step a number with the arrow keys. The Find box finds any setting; Position › Line up puts the part at the front, middle or back of its parent. Under Overrides, enter a weighed mass: a scale beats an estimate.",
     },
     {
       title: "Summary",

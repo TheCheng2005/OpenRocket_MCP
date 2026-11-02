@@ -3,7 +3,8 @@
   import { designTour } from "../tour/tours";
   import { seen, markSeen } from "../tour/session.svelte";
   import PictureDialog from "../media/PictureDialog.svelte";
-  import { app, move, duplicate, removeSelected, findNode } from "../state.svelte";
+  import { app, move, canMove, duplicate, removeSelected, findNode } from "../state.svelte";
+  import { keys } from "../keys";
   import { isOpen } from "../panels.svelte";
   import Panel from "../Panel.svelte";
   import Tree from "./Tree.svelte";
@@ -29,9 +30,9 @@
   <div class="left" class:shut={!isOpen("design.parts")}>
     <Panel id="design.parts" title="Parts" side="left">
       {#snippet tools()}
-        <button class="tool" title="Move up" disabled={isRoot} onclick={() => move(-1)}><ArrowUp size={15} /></button>
-        <button class="tool" title="Move down" disabled={isRoot} onclick={() => move(1)}><ArrowDown size={15} /></button>
-        <button class="tool" title="Duplicate" disabled={isRoot} onclick={duplicate}><Copy size={15} /></button>
+        <button class="tool" title="Move up (Alt+↑)" disabled={!canMove(-1)} onclick={() => move(-1)}><ArrowUp size={15} /></button>
+        <button class="tool" title="Move down (Alt+↓)" disabled={!canMove(1)} onclick={() => move(1)}><ArrowDown size={15} /></button>
+        <button class="tool" title="Duplicate ({keys('D')})" disabled={isRoot} onclick={duplicate}><Copy size={15} /></button>
         <button class="tool" title="Delete (Del)" disabled={isRoot} onclick={removeSelected}><Trash2 size={15} /></button>
       {/snippet}
       <Tree />

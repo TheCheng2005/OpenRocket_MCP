@@ -11,7 +11,7 @@
   }: { value: number | null; dim: Dim; disabled?: boolean; commit: (v: number | string) => void } = $props();
 
   let unit = $derived(unitOf(dim));
-  let shown = $derived(value === null || value === undefined ? "" : num(toShown(value, dim, unit), 4).replace(/,/g, ""));
+  let shown = $derived(value === null || value === undefined ? "" : num(Math.abs(value) < 1e-12 ? 0 : toShown(value, dim, unit), 4).replace(/,/g, "").replace(/^-0$/, "0"));
   let text = $state("");
   let editing = $state(false);
 
@@ -19,9 +19,36 @@
     if (!editing) text = shown;
   });
 
+  // Up and down arrows step the number (Shift: ten times more, Alt: ten times less), sent a moment after the last.
+  let sent = "";
+  let nudgeTimer: ReturnType<typeof setTimeout> | undefined;
+  function nudge(e: KeyboardEvent) {
+    const v = parseFloat(text);
+    if (!Number.isFinite(v) || !/^[-+]?(\d+\.?\d*|\.\d+)$/.test(text.trim())) return;
+    e.preventDefault();
+    let step = v === 0 ? 1 : Math.pow(10, Math.floor(Math.log10(Math.abs(v))) - 1);
+    if (e.shiftKey) step *= 10;
+    if (e.altKey) step /= 10;
+    const digits = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
+    const next = v + (e.key === "ArrowUp" ? step : -step);
+    const decimals = Math.max(digits, (text.split(".")[1] ?? "").length);
+    text = (Math.abs(next) < step / 1000 ? 0 : next).toFixed(decimals);
+    editing = true;
+    clearTimeout(nudgeTimer);
+    nudgeTimer = setTimeout(() => {
+      sent = text;
+      commit(toSi(parseFloat(text), dim, unit));
+    }, 350);
+  }
+
   function done() {
     editing = false;
+    clearTimeout(nudgeTimer);
     const t = text.trim();
+    if (t === sent) {
+      sent = "";
+      return;
+    }
     if (t === shown || t === "") {
       text = shown;
       return;
@@ -37,12 +64,14 @@
 <div class="q" class:disabled>
   <input
     class="input num"
+    title="↑ ↓ step it (Shift: ×10, Alt: ÷10). A unit can be typed too: 3 in, 75 mm."
     {disabled}
     bind:value={text}
     onfocus={() => (editing = true)}
     onblur={done}
     onkeydown={(e) => {
       if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") nudge(e);
       if (e.key === "Escape") {
         text = shown;
         editing = false;

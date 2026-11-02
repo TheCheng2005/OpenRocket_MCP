@@ -1,7 +1,7 @@
 // Everything the search can find: the analyses, the pages, the actions in the top bar, parts to add, the parts of the
 // open design, and settings. Built when the search opens, so it follows the design and the selection.
 
-import { app, addPart, findNode, newDesign, openDialog, placement, redo, save, select, setSystem, undo, type Page, type TreeNode } from "../state.svelte";
+import { app, addPart, findNode, newDesign, openDialog, placement, redo, save, select, setSystem, undo, duplicate, copySelected, paste, clipboard, type Page, type TreeNode } from "../state.svelte";
 import { CATALOG, type Analysis } from "../analysis/catalog";
 import { GUIDES } from "../analysis/guides";
 import { analysis } from "../analysis/store.svelte";
@@ -135,6 +135,32 @@ export function entries(): Entry[] {
     { kind: "action", title: "What are the team standards?", sub: "Guide: what each section holds and which analyses use it", keys: "help guide standards explain", run: () => (ui.guide = "standards") },
     { kind: "action", title: "Problems", sub: "Errors and warnings, and reporting a bug", keys: "errors warnings issues bug report", run: openIssues },
     { kind: "action", title: "Choose a motor", sub: "Motors page", keys: "set motor pick motor", off: noDesign, run: () => go("motors") },
+    {
+      kind: "action",
+      title: "Exploded view",
+      sub: "Pull the rocket apart in the view: sections, fins and the parts inside",
+      keys: "explode blow up blown apart parts layout view",
+      off: noDesign,
+      run: () => {
+        go("design");
+        setTimeout(() => dispatchEvent(new CustomEvent("rocketmaxxing:explode")), 300);
+      },
+    },
+  );
+  const part = open && app.selected !== "rocket" ? findNode(app.design?.tree, app.selected)?.name : undefined;
+  const pick = part ? undefined : "Select a part first";
+  out.push(
+    { kind: "action", title: "Duplicate part", sub: part, keys: "copy clone repeat", shortcut: keys("D"), off: noDesign ?? pick, run: () => duplicate() },
+    { kind: "action", title: "Copy part", sub: part, keys: "clipboard", shortcut: keys("C"), off: noDesign ?? pick, run: copySelected },
+    {
+      kind: "action",
+      title: "Paste part",
+      sub: clipboard.id ? `${clipboard.name}, into the selected part` : undefined,
+      keys: "clipboard insert",
+      shortcut: keys("V"),
+      off: noDesign ?? (clipboard.id ? undefined : "Copy a part first"),
+      run: () => paste(),
+    },
   );
   out.push({
     kind: "action",

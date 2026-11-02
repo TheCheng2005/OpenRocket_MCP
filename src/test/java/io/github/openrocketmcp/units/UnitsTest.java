@@ -65,6 +65,9 @@ class UnitsTest {
 		// A thickness answered with "e.g. 20 ft/s" sent people looking for a speed.
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> Units.toSi("abc", Dim.LENGTH));
 		assertTrue(e.getMessage().contains("\"4.0 in\" or \"98 mm\"") && !e.getMessage().contains("ft/s"), e.getMessage());
+		// "an angle", not "a angle".
+		String m = assertThrows(IllegalArgumentException.class, () -> Units.toSi("3 in", Dim.ANGLE)).getMessage();
+		assertTrue(m.contains("is a length but an angle was expected"), m);
 	}
 
 	@Test

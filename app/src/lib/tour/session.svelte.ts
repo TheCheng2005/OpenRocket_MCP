@@ -23,7 +23,8 @@ const SEEN = "rocketmaxxing.tours";
 
 function seenList(): string[] {
   try {
-    return JSON.parse(localStorage.getItem(SEEN) ?? "[]");
+    const v = JSON.parse(localStorage.getItem(SEEN) ?? "[]");
+    return Array.isArray(v) ? v : [];
   } catch {
     return [];
   }

@@ -188,6 +188,12 @@ public final class Units {
 	 * Converts a string or number into SI for the expected dimension. Numbers are SI. Grams are accepted for
 	 * CHARGE_MASS and LENGTH units for DISTANCE (and vice versa), since those are the same physical dimension.
 	 */
+	/** "a length", "an angle": the dimension's name with its article. */
+	static String article(Dim d) {
+		String n = d.name().toLowerCase(Locale.ROOT).replace('_', ' ');
+		return ("aeiou".indexOf(n.charAt(0)) >= 0 ? "an " : "a ") + n;
+	}
+
 	public static double toSi(Object value, Dim expected) {
 		if (value instanceof Number n) {
 			return n.doubleValue();
@@ -197,8 +203,8 @@ public final class Units {
 			return p.si();
 		}
 		if (!compatible(p.dim(), expected)) {
-			throw new IllegalArgumentException("'" + value + "' is a " + p.dim().name().toLowerCase(Locale.ROOT)
-					+ " but a " + expected.name().toLowerCase(Locale.ROOT) + " was expected (e.g. "
+			throw new IllegalArgumentException("'" + value + "' is " + article(p.dim()) + " but " + article(expected)
+					+ " was expected (e.g. "
 					+ example(expected) + ").");
 		}
 		return p.si();
