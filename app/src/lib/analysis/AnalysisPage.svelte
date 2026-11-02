@@ -21,6 +21,10 @@
   import { units } from "../units.svelte";
   import { search, type Entry } from "../search/search";
   import { ANALYSIS_KEYS, analysisText } from "../search/entries";
+  import { context, pageMenu, copyText, type MenuItem } from "../menu/menu.svelte";
+  import { toast } from "../state.svelte";
+  import { ui } from "../search/ui.svelte";
+  import { setOpen } from "../panels.svelte";
 
   // The engine's analyses: pick one, fill in what it needs (the design is filled in), run, read the result.
 
@@ -294,6 +298,71 @@
   );
   let filtered = $derived(filter.trim() ? search(SEARCHABLE, filter, 80).map((e) => FOUND.get(e)!) : null);
 
+  // ------------------------------------------------------------------ right-click menus
+  const canRun = () => !running && !!info && missing.length === 0;
+  function clearInputs(a: Analysis) {
+    analysis.values[a.tool] = { ...(a.defaults?.(fileName()) ?? {}) };
+    delete analysis.failures[a.tool];
+  }
+  function clearResult(tool: string) {
+    delete analysis.results[tool];
+    delete analysis.failures[tool];
+  }
+  /** Opens an analysis and runs it as soon as its form is ready (when nothing it needs is missing). */
+  function openAndRun(a: Analysis) {
+    choose(a);
+    let tries = 0;
+    const wait = () => {
+      if (entry.tool !== a.tool) return;
+      if (info && !running) {
+        if (missing.length) toast(`${a.label} needs: ${missing.join(", ")}`, "error");
+        else go();
+      } else if (tries++ < 40) setTimeout(wait, 100);
+    };
+    setTimeout(wait, 50);
+  }
+  function itemItems(a: Analysis): MenuItem[] {
+    const has = !!analysis.results[a.tool];
+    return [
+      { header: a.label },
+      { label: "Open", run: () => choose(a) },
+      { label: "Run with these inputs", run: () => openAndRun(a) },
+      { label: "Clear its inputs", run: () => clearInputs(a) },
+      { label: "Clear its result", off: !has && "No result", run: () => clearResult(a.tool) },
+      "-",
+      { label: "Fold every group", run: () => CATALOG.forEach((g) => setOpen("analysis.group." + g.title, false)) },
+      { label: "Unfold every group", run: () => CATALOG.forEach((g) => setOpen("analysis.group." + g.title, true)) },
+      { label: "Which analysis do I need? (Guide)", run: () => (ui.guide = "analyses") },
+    ];
+  }
+  function formItems(): MenuItem[] {
+    return [
+      { header: entry.label },
+      { label: "Run", off: !canRun() && (missing.length ? "Needs: " + missing.join(", ") : "Not ready"), run: go },
+      { label: "Clear the inputs", run: () => clearInputs(entry) },
+      { label: "Unfold every option", run: () => ["analysis.more", "analysis.conditions"].forEach((id) => setOpen(id, true)) },
+      "-",
+      { label: "Which analysis do I need? (Guide)", run: () => (ui.guide = "analyses") },
+      { label: "Start here", run: () => (analysis.selected = "start") },
+    ];
+  }
+  function resultItems(): MenuItem[] {
+    return [
+      { header: "Result" },
+      { label: "Copy the result", off: !outcome && "Not run yet", run: () => copyText(JSON.stringify(outcome!.data, null, 2)).then((ok) => ok && toast("Copied the result")) },
+      { label: stale ? "Run again (the design changed)" : "Run again", off: !canRun() && "Not ready", run: go },
+      { label: "Clear the result", off: !outcome && !failure && "Nothing to clear", run: () => clearResult(entry.tool) },
+      "-",
+      { label: "Design review report", run: () => choose(CATALOG.flatMap((g) => g.items).find((x) => x.tool === "generate_report")!) },
+    ];
+  }
+  pageMenu(() => [
+    { label: "Start here", run: () => (analysis.selected = "start") },
+    !starting ? { label: `Run ${entry.label}`, off: !canRun() && "Not ready", run: go } : null,
+    { label: "Find an analysis", run: () => (document.querySelector(".filter input") as HTMLElement | null)?.focus() },
+    { label: "Which analysis do I need? (Guide)", run: () => (ui.guide = "analyses") },
+  ]);
+
   function filterKey(e: KeyboardEvent) {
     if (e.key === "Escape") filter = "";
     else if (e.key === "Enter" && filtered?.length) choose(filtered[0].a);
@@ -419,7 +488,7 @@
       <nav class="cat">
         {#if filtered}
           {#each filtered as x (x.a.tool)}
-            <button class="item flat" class:on={x.a.tool === analysis.selected} onclick={() => choose(x.a)} title={x.a.blurb}>
+            <button class="item flat" class:on={x.a.tool === analysis.selected} onclick={() => choose(x.a)} title={x.a.blurb} use:context={() => itemItems(x.a)}>
               <span class="nm">{x.a.label}<span class="grp">{x.group}</span></span>
               {#if analysis.results[x.a.tool]}<span class="ran" title="Has a result"></span>{/if}
             </button>
@@ -437,7 +506,7 @@
           </button>
           {#if isOpen(gid)}
             {#each g.items as a (a.tool)}
-              <button class="item" class:on={a.tool === analysis.selected} onclick={() => choose(a)}>
+              <button class="item" class:on={a.tool === analysis.selected} onclick={() => choose(a)} use:context={() => itemItems(a)}>
                 {a.label}
                 {#if analysis.results[a.tool]}<span class="ran" title="Has a result"></span>{/if}
               </button>
@@ -460,7 +529,7 @@
         {#if missing.length}<span class="meta">Needs: {missing.join(", ")}</span>{/if}
         <button class="btn primary run" disabled={running || !info || missing.length > 0} onclick={go}><Play size={14} /> {running ? "Running…" : "Run"}</button>
       {/snippet}
-      <div class="form">
+      <div class="form" use:context={formItems}>
         <!-- Built afresh for each analysis, so a list left empty shows its first choice (Default) rather than nothing. -->
         {#key entry.tool}
         {#if info}
@@ -493,7 +562,7 @@
       {#snippet tools()}
         {#if outcome}<span class="meta">{stale ? "Design changed since this ran. " : ""}{(outcome.ms / 1000).toFixed(1)} s</span>{/if}
       {/snippet}
-      <div class="out" class:stale>
+      <div class="out" class:stale use:context={resultItems}>
         {#if running}<RocketLoader text={entry.label} />{/if}
         {#if failure && !running}
           <div class="issue k-{failure.kind} error">

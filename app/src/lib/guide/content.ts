@@ -209,6 +209,7 @@ export const TIPS: [string, string][] = [
   ["*", "A needed input. Empty inputs use the design and the team standards."],
   [keys("Z"), "Undo any edit, including those an analysis or the assistant made."],
   [keys("S"), `Save; ${keys("S", true)} saves as.`],
+  ["Right-click", "Anything: a part, a motor, a simulation, a target, a standard, an analysis, a result, a panel title. Each gives its quick commands; empty space gives the page's own and the app's (search, undo, save)."],
   ["Parts", `Drag in the list to move a part into another; Alt+↑/↓ moves it up or down; ${keys("D")} duplicates; ${keys("C")} and ${keys("V")} copy and paste into the selected part; right-click for all of these.`],
   ["Move", "Drag the selected part along the rocket in the view: it lines up with the edges of the parts near it (hold Alt to place it freely). Properties › Position › Line up puts it at the front, middle or back of its parent."],
   ["↑ ↓", "In a number box, the arrow keys step the value (Shift: ten times more, Alt: ten times less)."],

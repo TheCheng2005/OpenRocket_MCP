@@ -9,6 +9,7 @@
   import { isOpen, toggle } from "../panels.svelte";
   import { STD_SECTIONS } from "../guide/content";
   import { ui } from "../search/ui.svelte";
+  import { pageMenu } from "../menu/menu.svelte";
 
   // The team's standards: the competition rule set, the launch site, and the safety factors, ratings and material data
   // the checks use. Only what the team changes is written to its file (openrocket-mcp.json), so it stays short and
@@ -55,6 +56,14 @@
     if (!isOpen("std." + key, initial)) toggle("std." + key, initial);
     requestAnimationFrame(() => document.getElementById("std-" + key)?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
+
+  pageMenu(() => [
+    { header: "Go to" },
+    ...JUMP.map(([key, name, initial]) => ({ label: name, run: () => jump(key, initial) })),
+    "-",
+    { label: "Guide to the standards", run: () => (ui.guide = "standards") },
+    { label: "Show the standards file", off: !std?.fileExists && "Not written yet: change a value first", run: () => std && run(() => call("app_reveal", { path: std!.file })) },
+  ]);
 
   let ruleset = $derived(std ? String(at(std.merged, ["ruleset"]) ?? "none") : "");
 </script>

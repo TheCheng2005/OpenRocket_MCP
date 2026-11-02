@@ -15,7 +15,7 @@ export function designSteps(): Step[] {
     {
       title: "Parts",
       target: '[data-panel="design.parts"]',
-      text: "Every part of the rocket in order, nose to tail, with what is inside each tube indented under it. Click one to select it; pointing at one marks it in the view. Drag a part to move it: onto a part to put it inside, between two to place it there. Right-click for duplicate, copy, paste and delete; the arrow keys walk the list.",
+      text: "Every part of the rocket in order, nose to tail, with what is inside each tube indented under it. Click one to select it; pointing at one marks it in the view. Drag a part to move it: onto a part to put it inside, between two to place it there. Right-click for duplicate, copy, paste, line up, weighed mass and delete; the arrow keys walk the list. Right-click works everywhere in the app, with the commands for what is under the pointer.",
     },
     {
       title: "The view",

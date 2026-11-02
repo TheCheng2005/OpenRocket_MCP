@@ -47,6 +47,30 @@ live margins, flight data after a launch, and an optional assistant. See [the pl
 Every panel and section folds (click its title). The Parts and Properties panels fold to a strip at the side to give
 the view more room. What is folded is remembered.
 
+### Right-click
+
+Right-click anything for its quick commands; empty space gives the page's own and the app's (search, undo, redo,
+save, the Guide, settings). Text boxes keep the system's menu (cut, copy, paste). The menu works with the arrow keys
+and Enter.
+
+| Page | Right-click on | Commands |
+|---|---|---|
+| Start | a recent file, an example | open, show in its folder, copy its path, remove from the list, clear the list |
+| Design | a part (list or view) | rename, duplicate, copy, paste into it, move up or down, line up at the front, middle or back of its parent, weighed mass, delete; in the list also fold and unfold what is inside |
+| Design | the view | Side, Back, 3D, Exploded, Cut-away, Fit, picture or drawing |
+| Design | Properties, a setting | find a setting, fold or unfold all sections, catalogue parts, default colour; a list setting's choices, Automatic, copy the value |
+| Design | an Add part tile, Summary, Rule check | add (and rename); copy the numbers, the analyses behind them; check again, copy the results, show passes, automatic checking, the rule set |
+| Motors | a configuration, a motor, a deployment, a separation | make active, rename, copy, delete; change or remove the motor, its ejection delay, the same motor in every configuration, rank motors; deploy at apogee or at an altitude, edit for every configuration, size the parachute, recovery loads |
+| Flights | a simulation, the plot | run, video, rename, make its configuration active, export, Monte Carlo, delete; plot presets, copy the plotted data as CSV |
+| Targets | a target | goal, minimum or maximum = where the design is now, clear, copy the line, copy all targets |
+| Standards | a value, a table row, a list row | back to the default, copy; remove; duplicate, move, remove; go to a section, show the standards file |
+| Analysis | an analysis, the form, the result | open, run with these inputs, clear its inputs or result, fold or unfold the groups; run; copy the result, run again |
+| Flight data | a past design | open, compare with the open design, show in its folder, copy its path; choose a log or folder, read the folder |
+
+Every panel title also folds that panel, the other panels, or unfolds them all.
+
+![Right-click on a part in the view](rocketmaxxing/right-click.png)
+
 ### Moving and lining up parts
 
 - **In the parts list**, drag a part onto another to put it inside (the row is outlined), or between two rows to place

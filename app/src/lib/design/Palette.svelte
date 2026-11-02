@@ -1,5 +1,6 @@
 <script lang="ts">
   import { app, addPart, placement, findNode } from "../state.svelte";
+  import { rename } from "./partMenu";
 
   /** While a tile is pointed at, the part the new one would go into shows in the view and the tree. */
   function preview(type: string | null) {
@@ -9,6 +10,18 @@
   import { analysis } from "../analysis/store.svelte";
   import ComponentIcon from "../ComponentIcon.svelte";
   import { PART_GROUPS } from "./parts";
+  import { context, type MenuItem } from "../menu/menu.svelte";
+
+  // Right-click on a tile: add it where it would go, or add it and name it straight away.
+  function tileItems(type: string, label: string): MenuItem[] {
+    const into = can[type];
+    const why = into ? false : "Can't go here: select a part it fits in";
+    return [
+      { header: label },
+      { label: into ? `Add to ${into}` : "Add", off: why, run: () => addPart(type) },
+      { label: "Add and rename", off: why, run: () => addPart(type).then(rename) },
+    ];
+  }
 
   const GROUPS = PART_GROUPS;
 
@@ -39,7 +52,7 @@
       <div class="gt">{g.title}</div>
       <div class="tiles">
         {#each g.parts as [type, label] (type)}
-          <button class="tile" disabled={!can[type]} title={can[type] ? `Add to ${can[type]}` : "Can't go here"} onclick={() => addPart(type)}
+          <button class="tile" disabled={!can[type]} use:context={() => tileItems(type, label)} title={can[type] ? `Add to ${can[type]}` : "Can't go here"} onclick={() => addPart(type)}
             onmouseenter={() => can[type] && preview(type)} onmouseleave={() => preview(null)} onfocus={() => can[type] && preview(type)}
             onblur={() => preview(null)}>
             <ComponentIcon {type} size={32} />

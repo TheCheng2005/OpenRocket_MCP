@@ -7,6 +7,8 @@
   import Panel from "../Panel.svelte";
   import MotorPicker from "./MotorPicker.svelte";
   import QuantityInput from "../design/QuantityInput.svelte";
+  import { context, pageMenu, type MenuItem } from "../menu/menu.svelte";
+  import { analysis } from "../analysis/store.svelte";
 
   // OpenRocket's "Motors & Configuration" tab: a row per flight configuration; motors per mount, recovery
   // deployment per device and separation per stage.
@@ -69,8 +71,8 @@
     await act("flight_configuration", name ? { action: "create", name } : { action: "create" });
   }
 
-  async function rename() {
-    const c = data?.configurations.find((x) => x.id === data!.selected);
+  async function rename(id = data?.selected) {
+    const c = data?.configurations.find((x) => x.id === id);
     if (!c) return;
     const name = await ask("Rename configuration", "Name", c.name);
     if (name) await act("flight_configuration", { action: "rename", configuration: c.id, name });
@@ -100,10 +102,78 @@
   }
 
   let stages = $derived((data?.stages ?? []).filter((s) => s.stageNumber > 0));
+
+  // ------------------------------------------------------------------ right-click menus
+  const toAnalysis = (tool: string) => () => {
+    analysis.selected = tool;
+    app.page = "analysis";
+  };
+  function configItems(id: string): MenuItem[] {
+    const c = data?.configurations.find((x) => x.id === id);
+    if (!c || !data) return [];
+    return [
+      { header: c.name },
+      { label: "Make active", checked: id === data.selected, run: () => selectConfig(id) },
+      { label: "Rename…", run: () => rename(id) },
+      { label: "Copy", run: () => act("app_config", { action: "copy", configuration: id }) },
+      { label: "Delete", danger: true, off: data.configurations.length < 2 && "The only configuration", run: () => act("app_config", { action: "remove", configuration: id }) },
+      "-",
+      { label: "New configuration…", run: newConfig },
+    ];
+  }
+  function motorItems(m: Mount, cid: string): MenuItem[] {
+    const mo = m.motors[cid];
+    const c = data?.configurations.find((x) => x.id === cid);
+    const has = !!mo?.designation;
+    const everywhere = async () => {
+      for (const x of data?.configurations ?? []) {
+        if (x.id === cid) continue;
+        await act("set_motor", { mount: m.id, motor: mo.digest, configuration: x.id, ...(mo.plugged ? {} : { ejectionDelay: mo.ejectionDelay }) });
+      }
+    };
+    return [
+      { header: `${m.name}, ${c?.name ?? ""}` },
+      { label: has ? "Change motor…" : "Choose motor…", run: () => (picking = { mount: m, configuration: cid }) },
+      has ? { label: "Remove motor", danger: true, run: () => act("app_motor_delay", { mount: m.id, configuration: cid, remove: true }) } : null,
+      ...(has ? [{ header: "Ejection delay" } as MenuItem, ...delays(mo).map((d) => ({ label: `${num(d, 3)} s`, checked: !mo.plugged && Math.abs(d - mo.ejectionDelay) < 1e-6, run: () => setDelay(m, cid, String(d)) })), { label: "Plugged (no charge)", checked: !!mo.plugged, run: () => setDelay(m, cid, "plugged") }] : []),
+      "-",
+      has ? { label: "Same motor in every configuration", off: (data?.configurations.length ?? 0) < 2 && "Only one configuration", run: everywhere } : null,
+      { label: "Rank motors for this rocket", run: toAnalysis("rank_motors") },
+      { label: "Best ejection delay (Flights)", off: !has && "No motor", run: () => (app.page = "flights") },
+    ].filter(Boolean) as MenuItem[];
+  }
+  function deployItems(r: Recovery, cid: string): MenuItem[] {
+    const d = r.deployment[cid];
+    const edit = (all: boolean) => () => (editing = { kind: "deploy", id: r.id, name: r.name, configuration: cid, event: d.event, altitude: d.altitude, delay: d.delay, all });
+    const quick = (event: string) => () => act("set_deployment", { component: r.id, event: event.toLowerCase(), altitude: d.altitude, delay: 0, configuration: cid });
+    return [
+      { header: r.name },
+      { label: "At apogee", checked: d.event === "APOGEE" && d.delay === 0, run: quick("APOGEE") },
+      { label: `At ${fmt(d.altitude, "DISTANCE")}`, checked: d.event === "ALTITUDE", run: quick("ALTITUDE") },
+      { label: "Edit deployment…", run: edit(false) },
+      { label: "Edit for every configuration…", run: edit(true) },
+      "-",
+      { label: "Size this parachute", run: toAnalysis("size_parachute") },
+      { label: "Recovery loads and shear pins", run: toAnalysis("recovery_analysis") },
+      { label: "Late deployment", run: toAnalysis("deployment_delay_sweep") },
+    ];
+  }
+  function stageItems(st: Stage, cid: string): MenuItem[] {
+    const sp = st.separation[cid];
+    const edit = (all: boolean) => () => (editing = { kind: "sep", id: st.id, name: st.name, configuration: cid, event: sp.event, altitude: 0, delay: sp.delay, all });
+    return [{ header: st.name }, { label: "Edit separation…", run: edit(false) }, { label: "Edit for every configuration…", run: edit(true) }];
+  }
+
+  pageMenu(() => [
+    { label: "New configuration…", run: newConfig },
+    { label: "Copy the active configuration", off: !data && "Loading", run: () => data && act("app_config", { action: "copy", configuration: data.selected }) },
+    { label: "Rename the active configuration…", off: !data && "Loading", run: () => rename() },
+    { label: "Rank motors for this rocket", run: toAnalysis("rank_motors") },
+  ]);
 </script>
 
 {#snippet configCell(c: { id: string; name: string }, table: string)}
-  <td class="cfg">
+  <td class="cfg" use:context={() => configItems(c.id)}>
     <label class="radio">
       <input type="radio" name="active-{table}" checked={c.id === data?.selected} onchange={() => selectConfig(c.id)} />
       <span>{c.name}</span>
@@ -115,7 +185,7 @@
   <div class="toolbar">
     <button class="btn" onclick={newConfig}><Plus size={15} /> New configuration</button>
     <button class="btn" disabled={!data} onclick={() => data && act("app_config", { action: "copy", configuration: data.selected })}><Copy size={15} /> Copy</button>
-    <button class="btn" disabled={!data} onclick={rename}><PencilLine size={15} /> Rename</button>
+    <button class="btn" disabled={!data} onclick={() => rename()}><PencilLine size={15} /> Rename</button>
     <button class="btn" disabled={(data?.configurations.length ?? 0) < 2} onclick={() => data && act("app_config", { action: "remove", configuration: data.selected })}><Trash2 size={15} /> Delete</button>
     <span class="muted note">Copy, rename and delete act on the selected configuration.</span>
   </div>
@@ -135,7 +205,7 @@
               {@render configCell(c, "motors")}
               {#each data.mounts as m (m.id)}
                 {@const mo = m.motors[c.id]}
-                <td class="cell">
+                <td class="cell" use:context={() => motorItems(m, c.id)}>
                   {#if mo?.designation}
                     <div class="motor">
                       <button class="pick" onclick={() => (picking = { mount: m, configuration: c.id })} title="Change motor">
@@ -174,7 +244,7 @@
               {@render configCell(c, "recovery")}
               {#each data.recovery as r (r.id)}
                 {@const d = r.deployment[c.id]}
-                <td class="cell">
+                <td class="cell" use:context={() => deployItems(r, c.id)}>
                   <button class="pick" onclick={() => (editing = { kind: "deploy", id: r.id, name: r.name, configuration: c.id, event: d.event, altitude: d.altitude, delay: d.delay, all: false })}>
                     {deployText(d)}
                   </button>
@@ -201,7 +271,7 @@
                 {@render configCell(c, "stages")}
                 {#each stages as s (s.id)}
                   {@const sp = s.separation[c.id]}
-                  <td class="cell">
+                  <td class="cell" use:context={() => stageItems(s, c.id)}>
                     <button class="pick" onclick={() => (editing = { kind: "sep", id: s.id, name: s.name, configuration: c.id, event: sp.event, altitude: 0, delay: sp.delay, all: false })}>
                       {SEP[sp.event] ?? sp.event}{sp.delay > 0 ? " + " + num(sp.delay, 3) + " s" : ""}
                     </button>

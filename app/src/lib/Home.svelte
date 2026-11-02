@@ -4,8 +4,41 @@
   import { app, newDesign, openDialog, openExample, openPath, recent } from "./state.svelte";
   import ComponentIcon from "./ComponentIcon.svelte";
   import Panel from "./Panel.svelte";
+  import { call } from "./api";
+  import { run, toast } from "./state.svelte";
+  import { context, pageMenu, copyText, type MenuItem } from "./menu/menu.svelte";
 
-  const recents = recent();
+  let recents = $state(recent());
+
+  // Right-click on a recent file: open, show it in its folder, copy its path, take it off the list.
+  function forget(p: string) {
+    recents = recents.filter((x) => x !== p);
+    try {
+      localStorage.setItem("rocketmaxxing.recent", JSON.stringify(recents));
+    } catch {
+      /* not kept */
+    }
+  }
+  function recentItems(p: string): MenuItem[] {
+    return [
+      { header: p.split(/[\\/]/).pop() ?? p },
+      { label: "Open", run: () => openPath(p) },
+      { label: "Show in its folder", run: () => run(() => call("app_reveal", { path: p })) },
+      { label: "Copy its path", run: () => copyText(p).then((ok) => ok && toast("Copied the path")) },
+      { label: "Remove from this list", run: () => forget(p) },
+      "-",
+      ...pageItems(),
+    ];
+  }
+  function pageItems(): MenuItem[] {
+    return [
+      { label: "New design…", run: newDesign },
+      { label: "Open…", run: openDialog },
+      { label: "Guide", run: () => (ui.guide = "start") },
+      recents.length ? { label: "Clear the recent list", danger: true, run: () => [...recents].forEach(forget) } : null,
+    ].filter(Boolean) as MenuItem[];
+  }
+  pageMenu(pageItems);
 
   function iconFor(name: string) {
     const n = name.toLowerCase();
@@ -35,7 +68,7 @@
         <ul class="list">
           {#each recents as p (p)}
             <li>
-              <button onclick={() => openPath(p)} title={p}>
+              <button onclick={() => openPath(p)} title={p} use:context={() => recentItems(p)}>
                 <FileText size={16} />
                 <span class="file">{p.split(/[\\/]/).pop()}</span>
                 <span class="dir">{p.split(/[\\/]/).slice(0, -1).join("/")}</span>
@@ -53,7 +86,7 @@
       <ul class="list examples">
         {#each app.session?.examples ?? [] as ex (ex)}
           <li>
-            <button onclick={() => openExample(ex)}>
+            <button onclick={() => openExample(ex)} use:context={() => [{ header: ex }, { label: "Open", run: () => openExample(ex) }, "-", ...pageItems()]}>
               <ComponentIcon type={iconFor(ex)} size={28} />
               <span class="file">{ex}</span>
             </button>

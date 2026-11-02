@@ -3,6 +3,39 @@
   import { app } from "../state.svelte";
   import { fmt, num } from "../units.svelte";
   import { KINDS } from "../issues/issues.svelte";
+  import { context, copyText, type MenuItem } from "../menu/menu.svelte";
+  import { toast } from "../state.svelte";
+  import { analysis } from "../analysis/store.svelte";
+
+  // Right-click: copy the numbers (for notes or a chat), or go where each is worked out in depth.
+  function summary(): string {
+    const lines = [
+      `${app.design?.name ?? "Design"}`,
+      `Stability ${margin === null ? "–" : num(margin, 3) + " cal"}${st.floor ? ` (min ${num(st.floor, 3)})` : ""}`,
+      `CG / CP ${fmt(st.cg, "LENGTH")} / ${fmt(st.cp, "LENGTH")}`,
+      `Mass ${fmt(st.mass, "MASS")} (burnout ${fmt(st.massBurnout, "MASS")})`,
+      `Length / diameter ${fmt(st.length, "LENGTH")} / ${fmt(st.diameter, "LENGTH")}`,
+    ];
+    if (f && !f.noMotors) lines.push(`Apogee ${fmt(f.apogee, "DISTANCE")}`, `Max speed ${fmt(f.maxVelocity, "VELOCITY")}`, `Max accel. ${fmt(f.maxAcceleration, "ACCELERATION")}`, `Rail exit ${fmt(f.railExitVelocity, "VELOCITY")}`);
+    return lines.join("\n");
+  }
+  const to = (tool: string) => () => {
+    analysis.selected = tool;
+    app.page = "analysis";
+  };
+  function items(): MenuItem[] {
+    return [
+      { header: "Summary" },
+      { label: "Copy the numbers", run: () => copyText(summary()).then((ok) => ok && toast("Copied the summary")) },
+      "-",
+      { label: "Stability and drag vs Mach", run: to("aero_analysis") },
+      { label: "Nose ballast for stability", run: to("ballast") },
+      { label: "Mass budget", run: to("mass_budget") },
+      { label: "Simulations and plots", run: () => (app.page = "flights") },
+      { label: "Choose a motor", run: () => (app.page = "motors") },
+      { label: "Targets", run: () => (app.page = "targets") },
+    ];
+  }
 
   let st = $derived(app.design?.stability ?? {});
   let f = $derived(app.flight);
@@ -17,7 +50,7 @@
   ]);
 </script>
 
-<div class="sum">
+<div class="sum" use:context={items}>
   <dl>
     <div title="Static margin at Mach 0.3, launch mass">
       <dt>Stability</dt>

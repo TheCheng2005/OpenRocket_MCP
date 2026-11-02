@@ -2,7 +2,9 @@
   import { BookOpen, ChevronDown, TriangleAlert, Search, X } from "@lucide/svelte";
   import { app, editField, act } from "../state.svelte";
   import { fmt } from "../units.svelte";
-  import { isOpen, toggle } from "../panels.svelte";
+  import { isOpen, toggle, setOpen } from "../panels.svelte";
+  import { context, type MenuItem } from "../menu/menu.svelte";
+  import { partItems } from "./partMenu";
   import ComponentIcon from "../ComponentIcon.svelte";
   import Field from "./Field.svelte";
   import FinShape from "./FinShape.svelte";
@@ -47,13 +49,32 @@
   let position = $derived(ed?.sections.find((s) => s.title === "Position")?.fields ?? []);
   let method = $derived(position.find((f) => f.key === "axialMethod")?.value as string | undefined);
   let offset = $derived(position.find((f) => f.key === "axialOffset")?.value as number | undefined);
+  // Right-click in Properties: find a setting, fold or unfold the sections, the catalogue; then the part's commands.
+  function titles(): string[] {
+    return [...(ed?.sections.map((s) => s.title) ?? []), "Outline", "Appearance"];
+  }
+  function panelItems(): MenuItem[] {
+    if (!ed) return [];
+    return [
+      { header: "Properties" },
+      { label: "Find a setting", run: () => (document.querySelector('[data-panel="design.props"] .find input') as HTMLElement | null)?.focus() },
+      { label: "Fold all sections", run: () => titles().forEach((t) => setOpen("prop." + t, false)) },
+      { label: "Unfold all sections", run: () => titles().forEach((t) => setOpen("prop." + t, true)) },
+      ed.presetType ? { label: "Catalogue parts…", run: () => (catalog = true) } : null,
+      ed.paint ? { label: "Default colour", run: () => paint("") } : null,
+    ].filter(Boolean) as MenuItem[];
+  }
+  function allItems(): MenuItem[] {
+    return ed ? [...panelItems(), "-", ...partItems(ed.id)] : [];
+  }
+
   function align(m: string) {
     act("edit_components", { changes: [{ component: ed!.id, properties: { axialMethod: m, axialOffset: 0 } }] });
   }
 </script>
 
 {#if ed}
-  <div class="head">
+  <div class="head" use:context={allItems}>
     <ComponentIcon type={ed.type} size={34} />
     <div class="who">
       <input
@@ -84,12 +105,12 @@
       {#if find}<button class="clear" onclick={() => (find = "")} aria-label="Clear"><X size={13} /></button>{/if}
     </div>
   {/if}
-  <div class="sections">
+  <div class="sections" use:context={allItems}>
     {#if found}
       <div class="fields">
         {#each found as { section, f } (section + f.key)}
           <div class="from">{section}</div>
-          <Field {f} />
+          <Field {f} more={allItems} />
         {:else}
           <p class="muted none">No setting of a {ed.label.toLowerCase()} matches “{find}”.</p>
         {/each}
@@ -97,7 +118,7 @@
     {:else}
     {#if rocketFields.length}
       <div class="fields">
-        {#each rocketFields as f (f.key)}<Field {f} />{/each}
+        {#each rocketFields as f (f.key)}<Field {f} more={allItems} />{/each}
       </div>
     {/if}
     {#if FINS.has(ed.type)}
@@ -113,7 +134,7 @@
         </button>
         {#if open}
           <div class="fields">
-            {#each s.fields as f (f.key)}<Field {f} />{/each}
+            {#each s.fields as f (f.key)}<Field {f} more={allItems} />{/each}
             {#if s.title === "Position"}{@render lineUp()}{/if}
           </div>
         {/if}

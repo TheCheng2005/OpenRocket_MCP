@@ -5,6 +5,8 @@
   import { NAMED, at, isNote, isObject, parse, type Json } from "./std";
   import Tip from "../Tip.svelte";
   import { STD_HELP } from "../guide/content";
+  import { context, copyText, currentPageItems, type MenuItem } from "../menu/menu.svelte";
+  import { toast } from "../state.svelte";
 
   // One group of team standards: its values as rows, named tables, lists, notes, and groups inside it.
   let {
@@ -32,6 +34,27 @@
   let adding = $state<Record<string, string>>({});
   /** What a value means: by its path ("recovery.openingForceCoefficient"), or by its name for tables and lists. */
   const help = (k: string) => STD_HELP[[...path, k].join(".")] ?? STD_HELP[k];
+
+  // Right-click on a value: back to the default, copy it; on a table row: remove it, copy it.
+  function valueItems(k: string, p: string[], v: Json | undefined): MenuItem[] {
+    const text = shown(v ?? def[k]);
+    return [
+      { header: label(k) },
+      { label: `Back to the default (${shown(def[k]) || "not set"})`, off: !teamHas(p) && "Already the default", run: () => set(p, null) },
+      { label: "Copy value", off: !text && "Empty", run: () => copyText(text).then((ok) => ok && toast(`Copied ${text}`)) },
+      "-",
+      ...(currentPageItems() as MenuItem[]),
+    ];
+  }
+  function rowItems(name: string, p: string[], value: Json, remove: () => void, isDefault: boolean): MenuItem[] {
+    return [
+      { header: name },
+      { label: isDefault ? "Back to the default" : "Remove", danger: !isDefault, off: !teamHas(p) && isDefault && "Already the default", run: remove },
+      { label: "Copy row", run: () => copyText(`${name}: ${JSON.stringify(value)}`).then((ok) => ok && toast("Copied")) },
+      "-",
+      ...(currentPageItems() as MenuItem[]),
+    ];
+  }
 </script>
 
 {#if notes.length}
@@ -45,7 +68,7 @@
 {#each rows as k (k)}
   {@const p = [...path, k]}
   {@const v = cur[k]}
-  <div class="row" class:team={teamHas(p)}>
+  <div class="row" class:team={teamHas(p)} use:context={() => valueItems(k, p, v)}>
     <span class="name" title={k}>{label(k)}{#if help(k)}<Tip label="About {label(k)}">{help(k)}</Tip>{/if}</span>
     {#if typeof (v ?? def[k]) === "boolean"}
       <input type="checkbox" checked={!!v} onchange={(e) => set(p, e.currentTarget.checked)} />
@@ -71,7 +94,7 @@
       <tbody>
         {#each entries as [n, e] (n)}
           {@const p = [...path, k, n]}
-          <tr class:team={teamHas(p)}>
+          <tr class:team={teamHas(p)} use:context={() => rowItems(n, p, e, () => set(p, null), at(std.defaults, p) !== undefined)}>
             <td class="key">{n}</td>
             {#if isObject(e)}
               {#each cols as c (c)}
@@ -117,7 +140,15 @@
         <thead><tr>{#each cols as c (c)}<th>{label(c)}</th>{/each}<th></th></tr></thead>
         <tbody>
           {#each items as item, i (i)}
-            <tr>
+            <tr use:context={() => [
+              { header: `${label(k)}, row ${i + 1}` },
+              { label: "Duplicate row", run: () => set(p, [...items.slice(0, i + 1), item, ...items.slice(i + 1)]) },
+              { label: "Move up", off: i === 0 && "Already first", run: () => set(p, items.map((x, j) => (j === i - 1 ? items[i] : j === i ? items[i - 1] : x))) },
+              { label: "Move down", off: i === items.length - 1 && "Already last", run: () => set(p, items.map((x, j) => (j === i + 1 ? items[i] : j === i ? items[i + 1] : x))) },
+              { label: "Remove row", danger: true, run: () => set(p, items.filter((_, j) => j !== i)) },
+              "-",
+              ...(currentPageItems() as MenuItem[]),
+            ]}>
               {#each cols as c (c)}
                 {@const v = isObject(item) ? item[c] : null}
                 <td><input class="input" value={shown(v)} onchange={(ev) => {

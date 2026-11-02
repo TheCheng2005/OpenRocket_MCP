@@ -9,6 +9,8 @@
   import AccuracyChart from "./AccuracyChart.svelte";
   import RocketLoader from "../RocketLoader.svelte";
   import { fd, type Library, type LogResult } from "./store.svelte";
+  import { context, pageMenu, copyText, type MenuItem } from "../menu/menu.svelte";
+  import { toast } from "../state.svelte";
 
   // After the flight: one altimeter log against the simulation, and the team's past rockets with how well their
   // apogees were predicted.
@@ -73,6 +75,30 @@
     analysis.selected = "compare_designs";
     app.page = "analysis";
   }
+
+  // ------------------------------------------------------------------ right-click menus
+  const reveal = (path: string) => run(() => call("app_reveal", { path }));
+  function designItems(d: { path: string; name: string; predictedApogee?: number | null }): MenuItem[] {
+    return [
+      { header: d.name },
+      { label: "Open", run: () => openPath(d.path).then(() => (app.page = "design")) },
+      { label: "Compare with the open design", off: !app.design && "No design open", run: () => compareWith(d.path) },
+      { label: "Show in its folder", run: () => reveal(d.path) },
+      { label: "Copy its path", run: () => copyText(d.path).then((ok) => ok && toast("Copied the path")) },
+      "-",
+      ...pageItems(),
+    ];
+  }
+  function pageItems(): MenuItem[] {
+    return [
+      { label: "Choose an altimeter log…", run: browseLog },
+      { label: "Compare the log with the simulation", off: (!fd.path.trim() || fd.comparing) && "Choose a log first", run: compare },
+      { label: "Choose the designs folder…", run: browseFolder },
+      { label: fd.library ? "Read the folder again" : "Read the folder", off: fd.scanning && "Reading", run: scan },
+      fd.library ? { label: "Show the folder", run: () => reveal(fd.library!.folder) } : null,
+    ].filter(Boolean) as MenuItem[];
+  }
+  pageMenu(pageItems);
 
   let plot = $derived.by(() => {
     const s = log?.series;
@@ -203,7 +229,7 @@
             </thead>
             <tbody>
               {#each designs as d (d.path)}
-                <tr class:err={!!d.error}>
+                <tr class:err={!!d.error} use:context={() => designItems(d)}>
                   <td>{d.year}{d.yearFromPath ? "" : "*"}</td>
                   <td title={d.file}>{d.name}{#if d.error}<div class="sub">{d.error}</div>{/if}</td>
                   <td class="n">{fmt(d.diameter, "LENGTH")}</td>

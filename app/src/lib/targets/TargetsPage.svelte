@@ -8,6 +8,9 @@
   import RuleCheckStatus from "../design/RuleCheckStatus.svelte";
   import Gauge from "./Gauge.svelte";
   import RocketLoader from "../RocketLoader.svelte";
+  import { context, pageMenu, copyText, type MenuItem } from "../menu/menu.svelte";
+  import { toast } from "../state.svelte";
+  import { analysis } from "../analysis/store.svelte";
 
   // The team's own targets with the margin to each, next to the competition rules. Both are checked again after
   // every edit; a limit typed here is saved in the team standards file, where Claude reads the same targets.
@@ -55,6 +58,37 @@
     const value = v === "" ? null : /[a-z]/i.test(v) || !d ? v : `${v.replace(/,/g, "")} ${unitOf(d).unit}`;
     setTargets({ [r.id]: { [key]: value } });
   }
+
+  // Right-click on a target: set a limit to where the design is now, clear it, copy the line.
+  function now(r: Target): string | null {
+    if (r.valueSI === null || r.valueSI === undefined) return null;
+    const d = dimOf(r);
+    return d ? `${num(toShown(r.valueSI, d)).replace(/,/g, "")} ${unitOf(d).unit}` : String(r.valueSI);
+  }
+  function targetItems(r: Target): MenuItem[] {
+    const v = now(r);
+    const set = (key: "min" | "max" | "goal") => () => setTargets({ [r.id]: { [key]: v } });
+    const line = `${r.label}: ${shown(r, r.valueSI)}${r.status ? " (" + (r.status === "FAIL" ? "missed" : r.status === "WARN" ? "close" : "met") + ", " + margin(r) + ")" : ""}`;
+    return [
+      { header: r.label },
+      { label: `Goal = now (${shown(r, r.valueSI)})`, off: !v && "No value yet", run: set("goal") },
+      { label: "Minimum = now", off: !v && "No value yet", run: set("min") },
+      { label: "Maximum = now", off: !v && "No value yet", run: set("max") },
+      { label: "Clear this target", off: !(r.minSI ?? r.maxSI ?? r.goalSI) && !r.from && "Nothing set", danger: true, run: () => setTargets({ [r.id]: { min: null, goal: null, max: null } }) },
+      "-",
+      { label: "Copy this line", run: () => copyText(line).then((ok) => ok && toast("Copied")) },
+      ...pageItems(),
+    ];
+  }
+  function pageItems(): MenuItem[] {
+    return [
+      { label: "Check again", run: () => checkTargets() },
+      { label: "Only targets set", checked: onlySet, run: () => (onlySet = !onlySet) },
+      { label: "Optimizer: reach a target", run: () => ((analysis.selected = "optimize"), (app.page = "analysis")) },
+      { label: "Copy all targets", off: !t?.targets && "Not checked yet", run: () => copyText((t?.targets ?? []).map((x) => `${x.label}: ${shown(x, x.valueSI)}${x.status ? " " + x.status : ""}`).join("\n")).then((ok) => ok && toast("Copied the targets")) },
+    ];
+  }
+  pageMenu(pageItems);
 
   /** Margin to the nearer limit, in the chosen unit, worded. */
   function margin(r: Target): string {
@@ -120,7 +154,7 @@
             </thead>
             <tbody>
               {#each rows as r (r.id)}
-                <tr class={level(r)} class:unset={!r.status}>
+                <tr class={level(r)} class:unset={!r.status} use:context={() => targetItems(r)}>
                   <td class="st {level(r)}">{r.status === "FAIL" ? "Missed" : r.status === "WARN" ? "Close" : r.status === "PASS" ? "Met" : ""}</td>
                   <td class="label">
                     {r.label}

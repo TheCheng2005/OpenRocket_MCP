@@ -62,6 +62,20 @@ class TargetsTest {
 		assertTrue(out.get("summary").toString().contains("2 of 4 targets missed"), out.toString());
 	}
 
+	/** Cardboard fins have no shear modulus: the flutter target says why, and the other targets still show. */
+	@Test
+	void aValueThatCannotBeWorkedOutLeavesTheOthers() throws Exception {
+		Designs.Design d = new Designs().openExample("A simple model rocket");
+		Simulation sim = Sims.prepare(d, null, null, Sims.Overrides.none(), Standards.defaults(), false);
+		Sims.run(sim);
+		Map<String, Object> out = Targets.evaluate(sim, Standards.defaults());
+		Map<String, Object> fl = row(out, "flutterMargin");
+		assertEquals("INFO", fl.get("status"), fl.toString());
+		assertNull(fl.get("valueSI"));
+		assertTrue(fl.get("note").toString().contains("shear modulus"), fl.toString());
+		assertTrue((double) row(out, "apogee").get("valueSI") > 50, out.toString());
+	}
+
 	@Test
 	void closeToALimitWarns() throws Exception {
 		Simulation sim = flown();

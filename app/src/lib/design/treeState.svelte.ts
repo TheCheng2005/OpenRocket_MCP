@@ -8,8 +8,6 @@ export const tree = $state({
   dragging: null as { id: string; type: string } | null,
   /** Where it would go if dropped now. */
   drop: null as { id: string; zone: Zone } | null,
-  /** The row the context menu is for, and where. */
-  menu: null as { id: string; x: number; y: number } | null,
 });
 
 export type Zone = "before" | "after" | "into";

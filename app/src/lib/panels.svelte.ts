@@ -17,7 +17,11 @@ export function isOpen(id: string, initial = true): boolean {
 }
 
 export function toggle(id: string, initial = true) {
-  panels[id] = !isOpen(id, initial);
+  setOpen(id, !isOpen(id, initial));
+}
+
+export function setOpen(id: string, open: boolean) {
+  panels[id] = open;
   try {
     localStorage.setItem(KEY, JSON.stringify(panels));
   } catch {

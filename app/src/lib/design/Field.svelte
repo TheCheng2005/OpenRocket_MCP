@@ -2,8 +2,24 @@
   import { app, editField, type FieldDef } from "../state.svelte";
   import { fmt, num, type Dim } from "../units.svelte";
   import QuantityInput from "./QuantityInput.svelte";
+  import { context, copyText, type MenuItem } from "../menu/menu.svelte";
+  import { toast } from "../state.svelte";
 
-  let { f }: { f: FieldDef } = $props();
+  let { f, more }: { f: FieldDef; more?: () => MenuItem[] } = $props();
+
+  // Right-click on a setting: its choices (a list or a box to tick), Automatic, copy the value; then the panel's.
+  function items(): MenuItem[] {
+    const text = f.kind === "quantity" ? fmt(f.value, f.dim as Dim) : f.kind === "enum" ? (f.options?.find((o) => o.value === f.value)?.label ?? String(f.value)) : String(f.value ?? "");
+    return [
+      { header: f.label },
+      ...(f.kind === "enum" ? (f.options ?? []).map((o) => ({ label: o.label, checked: o.value === f.value, off: off && "Not used now", run: () => editField(f.key, o.value) })) : []),
+      f.kind === "bool" ? { label: f.label, checked: !!f.value, off: off && "Not used now", run: () => editField(f.key, !f.value) } : null,
+      f.auto ? { label: "Automatic (from the parts next to it)", checked: !!f.isAuto, off: off && "Not used now", run: () => editField(f.auto!, !f.isAuto) } : null,
+      f.kind !== "bool" ? { label: "Copy value", off: !text && "Empty", run: () => copyText(text).then((ok) => ok && toast(`Copied ${text}`)) } : null,
+      "-",
+      ...(more?.() ?? []),
+    ].filter(Boolean) as MenuItem[];
+  }
 
   let off = $derived(f.enabled === false);
   let text = $state("");
@@ -31,7 +47,7 @@
   }
 </script>
 
-<div class="field" class:wide={f.kind === "longtext"} class:off>
+<div class="field" class:wide={f.kind === "longtext"} class:off use:context={items}>
   {#if f.kind === "bool"}
     <span class="label"></span>
     <label class="check">

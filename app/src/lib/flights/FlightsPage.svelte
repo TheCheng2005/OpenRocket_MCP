@@ -9,6 +9,9 @@
   import Plot, { type Series } from "../Plot.svelte";
   import SimForm from "./SimForm.svelte";
   import Panel from "../Panel.svelte";
+  import { context, pageMenu, copyText, type MenuItem } from "../menu/menu.svelte";
+  import { ask, selectConfig, toast } from "../state.svelte";
+  import { analysis } from "../analysis/store.svelte";
 
   // OpenRocket's "Flight simulations" tab: the simulations with their results, the launch conditions of the
   // selected one, and its flight plotted.
@@ -141,6 +144,57 @@
   }
 
   let names = $derived((series?.variables ?? []).map((v) => v.name).filter((n) => n !== "Time"));
+
+  // ------------------------------------------------------------------ right-click menus
+  const toAnalysis = (tool: string) => () => {
+    analysis.selected = tool;
+    app.page = "analysis";
+  };
+  async function renameSim(s: Sim) {
+    const name = await ask("Rename simulation", "Name", s.name);
+    if (name?.trim()) await act("app_sim_edit", { simulation: s.index, key: "name", value: name.trim() });
+  }
+  function simItems(i: number): MenuItem[] {
+    const s = sims[i];
+    if (!s) return [];
+    sel = i;
+    return [
+      { header: s.name },
+      { label: "Run", off: running && "Running", run: () => runSims(false) },
+      { label: "Video…", off: running && "Running", run: () => (video = true) },
+      { label: "Rename…", run: () => renameSim(s) },
+      { label: "Make its configuration active", run: () => selectConfig(s.configuration) },
+      "-",
+      { label: "Export flight data (CSV)", run: toAnalysis("export_flight_data") },
+      { label: "Compare with an altimeter log", run: () => (app.page = "flightdata") },
+      { label: "Monte Carlo dispersion", run: toAnalysis("monte_carlo") },
+      "-",
+      { label: "Delete", danger: true, run: () => act("app_sim_delete", { simulation: s.index }) },
+    ];
+  }
+  /** The plotted curves as CSV (time and each variable shown, in the units on screen). */
+  function plotCsv(): string {
+    if (!plot) return "";
+    const head = ["Time (s)", ...plot.series.map((x) => x.label)];
+    const rows = plot.x.map((t, k) => [t, ...plot.series.map((x) => x.values[k] ?? "")].join(","));
+    return [head.map((h) => `"${h}"`).join(","), ...rows].join("\n");
+  }
+  function plotItems(): MenuItem[] {
+    return [
+      { header: "Plot" },
+      ...PRESETS.map(([label, vars]) => ({ label, checked: preset === label, run: () => (chosen = [...vars]) })),
+      "-",
+      { label: "Copy the plotted data (CSV)", off: !plot && "Nothing plotted", run: () => copyText(plotCsv()).then((ok) => ok && toast("Copied the plotted data")) },
+      { label: "Export all flight data (CSV)", run: toAnalysis("export_flight_data") },
+    ];
+  }
+
+  pageMenu(() => [
+    { label: "New simulation", run: newSim },
+    { label: "Run the selected one", off: (!current || running) && "Nothing to run", run: () => runSims(false) },
+    { label: "Run all", off: (!sims.length || running) && "Nothing to run", run: () => runSims(true) },
+    { label: "Video of the selected flight…", off: !current && "No simulation", run: () => (video = true) },
+  ]);
 </script>
 
 <div class="page">
@@ -165,7 +219,7 @@
         <tbody>
           {#each sims as s, i (s.index)}
             {@const st = STATUS[s.status] ?? ["none", s.status]}
-            <tr class:sel={i === sel} onclick={() => (sel = i)}>
+            <tr class:sel={i === sel} onclick={() => (sel = i)} use:context={() => simItems(i)}>
               <td><span class="dot {st[0]}" title={st[1]}></span></td>
               <td>
                 {s.name}
@@ -212,7 +266,7 @@
             </select>
           {/if}
         {/snippet}
-        <div class="plotbody">
+        <div class="plotbody" use:context={plotItems}>
           {#if plot}
             <Plot x={plot?.x ?? []} series={plot?.series ?? []} xLabel="Time (s)" leftLabel={plot?.left ?? ""} rightLabel={plot?.right ?? ""} events={plot?.events ?? []} height={300} />
             <details>

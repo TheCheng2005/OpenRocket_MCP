@@ -15,6 +15,10 @@
   import { ui } from "./lib/search/ui.svelte";
   import { tour } from "./lib/tour/session.svelte";
   import Tour from "./lib/tour/Tour.svelte";
+  import ContextMenu from "./lib/menu/ContextMenu.svelte";
+  import { openMenu, nativeHere, currentPageItems } from "./lib/menu/menu.svelte";
+  import { openIssues } from "./lib/issues/issues.svelte";
+  import { keys, MAC } from "./lib/keys";
 
   let ready = $state(false);
 
@@ -104,13 +108,38 @@
     }
   }
 
+  const PAGE_NAMES: Record<Page, string> = {
+    home: "Start", design: "Design", motors: "Motors", flights: "Flights", flightdata: "Flight data", targets: "Targets",
+    standards: "Standards", analysis: "Analysis",
+  };
+
+  // A right-click with no menu of its own where it landed: the page's quick commands, then the app's.
+  function onContext(e: MouseEvent) {
+    if (e.defaultPrevented || nativeHere(e) || overlay() || !connected) return;
+    e.preventDefault();
+    const d = app.design;
+    openMenu(e.clientX, e.clientY, [
+      { header: PAGE_NAMES[app.page] },
+      ...currentPageItems(),
+      "-",
+      { label: "Search…", shortcut: keys("K"), run: () => (ui.search = true) },
+      { label: "Undo", shortcut: keys("Z"), off: d?.canUndo ? false : "Nothing to undo", run: undo },
+      { label: "Redo", shortcut: MAC ? keys("Z", true) : keys("Y"), off: d?.canRedo ? false : "Nothing to redo", run: redo },
+      { label: "Save", shortcut: keys("S"), off: d ? false : "No design open", run: () => save(false) },
+      "-",
+      { label: "About this page (Guide)", run: () => (ui.guide = "pages") },
+      { label: "Problems", run: openIssues },
+      { label: "Settings", run: () => (ui.settings = "") },
+    ]);
+  }
+
   /** Whether a dialog, the search or the tour covers the page (its keys are its own). */
   function overlay() {
     return !!document.querySelector('.veil, [role="dialog"], [aria-modal="true"]');
   }
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} oncontextmenu={onContext} />
 
 {#if !connected}
   <div class="offline">
@@ -146,6 +175,7 @@
   {#if ui.search}{#await load(searchCode) then m}<m.default />{/await}{/if}
   {#if ui.guide !== null}{#await load(guideCode) then m}<m.default />{/await}{/if}
   {#if tour.name}<Tour />{/if}
+  <ContextMenu />
   {#if replaced}
     <div class="replaced" role="alert">
       <div>

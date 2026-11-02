@@ -149,13 +149,24 @@ public final class Targets {
 				t.addProperty("min", std.q("structures.flutterMinMargin", Dim.DIMENSIONLESS, 1.5));
 				t.addProperty("from", "structures.flutterMinMargin");
 			}
-			double v = m.value().applyAsDouble(f);
+			// One value that cannot be worked out (no shear modulus for the fin material) leaves the others standing.
+			double v;
+			String unavailable = null;
+			try {
+				v = m.value().applyAsDouble(f);
+			} catch (ToolException ex) {
+				v = Double.NaN;
+				unavailable = ex.getMessage();
+			}
 			Map<String, Object> row = new LinkedHashMap<>();
 			row.put("id", m.id());
 			row.put("label", m.label());
 			row.put("dim", m.dim() == Dim.DIMENSIONLESS ? null : m.dim().name());
-			row.put("value", Double.isFinite(v) ? text(v, m) : "not reached in this flight");
+			row.put("value", Double.isFinite(v) ? text(v, m) : unavailable != null ? "not worked out" : "not reached in this flight");
 			row.put("valueSI", Double.isFinite(v) ? v : null);
+			if (unavailable != null) {
+				row.put("note", unavailable);
+			}
 			if (t != null) {
 				double min = bound(t, "min", m), max = bound(t, "max", m), goal = bound(t, "goal", m);
 				if (Double.isNaN(min) && Double.isNaN(max) && Double.isNaN(goal)) {
@@ -166,14 +177,16 @@ public final class Targets {
 				put(row, "min", min, m);
 				put(row, "max", max, m);
 				put(row, "goal", goal, m);
-				if (t.has("note") && t.get("note").isJsonPrimitive()) {
+				if (t.has("note") && t.get("note").isJsonPrimitive() && unavailable == null) {
 					row.put("note", t.get("note").getAsString());
 				}
 				if (t.has("from")) {
 					row.put("from", t.get("from").getAsString());
 				}
 				String status = "PASS";
-				if (!Double.isFinite(v)) {
+				if (unavailable != null) {
+					status = "INFO"; // not known, so neither met nor missed
+				} else if (!Double.isFinite(v)) {
 					status = Double.isNaN(min) && Double.isNaN(max) ? "INFO" : "FAIL";
 				} else if (!Double.isNaN(min) || !Double.isNaN(max)) {
 					double toMin = Double.isNaN(min) ? Double.POSITIVE_INFINITY : v - min;

@@ -7,6 +7,10 @@
   import { Maximize, Scissors, Expand } from "@lucide/svelte";
   import { app, select, findNode, parentOf, editField, type Part, type TreeNode } from "../state.svelte";
   import { fmt } from "../units.svelte";
+  import { openMenu, currentPageItems, type MenuItem } from "../menu/menu.svelte";
+  import { partItems } from "./partMenu";
+
+  let { picture }: { picture?: () => void } = $props();
 
   // The rocket as OpenRocket draws it (side view, nose to the left; back view; free 3-D), from the engine's own
   // meshes of every part. Outside parts are see-through in the side view so the inside shows, as in OpenRocket.
@@ -609,6 +613,7 @@
   let down: { x: number; y: number } | null = null;
 
   function pick(e: PointerEvent) {
+    if (e.button !== 0) return;
     if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return;
     down = null;
     const p = partAt(e);
@@ -806,6 +811,32 @@
   }
   let held: { ids: Set<string>; dx: number } | null = null;
 
+  // Right-click: the part's commands (or the view's alone on empty space). Opened on release, so a right-drag still
+  // moves the view without a menu.
+  let rightDown: { x: number; y: number } | null = null;
+  function viewItems(): MenuItem[] {
+    return [
+      { header: "View" },
+      { label: "Side", checked: mode === "side", run: () => setMode("side") },
+      { label: "Back", checked: mode === "back", run: () => setMode("back") },
+      { label: "3D", checked: mode === "3d", run: () => setMode("3d") },
+      { label: "Exploded", checked: explode > 0, off: mode === "back" && "Not in the back view", run: () => explodeTo(explode > 0 ? 0 : 1) },
+      mode === "3d" ? { label: "Cut-away", checked: cutaway, off: explode > 0 && "Not while exploded", run: () => ((cutaway = !cutaway), style()) } : null,
+      { label: "Fit", run: () => fit() },
+      picture ? { label: "Picture or drawing…", run: picture } : null,
+    ].filter(Boolean) as MenuItem[];
+  }
+  function rightClick(e: PointerEvent) {
+    const p = partAt(e);
+    const view = viewItems();
+    // The page's commands, less those the view's own already has (Picture, Exploded).
+    const named = view.filter((v) => typeof v === "object" && "label" in v).map((v) => (v as { label: string }).label);
+    const rest = (currentPageItems() as MenuItem[]).filter((it) => !(typeof it === "object" && "label" in it && named.some((n) => it.label.startsWith(n) || n.startsWith(it.label))));
+    const items: MenuItem[] = p?.id ? [...partItems(p.id), "-", ...view] : [...view, "-", ...rest];
+    tip = null;
+    openMenu(e.clientX, e.clientY, items);
+  }
+
   function setMode(m: Mode) {
     mode = m;
     try {
@@ -870,8 +901,22 @@
     camera = ortho;
     const el = renderer.domElement;
     el.addEventListener("pointerdown", (e) => {
+      if (e.button === 2) {
+        rightDown = { x: e.clientX, y: e.clientY };
+        return;
+      }
       down = { x: e.clientX, y: e.clientY };
       startDrag(e);
+    });
+    el.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    el.addEventListener("pointerup", (e) => {
+      if (e.button !== 2 || !rightDown) return;
+      const still = Math.hypot(e.clientX - rightDown.x, e.clientY - rightDown.y) < 5;
+      rightDown = null;
+      if (still) rightClick(e);
     });
     el.addEventListener("pointermove", (e) => (drag ? dragMove(e) : hover(e)));
     el.addEventListener("pointerup", (e) => (drag ? endDrag(e) : pick(e)));

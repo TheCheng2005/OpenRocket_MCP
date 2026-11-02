@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { ChevronDown, PanelLeftClose, PanelRightClose } from "@lucide/svelte";
-  import { isOpen, toggle } from "./panels.svelte";
+  import { isOpen, toggle, setOpen } from "./panels.svelte";
+  import { context, currentPageItems, type MenuItem } from "./menu/menu.svelte";
 
   // A titled panel that folds away. Side panels fold to a narrow strip so the view gets the width.
   let {
@@ -25,15 +26,30 @@
   } = $props();
 
   let open = $derived(isOpen(id, initial));
+
+  // Right-click on the title: fold this panel or the others, then the page's quick commands.
+  function others(): string[] {
+    return [...document.querySelectorAll("[data-panel]")].map((e) => (e as HTMLElement).dataset.panel!).filter((p) => p !== id);
+  }
+  function menuItems(): MenuItem[] {
+    return [
+      { header: title },
+      { label: open ? (side ? "Hide" : "Fold") : "Show", run: () => toggle(id, initial) },
+      { label: "Fold the other panels", run: () => others().forEach((p) => setOpen(p, false)), off: others().length ? false : "No other panel here" },
+      { label: "Unfold every panel", run: () => [id, ...others()].forEach((p) => setOpen(p, true)) },
+      "-",
+      ...(currentPageItems() as MenuItem[]),
+    ];
+  }
 </script>
 
 {#if side && !open}
-  <button class="strip {side}" data-panel={id} onclick={() => toggle(id, initial)} title="Show {title.toLowerCase()}">
+  <button class="strip {side}" data-panel={id} use:context={menuItems} onclick={() => toggle(id, initial)} title="Show {title.toLowerCase()}">
     <span>{title}</span>
   </button>
 {:else}
   <section class="panel" class:fill={fill && open} class:side data-panel={id}>
-    <header>
+    <header use:context={menuItems}>
       {#if side}
         <span class="title">{title}</span>
       {:else}

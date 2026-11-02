@@ -4,6 +4,8 @@
   import ComponentIcon from "../ComponentIcon.svelte";
   import Self from "./TreeNode.svelte";
   import { tree, toggleFold, zoneAt, dropTarget } from "./treeState.svelte";
+  import { openMenu } from "../menu/menu.svelte";
+  import { partItems } from "./partMenu";
 
   let { node, depth }: { node: Node; depth: number } = $props();
   let open = $derived(!tree.folded.has(node.id));
@@ -33,7 +35,6 @@
   function start(e: DragEvent) {
     if (node.id === "rocket") return;
     tree.dragging = { id: node.id, type: node.type };
-    tree.menu = null;
     e.dataTransfer?.setData("text/plain", node.name);
     if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
   }
@@ -83,8 +84,22 @@
   }
   function menu(e: MouseEvent) {
     e.preventDefault();
-    if (app.selected !== node.id) select(node.id);
-    tree.menu = { id: node.id, x: e.clientX, y: e.clientY };
+    e.stopPropagation();
+    const items = partItems(node.id);
+    const fold = node.children.length
+      ? [{ label: open ? "Fold" : "Unfold", run: () => toggleFold(node.id) }, { label: "Fold everything inside", run: () => foldAll(node, true) }, { label: "Unfold everything inside", run: () => foldAll(node, false) }]
+      : [];
+    openMenu(e.clientX, e.clientY, [...items.slice(0, -2), "-", ...fold, "-", ...items.slice(-2)]);
+  }
+  function foldAll(n: Node, shut: boolean) {
+    const f = new Set(tree.folded);
+    const walk = (x: Node) => {
+      if (x.children.length) shut ? f.add(x.id) : f.delete(x.id);
+      x.children.forEach(walk);
+    };
+    walk(n);
+    if (shut) f.delete(n.id);
+    tree.folded = f;
   }
 </script>
 

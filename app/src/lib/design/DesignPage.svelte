@@ -14,6 +14,19 @@
   import Stats from "./Stats.svelte";
   import RuleCheck from "./RuleCheck.svelte";
   import RuleCheckStatus from "./RuleCheckStatus.svelte";
+  import { pageMenu } from "../menu/menu.svelte";
+  import { paste, clipboard, checkRules } from "../state.svelte";
+  import { analysis } from "../analysis/store.svelte";
+
+  // Right-click anywhere else on the page.
+  pageMenu(() => [
+    { label: clipboard.id ? `Paste ${clipboard.name}` : "Paste", shortcut: keys("V"), off: !clipboard.id && "Copy a part first", run: () => paste() },
+    { label: "Picture or drawing…", run: () => (picture = true) },
+    { label: "Exploded view", run: () => dispatchEvent(new CustomEvent("rocketmaxxing:explode")) },
+    { label: "Check the rules now", run: () => checkRules() },
+    { label: "Add an avionics bay…", run: () => ((analysis.selected = "add_avionics_bay"), (app.page = "analysis")) },
+    { label: "Take the tour", run: () => designTour() },
+  ]);
 
   let isRoot = $derived(app.selected === "rocket");
   let target = $derived(findNode(app.design?.tree, app.selected)?.name ?? "");
@@ -53,7 +66,7 @@
         <button class="tool wide" title="A guided tour of this page" onclick={() => { offer = false; designTour(); }}><Route size={15} /> Tour</button>
         <button class="tool wide" data-tour="picture" title="Picture or drawing of the design, for reviews and build notes" onclick={() => (picture = true)}><Image size={15} /> Picture</button>
       {/snippet}
-      <div class="view"><RocketView /></div>
+      <div class="view"><RocketView picture={() => (picture = true)} /></div>
     </Panel>
     <Panel id="design.summary" title="Summary">
       <Stats />
