@@ -4,10 +4,12 @@ A desktop application for competition rocket teams that works offline and needs 
 OpenRocket does and adds the engineering this server already does: rule checks, recovery, structures, avionics,
 dispersion, flight data and design history, behind a modern interface.
 
-Status: built through tier 3 of the new functions below. The app redoes OpenRocket's three main tabs (design, motors
-and configuration, simulations) on the engine and adds the engine's analyses, the team's targets, flight data, the
-missing editors, installers and an optional assistant; see [ROCKETMAXXING.md](ROCKETMAXXING.md). Decided so far: the
-name is **RocketMaxxing** and the front-end is **Svelte with three.js**. Next: the validation work and Phase 4.
+Status: built through tier 3 of the new functions below, plus a round on ease of use. The app redoes OpenRocket's
+three main tabs (design, motors and configuration, simulations) on the engine and adds the engine's analyses, the
+team's targets, flight data, the missing editors, installers and an optional assistant; see
+[ROCKETMAXXING.md](ROCKETMAXXING.md). The project's team uses it, and it is planned to go to other teams by the end
+of 2026 once their feedback is in. Decided: the name is **RocketMaxxing** (the repository is
+`TheCheng2005/RocketMaxxing`) and the front-end is **Svelte with three.js**. Next: the validation work and Phase 4.
 Decisions still open are marked **Decide**.
 
 ## Why, and why not a rewrite
@@ -227,6 +229,16 @@ designs folder. Results show as tables, with pass/warn/fail colours and the tool
 - The optional assistant, through the same tools, off by default: with the team's own Claude subscription (Claude Code),
   ChatGPT subscription (Codex) or an Anthropic API key.
 
+**Ease of use (done).**
+- Finding things: search (Ctrl+K) over analyses, pages, actions, parts and settings; a Guide (first session, pages,
+  which analysis answers which question, the team standards); Analysis › Start here; a guided tour of the Design page;
+  ⓘ help on every analysis and input, with examples in the team's units and the needed inputs marked.
+- Right-click menus on every page, with the commands for what is under the pointer.
+- Parts: drag in the list to move a part into another, slide a part along the rocket with snapping to its neighbours,
+  line up at the front, middle or back of its parent, copy and paste, arrow keys and shortcuts.
+- The view: an exploded mode, studio lighting and a floor shadow, part names on hover, smooth zoom, clearer selection.
+- Errors labelled by whose problem they are (input, output, system, physics), with a problems list and a bug report.
+
 ## Validation
 
 Teams trust a tool for its track record, not its features. From Phase 1 on:
@@ -257,8 +269,8 @@ Teams trust a tool for its track record, not its features. From Phase 1 on:
 
 ## Open decisions
 
-1. **Name.** It should not use "OpenRocket" in a way that suggests it is the OpenRocket project.
-2. **Front-end stack:** Svelte (recommended) or React.
+1. **Name (decided):** RocketMaxxing; it does not suggest it is the OpenRocket project.
+2. **Front-end stack (decided):** Svelte 5 with three.js.
 3. **Platforms first:** whichever the team uses most, probably Windows, then macOS.
 4. **Who builds it, and when**, relative to the Launch Canada 2027 build schedule.
 5. **The assistant (decided):** optional and off by default; it connects through the team's own Claude Code (Claude

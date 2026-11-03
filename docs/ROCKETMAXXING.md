@@ -5,7 +5,9 @@ Under the hood it is the same engine as the OpenRocket MCP server (OpenRocket 24
 reads and writes ordinary OpenRocket `.ork` files, so a design can go back and forth between the two programs.
 
 Version 0.1.0 covers OpenRocket's three main tabs, and adds the engine's engineering tools, the team's targets with
-live margins, flight data after a launch, and an optional assistant. See [the plan](APP_PLAN.md) for what comes next.
+live margins, flight data after a launch, and an optional assistant. Parts can be dragged, lined up, copied and
+pulled apart in an exploded view, and right-click, search, a Guide and a tour make it easy to find things. See
+[the plan](APP_PLAN.md) for what comes next.
 
 ![Design page](rocketmaxxing/design.png)
 
@@ -36,7 +38,7 @@ live margins, flight data after a launch, and an optional assistant. See [the pl
 
 | RocketMaxxing | OpenRocket | Notes |
 |---|---|---|
-| Design | Rocket design | Parts list on the left, the rocket in the middle, the selected part's properties on the right (no pop-up dialog). The add-part buttons are below the view; the ones that can't go where you are pointing are greyed out. Summary shows stability against your rule set's minimum, mass, length and a quick flight of the active configuration. Fins show their outline (freeform fins are drawn and edited there); parts with a catalogue have a Catalogue button; every part can be given a paint colour. Picture makes an exploded, cut-away or outside 3-D image with a numbered parts list, or the side drawing with CG and CP. The Avionics bay button lays out a whole electronics bay between two tubes. |
+| Design | Rocket design | Parts list on the left, the rocket in the middle, the selected part's properties on the right (no pop-up dialog). The add-part buttons are below the view; the ones that can't go where you are pointing are greyed out. Summary shows stability against your rule set's minimum, mass, length and a quick flight of the active configuration. Fins show their outline (freeform fins are drawn and edited there); parts with a catalogue have a Catalogue button; every part can be given a paint colour. Parts move by dragging in the list or along the rocket in the view (lining up with their neighbours), and the view has an exploded mode (see below). Picture makes an exploded, cut-away or outside 3-D image with a numbered parts list, or the side drawing with CG and CP. The Avionics bay button lays out a whole electronics bay between two tubes. |
 | Motors | Motors & Configuration | Motors, recovery and stages as three tables on one page, a row per flight configuration. The motor list is OpenRocket's own database (the thrustcurve.org motors that come with OpenRocket 24.12, offline): it can be searched, filtered to motors that fit the mount, and shows the thrust curve. Import file adds a .eng, .rse or zipped motor file; Your own motor makes one from static-fire data (a thrust curve to paste or load from CSV, or an average thrust and burn time) with its masses, delays and CG. Both are kept in the designs folder's `motors/` and load whenever the app starts, so a design keeps its motor. |
 | Flights | Flight simulations | The simulations, the launch conditions of the selected one, and its plot. Video turns the selected flight into an animation (a chase camera, the separations and canopies, the numbers on screen): a GIF, an MP4 when ffmpeg is installed, and a sheet of key-moment stills. |
 | Standards | (not in OpenRocket) | The team's standards, which every check uses: the competition rule set, the launch site, recovery and structures safety factors, shear pin ratings, material data, altimeter, battery and radio settings. Only what the team changes goes into its file (`openrocket-mcp.json`); a dot marks those values, and each can go back to its default. |
@@ -251,12 +253,19 @@ OpenAI (Codex).
 
 ![The assistant](rocketmaxxing/assistant.png)
 
-| Keys | |
+| Keys (⌘ instead of Ctrl on a Mac) | |
 |---|---|
+| Ctrl+K | Search for anything: an analysis, a page, a part, a setting |
 | Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z | Undo, redo |
 | Ctrl+S, Ctrl+Shift+S | Save, save as |
 | Ctrl+O | Open |
 | Delete | Delete the selected part |
+| Ctrl+C, Ctrl+V, Ctrl+D | Copy a part, paste it into the selected part, duplicate |
+| Alt+↑, Alt+↓ | Move the selected part up or down |
+| ↑ ↓ ← → in the parts list | Walk the list; → unfolds, ← folds or goes to the parent; F2 renames; Enter goes to its settings |
+| ↑ ↓ in a number box | Step the value (Shift: ten times more, Alt: ten times less) |
+| Alt while dragging a part | Place it without lining it up |
+| Right-click | The commands for what is under the pointer |
 
 Sizes can be typed with a unit, e.g. `3 in` in a millimetre field.
 
@@ -272,7 +281,9 @@ the working branches, after starting each packaged app and using it; the install
 
 1. On GitHub, open **Actions**, then **RocketMaxxing installers**, then the latest green run, and download
    `rocketmaxxing-macos-apple-silicon-dmg` (M1 and later; Apple menu > About This Mac says "Apple M...") or
-   `rocketmaxxing-macos-intel-dmg`. Unzip it to get `RocketMaxxing-0.1.0.dmg`.
+   `rocketmaxxing-macos-intel-dmg`. Unzip it to get `RocketMaxxing-0.1.0.dmg`. If a run has no Apple Silicon one
+   (GitHub sometimes has no Apple Silicon machine free to build it), the Intel one also runs on Apple Silicon Macs,
+   through Rosetta.
 2. Open the `.dmg` and drag RocketMaxxing into Applications.
 3. The app is not signed with an Apple developer certificate yet, so the first time macOS refuses to open it. Open it
    once, then in **System Settings > Privacy & Security** click **Open Anyway** next to "RocketMaxxing was blocked",
@@ -350,6 +361,8 @@ cd app && npm install && npm run dev
 ```
 
 Open the address the engine prints (`http://localhost:5173/#token=...`). `npm run check` type-checks the interface.
+`npm run build` first checks that no two files' names differ only in capitals (`scripts/check-names.mjs`): macOS and
+Windows treat those as the same file, and the Mac and Windows builds broke on that once.
 `AppToolsTest` covers the app tools and the local server, `AssistantTest` the assistant against a stand-in for the API,
 `AgentCliTest` reading Claude Code's and Codex's output, `scripts/test_app_agents.py` the assistant through the real
 Claude Code and Codex with stand-in models, and `scripts/test_rocketmaxxing.py` starts the installed app
