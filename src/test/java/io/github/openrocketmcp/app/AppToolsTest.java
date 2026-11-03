@@ -147,6 +147,41 @@ class AppToolsTest {
 		assertEquals(from, parentOf(call("app_design", "{\"designId\":\"" + d + "\"}").getAsJsonObject("tree"), chute, null));
 	}
 
+	/** A fast flight: OpenRocket's numbers alone, then beside an imported RASAero table's (here: twice the drag). */
+	@Test
+	void rasaeroBesideOpenRocket(@TempDir Path dir) throws Exception {
+		String d = call("open_design", "{\"path\":\"docs/examples/maple-10k.ork\"}").get("designId").getAsString();
+		JsonObject alone = call("app_aero_compare", "{\"designId\":\"" + d + "\"}");
+		assertFalse(alone.get("hasTable").getAsBoolean());
+		assertTrue(alone.get("maxMach").getAsDouble() > 1, "Maple 10K is supersonic: " + alone);
+		double apogee = alone.getAsJsonObject("openRocket").get("apogee").getAsDouble();
+		assertTrue(alone.getAsJsonArray("byMach").size() > 5);
+		JsonObject before = call("app_design", "{\"designId\":\"" + d + "\"}");
+		assertTrue(!before.has("aeroTable") || before.get("aeroTable").isJsonNull(), "no table yet");
+
+		StringBuilder csv = new StringBuilder("Mach,Alpha,CD,CD Power-Off,CD Power-On,CA Power-Off,CA Power-On,CN,CP\n");
+		for (double m = 0.01; m <= 2.0; m += 0.05) {
+			// About twice OpenRocket's CD for this rocket (1.1 subsonic, 1.38 near Mach 1.1).
+			double cd = 2 * (m < 0.8 ? 1.1 : m < 1.2 ? 1.1 + 0.3 * (m - 0.8) / 0.4 : 1.4 - 0.1 * (m - 1.2));
+			csv.append(String.format(java.util.Locale.ROOT, "%.2f,0,%.3f,%.3f,%.3f,%.3f,%.3f,0,%.1f%n", m, cd, cd, cd * 0.9, cd, cd * 0.9, 78.0));
+		}
+		Path f = dir.resolve("rasaero.csv");
+		Files.writeString(f, csv.toString());
+		call("import_aero_table", "{\"designId\":\"" + d + "\",\"path\":\"" + f.toString().replace("\\", "\\\\") + "\"}");
+		assertEquals("rasaero.csv", call("app_design", "{\"designId\":\"" + d + "\"}").get("aeroTable").getAsString());
+		JsonObject both = call("app_aero_compare", "{\"designId\":\"" + d + "\"}");
+		assertTrue(both.get("hasTable").getAsBoolean() && both.get("useDrag").getAsBoolean());
+		double or = both.getAsJsonObject("openRocket").get("apogee").getAsDouble();
+		double ras = both.getAsJsonObject("rasaero").get("apogee").getAsDouble();
+		assertEquals(apogee, or, apogee * 0.01, "the OpenRocket column flies on OpenRocket's own drag");
+		assertTrue(ras < or * 0.9, "twice the drag flies lower: " + ras + " vs " + or);
+		assertTrue(both.getAsJsonObject("rasaero").has("minStability"), "stability with the table's CP");
+		JsonObject row = both.getAsJsonArray("byMach").get(1).getAsJsonObject();
+		assertTrue(row.has("cdOpenRocket") && row.has("cdRasaeroPowerOff") && row.has("cpRasaero"), row.toString());
+		assertEquals(78 * 0.0254, row.get("cpRasaero").getAsDouble(), 1e-6);
+		call("import_aero_table", "{\"designId\":\"" + d + "\",\"mode\":\"clear\"}");
+	}
+
 	static String child(JsonObject tree, String parent, int i) {
 		JsonObject p = node(tree, parent);
 		return p.getAsJsonArray("children").get(i).getAsJsonObject().get("id").getAsString();

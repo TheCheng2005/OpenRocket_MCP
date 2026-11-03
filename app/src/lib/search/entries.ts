@@ -168,6 +168,16 @@ export function entries(): Entry[] {
     { kind: "action", title: "Compare with an altimeter log", sub: "Flight data: a log against the simulation", keys: "flight log csv altimeter data measured actual", off: noDesign, run: () => go("flightdata") },
     { kind: "action", title: "Past rockets", sub: "Flight data: a folder of old designs and logs", keys: "library history old designs previous years", off: noDesign, run: () => go("flightdata") },
     { kind: "action", title: "Keyboard shortcuts", sub: "Guide: shortcuts and habits worth knowing", keys: "keys hotkeys tips help", run: () => (ui.guide = "tips") },
+    { kind: "action", title: "RASAero vs OpenRocket", sub: "Apogee, speed, stability, CD and CP from both models (transonic and supersonic flights)", keys: "rasaero ras aero compare transonic supersonic mach cd cp drag import csv", off: noDesign, run: () => {
+      const shown = (app.flight?.maxMach ?? 0) >= 0.8 || !!app.design?.aeroTable;
+      if (shown) {
+        go("design");
+        request("aero");
+      } else {
+        analysis.selected = "import_aero_table";
+        go("analysis");
+      }
+    } },
     { kind: "action", title: "Line up a part", sub: "Front, middle or back of the part it is in: Properties › Position, or right-click the part", keys: "align alignment position snap center centre", off: noDesign, run: () => (go("design"), request("field", "axialMethod")) },
     { kind: "property", title: "Paint colour", sub: "Properties › Appearance of the selected part", keys: "paint color colour appearance shine gloss", off: noDesign ?? (app.selected === "rocket" ? "Select a part first" : undefined), run: () => (go("design"), request("appearance")) },
     { kind: "action", title: "Fold or unfold panels", sub: "Right-click a panel's title", keys: "collapse expand hide panel", run: () => (ui.guide = "tips") },

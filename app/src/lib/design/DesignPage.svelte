@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { Box, Gauge, ListTree, ShieldCheck, SlidersHorizontal, SquarePlus, ArrowUp, ArrowDown, Copy, Trash2, Image, Route, X } from "@lucide/svelte";
+  import { Box, Gauge, ListTree, ShieldCheck, SlidersHorizontal, SquarePlus, ArrowUp, ArrowDown, Copy, Trash2, Image, Route, X, Wind } from "@lucide/svelte";
   import { designTour } from "../tour/tours";
   import { seen, markSeen } from "../tour/session.svelte";
   import PictureDialog from "../media/PictureDialog.svelte";
   import { app, move, canMove, duplicate, removeSelected, findNode } from "../state.svelte";
   import { keys } from "../keys";
-  import { isOpen } from "../panels.svelte";
+  import { isOpen, setOpen } from "../panels.svelte";
   import Panel from "../Panel.svelte";
   import Tree from "./Tree.svelte";
   import Palette from "./Palette.svelte";
@@ -14,6 +14,11 @@
   import Stats from "./Stats.svelte";
   import RuleCheck from "./RuleCheck.svelte";
   import RuleCheckStatus from "./RuleCheckStatus.svelte";
+  import AeroCompare from "./AeroCompare.svelte";
+  import { num as fmtNum } from "../units.svelte";
+
+  // Fast flights get RASAero's numbers beside OpenRocket's: from Mach 0.8, or whenever a RASAero table is in.
+  let fast = $derived((app.flight?.maxMach ?? 0) >= 0.8 || !!app.design?.aeroTable);
   import { pageMenu } from "../menu/menu.svelte";
   import { paste, clipboard, checkRules } from "../state.svelte";
   import { analysis } from "../analysis/store.svelte";
@@ -22,6 +27,10 @@
   $effect(() => {
     void ui.request;
     if (take("picture")) picture = true;
+    if (take("aero")) {
+      setOpen("design.aero", true);
+      setTimeout(() => document.querySelector('[data-panel="design.aero"]')?.scrollIntoView({ block: "start", behavior: "smooth" }), 100);
+    }
   });
 
   // Right-click anywhere else on the page.
@@ -77,6 +86,15 @@
     <Panel id="design.summary" icon={Gauge} title="Summary">
       <Stats />
     </Panel>
+    {#if fast}
+      <Panel id="design.aero" icon={Wind} title="RASAero vs OpenRocket">
+        {#snippet status()}
+          {#if app.design?.aeroTable}<span class="chip good">RASAero table in</span>
+          {:else if app.flight?.maxMach}<span class="chip warn">Mach {fmtNum(app.flight.maxMach, 3)}: no RASAero data</span>{/if}
+        {/snippet}
+        <AeroCompare />
+      </Panel>
+    {/if}
     <Panel id="design.rules" icon={ShieldCheck} title="Rule check" initial={false}>
       {#snippet status()}<RuleCheckStatus />{/snippet}
       <RuleCheck />
@@ -176,6 +194,20 @@
   }
   .tool:disabled {
     opacity: 0.35;
+  }
+  .chip {
+    font-size: 11.5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .chip.good {
+    background: var(--good-soft);
+    color: var(--good);
+  }
+  .chip.warn {
+    background: var(--warn-soft);
+    color: var(--warn);
   }
   .to {
     font-size: 12px;

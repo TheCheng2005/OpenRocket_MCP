@@ -95,6 +95,9 @@
     } else if (mod && e.key.toLowerCase() === "o") {
       e.preventDefault();
       openDialog();
+    } else if (e.key === "?" && !typing(e) && !overlay()) {
+      e.preventDefault();
+      ui.guide = "tips";
     } else if (app.page === "design" && !typing(e) && !overlay()) {
       // The parts: delete, move, copy and paste, as in a file list. Not while a dialog or the tour is on top.
       const k = e.key.toLowerCase();

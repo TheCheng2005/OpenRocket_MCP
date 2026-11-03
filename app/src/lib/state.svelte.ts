@@ -51,6 +51,8 @@ export interface Design {
   selected: string;
   stability: Stability;
   loadWarnings?: string[];
+  /** The imported RASAero (or other) aero table for the whole vehicle: its source, or null. */
+  aeroTable?: string | null;
 }
 
 export interface FieldDef {
