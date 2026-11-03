@@ -8,7 +8,8 @@
   // Find anything by name or by what it is for: an analysis ("FEA", "chute size"), a page, an action, a part to add or
   // one in the design, a setting. Opened with the top bar's Search or ⌘K / Ctrl+K.
   const KIND: Record<Kind, string> = {
-    analysis: "Analysis", page: "Page", action: "Action", add: "Add part", part: "In the design", setting: "Setting",
+    analysis: "Analysis", page: "Page", action: "Action", add: "Add part", part: "In the design", property: "Part setting",
+    standard: "Team standard", target: "Target", setting: "Setting",
   };
   // With nothing typed: the pages and the actions, then the analyses.
   const START: Kind[] = ["page", "action", "analysis"];

@@ -7,8 +7,12 @@
   import Plot from "../Plot.svelte";
 
   // OpenRocket's motor selection dialog: search the database, see the thrust curve, pick the delay.
-  let { mount, configuration, close }: { mount: { id: string; name: string; innerDiameter: number }; configuration: string; close: () => void } =
-    $props();
+  let {
+    mount,
+    configuration,
+    close,
+    start,
+  }: { mount: { id: string; name: string; innerDiameter: number }; configuration: string; close: () => void; start?: "import" | "custom" } = $props();
 
   interface MotorRow {
     digest: string;
@@ -70,6 +74,13 @@
     const m = r?.motors.find((x) => x.designation === designation) ?? r?.motors[0];
     if (m) pick(m);
   }
+
+  // Opened from the search to import a file or make a motor: go straight there.
+  import { onMount } from "svelte";
+  onMount(() => {
+    if (start === "custom") custom = true;
+    else if (start === "import") importFile();
+  });
 
   async function importFile() {
     let path: string | null = null;

@@ -1,6 +1,12 @@
 <script lang="ts">
+  import { ClipboardList, Compass, ListChecks, SlidersHorizontal, Play, ChevronDown, Search, X, ShieldCheck, Gauge, Umbrella, Wrench, Radio, FlaskConical, GitCompare, FileText } from "@lucide/svelte";
+
+  /** An icon per group of analyses. */
+  const GROUP_ICONS: Record<string, typeof ShieldCheck> = {
+    Checks: ShieldCheck, "Stability and drag": Gauge, Recovery: Umbrella, Structures: Wrench, "Launch and avionics": Radio,
+    Studies: FlaskConical, "Compare and import": GitCompare, Files: FileText,
+  };
   import { untrack } from "svelte";
-  import { Play, ChevronDown, Search, X, Compass } from "@lucide/svelte";
   import { call, callFull, tools as listTools, type ToolInfo } from "../api";
   import { app, refresh, run, type TreeNode } from "../state.svelte";
   import { isOpen, toggle } from "../panels.svelte";
@@ -479,7 +485,7 @@
 
 <div class="page">
   <div class="left" class:shut={!isOpen("analysis.list")}>
-    <Panel id="analysis.list" title="Analyses" side="left">
+    <Panel id="analysis.list" icon={ClipboardList} title="Analyses" side="left">
       <div class="filter">
         <Search size={14} />
         <input bind:value={filter} onkeydown={filterKey} placeholder="Filter, e.g. FEA, chute, wind" aria-label="Filter analyses" spellcheck="false" />
@@ -501,8 +507,10 @@
         </button>
         {#each CATALOG as g (g.title)}
           {@const gid = "analysis.group." + g.title}
+          {@const GI = GROUP_ICONS[g.title] ?? ClipboardList}
           <button class="gh" onclick={() => toggle(gid)} aria-expanded={isOpen(gid)}>
-            <span class="chev" class:shut={!isOpen(gid)}><ChevronDown size={14} /></span>{g.title}
+            <span class="gi"><GI size={14} /></span><span class="gtt">{g.title}</span>
+            <span class="chev" class:shut={!isOpen(gid)}><ChevronDown size={14} /></span>
           </button>
           {#if isOpen(gid)}
             {#each g.items as a (a.tool)}
@@ -520,11 +528,11 @@
 
   <div class="main">
     {#if starting}
-    <Panel id="analysis.start" title="Start here: which analysis answers your question?" fill>
+    <Panel id="analysis.start" icon={Compass} title="Start here: which analysis answers your question?" fill>
       <StartHere choose={(tool) => { const a = CATALOG.flatMap((g) => g.items).find((x) => x.tool === tool); if (a) choose(a); }} />
     </Panel>
     {:else}
-    <Panel id="analysis.inputs" title={entry.label}>
+    <Panel id="analysis.inputs" icon={SlidersHorizontal} title={entry.label}>
       {#snippet tools()}
         {#if missing.length}<span class="meta">Needs: {missing.join(", ")}</span>{/if}
         <button class="btn primary run" disabled={running || !info || missing.length > 0} onclick={go}><Play size={14} /> {running ? "Running…" : "Run"}</button>
@@ -558,7 +566,7 @@
       </div>
     </Panel>
 
-    <Panel id="analysis.results" title="Result" fill>
+    <Panel id="analysis.results" icon={ListChecks} title="Result" fill>
       {#snippet tools()}
         {#if outcome}<span class="meta">{stale ? "Design changed since this ran. " : ""}{(outcome.ms / 1000).toFixed(1)} s</span>{/if}
       {/snippet}
@@ -597,11 +605,11 @@
     flex: 1;
     min-height: 0;
     display: flex;
-    gap: 6px;
-    padding: 6px;
+    gap: var(--gap);
+    padding: var(--gap);
   }
   .left {
-    width: 230px;
+    width: 270px;
     flex: none;
     min-height: 0;
   }
@@ -614,7 +622,7 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--gap);
   }
   .cat {
     display: flex;
@@ -624,12 +632,25 @@
   .gh {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 10px;
     border: 0;
     background: transparent;
-    padding: 6px 8px 3px;
+    padding: 10px 12px 6px 14px;
     font-weight: 600;
     text-align: left;
+    color: var(--ink);
+  }
+  .gi {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--surface-2);
+    color: var(--ink-2);
+  }
+  .gtt {
+    flex: 1;
   }
   .chev {
     display: flex;
@@ -645,7 +666,7 @@
     justify-content: space-between;
     border: 0;
     background: transparent;
-    padding: 4px 8px 4px 26px;
+    padding: 7px 12px 7px 46px;
     text-align: left;
     color: var(--ink-2);
   }
@@ -660,10 +681,10 @@
   .filter {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin: 6px 8px 2px;
-    padding: 0 6px;
-    height: 28px;
+    gap: 8px;
+    margin: 12px 12px 6px;
+    padding: 0 9px;
+    height: var(--control);
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background: var(--surface);
@@ -690,8 +711,8 @@
     padding: 2px;
   }
   .item.start {
-    padding-left: 10px;
-    margin: 4px 0 2px;
+    padding-left: 14px;
+    margin: 4px 0;
     font-weight: 600;
     color: var(--ink);
   }
@@ -701,7 +722,7 @@
     gap: 6px;
   }
   .item.flat {
-    padding-left: 12px;
+    padding-left: 14px;
   }
   .nm {
     display: flex;
@@ -723,29 +744,29 @@
     background: var(--ink-3);
   }
   .run {
-    height: 24px;
+    height: 30px;
   }
   .form {
-    padding: 6px 10px 10px;
+    padding: 14px 16px 16px;
     max-height: 46vh;
     overflow: auto;
   }
   .desc {
-    margin: 0 0 8px;
+    margin: 0 0 14px;
     color: var(--ink-2);
   }
   .fields {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
-    gap: 4px 18px;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px 20px;
     align-items: start;
   }
+  /* Label above its box: long labels no longer squeeze the inputs. */
   .row {
     display: grid;
-    grid-template-columns: 44% 1fr;
+    grid-template-columns: 1fr;
     align-items: center;
-    gap: 6px;
-    min-height: 28px;
+    gap: 5px;
   }
   .lab {
     color: var(--ink-2);
@@ -898,16 +919,19 @@
     min-width: 0;
   }
   .fold {
-    margin-top: 6px;
+    margin-top: 14px;
     border-top: 1px solid var(--line);
+  }
+  .fold .fields {
+    padding-bottom: 6px;
   }
   .fh {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     border: 0;
     background: transparent;
-    padding: 6px 0;
+    padding: 10px 0;
     font-weight: 600;
   }
   .meta {
@@ -916,7 +940,7 @@
     white-space: nowrap;
   }
   .out {
-    padding: 6px 12px 12px;
+    padding: 14px 16px 16px;
   }
   .out.stale {
     opacity: 0.75;

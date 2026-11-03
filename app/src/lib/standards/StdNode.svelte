@@ -68,7 +68,7 @@
 {#each rows as k (k)}
   {@const p = [...path, k]}
   {@const v = cur[k]}
-  <div class="row" class:team={teamHas(p)} use:context={() => valueItems(k, p, v)}>
+  <div class="row" class:team={teamHas(p)} data-std={p.join(".")} use:context={() => valueItems(k, p, v)}>
     <span class="name" title={k}>{label(k)}{#if help(k)}<Tip label="About {label(k)}">{help(k)}</Tip>{/if}</span>
     {#if typeof (v ?? def[k]) === "boolean"}
       <input type="checkbox" checked={!!v} onchange={(e) => set(p, e.currentTarget.checked)} />
@@ -87,7 +87,7 @@
   {@const entries = Object.entries(isObject(cur[k]) ? cur[k] : {}).filter(([n]) => !isNote(n))}
   {@const cols = columnsOf(entries.map(([, e]) => e)).filter((c) => c !== "source")}
   <!-- Long tables (a property for every material) start folded, so a section fits on the screen. -->
-  <details class="block" open={entries.length <= 4}>
+  <details class="block" open={entries.length <= 4} data-std={[...path, k].join(".")}>
     <summary class="title">{label(k)} <span class="count">{entries.length}</span>{#if help(k)}<Tip label="About {label(k)}">{help(k)}</Tip>{/if}</summary>
     <table class="grid">
       <thead><tr><th>Name</th>{#if cols.length}{#each cols as c (c)}<th>{label(c)}</th>{/each}{:else}<th>Value</th>{/if}<th>Source</th><th></th></tr></thead>
@@ -130,7 +130,7 @@
   {@const items = (Array.isArray(cur[k]) ? cur[k] : []) as Json[]}
   {@const cols = columnsOf(items)}
   {@const p = [...path, k]}
-  <div class="block">
+  <div class="block" data-std={p.join(".")}>
     <div class="title">
       {label(k)}{#if help(k)}<Tip label="About {label(k)}">{help(k)}</Tip>{/if}
       {#if teamHas(p)}<button class="tool" title="Back to the defaults" onclick={() => set(p, null)}><RotateCcw size={13} /></button>{:else}<span class="muted small">default</span>{/if}
@@ -191,12 +191,23 @@
     font-size: 12px;
     color: var(--ink-3);
   }
+  :global([data-std].found) {
+    animation: found 1.6s ease-out;
+    border-radius: 6px;
+  }
+  @keyframes -global-found {
+    0%,
+    40% {
+      background: var(--select-soft);
+      box-shadow: 0 0 0 2px var(--select);
+    }
+  }
   .row {
     display: grid;
     grid-template-columns: minmax(160px, 40%) 1fr 70px;
     align-items: center;
-    gap: 8px;
-    min-height: 30px;
+    gap: 12px;
+    min-height: 40px;
   }
   .row .name {
     color: var(--ink-2);

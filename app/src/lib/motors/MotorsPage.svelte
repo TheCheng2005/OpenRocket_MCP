@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Plus, Copy, PencilLine, Trash2, X } from "@lucide/svelte";
+  import { Flame, Layers, Umbrella, Plus, Copy, PencilLine, Trash2, X } from "@lucide/svelte";
   import { untrack } from "svelte";
   import { call } from "../api";
   import { act, app, ask, run, selectConfig } from "../state.svelte";
@@ -9,6 +9,8 @@
   import QuantityInput from "../design/QuantityInput.svelte";
   import { context, pageMenu, type MenuItem } from "../menu/menu.svelte";
   import { analysis } from "../analysis/store.svelte";
+  import { ui, take } from "../search/ui.svelte";
+  import { toast } from "../state.svelte";
 
   // OpenRocket's "Motors & Configuration" tab: a row per flight configuration; motors per mount, recovery
   // deployment per device and separation per stage.
@@ -164,6 +166,19 @@
     return [{ header: st.name }, { label: "Edit separation…", run: edit(false) }, { label: "Edit for every configuration…", run: edit(true) }];
   }
 
+  // Asked for from the search: the motor picker, straight at importing a file or making your own motor.
+  let pickerStart = $state<"import" | "custom" | undefined>();
+  $effect(() => {
+    void ui.request;
+    if (!data) return;
+    const r = take("motor");
+    if (!r) return;
+    const m = data.mounts[0];
+    if (!m) return void toast("No motor mount: tick \"This is a motor mount\" on a tube first.", "error");
+    pickerStart = r.detail === "import" || r.detail === "custom" ? r.detail : undefined;
+    picking = { mount: m, configuration: data.selected };
+  });
+
   pageMenu(() => [
     { label: "New configuration…", run: newConfig },
     { label: "Copy the active configuration", off: !data && "Loading", run: () => data && act("app_config", { action: "copy", configuration: data.selected }) },
@@ -191,7 +206,7 @@
   </div>
 
   {#if data}
-    <Panel id="motors.motors" title="Motors">
+    <Panel id="motors.motors" icon={Flame} title="Motors">
       <table class="grid">
         <thead>
           <tr>
@@ -230,7 +245,7 @@
       </table>
     </Panel>
 
-    <Panel id="motors.recovery" title="Recovery">
+    <Panel id="motors.recovery" icon={Umbrella} title="Recovery">
       <table class="grid">
         <thead>
           <tr>
@@ -257,7 +272,7 @@
       </table>
     </Panel>
 
-    <Panel id="motors.stages" title="Stages" initial={stages.length > 0}>
+    <Panel id="motors.stages" icon={Layers} title="Stages" initial={stages.length > 0}>
       {#if stages.length === 0}
         <p class="muted pad">Single stage: nothing separates.</p>
       {:else}
@@ -287,7 +302,7 @@
 </div>
 
 {#if picking}
-  <MotorPicker mount={picking.mount} configuration={picking.configuration} close={() => (picking = null)} />
+  <MotorPicker mount={picking.mount} configuration={picking.configuration} start={pickerStart} close={() => ((picking = null), (pickerStart = undefined))} />
 {/if}
 
 {#if editing}
@@ -320,8 +335,8 @@
     overflow: auto;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 6px;
+    gap: var(--gap);
+    padding: var(--gap);
   }
   .toolbar {
     display: flex;

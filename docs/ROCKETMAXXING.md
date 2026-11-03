@@ -26,7 +26,14 @@ pulled apart in an exploded view, and right-click, search, a Guide and a tour ma
 - **Standards**: a short explanation with links to each section, an ⓘ per section (what it holds, which analyses
   read it) and per value (what it means, with an example). The defaults' sources and assumptions, and the long
   per-material tables (shear modulus, strength…), fold away until opened.
-- **ⓘ on every analysis and input**, and **search** (⌘K / Ctrl+K) for anything by what it is for.
+- **ⓘ on every analysis and input**, and **search** (⌘K / Ctrl+K) for anything by what it is for: an analysis
+  ("FEA", "chute size"), a page, an action (a view mode, the flight video, importing a motor, a new simulation), a
+  part to add or one in the design, a setting of the selected part ("wall thickness"), a team standard ("rail
+  length", "pin rating") or a target. Choosing one goes there: the setting's box, the standard's row lit up, the
+  dialog open.
+- Everything folds: each panel (click its title, or right-click it for the others), the sections of Properties,
+  the analysis groups, the target groups (flight, off the rail, stability and structure, recovery and landing, mass)
+  and the sections of Settings.
 
 ![Guide: which analysis](rocketmaxxing/guide.png)
 

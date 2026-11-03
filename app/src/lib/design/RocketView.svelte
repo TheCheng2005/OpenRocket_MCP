@@ -9,6 +9,7 @@
   import { fmt } from "../units.svelte";
   import { openMenu, currentPageItems, type MenuItem } from "../menu/menu.svelte";
   import { partItems } from "./partMenu";
+  import { ui, take } from "../search/ui.svelte";
 
   let { picture }: { picture?: () => void } = $props();
 
@@ -983,6 +984,26 @@
   });
 
   let canMoveHint = $derived(mode !== "back" && movable());
+
+  // Asked for from the search: a view mode, the cut-away, Fit, the exploded view.
+  $effect(() => {
+    void ui.request;
+    if (!webgl) return;
+    const r = take("view", "cutaway", "fit", "explode");
+    if (!r) return;
+    setTimeout(() => {
+      if (!renderer) return;
+      if (r.name === "view") setMode(r.detail as Mode);
+      else if (r.name === "cutaway") {
+        if (mode !== "3d") setMode("3d");
+        cutaway = r.detail !== "off";
+        explode = 0;
+        place();
+        style();
+      } else if (r.name === "fit") fit();
+      else explodeTo(r.detail === "off" ? 0 : 1);
+    }, renderer ? 0 : 400);
+  });
 </script>
 
 <div class="rv" bind:this={host}>

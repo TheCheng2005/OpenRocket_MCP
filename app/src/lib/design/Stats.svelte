@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { TriangleAlert } from "@lucide/svelte";
+  import { TriangleAlert, Gauge, Crosshair, Weight, Ruler, Mountain, Zap, Activity, ArrowUpFromLine } from "@lucide/svelte";
   import { app } from "../state.svelte";
   import { fmt, num } from "../units.svelte";
   import { KINDS } from "../issues/issues.svelte";
@@ -51,25 +51,18 @@
 </script>
 
 <div class="sum" use:context={items}>
-  <dl>
-    <div title="Static margin at Mach 0.3, launch mass">
-      <dt>Stability</dt>
-      <dd class={level}>{margin === null ? "–" : num(margin, 3) + " cal"}{#if st.floor}<small>min {num(st.floor, 3)}</small>{/if}</dd>
-    </div>
-    <div><dt>CG / CP</dt><dd>{fmt(st.cg, "LENGTH")} / {fmt(st.cp, "LENGTH")}</dd></div>
-    <div><dt>Mass</dt><dd>{fmt(st.mass, "MASS")}<small>burnout {fmt(st.massBurnout, "MASS")}</small></dd></div>
-    <div><dt>Length / Ø</dt><dd>{fmt(st.length, "LENGTH")} / {fmt(st.diameter, "LENGTH")}</dd></div>
-  </dl>
-  <dl class="flight" class:stale={app.flying} title="Quick simulation of the active configuration">
-    {#if f?.noMotors}
-      <div><dt>Flight</dt><dd class="none">No motor in this configuration</dd></div>
-    {:else}
-      <div><dt>Apogee</dt><dd>{fmt(f?.apogee, "DISTANCE")}</dd></div>
-      <div><dt>Max speed</dt><dd>{fmt(f?.maxVelocity, "VELOCITY")}{#if f?.maxMach !== undefined}<small>Mach {f.maxMach.toFixed(2)}</small>{/if}</dd></div>
-      <div><dt>Max accel.</dt><dd>{fmt(f?.maxAcceleration, "ACCELERATION")}</dd></div>
-      <div><dt>Rail exit</dt><dd>{fmt(f?.railExitVelocity, "VELOCITY")}</dd></div>
-    {/if}
-  </dl>
+  {@render tile(Gauge, "Stability", margin === null ? "–" : num(margin, 3) + " cal", st.floor ? `min ${num(st.floor, 3)}` : "", level, "Static margin at Mach 0.3, launch mass")}
+  {@render tile(Crosshair, "CG / CP", `${fmt(st.cg, "LENGTH")} / ${fmt(st.cp, "LENGTH")}`, "", "", "From the nose tip")}
+  {@render tile(Weight, "Mass", fmt(st.mass, "MASS"), `${fmt(st.massBurnout, "MASS")} empty`)}
+  {@render tile(Ruler, "Length / Ø", `${fmt(st.length, "LENGTH")} / ${fmt(st.diameter, "LENGTH")}`)}
+  {#if f?.noMotors}
+    {@render tile(Mountain, "Flight", "No motor", "choose one on Motors", "none")}
+  {:else}
+    {@render tile(Mountain, "Apogee", fmt(f?.apogee, "DISTANCE"), "", "", "Quick simulation of the active configuration", true)}
+    {@render tile(Zap, "Max speed", fmt(f?.maxVelocity, "VELOCITY"), f?.maxMach !== undefined ? `Mach ${f.maxMach.toFixed(2)}` : "", "", "", true)}
+    {@render tile(Activity, "Max accel.", fmt(f?.maxAcceleration, "ACCELERATION"), "", "", "", true)}
+    {@render tile(ArrowUpFromLine, "Rail exit", fmt(f?.railExitVelocity, "VELOCITY"), "", "", "", true)}
+  {/if}
 </div>
 {#if notes.length}
   <ul class="notes">
@@ -77,65 +70,76 @@
   </ul>
 {/if}
 
+{#snippet tile(I: typeof Gauge, label: string, value: string, sub = "", cls = "", title = "", flight = false)}
+  <div class="tile" class:stale={flight && app.flying} title={title || undefined}>
+    <div class="tl"><I size={13} /> {label}</div>
+    <div class="tv {cls}">{value}{#if sub}<small>{sub}</small>{/if}</div>
+  </div>
+{/snippet}
+
 <style>
   .sum {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0 16px;
-    padding: 6px 10px;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 6px;
+    padding: 10px 12px;
   }
-  dl {
-    margin: 0;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2px 12px;
-  }
-  dl > div {
-    display: flex;
-    flex-direction: column;
+  .tile {
     min-width: 0;
+    padding: 5px 10px 6px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-2);
   }
-  dt {
+  .tile.stale {
+    opacity: 0.55;
+  }
+  .tl {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 11.5px;
     color: var(--ink-3);
   }
-  dd {
-    margin: 0;
+  .tv {
+    margin-top: 1px;
+    font-size: 14px;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-weight: 600;
   }
-  dd small {
+  .tv small {
     margin-left: 6px;
+    font-size: 11.5px;
     font-weight: 400;
     color: var(--ink-3);
   }
-  dd.good {
+  .tv.good {
     color: var(--good);
   }
-  dd.warn {
+  .tv.warn {
     color: var(--warn);
   }
-  dd.bad {
+  .tv.bad {
     color: var(--bad);
   }
-  dd.none {
-    font-weight: 400;
+  .tv.none {
+    font-weight: 500;
     color: var(--ink-3);
   }
-  .flight {
-    border-left: 1px solid var(--line);
-    padding-left: 16px;
-  }
-  .flight.stale dd {
-    opacity: 0.5;
+  .ts {
+    font-size: 11.5px;
+    color: var(--ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .notes {
     list-style: none;
     margin: 0;
-    padding: 0 10px 6px;
+    padding: 0 12px 12px;
     font-size: 12px;
     color: var(--warn);
   }

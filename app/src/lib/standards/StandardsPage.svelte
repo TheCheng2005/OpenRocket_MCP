@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Trophy, MapPin, Umbrella, Wrench, Cpu } from "@lucide/svelte";
+  const ICONS = { launchSite: MapPin, recovery: Umbrella, structures: Wrench, electronics: Cpu } as Record<string, any>;
   import { onMount } from "svelte";
   import { call } from "../api";
   import { app, run, checkRules, checkTargets } from "../state.svelte";
@@ -57,6 +59,28 @@
     requestAnimationFrame(() => document.getElementById("std-" + key)?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
+  // Asked for from the search: open the section and show the value ("recovery.shearPins").
+  import { ui as searchUi, take } from "../search/ui.svelte";
+  $effect(() => {
+    void searchUi.request;
+    if (!std) return;
+    const r = take("standard");
+    if (!r?.detail) return;
+    const [section] = r.detail.split(".");
+    const j = JUMP.find(([k]) => k === section);
+    if (j) jump(j[0], j[2]);
+    setTimeout(() => {
+      const el = document.querySelector(`[data-std="${r.detail}"]`) as HTMLElement | null;
+      if (!el) return;
+      if (el instanceof HTMLDetailsElement) el.open = true;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      document.querySelectorAll("[data-std].found").forEach((x) => x.classList.remove("found"));
+      void el.offsetWidth;
+      el.classList.add("found");
+      (el.querySelector("input, select") as HTMLElement | null)?.focus({ preventScroll: true });
+    }, 250);
+  });
+
   pageMenu(() => [
     { header: "Go to" },
     ...JUMP.map(([key, name, initial]) => ({ label: name, run: () => jump(key, initial) })),
@@ -92,7 +116,7 @@
     </div>
     <div class="col">
       <div id="std-competition"></div>
-      <Panel id="std.competition" title="Competition">
+      <Panel id="std.competition" icon={Trophy} title="Competition">
         {#snippet status()}{@render about("competition")}{/snippet}
         <div class="body">
           <div class="row">
@@ -120,7 +144,7 @@
       </Panel>
       {#each SECTIONS.slice(0, 2) as [key, title] (key)}
         <div id="std-{key}"></div>
-        <Panel id="std.{key}" {title}>
+        <Panel id="std.{key}" icon={ICONS[key]} {title}>
           {#snippet status()}{@render about(key)}{/snippet}
           <div class="body"><StdNode path={[key]} std={std} {set} /></div>
         </Panel>
@@ -129,7 +153,7 @@
     <div class="col">
       {#each SECTIONS.slice(2) as [key, title] (key)}
         <div id="std-{key}"></div>
-        <Panel id="std.{key}" {title} initial={key !== "electronics"}>
+        <Panel id="std.{key}" icon={ICONS[key]} {title} initial={key !== "electronics"}>
           {#snippet status()}{@render about(key)}{/snippet}
           <div class="body"><StdNode path={[key]} std={std} {set} /></div>
         </Panel>
@@ -147,8 +171,8 @@
     overflow: auto;
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 6px;
-    padding: 6px;
+    gap: var(--gap);
+    padding: var(--gap);
     align-items: start;
   }
   @media (max-width: 1100px) {
@@ -198,7 +222,7 @@
   .col {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--gap);
     min-width: 0;
   }
   .body {

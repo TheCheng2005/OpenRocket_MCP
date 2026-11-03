@@ -2,7 +2,7 @@
 // use for it (FEA for fin stress, chute for parachute), then its description. A word one letter off still matches a
 // name or keyword ("fluter" finds Fin flutter).
 
-export type Kind = "analysis" | "page" | "action" | "add" | "part" | "setting";
+export type Kind = "analysis" | "page" | "action" | "add" | "part" | "property" | "standard" | "target" | "setting";
 
 export interface Entry {
   kind: Kind;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Plus, Play, PlayCircle, Trash2, Clapperboard, TriangleAlert } from "@lucide/svelte";
+  import { ChartLine, CloudSun, Rocket, Plus, Play, PlayCircle, Trash2, Clapperboard, TriangleAlert } from "@lucide/svelte";
   import VideoDialog from "../media/VideoDialog.svelte";
   import RocketLoader from "../RocketLoader.svelte";
   import { untrack } from "svelte";
@@ -12,6 +12,7 @@
   import { context, pageMenu, copyText, type MenuItem } from "../menu/menu.svelte";
   import { ask, selectConfig, toast } from "../state.svelte";
   import { analysis } from "../analysis/store.svelte";
+  import { ui, take } from "../search/ui.svelte";
 
   // OpenRocket's "Flight simulations" tab: the simulations with their results, the launch conditions of the
   // selected one, and its flight plotted.
@@ -189,6 +190,11 @@
     ];
   }
 
+  $effect(() => {
+    void ui.request;
+    if (current && take("video")) video = true;
+  });
+
   pageMenu(() => [
     { label: "New simulation", run: newSim },
     { label: "Run the selected one", off: (!current || running) && "Nothing to run", run: () => runSims(false) },
@@ -207,7 +213,7 @@
     {#if running}<RocketLoader size="small" />{/if}
   </div>
 
-  <Panel id="flights.list" title="Simulations">
+  <Panel id="flights.list" icon={Rocket} title="Simulations">
     <div class="list">
       <table class="grid">
         <thead>
@@ -247,11 +253,11 @@
   {#if current}
     <div class="bottom">
       <div class="formcol">
-        <Panel id="flights.conditions" title="Launch conditions: {current.name}">
+        <Panel id="flights.conditions" icon={CloudSun} title="Launch conditions: {current.name}">
           <SimForm sim={current} {configs} />
         </Panel>
       </div>
-      <Panel id="flights.plot" title="Plot">
+      <Panel id="flights.plot" icon={ChartLine} title="Plot">
         {#snippet tools()}
           <select class="select small" value={preset} onchange={(e) => {
             const p = PRESETS.find(([l]) => l === (e.target as HTMLSelectElement).value);
@@ -300,8 +306,8 @@
     overflow: auto;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 6px;
+    gap: var(--gap);
+    padding: var(--gap);
   }
   .toolbar {
     display: flex;

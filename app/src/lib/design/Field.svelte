@@ -55,10 +55,18 @@
       {f.label}
     </label>
   {:else}
-    <label class="label" for={"f-" + f.key} title={f.help ?? ""}>{f.label}{#if f.help}<span class="help">?</span>{/if}</label>
+    <div class="lw">
+      <label class="label" for={"f-" + f.key} title={f.help ?? ""}>{f.label}{#if f.help}<span class="help">?</span>{/if}</label>
+      {#if f.auto}
+        <label class="auto" title="Size it from the neighbouring parts">
+          <input type="checkbox" checked={f.isAuto} disabled={off} onchange={(e) => editField(f.auto!, (e.target as HTMLInputElement).checked)} />
+          Auto
+        </label>
+      {/if}
+    </div>
     <div class="control">
       {#if f.kind === "quantity"}
-        <QuantityInput value={f.value} dim={f.dim as Dim} disabled={f.isAuto || off} commit={(v) => editField(f.key, v)} />
+        <QuantityInput id={"f-" + f.key} value={f.value} dim={f.dim as Dim} disabled={f.isAuto || off} commit={(v) => editField(f.key, v)} />
       {:else if f.kind === "enum"}
         <select id={"f-" + f.key} class="select" value={f.value} disabled={off} onchange={(e) => editField(f.key, (e.target as HTMLSelectElement).value)}>
           {#each f.options ?? [] as o (o.value)}
@@ -86,12 +94,6 @@
       {:else}
         <input id={"f-" + f.key} class="input" bind:value={text} onblur={commitText} onkeydown={enter} />
       {/if}
-      {#if f.auto}
-        <label class="auto" title="Size it from the neighbouring parts">
-          <input type="checkbox" checked={f.isAuto} disabled={off} onchange={(e) => editField(f.auto!, (e.target as HTMLInputElement).checked)} />
-          Auto
-        </label>
-      {/if}
     </div>
   {/if}
 </div>
@@ -102,7 +104,7 @@
     grid-template-columns: 44% 1fr;
     align-items: center;
     gap: 6px;
-    min-height: 28px;
+    min-height: var(--control);
   }
   .field.wide {
     grid-template-columns: 1fr;
@@ -113,6 +115,11 @@
   }
   .label {
     color: var(--ink-2);
+  }
+  .lw {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
   }
   .help {
     display: inline-grid;
@@ -145,10 +152,9 @@
   .auto {
     display: flex;
     align-items: center;
-    gap: 3px;
-    font-size: 12px;
+    gap: 4px;
+    font-size: 11.5px;
     color: var(--ink-3);
-    flex: none !important;
   }
   .count {
     display: flex;

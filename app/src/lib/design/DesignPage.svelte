@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowUp, ArrowDown, Copy, Trash2, Image, Route, X } from "@lucide/svelte";
+  import { Box, Gauge, ListTree, ShieldCheck, SlidersHorizontal, SquarePlus, ArrowUp, ArrowDown, Copy, Trash2, Image, Route, X } from "@lucide/svelte";
   import { designTour } from "../tour/tours";
   import { seen, markSeen } from "../tour/session.svelte";
   import PictureDialog from "../media/PictureDialog.svelte";
@@ -17,6 +17,12 @@
   import { pageMenu } from "../menu/menu.svelte";
   import { paste, clipboard, checkRules } from "../state.svelte";
   import { analysis } from "../analysis/store.svelte";
+
+  import { ui, take } from "../search/ui.svelte";
+  $effect(() => {
+    void ui.request;
+    if (take("picture")) picture = true;
+  });
 
   // Right-click anywhere else on the page.
   pageMenu(() => [
@@ -41,7 +47,7 @@
 
 <div class="design">
   <div class="left" class:shut={!isOpen("design.parts")}>
-    <Panel id="design.parts" title="Parts" side="left">
+    <Panel id="design.parts" icon={ListTree} title="Parts" side="left">
       {#snippet tools()}
         <button class="tool" title="Move up (Alt+↑)" disabled={!canMove(-1)} onclick={() => move(-1)}><ArrowUp size={15} /></button>
         <button class="tool" title="Move down (Alt+↓)" disabled={!canMove(1)} onclick={() => move(1)}><ArrowDown size={15} /></button>
@@ -61,28 +67,28 @@
         <button class="tool" onclick={noThanks} aria-label="Not now" title="Not now (the View panel has a Tour button)"><X size={15} /></button>
       </div>
     {/if}
-    <Panel id="design.view" title="View" fill>
+    <Panel id="design.view" icon={Box} title="View" fill>
       {#snippet tools()}
         <button class="tool wide" title="A guided tour of this page" onclick={() => { offer = false; designTour(); }}><Route size={15} /> Tour</button>
         <button class="tool wide" data-tour="picture" title="Picture or drawing of the design, for reviews and build notes" onclick={() => (picture = true)}><Image size={15} /> Picture</button>
       {/snippet}
       <div class="view"><RocketView picture={() => (picture = true)} /></div>
     </Panel>
-    <Panel id="design.summary" title="Summary">
+    <Panel id="design.summary" icon={Gauge} title="Summary">
       <Stats />
     </Panel>
-    <Panel id="design.rules" title="Rule check" initial={false}>
+    <Panel id="design.rules" icon={ShieldCheck} title="Rule check" initial={false}>
       {#snippet status()}<RuleCheckStatus />{/snippet}
       <RuleCheck />
     </Panel>
-    <Panel id="design.add" title="Add part">
+    <Panel id="design.add" icon={SquarePlus} title="Add part">
       {#snippet tools()}<span class="to">to {target}</span>{/snippet}
       <Palette />
     </Panel>
   </div>
 
   <div class="right" class:shut={!isOpen("design.props")}>
-    <Panel id="design.props" title="Properties" side="right">
+    <Panel id="design.props" icon={SlidersHorizontal} title="Properties" side="right">
       <Inspector />
     </Panel>
   </div>
@@ -109,16 +115,16 @@
     flex: 1;
     min-height: 0;
     display: flex;
-    gap: 6px;
-    padding: 6px;
+    gap: var(--gap);
+    padding: var(--gap);
   }
   .left {
-    width: 260px;
+    width: 280px;
     flex: none;
     min-height: 0;
   }
   .right {
-    width: 330px;
+    width: 360px;
     flex: none;
     min-height: 0;
   }
@@ -132,7 +138,12 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--gap);
+    /* On a short window the column scrolls rather than squeezing panels into each other. */
+    overflow-y: auto;
+  }
+  .center > :global(.panel:not(.fill)) {
+    flex: none;
   }
   .view {
     position: relative;
@@ -140,7 +151,7 @@
     min-height: 200px;
   }
   .center > :global(.panel.fill) {
-    min-height: 240px;
+    min-height: 280px;
   }
   .tool {
     display: grid;
