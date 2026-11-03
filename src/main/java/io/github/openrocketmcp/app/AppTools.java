@@ -47,6 +47,8 @@ import io.github.openrocketmcp.mcp.McpServer;
 import io.github.openrocketmcp.mcp.Schema;
 import io.github.openrocketmcp.mcp.ToolDef;
 import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.or.Aero;
+import io.github.openrocketmcp.or.AeroTable;
 import io.github.openrocketmcp.or.Analysis;
 import io.github.openrocketmcp.or.Branch;
 import io.github.openrocketmcp.or.Components;
@@ -59,6 +61,7 @@ import io.github.openrocketmcp.or.Presets;
 import io.github.openrocketmcp.or.Requirements;
 import io.github.openrocketmcp.or.Sims;
 import io.github.openrocketmcp.or.Targets;
+import io.github.openrocketmcp.or.Variants;
 import io.github.openrocketmcp.or.Winds;
 import io.github.openrocketmcp.report.Workbench;
 import io.github.openrocketmcp.standards.Standards;
@@ -240,6 +243,10 @@ public final class AppTools {
 						.build(), true, a -> model(ctx, a)));
 		add(s, new ToolDef("app_quick_flight", "App: quick flight", "Flight summary of the active configuration (not saved).",
 				Schema.object().str("designId", DESIGN, true).build(), true, a -> quickFlight(ctx, a)));
+		add(s, new ToolDef("app_aero_compare", "App: RASAero beside OpenRocket",
+				"The active configuration flown with an imported RASAero table's drag and with OpenRocket's own, side by side, with "
+						+ "CD and CP from both models through Mach, in SI. Without a table: OpenRocket's numbers and the top Mach.",
+				Schema.object().str("designId", DESIGN, true).build(), true, a -> aeroCompare(ctx, a)));
 		add(s, new ToolDef("app_configs", "App: motors and configuration",
 				"Flight configurations with each mount's motor, each recovery device's deployment and each stage's separation.",
 				Schema.object().str("designId", DESIGN, true).build(), true, a -> configs(ctx, a)));
@@ -422,6 +429,8 @@ public final class AppTools {
 		out.put("tree", node(r));
 		out.put("configurations", configList(r));
 		out.put("selected", r.getSelectedConfiguration().getId().toString());
+		AeroTable.Table aero = AeroTable.of(r);
+		out.put("aeroTable", aero == null ? null : aero.source());
 		Map<String, Object> st = stability(r.getSelectedConfiguration());
 		double floor = Requirements.stabilityFloor(ctx.standards(), r.getSelectedConfiguration())[0];
 		if (floor > 0) {
@@ -675,6 +684,115 @@ public final class AppTools {
 			Sims.run(sim);
 		}
 		return results(sim);
+	}
+
+	/** Mach numbers for the side-by-side table, up to a little past the flight's top speed. */
+	static final double[] COMPARE_MACHS = { 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, 1.0, 1.05, 1.1, 1.2, 1.3, 1.5, 1.75, 2.0, 2.5, 3.0 };
+
+	/**
+	 * The flight on both models: RASAero's drag (when a table for the whole vehicle is imported and its drag used) and
+	 * OpenRocket's own; the stability margin with each model's CP; CD and CP by Mach from both. Transonic and supersonic
+	 * flights are where the two differ most, and where OpenRocket warns its model is least sure.
+	 */
+	static Map<String, Object> aeroCompare(Context ctx, Args a) {
+		Designs.Design d = ctx.designs.get(a.str("designId"));
+		Rocket rocket = d.doc.getRocket();
+		FlightConfiguration fc = rocket.getSelectedConfiguration();
+		AeroTable.Table t = AeroTable.of(rocket);
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("hasTable", t != null);
+		if (t != null) {
+			out.put("source", t.source());
+			out.put("useDrag", t.useDrag());
+			out.put("hasCp", t.hasCp());
+			out.put("tableMaxMach", t.mach()[t.mach().length - 1]);
+		}
+		double ref = Analysis.stability(fc, 0.3).referenceDiameter();
+		double topMach = Double.NaN;
+		if (fc.hasMotors()) {
+			Simulation base = Sims.prepare(d, null, fc.getId().toString(), null, ctx.standards(), false);
+			List<Variants.Run> runs = Variants.runAll(t != null && t.useDrag()
+					? List.of(AeroTable.without(Variants.of(base, d.doc, null, null)), Variants.of(base, d.doc, null, null))
+					: List.of(AeroTable.without(Variants.of(base, d.doc, null, null))));
+			Variants.Run or = runs.get(0);
+			if (or.ok()) {
+				out.put("openRocket", flightNumbers(or.sim(), null, ref));
+				topMach = or.sim().getSimulatedData().getMaxMachNumber();
+			}
+			if (t != null) {
+				Variants.Run tb = runs.size() > 1 ? runs.get(1) : or;
+				if (tb.ok()) {
+					// With the table's drag (or, when its drag is not used, the same flight), and the table's CP.
+					out.put("rasaero", flightNumbers(tb.sim(), t, ref));
+					topMach = Math.max(Double.isNaN(topMach) ? 0 : topMach, tb.sim().getSimulatedData().getMaxMachNumber());
+				}
+			}
+		}
+		out.put("maxMach", Double.isFinite(topMach) ? topMach : null);
+		double upTo = Double.isFinite(topMach) ? Math.max(1.0, topMach + 0.15) : 1.5;
+		List<Double> ms = new ArrayList<>();
+		for (double m : COMPARE_MACHS) {
+			if (m <= upTo + 1e-9 && (t == null || m <= t.mach()[t.mach().length - 1] + 1e-9 || ms.size() < 3)) {
+				ms.add(m);
+			}
+		}
+		if (Double.isFinite(topMach) && !ms.contains(topMach)) {
+			ms.add(topMach);
+			ms.sort(Double::compare);
+		}
+		double[] arr = ms.stream().mapToDouble(Double::doubleValue).toArray();
+		List<Aero.Point> pts;
+		try {
+			pts = Aero.sweep(fc, arr);
+		} catch (RuntimeException e) {
+			pts = List.of();
+		}
+		List<Map<String, Object>> rows = new ArrayList<>();
+		for (Aero.Point p : pts) {
+			Map<String, Object> r = new LinkedHashMap<>();
+			r.put("mach", p.mach());
+			r.put("cdOpenRocket", finiteOrNull(p.cd()));
+			r.put("cpOpenRocket", finiteOrNull(p.cpX()));
+			if (t != null && p.mach() <= t.mach()[t.mach().length - 1] + 1e-9) {
+				r.put("cdRasaeroPowerOff", finiteOrNull(t.cd(p.mach(), false)));
+				r.put("cdRasaeroPowerOn", finiteOrNull(t.cd(p.mach(), true)));
+				if (t.hasCp()) {
+					r.put("cpRasaero", finiteOrNull(t.cpAt(p.mach())));
+				}
+			}
+			rows.add(r);
+		}
+		out.put("byMach", rows);
+		out.put("referenceDiameter", ref);
+		return out;
+	}
+
+	static Object finiteOrNull(double v) {
+		return Double.isFinite(v) ? v : null;
+	}
+
+	/** A flight's main numbers in SI, and its lowest ascent margin (with the table's CP when one is given). */
+	static Map<String, Object> flightNumbers(Simulation sim, AeroTable.Table cpFrom, double ref) {
+		FlightData f = sim.getSimulatedData();
+		Map<String, Object> m = new LinkedHashMap<>();
+		m.put("apogee", finiteOrNull(f.getMaxAltitude()));
+		m.put("maxVelocity", finiteOrNull(f.getMaxVelocity()));
+		m.put("maxMach", finiteOrNull(f.getMaxMachNumber()));
+		m.put("timeToApogee", finiteOrNull(f.getTimeToApogee()));
+		m.put("railExitVelocity", finiteOrNull(f.getLaunchRodVelocity()));
+		if (cpFrom != null && cpFrom.hasCp()) {
+			AeroTable.Margin mg = AeroTable.minMargin(sim, cpFrom, ref);
+			if (mg != null) {
+				m.put("minStability", mg.min());
+				m.put("minStabilityMach", mg.mach());
+			}
+		} else {
+			Sims.Window w = Sims.ascentStability(f.getBranch(0));
+			if (w != null) {
+				m.put("minStability", w.min());
+			}
+		}
+		return m;
 	}
 
 	static Map<String, Object> results(Simulation sim) {

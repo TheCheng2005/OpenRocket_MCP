@@ -13,6 +13,8 @@ pulled apart in an exploded view, and right-click, search, a Guide and a tour ma
 
 ## Getting help in the app
 
+- **Help** at the foot of the left rail: getting started, what each page is for, which analysis, the team
+  standards, shortcuts and tips, and the Design page tour. **?** opens the shortcuts and tips from anywhere.
 - **Guide** (the ? at the top right, or Guide on the Start page): a first session step by step, with a button to
   each place; what each page is for; which analysis answers which question, with a design-review order; what the
   team standards hold and which analyses use each section; shortcuts.
@@ -55,6 +57,27 @@ pulled apart in an exploded view, and right-click, search, a Guide and a tour ma
 
 Every panel and section folds (click its title). The Parts and Properties panels fold to a strip at the side to give
 the view more room. What is folded is remembered.
+
+### RASAero beside OpenRocket
+
+OpenRocket's drag and centre of pressure are least sure between Mach 0.8 and 1.2, and Launch Canada asks for RASAero's
+CP and CD when the airframe's diameter changes. When the active configuration's flight reaches Mach 0.8, or a RASAero
+table is imported, the Design page shows a **RASAero vs OpenRocket** panel:
+
+- With no table: the flight's top Mach, OpenRocket's CD through Mach, and **Import RASAero CSV**: the file RASAero II
+  exports from its aero data (Mach, Alpha, CD, CD Power-Off, CD Power-On, CP, with CP in inches from the nose tip).
+- With a table: the flight on both models side by side (apogee, top speed, top Mach, time to apogee, rail exit,
+  lowest stability with each model's CP) and the difference, flagged from 5% (or 0.5 cal); CD against Mach for
+  OpenRocket and RASAero (power off and on); and CD and CP by Mach from both, Mach 0.8 to 1.2 shaded. Replace or remove
+  the table from the panel.
+
+Once imported, the table's drag is used in every flight of the design (quick flight, Flights, targets, analyses; the
+Summary's apogee says "RASAero drag") and its CP in the rule check; the panel's OpenRocket column is the same flight on
+OpenRocket's own drag. The table is saved next to the design (`rocket.aero.json`). On a staged rocket, the sustainer's
+own run goes in from Analysis › RASAero aero table, by stage. RASAero II itself is a separate Windows program:
+RocketMaxxing reads its exported file rather than running it.
+
+![RASAero vs OpenRocket](rocketmaxxing/rasaero.png)
 
 ### Right-click
 

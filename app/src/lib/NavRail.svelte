@@ -1,6 +1,26 @@
 <script lang="ts">
-  import { House, Rocket, Flame, ChartSpline, FileChartLine, Target, BookOpenCheck, ClipboardCheck } from "@lucide/svelte";
+  import { House, Rocket, Flame, ChartSpline, FileChartLine, Target, BookOpenCheck, ClipboardCheck, LifeBuoy } from "@lucide/svelte";
   import { app, type Page } from "./state.svelte";
+  import { ui } from "./search/ui.svelte";
+  import { openMenu } from "./menu/menu.svelte";
+  import { designTour } from "./tour/tours";
+  import { keys } from "./keys";
+
+  // Help, at the foot of the rail: the Guide's parts, the tour and the shortcuts, one click away.
+  function help(e: MouseEvent) {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    openMenu(r.right + 6, r.top - 250, [
+      { header: "Help and tips" },
+      { label: "Getting started", run: () => (ui.guide = "start") },
+      { label: "What each page is for", run: () => (ui.guide = "pages") },
+      { label: "Which analysis do I need?", run: () => (ui.guide = "analyses") },
+      { label: "The team standards, explained", run: () => (ui.guide = "standards") },
+      { label: "Shortcuts and tips", shortcut: "?", run: () => (ui.guide = "tips") },
+      { label: "Tour of the Design page", off: !app.design && "Open a design first", run: () => designTour() },
+      "-",
+      { label: "Search for anything", shortcut: keys("K"), run: () => (ui.search = true) },
+    ]);
+  }
 
   const pages: { id: Page; label: string; hint: string; icon: typeof Rocket }[] = [
     { id: "home", label: "Start", hint: "Recent files and examples", icon: House },
@@ -27,6 +47,10 @@
       <span>{p.label}</span>
     </button>
   {/each}
+  <button class="help" title="Help: getting started, which analysis, shortcuts and tips (?)" onclick={help}>
+    <LifeBuoy size={24} strokeWidth={1.7} />
+    <span>Help</span>
+  </button>
 </nav>
 
 <style>
@@ -53,6 +77,10 @@
   button:hover:not(:disabled) {
     background: var(--chrome-2);
     color: var(--chrome-ink);
+  }
+  .help {
+    margin-top: auto;
+    border-top: 1px solid var(--chrome-line);
   }
   button.on {
     border-left-color: var(--chrome-mark);

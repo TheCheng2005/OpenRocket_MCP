@@ -61,7 +61,7 @@ export function designSteps(): Step[] {
     {
       title: "The top bar",
       target: "header",
-      text: `Save (${keys("S")}), undo and redo (${keys("Z")}) every edit, Search (${keys("K")}) for anything by what it is for, the warning triangle for problems, the robot for the AI assistant, ? for the Guide, and the gear for units and colours.`,
+      text: `Save (${keys("S")}), undo and redo (${keys("Z")}) every edit, Search (${keys("K")}) for anything by what it is for, the warning triangle for problems, the robot for the AI assistant, ? for the Guide, and the gear for units and colours. Help at the foot of the left rail has the Guide, this tour and the tips.`,
     },
     {
       title: "That's the Design page",
