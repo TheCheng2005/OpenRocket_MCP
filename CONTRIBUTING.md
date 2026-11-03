@@ -29,9 +29,17 @@ node scripts/view_shots.mjs docs/examples/maple-10k-view.html docs/examples   # 
                                     # headless browser and retake its screenshots (needs Playwright with Chromium)
 python3 scripts/test_codex.py       # the real Codex CLI against the server (needs `npm i -g @openai/codex`)
 ./gradlew mcpb && python3 scripts/test_mcpb.py   # Claude Desktop extension for your computer, started like Claude Desktop does
+./gradlew rocketmaxxing             # the desktop app (needs Node.js 20+ for its interface)
+python3 scripts/test_rocketmaxxing.py build/install/openrocket-mcp/bin/rocketmaxxing   # start the app and use it
+(cd app && npm run check)           # type-check the app's interface
 ```
 
+The desktop app's own guide, including how to run its interface with live reload, is
+[docs/ROCKETMAXXING.md](docs/ROCKETMAXXING.md#development).
+
 CI runs the tests on Linux, Windows and macOS, and the benchmark, examples, Codex check and extension builds as well.
+The *RocketMaxxing installers* workflow builds the desktop app's installers on all three, starting each packaged app
+and using it first.
 
 ## How the code is organised
 
@@ -45,6 +53,8 @@ CI runs the tests on Linux, Windows and macOS, and the benchmark, examples, Code
 | `src/main/resources/ui/` | The interactive view (`workbench.html`): one self-contained page, plain JavaScript, WebGL and SVG, no external resources |
 | `standards/` | Team standards and rule sets |
 | `units/` | Unit parsing and display (inputs accept "4 in", output follows the team setting) |
+| `app/` (Java) | RocketMaxxing's launcher, local server, app-only tools (`app_*`), part editors and the assistant |
+| `app/` (repository root) | RocketMaxxing's interface: Svelte 5, TypeScript, three.js |
 
 ## Adding or changing a tool
 

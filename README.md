@@ -278,10 +278,25 @@ materials. You can also just tell Claude ("our pins are 2-56 nylon, 35 lbf each"
 
 ## RocketMaxxing, the desktop app
 
-RocketMaxxing is a desktop app on the same engine, for use without internet or an AI subscription: OpenRocket's
-design, motor and simulation tabs with a different layout, a 3-D view and a quick flight that updates as you edit.
-It uses the same `.ork` files. Build it with `./gradlew rocketmaxxing` and run
-`build/install/openrocket-mcp/bin/rocketmaxxing`. See [docs/ROCKETMAXXING.md](docs/ROCKETMAXXING.md).
+RocketMaxxing is a desktop app on the same engine, for Mac, Windows and Linux, that works offline and needs no AI
+subscription. It reads and writes the same `.ork` files as OpenRocket.
+
+- **Design:** the parts list, a 3-D view (side, back, free 3-D, cut-away and exploded) and the selected part's
+  properties side by side. Drag parts in the list to move them into another part, slide a part along the rocket and
+  it lines up with its neighbours, copy and paste parts, and see stability, a quick flight and the competition rule
+  check update after every edit.
+- **Motors, Flights:** configurations, the motor database with thrust curves, your own motors from static-fire data,
+  simulations with plots and a flight video.
+- **Analysis:** all 50 of the engine's analyses as forms, each with what it needs and gives, and a Start here page by
+  question. **Targets** with live margins, **Standards** for the team's numbers, **Flight data** for altimeter logs
+  and past rockets.
+- Search (Ctrl+K / ⌘K), right-click menus everywhere, a Guide and a tour of the Design page.
+- An optional assistant: Claude or ChatGPT (through Claude Code or Codex) or an API key, working inside the app with
+  the same tools.
+
+Installers with Java included are built on every push (Actions › RocketMaxxing installers). To build it yourself:
+`./gradlew rocketmaxxing`, then `build/install/openrocket-mcp/bin/rocketmaxxing`. The full guide is
+[docs/ROCKETMAXXING.md](docs/ROCKETMAXXING.md).
 
 ![RocketMaxxing](docs/rocketmaxxing/design.png)
 
