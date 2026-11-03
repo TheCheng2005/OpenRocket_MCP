@@ -1,5 +1,14 @@
 <script lang="ts">
-  import { BookOpen, ChevronDown, TriangleAlert, Search, X } from "@lucide/svelte";
+  import { BookOpen, ChevronDown, TriangleAlert, Search, X, Shapes, Ruler, Flame, Layers, Move, Scale, MessageSquare, Palette, Triangle, Spline, Umbrella, Package, Link, Weight, PenTool, CircleDot, Cylinder } from "@lucide/svelte";
+
+  /** An icon for each kind of section, so they can be told apart at a glance. */
+  const SECTION_ICONS: Record<string, typeof Shapes> = {
+    Shape: Shapes, Tube: Cylinder, Coupler: Cylinder, "Tube fins": Cylinder, Ring: CircleDot, Bulkhead: CircleDot,
+    "Engine block": CircleDot, "Launch lug": Cylinder, "Rail button": CircleDot, "Motor mount": Flame, Material: Layers,
+    Position: Move, Overrides: Scale, Comment: MessageSquare, Appearance: Palette, Fins: Triangle, Planform: Ruler,
+    "Cross section": Spline, "Fin tabs": Ruler, Outline: PenTool, Canopy: Umbrella, Streamer: Umbrella, "Packed size": Package,
+    "Shock cord": Link, Mass: Weight, Pods: Layers, Boosters: Layers, Shoulder: Ruler, Shoulders: Ruler,
+  };
   import { app, editField, act } from "../state.svelte";
   import { fmt } from "../units.svelte";
   import { isOpen, toggle, setOpen } from "../panels.svelte";
@@ -38,6 +47,28 @@
     const out: { section: string; f: import("../state.svelte").FieldDef }[] = [];
     for (const s of ed.sections) for (const f of s.fields) if (f.key !== "name" && (f.label.toLowerCase().includes(q) || s.title.toLowerCase().includes(q))) out.push({ section: s.title, f });
     return out;
+  });
+
+  // Asked for from the search: show one setting of the selected part, ready to type.
+  import { ui as searchUi, take } from "../search/ui.svelte";
+  $effect(() => {
+    void searchUi.request;
+    const r = take("field", "appearance");
+    if (!r || !ed) return;
+    if (r.name === "appearance") {
+      find = "";
+      setOpen("prop.Appearance", true);
+      requestAnimationFrame(() => {
+        const sw = document.querySelector('[data-panel="design.props"] .swatch') as HTMLElement | null;
+        sw?.scrollIntoView({ block: "center" });
+        sw?.focus();
+      });
+      return;
+    }
+    const f = ed.sections.flatMap((s) => s.fields).find((x) => x.key === r.detail);
+    if (!f) return;
+    find = f.label;
+    requestAnimationFrame(() => (document.getElementById("f-" + f.key) as HTMLElement | null)?.focus());
   });
 
   // Lining the part up in its parent in one step (one undo): where it is measured from, and no offset.
@@ -129,8 +160,9 @@
       {@const open = isOpen(id, !FOLDED.has(s.title))}
       <section class="sec">
         <button class="st" onclick={() => toggle(id, !FOLDED.has(s.title))} aria-expanded={open}>
+          {@render sectionIcon(s.title)}
+          <span class="stt">{s.title}</span>
           <span class="chev" class:shut={!open}><ChevronDown size={14} /></span>
-          {s.title}
         </button>
         {#if open}
           <div class="fields">
@@ -153,11 +185,17 @@
   {@const open = isOpen(id, !FOLDED.has(title))}
   <section class="sec">
     <button class="st" onclick={() => toggle(id, !FOLDED.has(title))} aria-expanded={open}>
+      {@render sectionIcon(title)}
+      <span class="stt">{title}</span>
       <span class="chev" class:shut={!open}><ChevronDown size={14} /></span>
-      {title}
     </button>
     {#if open}<div class="fields">{@render body()}</div>{/if}
   </section>
+{/snippet}
+
+{#snippet sectionIcon(title: string)}
+  {@const I = SECTION_ICONS[title] ?? CircleDot}
+  <span class="si"><I size={14} /></span>
 {/snippet}
 
 {#snippet lineUp()}
@@ -199,8 +237,8 @@
   .head {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
+    gap: 12px;
+    padding: 14px;
     border-bottom: 1px solid var(--line);
   }
   .who {
@@ -255,13 +293,25 @@
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 10px;
     border: 0;
     background: transparent;
-    padding: 6px 8px;
+    padding: 10px 12px;
     font-weight: 600;
     color: var(--ink);
     text-align: left;
+  }
+  .stt {
+    flex: 1;
+  }
+  .si {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--surface-2);
+    color: var(--ink-2);
   }
   .st:hover {
     background: var(--surface-2);
@@ -277,15 +327,15 @@
   .fields {
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    padding: 2px 10px 8px 26px;
+    gap: 6px;
+    padding: 0 14px 14px 46px;
   }
   .catalog {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 6px 10px;
+    padding: 10px 14px;
     border-bottom: 1px solid var(--line);
     font-size: 12px;
   }
@@ -297,7 +347,7 @@
     grid-template-columns: 44% 1fr;
     align-items: center;
     gap: 6px;
-    min-height: 28px;
+    min-height: var(--control);
   }
   .row .label {
     color: var(--ink-2);
@@ -327,8 +377,8 @@
   .find {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin: 6px 10px 2px;
+    gap: 8px;
+    margin: 12px 14px 6px;
     padding: 0 6px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -343,7 +393,7 @@
     min-width: 0;
     border: 0;
     outline: 0;
-    height: 26px;
+    height: 30px;
     background: transparent;
     color: var(--ink);
   }
@@ -381,7 +431,7 @@
     margin: 2px 0 0;
   }
   .sections > .fields {
-    padding: 8px 10px;
+    padding: 12px 14px;
     border-bottom: 1px solid var(--line);
   }
 </style>

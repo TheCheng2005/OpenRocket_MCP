@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FilePlus2, FolderOpen, FileText, CircleHelp } from "@lucide/svelte";
+  import { Clock, House, Shapes, FilePlus2, FolderOpen, FileText, CircleHelp } from "@lucide/svelte";
   import { ui } from "./search/ui.svelte";
   import { app, newDesign, openDialog, openExample, openPath, recent } from "./state.svelte";
   import ComponentIcon from "./ComponentIcon.svelte";
@@ -56,14 +56,14 @@
 
 <div class="home">
   <div class="col">
-    <Panel id="home.start" title="Start">
+    <Panel id="home.start" icon={House} title="Start">
       <div class="actions">
         <button class="act" onclick={newDesign}><FilePlus2 size={22} /> <span><b>New design</b><small>An empty rocket</small></span></button>
         <button class="act" onclick={openDialog}><FolderOpen size={22} /> <span><b>Open…</b><small>OpenRocket .ork or RockSim .rkt</small></span></button>
         <button class="act" onclick={() => (ui.guide = "start")}><CircleHelp size={22} /> <span><b>Guide</b><small>How to use RocketMaxxing, step by step</small></span></button>
       </div>
     </Panel>
-    <Panel id="home.recent" title="Recent">
+    <Panel id="home.recent" icon={Clock} title="Recent">
       {#if recents.length}
         <ul class="list">
           {#each recents as p (p)}
@@ -82,7 +82,7 @@
     </Panel>
   </div>
   <div class="col wide">
-    <Panel id="home.examples" title="Example designs">
+    <Panel id="home.examples" icon={Shapes} title="Example designs">
       <ul class="list examples">
         {#each app.session?.examples ?? [] as ex (ex)}
           <li>
@@ -102,8 +102,8 @@
     flex: 1;
     overflow: auto;
     display: flex;
-    gap: 8px;
-    padding: 8px;
+    gap: var(--gap);
+    padding: var(--gap);
     align-items: flex-start;
   }
   .col {

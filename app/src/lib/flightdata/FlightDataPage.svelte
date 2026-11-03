@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FolderOpen, Play } from "@lucide/svelte";
+  import { ChartSpline, Library as LibraryIcon, FolderOpen, Play } from "@lucide/svelte";
   import { call } from "../api";
   import { app, run, openPath } from "../state.svelte";
   import { analysis } from "../analysis/store.svelte";
@@ -132,7 +132,7 @@
 
 <div class="page">
   <div class="col">
-    <Panel id="flightdata.log" title="Flight log against the simulation" fill>
+    <Panel id="flightdata.log" icon={ChartSpline} title="Flight log against the simulation" fill>
       <div class="body">
         <div class="form">
           <label class="wide">
@@ -204,7 +204,7 @@
   </div>
 
   <div class="col">
-    <Panel id="flightdata.library" title="Past rockets and their flights" fill>
+    <Panel id="flightdata.library" icon={LibraryIcon} title="Past rockets and their flights" fill>
       <div class="body">
         <div class="folder">
           <input class="input" bind:value={fd.folder} placeholder={app.session?.workspace ?? "Folder"} />
@@ -265,8 +265,8 @@
     min-height: 0;
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 6px;
-    padding: 6px;
+    gap: var(--gap);
+    padding: var(--gap);
   }
   @media (max-width: 1100px) {
     .page {

@@ -8,7 +8,8 @@
     dim,
     disabled = false,
     commit,
-  }: { value: number | null; dim: Dim; disabled?: boolean; commit: (v: number | string) => void } = $props();
+    id,
+  }: { value: number | null; dim: Dim; disabled?: boolean; commit: (v: number | string) => void; id?: string } = $props();
 
   let unit = $derived(unitOf(dim));
   let shown = $derived(value === null || value === undefined ? "" : num(Math.abs(value) < 1e-12 ? 0 : toShown(value, dim, unit), 4).replace(/,/g, "").replace(/^-0$/, "0"));
@@ -63,6 +64,7 @@
 
 <div class="q" class:disabled>
   <input
+    {id}
     class="input num"
     title="↑ ↓ step it (Shift: ×10, Alt: ÷10). A unit can be typed too: 3 in, 75 mm."
     {disabled}
@@ -101,8 +103,8 @@
   }
   .unit {
     flex: none;
-    width: 58px;
-    height: 28px;
+    width: 62px;
+    height: var(--control);
     border: 1px solid var(--line);
     border-left: 0;
     border-radius: 0 var(--radius) var(--radius) 0;

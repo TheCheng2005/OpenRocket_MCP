@@ -10,7 +10,12 @@ import { openIssues } from "../issues/issues.svelte";
 import { prefs, SCHEMES, setScheme, setTheme } from "../prefs.svelte";
 import { assistant, who } from "../assistant/assistant.svelte";
 import { keys, MAC } from "../keys";
-import { ui } from "./ui.svelte";
+import { ui, request } from "./ui.svelte";
+import { STD_HELP } from "../guide/content";
+import { label as keyLabel } from "../analysis/text";
+import { partItems } from "../design/partMenu";
+import { currentPageItems, type MenuItem } from "../menu/menu.svelte";
+import { act, ask } from "../state.svelte";
 import { designTour } from "../tour/tours";
 import type { Entry } from "./search";
 
@@ -119,7 +124,7 @@ export function entries(): Entry[] {
   }
 
   for (const p of PAGES) {
-    out.push({ kind: "page", title: p.title, sub: p.sub, keys: p.keys, off: p.id === "home" ? undefined : noDesign, run: () => go(p.id) });
+    out.push({ kind: "page", title: p.title, sub: p.sub, keys: `${p.keys} page tab`, off: p.id === "home" ? undefined : noDesign, run: () => go(p.id) });
   }
 
   out.push(
@@ -135,18 +140,96 @@ export function entries(): Entry[] {
     { kind: "action", title: "What are the team standards?", sub: "Guide: what each section holds and which analyses use it", keys: "help guide standards explain", run: () => (ui.guide = "standards") },
     { kind: "action", title: "Problems", sub: "Errors and warnings, and reporting a bug", keys: "errors warnings issues bug report", run: openIssues },
     { kind: "action", title: "Choose a motor", sub: "Motors page", keys: "set motor pick motor", off: noDesign, run: () => go("motors") },
-    {
-      kind: "action",
-      title: "Exploded view",
-      sub: "Pull the rocket apart in the view: sections, fins and the parts inside",
-      keys: "explode blow up blown apart parts layout view",
-      off: noDesign,
-      run: () => {
-        go("design");
-        setTimeout(() => dispatchEvent(new CustomEvent("rocketmaxxing:explode")), 300);
-      },
-    },
   );
+
+  // The 3-D view and the Design page's pictures.
+  const view = (name: string, detail?: string) => () => {
+    go("design");
+    request(name, detail);
+  };
+  out.push(
+    { kind: "action", title: "Exploded view", sub: "Pull the rocket apart in the view: sections, fins and the parts inside", keys: "explode blow up blown apart parts layout view", off: noDesign, run: view("explode") },
+    { kind: "action", title: "Side view", sub: "The rocket from the side, see-through, as OpenRocket draws it", keys: "2d profile view drawing", off: noDesign, run: view("view", "side") },
+    { kind: "action", title: "Back view", sub: "Looking along the rocket from behind: the fin layout", keys: "rear end view fins axial", off: noDesign, run: view("view", "back") },
+    { kind: "action", title: "3D view", sub: "Turn the rocket in 3-D", keys: "3-d three dimensional rotate orbit perspective", off: noDesign, run: view("view", "3d") },
+    { kind: "action", title: "Cut-away view", sub: "The airframe cut open in 3-D to show the inside", keys: "cutaway section inside internal open", off: noDesign, run: view("cutaway") },
+    { kind: "action", title: "Fit the rocket in the view", sub: "Zoom to show the whole rocket", keys: "zoom reset center centre frame", off: noDesign, run: view("fit") },
+    { kind: "action", title: "Picture or drawing", sub: "Exploded or cut-away 3-D image with a parts list, or the side drawing (SVG)", keys: "image render png svg export screenshot exploded parts list drawing", off: noDesign, run: view("picture") },
+    { kind: "action", title: "Flight video", sub: "The selected simulation as an animation (GIF or MP4)", keys: "animation movie gif mp4 animate", off: noDesign, run: () => (go("flights"), request("video")) },
+    { kind: "action", title: "Import a motor file", sub: "A .eng, .rse or zipped motor file into the motor list", keys: "eng rse thrustcurve rasp motor file load", off: noDesign, run: () => (go("motors"), request("motor", "import")) },
+    { kind: "action", title: "Your own motor", sub: "A motor from static-fire data or an average thrust", keys: "custom motor static fire test thrust curve homemade research", off: noDesign, run: () => (go("motors"), request("motor", "custom")) },
+    { kind: "action", title: "New flight configuration", sub: "Another motor and deployment set", keys: "configuration add create motor set", off: noDesign, run: async () => {
+      go("motors");
+      const name = await ask("New flight configuration", "Name (empty: named after its motors)", "");
+      if (name !== null) await act("flight_configuration", name ? { action: "create", name } : { action: "create" });
+    } },
+    { kind: "action", title: "New simulation", sub: "Another flight of a configuration with the team's launch site", keys: "add create flight sim", off: noDesign, run: async () => (go("flights"), await act("app_sim_new", {})) },
+    { kind: "action", title: "Run all simulations", sub: "Fly every simulation again", keys: "simulate rerun update flights", off: noDesign, run: async () => (go("flights"), await act("app_sim_run", {})) },
+    { kind: "action", title: "Compare with an altimeter log", sub: "Flight data: a log against the simulation", keys: "flight log csv altimeter data measured actual", off: noDesign, run: () => go("flightdata") },
+    { kind: "action", title: "Past rockets", sub: "Flight data: a folder of old designs and logs", keys: "library history old designs previous years", off: noDesign, run: () => go("flightdata") },
+    { kind: "action", title: "Keyboard shortcuts", sub: "Guide: shortcuts and habits worth knowing", keys: "keys hotkeys tips help", run: () => (ui.guide = "tips") },
+    { kind: "action", title: "Line up a part", sub: "Front, middle or back of the part it is in: Properties › Position, or right-click the part", keys: "align alignment position snap center centre", off: noDesign, run: () => (go("design"), request("field", "axialMethod")) },
+    { kind: "property", title: "Paint colour", sub: "Properties › Appearance of the selected part", keys: "paint color colour appearance shine gloss", off: noDesign ?? (app.selected === "rocket" ? "Select a part first" : undefined), run: () => (go("design"), request("appearance")) },
+    { kind: "action", title: "Fold or unfold panels", sub: "Right-click a panel's title", keys: "collapse expand hide panel", run: () => (ui.guide = "tips") },
+  );
+
+  // The selected part's commands and its settings, and the commands of the page on screen.
+  const sel = open && app.selected !== "rocket" ? findNode(app.design?.tree, app.selected) : null;
+  const fromMenu = (items: (MenuItem | null | undefined | false)[], sub: string, extra = "") => {
+    for (const it of items) {
+      if (!it || it === "-" || "header" in it) continue;
+      out.push({ kind: "action", title: it.label, sub, keys: extra, shortcut: it.shortcut, off: it.off || undefined, run: () => it.run() });
+    }
+  };
+  if (sel && app.page === "design") {
+    fromMenu(partItems(sel.id), `${sel.name}`, "part selected component");
+    for (const s of app.editor?.id === sel.id ? app.editor.sections : []) {
+      for (const f of s.fields) {
+        if (f.key === "name") continue;
+        out.push({ kind: "property", title: f.label, sub: `${sel.name} › ${s.title}`, keys: `${s.title} ${f.key} ${f.help ?? ""}`, run: () => (go("design"), request("field", f.key)) });
+      }
+    }
+  }
+  const PAGE_NAME: Record<string, string> = { home: "Start", design: "Design", motors: "Motors", flights: "Flights", targets: "Targets", standards: "Standards", analysis: "Analysis", flightdata: "Flight data" };
+  const known = new Set(out.map((e) => e.title));
+  fromMenu(currentPageItems().filter((it) => !(it && typeof it === "object" && "label" in it && known.has(it.label))), `${PAGE_NAME[app.page]} page`);
+
+  // The team standards, each value by name.
+  const SECTION_OF: Record<string, string> = { shearPins: "recovery", measuredPackingFactors: "recovery", shearModulus: "structures", youngsModulus: "structures", poissonRatio: "structures", strength: "structures", maxServiceTemperature: "structures", sensors: "electronics", circuits: "electronics" };
+  const STD_KEYS: Record<string, string> = {
+    shearPins: "pin rating strength nylon 4-40 2-56 shear screw", measuredPackingFactors: "packing factor bay measured",
+    shearModulus: "material stiffness G flutter", youngsModulus: "material stiffness E modulus", strength: "material yield ultimate",
+    maxServiceTemperature: "material heat temperature limit", sensors: "accelerometer barometer gps imu", circuits: "battery power",
+  };
+  const SECTION_NAME: Record<string, string> = { launchSite: "Launch site", recovery: "Recovery", structures: "Structures and materials", electronics: "Electronics", competition: "Competition" };
+  out.push(
+    { kind: "standard", title: "Rule set", sub: "Standards › Competition: the rules the design is checked against", keys: "competition Launch Canada DTEG IREC SA Cup rules ruleset year", off: noDesign, run: () => (go("standards"), request("standard", "competition")) },
+  );
+  for (const [k, help] of Object.entries(STD_HELP)) {
+    const path = k.includes(".") ? k : `${SECTION_OF[k] ?? ""}.${k}`;
+    const parts = path.split(".");
+    out.push({
+      kind: "standard",
+      title: keyLabel(parts[parts.length - 1]),
+      sub: `Standards › ${[SECTION_NAME[parts[0]] ?? parts[0], ...parts.slice(1, -1).map(keyLabel)].join(" › ")}`,
+      keys: `${k} ${STD_KEYS[k] ?? ""} team standards`,
+      text: help,
+      off: noDesign,
+      run: () => (go("standards"), request("standard", path)),
+    });
+  }
+
+  // The targets.
+  const TARGETS: [string, string][] = [
+    ["Apogee", "altitude height"], ["Top speed", "max velocity"], ["Top Mach number", "mach"], ["Peak acceleration", "g load"],
+    ["Rail exit speed", "rail departure velocity"], ["Thrust to weight", "twr"], ["Lowest stability", "min static margin calibers"],
+    ["Highest stability", "over stable"], ["Fin flutter margin", "flutter"], ["Lift-off mass", "weight"], ["Time to apogee", "coast"],
+    ["Drogue descent rate", "descent speed"], ["Main descent rate", "descent speed"], ["Landing speed", "ground hit"],
+    ["Landing distance", "drift"], ["Flight time", "duration"],
+  ];
+  for (const [t, k] of TARGETS) {
+    out.push({ kind: "target", title: `${t} target`, sub: "Targets: minimum, goal and maximum, with the margin now", keys: `${k} limit goal requirement`, off: noDesign, run: () => go("targets") });
+  }
   const part = open && app.selected !== "rocket" ? findNode(app.design?.tree, app.selected)?.name : undefined;
   const pick = part ? undefined : "Select a part first";
   out.push(

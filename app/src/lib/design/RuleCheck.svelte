@@ -17,8 +17,8 @@
 
   // Right-click: check now, copy the results, show or hide passes, change the rule set.
   function items(e: MouseEvent): MenuItem[] {
-    const tr = (e.target as HTMLElement).closest("tr");
-    const i = tr ? [...tr.parentElement!.children].indexOf(tr) : -1;
+    const li = (e.target as HTMLElement).closest(".rule") as HTMLElement | null;
+    const i = li ? Number(li.dataset.i) : -1;
     const r = i >= 0 ? shown[i] : null;
     const line = (x: (typeof rows)[number]) => `${x.status}  ${x.item}${x.value ? ": " + x.value : ""}${x.requirement ? " (" + x.requirement + ")" : ""}${x.ref ? " [" + x.ref + "]" : ""}`;
     return [
@@ -42,18 +42,18 @@
   {:else if c.error}
     <p class="muted pad">{c.error}</p>
   {:else}
-    <table class="grid">
-      <tbody>
-        {#each shown as r, i (i)}
-          <tr class={r.s}>
-            <td class="st {r.s}">{r.status}</td>
-            <td>{r.item}{#if r.requirement}<div class="req">{r.requirement}</div>{/if}</td>
-            <td class="val">{r.value ?? ""}</td>
-            <td class="ref">{r.ref ?? ""}</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+    <ul class="rules">
+      {#each shown as r, i (i)}
+        <li class="rule {r.s}" data-i={i}>
+          <span class="badge {r.s}">{r.status}</span>
+          <div class="what">
+            <div class="top"><span class="item">{r.item}</span>{#if r.value}<span class="val">{r.value}</span>{/if}</div>
+            {#if r.requirement}<div class="req">{r.requirement}</div>{/if}
+            {#if r.ref}<div class="ref">{r.ref}</div>{/if}
+          </div>
+        </li>
+      {/each}
+    </ul>
     <div class="foot">
       <span class="muted">{c.ruleSet}</span>
       <button class="link" onclick={() => (showPassed = !showPassed)}>{showPassed ? "Hide passed" : `Show passed (${passed})`}</button>
@@ -74,46 +74,84 @@
   }
   .pad {
     margin: 0;
-    padding: 8px 10px;
+    padding: 12px 14px;
   }
-  table td {
-    vertical-align: top;
+  .rules {
+    list-style: none;
+    margin: 0;
+    padding: 6px 0;
   }
-  .st {
-    font-weight: 600;
-    white-space: nowrap;
-    width: 1%;
+  .rule {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
   }
-  .st.pass {
-    color: var(--good);
+  .rule:last-child {
+    border-bottom: 0;
   }
-  .st.warn {
-    color: var(--warn);
-  }
-  .st.fail {
-    color: var(--bad);
-  }
-  tr.fail td {
+  .rule.fail {
     background: var(--bad-soft);
   }
-  .req {
-    font-size: 12px;
-    color: var(--ink-3);
+  .badge {
+    flex: none;
+    min-width: 46px;
+    text-align: center;
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    background: var(--surface-3);
+    color: var(--ink-2);
+  }
+  .badge.pass {
+    background: var(--good-soft);
+    color: var(--good);
+  }
+  .badge.warn {
+    background: var(--warn-soft);
+    color: var(--warn);
+  }
+  .badge.fail {
+    background: var(--bad);
+    color: #fff;
+  }
+  .what {
+    flex: 1;
+    min-width: 0;
+  }
+  .top {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 2px 12px;
+  }
+  .item {
+    font-weight: 600;
   }
   .val {
-    width: 30%;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
   }
-  .ref {
-    width: 1%;
-    white-space: nowrap;
+  .req {
+    margin-top: 2px;
     font-size: 12px;
     color: var(--ink-3);
+  }
+  .ref {
+    margin-top: 2px;
+    font-size: 11.5px;
+    color: var(--ink-3);
+    overflow-wrap: anywhere;
   }
   .foot {
     display: flex;
     justify-content: space-between;
     gap: 10px;
-    padding: 5px 10px;
+    padding: 8px 14px;
+    border-top: 1px solid var(--line);
     font-size: 12px;
   }
   .link {

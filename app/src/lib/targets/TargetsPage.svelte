@@ -1,6 +1,16 @@
 <script lang="ts">
+  import { ShieldCheck, Target as TargetIcon, RefreshCw, ChevronDown, Mountain, ArrowUpFromLine, Gauge as GaugeIcon, Umbrella, Weight } from "@lucide/svelte";
+  import { isOpen, toggle } from "../panels.svelte";
+
+  // The targets in groups that fold, each with its counts, so the long list reads in parts.
+  const GROUPS: { id: string; title: string; icon: typeof Mountain; ids: string[] }[] = [
+    { id: "flight", title: "Flight", icon: Mountain, ids: ["apogee", "maxVelocity", "maxMach", "maxAcceleration", "timeToApogee", "flightTime"] },
+    { id: "launch", title: "Off the rail", icon: ArrowUpFromLine, ids: ["railExitVelocity", "thrustToWeight"] },
+    { id: "stability", title: "Stability and structure", icon: GaugeIcon, ids: ["minStability", "maxStability", "flutterMargin"] },
+    { id: "recovery", title: "Recovery and landing", icon: Umbrella, ids: ["drogueDescentRate", "mainDescentRate", "groundHitVelocity", "landingDistance"] },
+    { id: "mass", title: "Mass", icon: Weight, ids: ["liftoffMass"] },
+  ];
   import { untrack } from "svelte";
-  import { RefreshCw } from "@lucide/svelte";
   import { app, checkTargets, setTargets, type Target } from "../state.svelte";
   import { fmt, num, toShown, unitOf, pretty, type Dim } from "../units.svelte";
   import Panel from "../Panel.svelte";
@@ -18,6 +28,17 @@
 
   let t = $derived(app.targets && app.targets.designId === app.design?.designId ? app.targets : null);
   let rows = $derived((t?.targets ?? []).filter((r) => !onlySet || r.status));
+  let grouped = $derived.by(() => {
+    const placed = new Set(GROUPS.flatMap((g) => g.ids));
+    const all = [...GROUPS, { id: "other", title: "Other", icon: TargetIcon, ids: rows.filter((r) => !placed.has(r.id)).map((r) => r.id) }];
+    return all
+      .map((g) => {
+        const rs = g.ids.map((id) => rows.find((r) => r.id === id)).filter((r): r is Target => !!r);
+        const n = (st: string) => rs.filter((r) => r.status === st).length;
+        return { ...g, rows: rs, fail: n("FAIL"), warn: n("WARN"), pass: n("PASS") };
+      })
+      .filter((g) => g.rows.length);
+  });
   let counts = $derived.by(() => {
     const n = { FAIL: 0, WARN: 0, PASS: 0 };
     for (const r of t?.targets ?? []) if (r.status && r.status in n) n[r.status as keyof typeof n]++;
@@ -114,7 +135,7 @@
 
 <div class="page">
   <div class="main">
-    <Panel id="targets.list" title="Targets" fill>
+    <Panel id="targets.list" icon={TargetIcon} title="Targets" fill>
       {#snippet status()}
         <span class="counts">
           {#if app.targeting}<RocketLoader size="tiny" />{/if}
@@ -152,8 +173,26 @@
                 <th class="g"></th>
               </tr>
             </thead>
+            {#each grouped as g (g.id)}
+            {@const open = isOpen("targets.group." + g.id)}
             <tbody>
-              {#each rows as r (r.id)}
+              <tr class="gh">
+                <td colspan="9">
+                  <button class="ghb" onclick={() => toggle("targets.group." + g.id)} aria-expanded={open}>
+                    <span class="gi"><g.icon size={14} /></span>
+                    <span class="gt">{g.title}</span>
+                    <span class="gc">
+                      {#if g.fail}<span class="bad">{g.fail} missed</span>{/if}
+                      {#if g.warn}<span class="warn">{g.warn} close</span>{/if}
+                      {#if g.pass}<span class="good">{g.pass} met</span>{/if}
+                      {#if !g.fail && !g.warn && !g.pass}<span>{g.rows.length} {g.rows.length === 1 ? "value" : "values"}, no target set</span>{/if}
+                    </span>
+                    <span class="chev" class:shut={!open}><ChevronDown size={14} /></span>
+                  </button>
+                </td>
+              </tr>
+              {#if open}
+              {#each g.rows as r (r.id)}
                 <tr class={level(r)} class:unset={!r.status} use:context={() => targetItems(r)}>
                   <td class="st {level(r)}">{r.status === "FAIL" ? "Missed" : r.status === "WARN" ? "Close" : r.status === "PASS" ? "Met" : ""}</td>
                   <td class="label">
@@ -178,7 +217,9 @@
                   <td class="g"><Gauge value={r.valueSI} min={r.minSI} max={r.maxSI} goal={r.goalSI} level={level(r)} /></td>
                 </tr>
               {/each}
+              {/if}
             </tbody>
+            {/each}
           </table>
           <p class="muted foot">
             Flight: {t.simulation}. A target is close when it is met by less than 5%. Targets are kept in the team standards
@@ -190,7 +231,7 @@
   </div>
 
   <div class="side">
-    <Panel id="targets.rules" title="Competition rules" fill>
+    <Panel id="targets.rules" icon={ShieldCheck} title="Competition rules" fill>
       {#snippet status()}<RuleCheckStatus />{/snippet}
       <RuleCheck tall />
     </Panel>
@@ -202,9 +243,9 @@
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
-    gap: 6px;
-    padding: 6px;
+    grid-template-columns: minmax(0, 2fr) minmax(360px, 1fr);
+    gap: var(--gap);
+    padding: var(--gap);
   }
   @media (max-width: 1100px) {
     .page {
@@ -317,6 +358,62 @@
     color: var(--ink-3);
     white-space: nowrap;
     padding-left: 0;
+  }
+  tr.gh td {
+    padding: 0;
+    background: var(--surface-2);
+  }
+  tbody tr.gh:hover td {
+    background: var(--surface-3);
+  }
+  .ghb {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    padding: 9px 12px;
+    text-align: left;
+    color: var(--ink);
+  }
+  .gi {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink-2);
+  }
+  .gt {
+    font-weight: 600;
+  }
+  .gc {
+    flex: 1;
+    display: flex;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .gc .bad {
+    color: var(--bad);
+    font-weight: 600;
+  }
+  .gc .warn {
+    color: var(--warn);
+    font-weight: 600;
+  }
+  .gc .good {
+    color: var(--good);
+  }
+  .chev {
+    display: flex;
+    color: var(--ink-3);
+    transition: transform 0.1s;
+  }
+  .chev.shut {
+    transform: rotate(-90deg);
   }
   .label {
     white-space: nowrap;

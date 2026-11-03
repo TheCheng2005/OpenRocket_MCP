@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+  import type { Component, Snippet } from "svelte";
   import { ChevronDown, PanelLeftClose, PanelRightClose } from "@lucide/svelte";
   import { isOpen, toggle, setOpen } from "./panels.svelte";
   import { context, currentPageItems, type MenuItem } from "./menu/menu.svelte";
@@ -8,6 +8,7 @@
   let {
     id,
     title,
+    icon: Icon,
     side,
     initial = true,
     fill = false,
@@ -17,6 +18,8 @@
   }: {
     id: string;
     title: string;
+    /** A lucide icon beside the title. */
+    icon?: Component<{ size?: number }>;
     side?: "left" | "right";
     initial?: boolean;
     fill?: boolean;
@@ -51,11 +54,12 @@
   <section class="panel" class:fill={fill && open} class:side data-panel={id}>
     <header use:context={menuItems}>
       {#if side}
-        <span class="title">{title}</span>
+        <span class="title">{#if Icon}<span class="ico"><Icon size={15} /></span>{/if}{title}</span>
       {:else}
         <button class="title fold" onclick={() => toggle(id, initial)} aria-expanded={open}>
-          <span class="chev" class:shut={!open}><ChevronDown size={14} /></span>
+          {#if Icon}<span class="ico"><Icon size={15} /></span>{/if}
           {title}
+          <span class="chev" class:shut={!open}><ChevronDown size={14} /></span>
         </button>
       {/if}
       <div class="tools">
@@ -82,7 +86,8 @@
     min-width: 0;
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
     overflow: hidden;
   }
   .panel.fill {
@@ -96,20 +101,31 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    height: 32px;
-    padding: 0 6px 0 8px;
-    background: var(--surface-2);
+    gap: 10px;
+    height: 40px;
+    padding: 0 8px 0 14px;
+    background: var(--surface);
     border-bottom: 1px solid var(--line);
   }
   .title {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
     font-weight: 600;
-    font-size: 12.5px;
-    color: var(--ink-2);
+    font-size: 13.5px;
+    color: var(--ink);
     white-space: nowrap;
+    min-width: 0;
+  }
+  .ico {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    flex: none;
+    border-radius: 7px;
+    background: var(--select-soft);
+    color: var(--select);
   }
   .fold {
     border: 0;
@@ -122,6 +138,7 @@
   }
   .chev {
     display: flex;
+    color: var(--ink-3);
     transition: transform 0.1s;
   }
   .chev.shut {
@@ -130,16 +147,16 @@
   .tools {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 6px;
     min-width: 0;
   }
   .hide {
     display: grid;
     place-items: center;
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     border: 0;
-    border-radius: 3px;
+    border-radius: 6px;
     background: transparent;
     color: var(--ink-3);
   }
@@ -156,11 +173,11 @@
   }
   .strip {
     flex: none;
-    width: 28px;
+    width: 34px;
     height: 100%;
     border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--surface-2);
+    border-radius: 8px;
+    background: var(--surface);
     color: var(--ink-2);
     font-weight: 600;
     font-size: 12.5px;
