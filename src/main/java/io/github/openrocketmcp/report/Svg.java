@@ -23,14 +23,14 @@ public final class Svg {
 	public record Series(String name, double[] x, double[] y) {
 	}
 
-	private static final String[] SERIES_CLASSES = { "series", "series2" };
+	private static final String[] SERIES_CLASSES = { "series", "series2", "series3", "series4" };
 
 	public static String line(String title, String xLabel, String yLabel, double[] x, double[] y, double refY,
 			String refLabel, List<Marker> markers) {
 		return lines(title, xLabel, yLabel, List.of(new Series(null, x, y)), refY, refLabel, markers);
 	}
 
-	/** Up to two series on shared axes (e.g. simulated vs measured), with a legend when named. */
+	/** Up to four series on shared axes (e.g. simulated vs measured), with a legend when named. */
 	public static String lines(String title, String xLabel, String yLabel, List<Series> series, double refY,
 			String refLabel, List<Marker> markers) {
 		double xmin = Double.MAX_VALUE, xmax = -Double.MAX_VALUE, ymin = Double.MAX_VALUE, ymax = -Double.MAX_VALUE;
@@ -71,9 +71,11 @@ public final class Svg {
 				.append(".t1{fill:#1a1a19;font:600 15px system-ui,sans-serif}.t2{fill:#5f5e57;font:12px system-ui,sans-serif}")
 				.append(".series{fill:none;stroke:#2a78d6;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}")
 				.append(".series2{fill:none;stroke:#d9480f;stroke-width:2;stroke-dasharray:5 3}")
+				.append(".series3{fill:none;stroke:#2f9e44;stroke-width:2;stroke-dasharray:2 3}")
+				.append(".series4{fill:none;stroke:#7048e8;stroke-width:2;stroke-dasharray:9 3 2 3}")
 				.append(".ref{stroke:#5f5e57;stroke-width:1.5;stroke-dasharray:6 4}.mark{stroke:#b8b7ae;stroke-width:1}\n")
 				.append("@media (prefers-color-scheme: dark){.bg{fill:#1a1a19}.grid{stroke:#34332f}.axis{stroke:#5f5e57}")
-				.append(".t1{fill:#ffffff}.t2{fill:#c3c2b7}.series{stroke:#3987e5}.series2{stroke:#f08c4f}.ref{stroke:#c3c2b7}.mark{stroke:#5f5e57}}\n")
+				.append(".t1{fill:#ffffff}.t2{fill:#c3c2b7}.series{stroke:#3987e5}.series2{stroke:#f08c4f}.series3{stroke:#51cf66}.series4{stroke:#9775fa}.ref{stroke:#c3c2b7}.mark{stroke:#5f5e57}}\n")
 				.append("</style>\n");
 		s.append(String.format(Locale.ROOT, "<rect class=\"bg\" width=\"%d\" height=\"%d\"/>%n", W, H));
 		s.append(String.format(Locale.ROOT, "<text class=\"t1\" x=\"%d\" y=\"26\">%s</text>%n", L, Xml.esc(title)));
@@ -113,8 +115,9 @@ public final class Svg {
 			}
 			s.append("<path class=\"").append(SERIES_CLASSES[k]).append("\" d=\"").append(path.toString().trim()).append("\"/>\n");
 			if (series.get(k).name() != null) {
-				int ly = T - 14 + 0 * k;
-				int lx = W - R - 220 + 110 * k;
+				// Two series: legend above the plot, right; more: two rows inside the plot's top left.
+				int ly = series.size() <= 2 ? T - 14 : T + 16 + 16 * (k / 2);
+				int lx = series.size() <= 2 ? W - R - 220 + 110 * k : L + 14 + 250 * (k % 2);
 				s.append(String.format(Locale.ROOT, "<line class=\"%s\" x1=\"%d\" x2=\"%d\" y1=\"%d\" y2=\"%d\"/>"
 						+ "<text class=\"t2\" x=\"%d\" y=\"%d\">%s</text>%n", SERIES_CLASSES[k], lx, lx + 18, ly, ly, lx + 24, ly + 4,
 						Xml.esc(series.get(k).name())));

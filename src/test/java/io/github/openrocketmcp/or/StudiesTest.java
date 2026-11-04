@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.masscalc.MassCalculator;
+import info.openrocket.core.rocketcomponent.AxialStage;
+import info.openrocket.core.rocketcomponent.BodyTube;
 import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.NoseCone;
@@ -127,6 +129,56 @@ class StudiesTest {
 	}
 
 	@Test
+	void bayCavityStopsAtCouplersShouldersAndRings() throws Exception {
+		// 6 in tube 1000 mm: a transition shoulder reaches 100 mm into its top, an avionics coupler 150 mm into its
+		// bottom; a second tube below holds the drogue above a motor mount that starts 400 mm down.
+		AxialStage st = (AxialStage) new Designs().create("Cavity test").doc.getRocket().getChild(0);
+		info.openrocket.core.rocketcomponent.Transition tr = new info.openrocket.core.rocketcomponent.Transition();
+		tr.setLength(0.1);
+		tr.setForeRadius(0.1);
+		tr.setAftRadius(0.0775);
+		tr.setAftShoulderLength(0.1);
+		tr.setAftShoulderRadius(0.074);
+		st.addChild(tr);
+		BodyTube main = new BodyTube(1.0, 0.0775, 0.0025);
+		st.addChild(main);
+		BodyTube band = new BodyTube(0.0254, 0.0775, 0.0025);
+		st.addChild(band);
+		BodyTube can = new BodyTube(1.2, 0.0775, 0.0025);
+		st.addChild(can);
+		info.openrocket.core.rocketcomponent.TubeCoupler cp = new info.openrocket.core.rocketcomponent.TubeCoupler();
+		cp.setLength(0.3254);
+		cp.setOuterRadius(0.075);
+		cp.setAxialMethod(info.openrocket.core.rocketcomponent.position.AxialMethod.MIDDLE);
+		cp.setAxialOffset(0);
+		band.addChild(cp);
+		info.openrocket.core.rocketcomponent.Parachute mainChute = new info.openrocket.core.rocketcomponent.Parachute();
+		mainChute.setLength(0.3);
+		mainChute.setAxialMethod(info.openrocket.core.rocketcomponent.position.AxialMethod.TOP);
+		mainChute.setAxialOffset(0.2);
+		main.addChild(mainChute);
+		info.openrocket.core.rocketcomponent.InnerTube mm = new info.openrocket.core.rocketcomponent.InnerTube();
+		mm.setLength(0.8);
+		mm.setOuterRadius(0.04);
+		mm.setMotorMount(true);
+		mm.setAxialMethod(info.openrocket.core.rocketcomponent.position.AxialMethod.BOTTOM);
+		mm.setAxialOffset(0);
+		can.addChild(mm);
+		info.openrocket.core.rocketcomponent.Parachute drogue = new info.openrocket.core.rocketcomponent.Parachute();
+		drogue.setLength(0.1);
+		drogue.setAxialMethod(info.openrocket.core.rocketcomponent.position.AxialMethod.TOP);
+		drogue.setAxialOffset(0.2);
+		can.addChild(drogue);
+		Sections.Cavity a = Sections.cavity(main);
+		assertEquals(1.0 - 0.1 - 0.15, a.length(), 1e-6, a.toString());
+		assertTrue(a.top().contains("shoulder") && a.bottom().equals(cp.getName()), a.toString());
+		Sections.Cavity b = Sections.cavity(can);
+		assertEquals(1.2 - 0.15 - 0.8, b.length(), 1e-6, "coupler to the motor mount: " + b);
+		Sections.Bay bay = Sections.bay(can);
+		assertEquals(Math.PI * 0.075 * 0.075 * 0.25, bay.available(), 1e-4, "only the drogue's stretch counts");
+	}
+
+	@Test
 	@SuppressWarnings("unchecked")
 	void sectionReportHasEnergyAndBays() throws Exception {
 		Designs.Design d = new Designs().openExample("Dual parachute");
@@ -135,6 +187,7 @@ class StudiesTest {
 		List<Map<String, Object>> rows = (List<Map<String, Object>>) out.get("sections");
 		assertEquals(3, rows.size(), "nose / main bay + avionics / drogue bay + fin can");
 		assertTrue(rows.stream().allMatch(r -> r.get("landingEnergy").toString().contains("within")));
+		assertTrue(rows.stream().allMatch(r -> r.get("landingVelocity").toString().contains("descent rate")), rows.toString());
 		assertTrue(rows.stream().anyMatch(r -> r.containsKey("bays")));
 		assertTrue(rows.stream().allMatch(r -> r.containsKey("landingEnergyIfMainFails")));
 		for (Map<String, Object> r : rows) {

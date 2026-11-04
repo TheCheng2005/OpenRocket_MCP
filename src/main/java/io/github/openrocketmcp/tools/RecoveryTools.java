@@ -31,6 +31,7 @@ import io.github.openrocketmcp.mcp.McpServer;
 import io.github.openrocketmcp.mcp.Schema;
 import io.github.openrocketmcp.mcp.ToolDef;
 import io.github.openrocketmcp.mcp.ToolException;
+import io.github.openrocketmcp.or.Sections;
 import io.github.openrocketmcp.or.Components;
 import io.github.openrocketmcp.or.Designs;
 import io.github.openrocketmcp.or.OrRuntime;
@@ -280,7 +281,7 @@ public final class RecoveryTools {
 				pins(Schema.object()).str("designId", DesignTools.DESIGN_ID, false)
 						.str("bayTube", "Body tube component whose inner diameter is the bay diameter.", false)
 						.qty("bayDiameter", "Bay inner diameter.", false)
-						.qty("bayLength", "Free length of the bay being pressurized.", false)
+						.qty("bayLength", "Free length of the bay being pressurized (default with bayTube: the stretch of that tube between the closures around its recovery gear: bulkheads, couplers, shoulders, the forward centering ring).", false)
 						.qty("bayVolume", "Free volume of the bay (instead of diameter x length).", false)
 						.qty("pressure", "Target pressure, e.g. \"15 psi\".", false)
 						.integer("pinCount", "Number of shear pins to break.", false)
@@ -791,16 +792,24 @@ public final class RecoveryTools {
 	private static Object ejection(Context ctx, Args a) {
 		Standards std = ctx.standards();
 		double diameter = a.qtyOrNaN("bayDiameter", Dim.LENGTH);
+		Sections.Cavity cavity = null;
 		if (a.has("bayTube")) {
 			Designs.Design d = ctx.designs.get(a.str("designId", null));
-			diameter = innerDiameter(Components.find(d.doc.getRocket(), a.str("bayTube")));
+			RocketComponent tube = Components.find(d.doc.getRocket(), a.str("bayTube"));
+			diameter = innerDiameter(tube);
+			if (tube instanceof BodyTube bt && !a.has("bayLength") && !a.has("bayVolume")) {
+				cavity = Sections.cavity(bt);
+			}
 		}
 		double volume = a.has("bayVolume") ? a.positive("bayVolume", Dim.VOLUME) : Double.NaN;
 		if (Double.isNaN(volume)) {
-			if (Double.isNaN(diameter) || !a.has("bayLength")) {
+			if (cavity != null && cavity.length() > 0) {
+				volume = Packing.cylinderVolume(diameter, cavity.length());
+			} else if (Double.isNaN(diameter) || !a.has("bayLength")) {
 				throw new ToolException("Give bayVolume, or bayDiameter/bayTube and bayLength.");
+			} else {
+				volume = Packing.cylinderVolume(diameter, a.positive("bayLength", Dim.LENGTH));
 			}
-			volume = Packing.cylinderVolume(diameter, a.positive("bayLength", Dim.LENGTH));
 		}
 		double sf = a.num("safetyFactor", std.q("recovery.ejectionForceSafetyFactor", Dim.DIMENSIONLESS, 1.5));
 		double pressure;
@@ -827,7 +836,9 @@ public final class RecoveryTools {
 		double bulk = std.q("recovery.blackPowderBulkDensity", Dim.DENSITY, 1000);
 		double wellRatio = std.rule("blackPowder.chargeWellMaxVolumeRatio", Dim.DIMENSIONLESS);
 		Map<String, Object> out = new LinkedHashMap<>();
-		out.put("bayVolume", Units.fmt(volume, Dim.VOLUME));
+		out.put("bayVolume", Units.fmt(volume, Dim.VOLUME) + (cavity == null ? "" : " (" + Units.fmt(cavity.length(), Dim.LENGTH)
+				+ " of tube from " + (cavity.top() == null ? "its top" : cavity.top()) + " to "
+				+ (cavity.bottom() == null ? "its end" : cavity.bottom()) + "; give bayLength to override)"));
 		if (!Double.isNaN(diameter)) {
 			out.put("bayDiameter", Units.fmt(diameter, Dim.LENGTH));
 		}

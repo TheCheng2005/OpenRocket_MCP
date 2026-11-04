@@ -68,7 +68,9 @@ class ProjectToolsTest {
 				+ "{\"quantity\":\"warp factor\",\"value\":\"9\"},"
 				+ "{\"quantity\":\"motor\",\"value\":\"M1315W\"},"
 				+ "{\"component\":\"fins\",\"property\":\"material\",\"value\":\"carbon fiber\"},"
-				+ "{\"component\":\"fins\",\"property\":\"material\",\"value\":\"aluminum\"}]}");
+				+ "{\"component\":\"fins\",\"property\":\"material\",\"value\":\"aluminum\"},"
+				+ "{\"quantity\":\"motor\",\"value\":\"AT M1315W\"},"
+				+ "{\"quantity\":\"motor\",\"value\":\"CTI L1395\"}]}");
 		Map<String, JsonObject> c = byClaim(r);
 		assertEquals("MATCH", c.get("apogee: " + apogee).get("status").getAsString(), c.toString());
 		assertEquals("Oct 12 meeting", c.get("apogee: " + apogee).get("source").getAsString());
@@ -83,7 +85,9 @@ class ProjectToolsTest {
 		JsonObject finsCarbon = r.getAsJsonArray("claims").get(8).getAsJsonObject();
 		assertEquals("MATCH", finsCarbon.get("status").getAsString(), "'fins' finds the fin set: " + finsCarbon);
 		assertEquals("MISMATCH", r.getAsJsonArray("claims").get(9).getAsJsonObject().get("status").getAsString());
-		assertTrue(r.get("summary").getAsString().startsWith("10 claim(s)"));
+		assertEquals("MATCH", c.get("motor: AT M1315W").get("status").getAsString(), "maker abbreviation in front");
+		assertEquals("MISMATCH", c.get("motor: CTI L1395").get("status").getAsString(), "a different motor");
+		assertTrue(r.get("summary").getAsString().startsWith("12 claim(s)"));
 		call("verify_claims", "{\"claims\":[]}", true);
 		JsonObject empty = call("verify_claims", "{\"claims\":[{}]}").getAsJsonArray("claims").get(0).getAsJsonObject();
 		assertEquals("(empty claim)", empty.get("claim").getAsString());

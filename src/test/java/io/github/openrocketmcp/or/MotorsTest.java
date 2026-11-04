@@ -40,4 +40,16 @@ class MotorsTest {
 		assertEquals(2, m.getStandardDelays().length, "both delays read back from the .rse");
 		assertEquals(14, Motors.defaultDelay(m), 1e-9);
 	}
+
+	@Test
+	void findsAMotorByMakerAndShortName() throws Exception {
+		OrRuntime.init();
+		ThrustCurveMotor plain = Motors.find("L1395", null);
+		assertEquals("4895L1395-P", plain.getDesignation());
+		// The maker in front, as teams write it: its abbreviation or its name.
+		assertEquals(plain.getDesignation(), Motors.find("CTI L1395", null).getDesignation());
+		assertEquals(plain.getDesignation(), Motors.find("Cesaroni L1395", null).getDesignation());
+		assertEquals("K828FJ", Motors.find("AeroTech K828FJ", null).getDesignation());
+		assertEquals("K828FJ", Motors.find("AT K828FJ", null).getDesignation());
+	}
 }

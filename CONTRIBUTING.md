@@ -25,6 +25,7 @@ the model against plate theory (`apt install calculix-ccx`; CI installs it).
 ./gradlew installDist               # build/install/openrocket-mcp/bin/openrocket-mcp
 python3 scripts/benchmark.py        # realistic team requests, checked against engineering expectations
 python3 scripts/make_examples.py    # rebuild docs/EXAMPLES.md and its plots
+python3 scripts/make_worked_example.py  # rebuild docs/WORKED_EXAMPLE.md (a real flight) and docs/examples/ndrt-2020
 node scripts/view_shots.mjs docs/examples/maple-10k-view.html docs/examples   # check the interactive view in a
                                     # headless browser and retake its screenshots (needs Playwright with Chromium)
 python3 scripts/test_codex.py       # the real Codex CLI against the server (needs `npm i -g @openai/codex`)
