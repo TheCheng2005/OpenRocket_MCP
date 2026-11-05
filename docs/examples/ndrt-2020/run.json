@@ -1,0 +1,218 @@
+{
+ "simulation": {
+  "simulation": "MCP - [4895L1395-P-0]",
+  "flightConfiguration": "[4895L1395-P-0]",
+  "conditions": {
+   "launchRodLength": "3353 mm (132 in)",
+   "launchRodAngleFromVertical": "0 deg",
+   "wind": "multi-level profile, 4.43 m/s (14.53 ft/s) at the ground (wind_profile show)",
+   "launchSiteAltitude": "206 m (675.9 ft)"
+  },
+  "flight": {
+   "apogee": "1434 m (4704 ft)",
+   "timeToApogee": "17.69 s",
+   "maxVelocity": "177.1 m/s (581.1 ft/s)",
+   "maxMach": "0.5341",
+   "maxAcceleration": "67.57 m/s2 (221.7 ft/s2) = 6.891 G",
+   "railExitVelocity": "19.59 m/s (64.28 ft/s)",
+   "thrustToWeightOnRail(avg)": "6.283",
+   "stabilityAtRailExit": "1.461 cal",
+   "minStabilityDuringAscent": "1.461 cal at t=0.37 s (Mach 0.05988)",
+   "minStabilityAbove100ftps": "1.892 cal at t=0.5562 s (Mach 0.09116)",
+   "maxStabilityDuringAscent": "3.692 cal at t=3.35 s",
+   "optimumEjectionDelay": "14.29 s"
+  },
+  "ignitions": [
+   {
+    "mount": "Motor mount",
+    "stage": "Sustainer",
+    "time": "0 s",
+    "motor": "4895L1395-P",
+    "averageThrustToWeight": "6.399",
+    "vehicleMassAtIgnition": "23.32 kg (51.41 lb)"
+   }
+  ],
+  "branches": [
+   {
+    "branch": "Sustainer",
+    "apogee": "1434 m (4704 ft)",
+    "groundHitVelocity": "6.302 m/s (20.68 ft/s)",
+    "landingDistanceFromPad": "532.5 m (1747 ft)",
+    "flightTime": "99.11 s",
+    "descentTime": "81.37 s",
+    "landingMass": "20.84 kg (45.95 lb)",
+    "events": [
+     "t=0 s Launch at 0 m (0 ft)",
+     "t=0 s Motor ignition (Motor mount) at 0 m (0 ft)",
+     "t=0.06 s Lift-off at 0.02237 m (0.07338 ft)",
+     "t=0.37 s Launch rod clearance at 3.368 m (11.05 ft)",
+     "t=3.45 s Motor burnout (Motor mount) at 335 m (1099 ft)",
+     "t=3.45 s Ejection charge (Sustainer) at 335 m (1099 ft)",
+     "t=17.74 s Apogee at 1434 m (4704 ft)",
+     "t=17.74 s Recovery device deployment (Drogue) at 1434 m (4704 ft)",
+     "t=64.48 s Warning at 158.1 m (518.8 ft)",
+     "t=64.48 s Recovery device deployment (Main) at 158.1 m (518.8 ft)",
+     "t=99.11 s Ground hit at 0 m (0 ft)"
+    ]
+   }
+  ],
+  "deployments": [
+   {
+    "branch": "Sustainer",
+    "device": "Drogue",
+    "deviceId": "2527fef8",
+    "cd": "1.5",
+    "cdA": "0.4378 m2 (4.712 ft2)",
+    "time": "17.74 s",
+    "timeAfterApogee": "0.001 s",
+    "altitudeAGL": "1434 m (4704 ft)",
+    "airspeedAtDeployment": "25.6 m/s (83.98 ft/s)",
+    "verticalVelocity": "-0.8602 m/s (-2.822 ft/s)",
+    "horizontalGroundSpeed": "12.04 m/s (39.5 ft/s)",
+    "airDensity": "1.065 kg/m3 (0.06647 lb/ft3)",
+    "massDecelerated": "20.84 kg (45.95 lb)",
+    "steadyDescentRate": "28.2 m/s (92.51 ft/s)"
+   },
+   {
+    "branch": "Sustainer",
+    "device": "Main",
+    "deviceId": "b37c0e56",
+    "cd": "2.2",
+    "cdA": "16.05 m2 (172.8 ft2)",
+    "time": "64.48 s",
+    "timeAfterApogee": "46.74 s",
+    "altitudeAGL": "158.1 m (518.8 ft)",
+    "airspeedAtDeployment": "27.81 m/s (91.24 ft/s)",
+    "verticalVelocity": "-27.77 m/s (-91.1 ft/s)",
+    "horizontalGroundSpeed": "8.917 m/s (29.26 ft/s)",
+    "airDensity": "1.214 kg/m3 (0.07578 lb/ft3)",
+    "massDecelerated": "20.84 kg (45.95 lb)",
+    "steadyDescentRate": "4.49 m/s (14.73 ft/s)"
+   }
+  ],
+  "warnings": [
+   "Recovery device deployment at high speed (29.2 m/s):  \"Main\""
+  ],
+  "plot": "/home/user/OpenRocket_MCP/docs/examples/ndrt-2020/flight-profile.svg"
+ },
+ "compare": {
+  "comparison": [
+   {
+    "quantity": "apogee",
+    "measured": "1320 m (4330 ft)",
+    "simulated": "1434 m (4704 ft)",
+    "difference": "measured 7.96% lower"
+   },
+   {
+    "quantity": "timeToApogee",
+    "measured": "17.1 s",
+    "simulated": "17.72 s",
+    "difference": "measured 3.47% lower"
+   },
+   {
+    "quantity": "descentRate 90%-60% of apogee (drogue)",
+    "measured": "25.07 m/s (82.24 ft/s)",
+    "simulated": "29.09 m/s (95.43 ft/s)",
+    "difference": "measured 13.83% lower"
+   },
+   {
+    "quantity": "descentRate under main (35% of its deployment altitude to 5 m)",
+    "measured": "3.935 m/s (12.91 ft/s)",
+    "simulated": "4.489 m/s (14.73 ft/s)",
+    "difference": "measured 12.34% lower"
+   }
+  ],
+  "calibration": {
+   "dragFactor": "1.315 x OpenRocket's airframe drag reproduces the measured apogee",
+   "use": "Monte Carlo around it, or an imported drag table scaled by it; if the motor under-performed, thrust is the more likely cause (compare time to apogee and the boost phase)"
+  },
+  "accelerometer": {
+   "burnTime": {
+    "simulated": "3.45 s",
+    "measured": "3.354 s"
+   },
+   "burnoutVelocity": {
+    "quantity": "burnout velocity (integrated accelerometer)",
+    "measured": "159.3 m/s (522.8 ft/s)",
+    "simulated": "174.9 m/s (573.9 ft/s)",
+    "difference": "measured 8.90% lower"
+   },
+   "coastDrag": "0.8073 x OpenRocket's (drag / mass / v^2, 0.3 to 1.07 s after burnout)",
+   "thrustFactor": "0.9096 x the motor's thrust gives the measured burnout velocity",
+   "dragFactor": "0.7578 x OpenRocket's drag then gives the measured apogee (the coast measured 0.8073)",
+   "climbRmsError": {
+    "OpenRocket as is": "73.1 m (239.8 ft)",
+    "drag x1.315 (apogee alone)": "25.26 m (82.89 ft)",
+    "thrust x0.9096, drag x0.7578": "4.85 m (15.91 ft)"
+   },
+   "calibratedFlight": {
+    "apogee": "1319 m (4328 ft)",
+    "timeToApogee": "17.39 s",
+    "burnoutVelocity": "159.8 m/s (524.4 ft/s)"
+   },
+   "apogeeDifference": "-114.1 m (-374.5 ft) in all: -196.7 m (-645.5 ft) from the boost (thrust x0.9096) and 82.59 m (271 ft) from drag",
+   "reading": "Mostly the boost: the motor delivered less (or more) than its thrust curve; calibrate drag only after allowing for it.",
+   "caveats": "Assumes a near-vertical boost and an accelerometer whose gain is right (its offset is removed from the pad reading); motors of one type vary by a few percent in impulse."
+  },
+  "notes": [
+   "Match the simulation to the day: wind, launch angle, site altitude and temperature (run with overrides), and the as-flown mass (edit or override masses) before reading the drag factor.",
+   "Barometric altimeters read low near Mach 1 and lag at apogee; the drogue and main bands are fitted slopes, time to apogee counts from lift-off (the log's 10 m crossing less the simulated time to climb 10 m) to the top of a parabola through the samples around apogee."
+  ],
+  "plot": "/home/user/OpenRocket_MCP/docs/examples/ndrt-2020/flight-vs-log.svg",
+  "accelPlot": "/home/user/OpenRocket_MCP/docs/examples/ndrt-2020/flight-vs-log-accel.svg",
+  "climbPlot": "/home/user/OpenRocket_MCP/docs/examples/ndrt-2020/flight-vs-log-climb.svg",
+  "youCouldAlsoAsk": [
+   "Search our past rockets and flight logs (and how good our predictions were). (design_library)"
+  ]
+ },
+ "monteCarlo": {
+  "apogee": {
+   "mean": "1426 m (4678 ft)",
+   "sd": "98.14 m (322 ft)",
+   "min": "1164 m (3820 ft)",
+   "max": "1708 m (5602 ft)"
+  },
+  "landing": {
+   "Sustainer": {
+    "landings": 300,
+    "meanPoint": "437.1 m (1434 ft) east, 142.4 m (467.3 ft) north",
+    "distanceFromPad": {
+     "max": "1177 m (3860 ft)",
+     "p95": "824.7 m (2706 ft)",
+     "median": "478.3 m (1569 ft)"
+    },
+    "ellipse2Sigma": "403.7 m (1325 ft) x 259.6 m (851.8 ft) (semi-axes), major axis bearing 60.58 deg from north"
+   }
+  },
+  "drivers": {
+   "apogee": {
+    "windSpeed": "-0.1644",
+    "launchAngle": "-0.03341",
+    "structureMass": "-0.2159",
+    "airframeDrag": "-0.2566",
+    "motorThrust": "0.856",
+    "parachuteCd": "0.07436"
+   },
+   "minAscentStability": {
+    "windSpeed": "-0.9646",
+    "launchAngle": "-0.03791",
+    "structureMass": "0.0816",
+    "airframeDrag": "0.07287",
+    "motorThrust": "-0.02001",
+    "parachuteCd": "-0.006067"
+   },
+   "farthestLanding": {
+    "windSpeed": "0.9404",
+    "launchAngle": "-0.1645",
+    "structureMass": "-0.06735",
+    "airframeDrag": "-0.0918",
+    "motorThrust": "0.2121",
+    "parachuteCd": "0.1354"
+   }
+  }
+ },
+ "weighIn": {
+  "payload": 6.753996032685936,
+  "hardware": 0.6570039673140655
+ }
+}

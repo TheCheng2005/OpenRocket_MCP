@@ -186,6 +186,17 @@ public final class Motors {
 			}
 		}
 		List<ThrustCurveMotor> matches = exactMatches.isEmpty() ? looseMatches : exactMatches;
+		// "CTI L1395", "AeroTech K828FJ": the maker (or its usual abbreviation) in front of the designation.
+		int space = r.indexOf(' ');
+		if (matches.isEmpty() && manufacturer == null && space > 0) {
+			try {
+				return find(r.substring(space + 1), r.substring(0, space));
+			} catch (ToolException e) {
+				if (e.getMessage().contains("ambiguous")) {
+					throw e;
+				}
+			}
+		}
 		if (matches.isEmpty()) {
 			throw new ToolException("No motor matches '" + ref + "'" + (manufacturer == null ? "" : " from " + manufacturer)
 					+ ". Use search_motors, or import_motor_file / create_custom_motor for engines not in the database.");

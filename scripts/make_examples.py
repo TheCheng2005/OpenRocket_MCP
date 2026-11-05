@@ -71,8 +71,10 @@ def main():
             if f.startswith("view-") and f.endswith(".png"):
                 with open(os.path.join(IMG, f), "rb") as fh:
                     keep[f] = fh.read()
-        shutil.rmtree(IMG)
-    os.makedirs(IMG)
+        for f in os.listdir(IMG):  # this page's files only: sub-folders belong to other examples (ndrt-2020/)
+            if os.path.isfile(os.path.join(IMG, f)):
+                os.remove(os.path.join(IMG, f))
+    os.makedirs(IMG, exist_ok=True)
     for f, b in keep.items():
         with open(os.path.join(IMG, f), "wb") as fh:
             fh.write(b)
@@ -93,6 +95,9 @@ def main():
     w("Units follow the team setting (here metric with imperial in brackets). In Claude Desktop the plots and drawings")
     w("appear right in the chat, and long runs (optimizers, Monte Carlo) show their progress and can be stopped. Not sure what")
     w("to ask? Ask Claude what it can do: it also offers related things as you work.")
+    w()
+    w("The Maple 10K is a made-up rocket. For a real one, checked against the log of its flight, see the")
+    w("[worked example](WORKED_EXAMPLE.md).")
     w()
     w("**Steps:** [Design](#design) · [Recovery](#recovery) · [Flight and rules](#flight-and-rules) ·")
     w("[Design studies](#design-studies) · [Structures and CFD](#structures-and-cfd) · [Build](#build) · [Reviews](#reviews) ·")

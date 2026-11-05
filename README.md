@@ -28,6 +28,12 @@ Claude: A 36 in chute lands the 2.84 lb section at 19.9 ft/s. The drogue opens a
 [**Examples**](docs/EXAMPLES.md) follows one 10,000 ft rocket from a blank page to launch day: the prompts a team types,
 the answers, and the plots. Everything on that page is real output.
 
+[**Worked example: a real flight**](docs/WORKED_EXAMPLE.md) rebuilds the Notre Dame Rocket Team's 2020 L1395 rocket
+from its published dimensions and weigh-in, runs the checks a team does before launch day in the day's real weather,
+and compares the simulation with the altimeter and accelerometer log of its flight. Stock OpenRocket came out 9% high;
+the accelerometer shows why (the motor delivered about 9% less than its curve, and drag was close), and with that the
+simulation follows the measured climb to within 5 m. A pattern to follow for your own rocket.
+
 Say *"show us the rocket"* and an interactive view opens right in the chat: turn the rocket in 3-D, cut it open or pull
 it apart, click a part to see and change it, scrub through the flight and watch CG and CP move, fly it like the
 flight video (chase camera, flame and smoke, the parachutes opening, a dropped booster on its own camera) and render

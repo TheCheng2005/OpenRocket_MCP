@@ -119,8 +119,9 @@ public final class Avionics {
 		coupler.setName("Av-bay coupler");
 		coupler.setOuterRadiusAutomatic(true);
 		coupler.setLength(lc);
-		coupler.setThickness(Math.min(wall, ri * 0.1));
 		couplerParent.addChild(coupler);
+		// After attaching: the automatic outer radius is only known then, and OpenRocket clamps the wall to it.
+		coupler.setThickness(Math.min(wall, ri * 0.1));
 		coupler.setMaterial(((ExternalComponent) upper).getMaterial());
 		if (s.switchBand() > 0) {
 			at(coupler, AxialMethod.MIDDLE, 0);

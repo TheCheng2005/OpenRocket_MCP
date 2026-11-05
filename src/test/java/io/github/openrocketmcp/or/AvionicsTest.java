@@ -103,6 +103,8 @@ class AvionicsTest {
 				coupler = t;
 			}
 		}
+		assertTrue(coupler.getThickness() > 0.001 && coupler.getComponentMass() > 0.05,
+				"the coupler has a wall and weighs something: " + coupler.getThickness() + " m, " + coupler.getComponentMass() + " kg");
 		double bayTop = coupler.toAbsolute(Coordinate.NUL)[0].x, bayBottom = bayTop + coupler.getLength();
 		Parachute main = Components.find(rocket, "Main", Parachute.class, "chute");
 		Parachute drogue = Components.find(rocket, "Drogue", Parachute.class, "chute");

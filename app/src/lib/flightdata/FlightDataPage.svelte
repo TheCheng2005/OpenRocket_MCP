@@ -184,20 +184,45 @@
             </tbody>
           </table>
           <div class="fit">
-            {#if log.dragFactorFit}
+            {#if log.dragFactorFit && log.accelerometer?.thrustFactor}
+              From the apogee alone, <b>drag × {num(log.dragFactorFit, 3)}</b>; the accelerometer below separates the
+              motor from the drag.
+            {:else if log.dragFactorFit}
               <b>Drag × {num(log.dragFactorFit, 3)}</b> reproduces the measured apogee.
               {log.calibration?.use ?? ""}
             {:else}
               {log.calibration?.dragFactor ?? ""}
             {/if}
           </div>
+          {#if log.accelerometer?.thrustFactor}
+            {@const ac = log.accelerometer}
+            <div class="accel">
+              <b>From the accelerometer</b>
+              <table class="grid">
+                <tbody>
+                  {#if ac.burnoutVelocity}
+                    <tr><td>Burnout speed</td><td class="n">{ac.burnoutVelocity.measured}</td><td class="n">{ac.burnoutVelocity.simulated} simulated</td></tr>
+                  {/if}
+                  <tr><td>Thrust</td><td colspan="2">{ac.thrustFactor}</td></tr>
+                  <tr><td>Drag</td><td colspan="2">{ac.dragFactor}</td></tr>
+                  <tr><td>Coast drag</td><td colspan="2">{ac.coastDrag}</td></tr>
+                  {#if ac.apogeeDifference}<tr><td>Apogee difference</td><td colspan="2">{ac.apogeeDifference}</td></tr>{/if}
+                  {#each Object.entries(ac.climbRmsError ?? {}) as [k, v] (k)}
+                    <tr><td>Climb error, {k}</td><td colspan="2">{v} RMS</td></tr>
+                  {/each}
+                </tbody>
+              </table>
+              {#if ac.reading}<p>{ac.reading} <span class="muted">{ac.caveats ?? ""}</span></p>{/if}
+            </div>
+          {/if}
           <ul class="notes">
             <li>Simulation: {log.simulation}</li>
             {#each log.notes ?? [] as n}<li>{n}</li>{/each}
           </ul>
         {:else}
           <p class="muted">Load the altimeter's CSV after a flight. The simulation is flown again in the day's conditions,
-            and the drag that matches the measured apogee is fitted, for the next prediction.</p>
+            and the drag that matches the measured apogee is fitted, for the next prediction. With an accelerometer
+            column in the log, thrust and drag are fitted separately.</p>
         {/if}
       </div>
     </Panel>
@@ -365,5 +390,15 @@
   }
   p.muted {
     margin: 0;
+  }
+  .accel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .accel p {
+    margin: 0;
+    line-height: 1.5;
   }
 </style>

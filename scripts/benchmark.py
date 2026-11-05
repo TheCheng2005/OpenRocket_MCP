@@ -9,6 +9,7 @@ each answer against engineering expectations, and times every call.
 Exit code 0 when every check passes.
 """
 import json
+import re
 import os
 import subprocess
 import sys
@@ -443,8 +444,9 @@ def scenario_post_flight(s, d, tmp):
     cmp = s.call("compare_flight", {"designId": d, "path": lp, "plotPath": os.path.join(tmp, "overlay.svg")})
     dt = time.time() - t0
     fit = cmp["calibration"]["dragFactor"]
-    check(sc, "flight-log comparison finds the model 8% high on apogee", "-8" in cmp["comparison"][0]["difference"] or
-          "-7.9" in cmp["comparison"][0]["difference"], cmp["comparison"][0]["difference"])
+    diff = cmp["comparison"][0]["difference"]  # e.g. "measured 8.01% lower"
+    pct = float(re.search(r"([\d.]+)%", diff).group(1)) if "%" in diff else float("nan")
+    check(sc, "flight-log comparison finds the model 8% high on apogee", "lower" in diff and 7.5 <= pct <= 8.5, diff)
     check(sc, "drag calibration factor > 1 for an under-performing flight", fit[0].isdigit() and float(fit.split()[0]) > 1.05, fit)
     check(sc, "overlay plot written", os.path.exists(os.path.join(tmp, "overlay.svg")))
     check(sc, "calibration < 15 s", dt < 15, f"{dt:.1f} s")

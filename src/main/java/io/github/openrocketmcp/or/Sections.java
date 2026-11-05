@@ -10,6 +10,9 @@ import java.util.Set;
 import info.openrocket.core.document.Simulation;
 import info.openrocket.core.motor.MotorConfiguration;
 import info.openrocket.core.rocketcomponent.AxialStage;
+import info.openrocket.core.rocketcomponent.BodyTube;
+import info.openrocket.core.rocketcomponent.Bulkhead;
+import info.openrocket.core.rocketcomponent.CenteringRing;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.InnerTube;
 import info.openrocket.core.rocketcomponent.MassObject;
@@ -21,9 +24,12 @@ import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.ShockCord;
 import info.openrocket.core.rocketcomponent.SymmetricComponent;
 import info.openrocket.core.rocketcomponent.ThicknessRingComponent;
+import info.openrocket.core.rocketcomponent.Transition;
+import info.openrocket.core.rocketcomponent.TubeCoupler;
 import info.openrocket.core.simulation.FlightDataBranch;
 import info.openrocket.core.simulation.FlightDataType;
 import info.openrocket.core.simulation.FlightEvent;
+import info.openrocket.core.util.Coordinate;
 import io.github.openrocketmcp.calc.Atmosphere;
 import io.github.openrocketmcp.calc.Charges;
 import io.github.openrocketmcp.calc.Parachutes;
@@ -159,16 +165,17 @@ public final class Sections {
 	// ------------------------------------------------------------------------------------------- bays
 
 	/** Packed volume of recovery items and the free interior volume of a piece. */
-	public record Bay(RocketComponent piece, double available, double packed, List<String> items) {
+	public record Bay(RocketComponent piece, double available, double packed, List<String> items, Cavity cavity) {
 		public double fill() {
 			return available > 0 ? packed / available : Double.NaN;
 		}
 	}
 
 	public static Bay bay(RocketComponent piece) {
+		Cavity cav = piece instanceof BodyTube bt ? cavity(bt) : null;
 		double interior;
 		try {
-			interior = Components.interiorVolume(piece, Double.NaN);
+			interior = cav != null ? Components.interiorVolume(piece, cav.length()) : Components.interiorVolume(piece, Double.NaN);
 		} catch (RuntimeException e) {
 			interior = Double.NaN;
 		}
@@ -183,10 +190,103 @@ public final class Sections {
 				packed += v;
 				items.add(c.getName() + " " + Units.fmt(v, Dim.VOLUME));
 			} else if (c.getParent() == piece || !(c.getParent() instanceof MassObject)) {
-				occupied += v;
+				occupied += cav == null ? v : v * cav.overlap(c);
 			}
 		}
-		return new Bay(piece, interior - occupied, packed, items);
+		return new Bay(piece, interior - occupied, packed, items, cav);
+	}
+
+	/**
+	 * The part of a body tube an ejection charge pressurises: from the closure above the recovery gear to the closure
+	 * below it. Closures are bulkheads, centering rings and the motor mount inside the tube, couplers reaching into it
+	 * (an avionics bay) and the shoulders of a nose cone or transition next to it. {@code top} and {@code bottom} name
+	 * them (null = the tube's own end).
+	 */
+	public record Cavity(double start, double end, String top, String bottom) {
+		public double length() {
+			return Math.max(0, end - start);
+		}
+
+		/** Fraction of a component's length inside the cavity. */
+		double overlap(RocketComponent c) {
+			double x0 = abs(c), x1 = x0 + c.getLength();
+			if (c.getLength() <= 0) {
+				return x0 >= start && x0 <= end ? 1 : 0;
+			}
+			return Math.max(0, Math.min(end, x1) - Math.max(start, x0)) / c.getLength();
+		}
+	}
+
+	static double abs(RocketComponent c) {
+		return c.toAbsolute(Coordinate.NUL)[0].x;
+	}
+
+	public static Cavity cavity(BodyTube tube) {
+		double x0 = abs(tube), x1 = x0 + tube.getLength();
+		List<Object[]> walls = new ArrayList<>(); // {start, end, name}
+		RocketComponent stage = tube.getStage();
+		for (RocketComponent c : stage == null ? tube.getRoot() : stage) {
+			if (c == tube) {
+				continue;
+			}
+			double cx = abs(c);
+			if (c instanceof Transition t && t.getParent() == stage) { // nose cones too
+				double end = cx + t.getLength();
+				if (t.getAftShoulderLength() > 0) {
+					walls.add(new Object[] { end, end + t.getAftShoulderLength(), t.getName() + " shoulder" });
+				}
+				if (t.getForeShoulderLength() > 0) {
+					walls.add(new Object[] { cx - t.getForeShoulderLength(), cx, t.getName() + " shoulder" });
+				}
+			} else if (c instanceof TubeCoupler) {
+				walls.add(new Object[] { cx, cx + c.getLength(), c.getName() });
+			} else if (pieceOf(c) == tube && (c instanceof Bulkhead || c instanceof CenteringRing
+					|| (c instanceof InnerTube it && it.isMotorMount()))) {
+				walls.add(new Object[] { cx, cx + c.getLength(), c.getName() });
+			}
+		}
+		// The recovery gear sits in the cavity; without any, the longest open stretch is the bay.
+		double ref = Double.NaN;
+		for (RocketComponent c : tube) {
+			if (c instanceof RecoveryDevice) {
+				ref = abs(c) + c.getLength() / 2;
+				break;
+			}
+		}
+		Cavity best = null;
+		List<Double> cuts = new ArrayList<>(List.of(x0, x1));
+		for (Object[] w : walls) {
+			cuts.add(Math.max(x0, Math.min(x1, (double) w[0])));
+			cuts.add(Math.max(x0, Math.min(x1, (double) w[1])));
+		}
+		if (!Double.isNaN(ref)) {
+			double top = x0, bot = x1;
+			String topName = null, botName = null;
+			for (Object[] w : walls) {
+				double ws = Math.max(x0, (double) w[0]), we = Math.min(x1, (double) w[1]);
+				if (we <= ws) {
+					continue;
+				}
+				if (we <= ref + 1e-9 && we > top) {
+					top = we;
+					topName = (String) w[2];
+				} else if (ws >= ref - 1e-9 && ws < bot) {
+					bot = ws;
+					botName = (String) w[2];
+				}
+			}
+			best = new Cavity(top, bot, topName, botName);
+		} else {
+			cuts.sort(Double::compare);
+			for (int i = 1; i < cuts.size(); i++) {
+				double a = cuts.get(i - 1), b = cuts.get(i), mid = (a + b) / 2;
+				boolean blocked = walls.stream().anyMatch(w -> mid > (double) w[0] && mid < (double) w[1]);
+				if (!blocked && (best == null || b - a > best.length())) {
+					best = new Cavity(a, b, null, null);
+				}
+			}
+		}
+		return best;
 	}
 
 	/** Solid volume a component takes inside a tube. */
@@ -224,11 +324,14 @@ public final class Sections {
 			}
 			double stageMass = ss.stream().mapToDouble(Section::mass).sum();
 			FlightDataBranch b = branchOf(sim, stage);
-			double v = Double.NaN;
+			// Landing energy rules (IREC / Spaceport America Cup, NASA Student Launch) use the descent rate: the vertical
+			// speed at touchdown. The total speed also carries the wind's drift, shown beside it.
+			double v = Double.NaN, vTotal = Double.NaN;
 			if (b != null) {
 				FlightEvent gh = b.getFirstEvent(FlightEvent.Type.GROUND_HIT);
 				if (gh != null) {
-					v = Math.abs(Sims.at(b, FlightDataType.TYPE_VELOCITY_TOTAL, gh.getTime()));
+					v = Math.abs(Sims.at(b, FlightDataType.TYPE_VELOCITY_Z, gh.getTime()));
+					vTotal = Math.abs(Sims.at(b, FlightDataType.TYPE_VELOCITY_TOTAL, gh.getTime()));
 				}
 			}
 			// Contingency: only the first-opening device(s) of the stage (e.g. main fails, drogue only).
@@ -241,7 +344,8 @@ public final class Sections {
 				m.put("landingMass", Units.fmt(s.mass(), Dim.MASS));
 				if (!Double.isNaN(v)) {
 					double ke = Parachutes.kineticEnergy(s.mass(), v);
-					m.put("landingVelocity", Units.fmt(v, Dim.VELOCITY) + " (simulated)");
+					m.put("landingVelocity", Units.fmt(v, Dim.VELOCITY) + " descent rate (simulated"
+							+ (vTotal > v * 1.05 ? "; " + Units.fmt(vTotal, Dim.VELOCITY) + " with the wind's drift)" : ")"));
 					m.put("landingEnergy", Units.fmt(ke, Dim.ENERGY) + (ke <= limit ? " (within " : " (EXCEEDS ")
 							+ Units.fmt(limit, Dim.ENERGY) + ")");
 				}
@@ -259,6 +363,12 @@ public final class Sections {
 					bm.put("bay", p.getName());
 					bm.put("items", bay.items());
 					bm.put("packedVolume", Units.fmt(bay.packed(), Dim.VOLUME));
+					if (bay.cavity() != null) {
+						Cavity cv = bay.cavity();
+						bm.put("bayLength", Units.fmt(cv.length(), Dim.LENGTH) + " pressurised, from "
+								+ (cv.top() == null ? "the tube's top" : cv.top()) + " to "
+								+ (cv.bottom() == null ? "the tube's end" : cv.bottom()));
+					}
 					bm.put("freeVolume", Units.fmt(bay.available(), Dim.VOLUME));
 					double f = bay.fill();
 					bm.put("fill", Double.isNaN(f) ? "n/a" : Units.num(100 * f) + "%" + (f > 1 ? " (DOES NOT FIT)" : f > 0.8 ? " (tight)" : ""));
@@ -278,8 +388,8 @@ public final class Sections {
 		out.put("notes", List.of(
 				"Section masses are the pieces' components plus burnt-out motor cases; recovery gear is counted in the piece "
 						+ "it is packed in. A weighed (overridden) stage mass is shared in proportion to computed masses.",
-				"Landing velocity is the simulated ground-hit speed of the stage's branch; tethered sections land at about the "
-						+ "same speed. Bay volumes use OpenRocket's packed dimensions of each parachute / shock cord.",
+				"Landing velocity is the simulated descent rate at touchdown of the stage's branch (vertical, as landing energy "
+						+ "rules use it); tethered sections land at about the same speed. Bay volumes use OpenRocket's packed dimensions of each parachute / shock cord.",
 				"Check the joints: an avionics bay glued to one tube belongs to that section; name separating pieces with joints."));
 		return out;
 	}

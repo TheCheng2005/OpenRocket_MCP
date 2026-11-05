@@ -374,8 +374,13 @@ from the model by hosts that show views). Bold marks the main job of each tool.
   while that stack flies, and check_requirements checks each stack's CP over its own part of the flight. A dropped
   booster, and any stack without a table, fly on OpenRocket's model. `show` lists the tables; `clear` with `stage`
   removes one. save_design keeps them all next to the .ork.
-- `compare_flight`: an **altimeter log against the simulation**. It compares apogee, time to apogee, and drogue and main
-  descent rates, draws an overlay plot, and finds the drag factor that reproduces your flight.
+- `compare_flight`: an **altimeter log against the simulation**. It compares apogee, time to apogee (from lift-off to
+  the top of a parabola through the samples around apogee), and drogue and main descent rates (the main's below 35% of
+  its deployment altitude, past the canopy opening), draws an overlay plot, and finds the drag factor that reproduces
+  your flight. When the log has an **accelerometer** column, it integrates it for the burnout speed and reads the coast
+  drag, fits thrust and drag separately, splits the apogee difference between them and gives each version's RMS error
+  over the climb, with plots of the boost and the climb. An apogee alone cannot tell a weak motor from extra drag; see
+  the [worked example](WORKED_EXAMPLE.md).
 
 ### Launch day
 

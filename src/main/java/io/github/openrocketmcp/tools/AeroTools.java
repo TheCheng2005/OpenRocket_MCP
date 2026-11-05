@@ -85,8 +85,12 @@ public final class AeroTools {
 		s.tool(new ToolDef("compare_flight", "Compare an altimeter log with the simulation",
 				"Read an altimeter CSV (time, altitude; units from the header or altitudeUnit) and compare apogee, time to "
 						+ "apogee and descent rates under drogue and main with the simulation, then fit the drag multiplier that "
-						+ "reproduces the measured apogee (model calibration for the next flight). Optionally writes an overlay plot. "
-						+ "Set the day's conditions with the wind / launch overrides.",
+						+ "reproduces the measured apogee (model calibration for the next flight). With an accelerometer column in "
+						+ "the log (axial acceleration, own time column allowed), it also measures the burnout speed and the coast "
+						+ "drag, fits thrust and drag separately (an apogee alone cannot tell a weak motor from extra drag) and "
+						+ "reports how well each version follows the measured climb. Optionally writes overlay plots (altitude, "
+						+ "and with an accelerometer the boost and the climb). Set the day's conditions with weather_forecast / "
+						+ "wind_profile or the overrides.",
 				SimTools.overrides(SimTools.simSelect(Schema.object()))
 						.str("path", "Altimeter CSV path.", false).str("csv", "CSV text (instead of path).", false)
 						.str("altitudeUnit", "ft or m when the header does not say (default: header, else ft).", false)

@@ -139,6 +139,16 @@ public final class ClaimCheck {
 		out.put("actual", f.shown());
 		if (f.text() != null) {
 			boolean same = normalize(f.text()).contains(normalize(value)) || normalize(value).contains(normalize(f.text()));
+			if (!same && key.equals("motor")) {
+				// "CTI L1395" for the database's "4895L1395-P": the same motor written the way teams say it.
+				try {
+					String des = Motors.find(value, null).getDesignation();
+					same = java.util.Arrays.stream(f.text().split(",\\s*"))
+							.anyMatch(m -> m.replaceFirst(" x\\d+$", "").equalsIgnoreCase(des));
+				} catch (RuntimeException e) {
+					// not a motor the database knows: the text comparison stands
+				}
+			}
 			out.put("status", same ? "MATCH" : "MISMATCH");
 			return out;
 		}

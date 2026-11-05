@@ -6,6 +6,17 @@ export interface LogResult {
   valuesSI?: { quantity: string; dim: string; measured: number | null; simulated: number | null }[];
   calibration?: { dragFactor?: string; use?: string };
   dragFactorFit?: number | null;
+  /** When the log has an accelerometer: the boost and coast measured, thrust and drag fitted separately. */
+  accelerometer?: {
+    burnoutVelocity?: { measured: string; simulated: string; difference: string };
+    coastDrag?: string;
+    thrustFactor?: string;
+    dragFactor?: string;
+    apogeeDifference?: string;
+    climbRmsError?: Record<string, string>;
+    reading?: string;
+    caveats?: string;
+  };
   notes?: string[];
   series?: { time: number[]; simulated: (number | null)[]; measured: (number | null)[] };
   designId: string;
